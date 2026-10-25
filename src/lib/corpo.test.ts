@@ -116,3 +116,85 @@ describe('lerCorpoJson: limites e casos de borda', () => {
     expect(await lerCorpoJson(req('null'))).toBeNull();
   });
 });
+
+// Testes da etapa 06-T03-testes (qa-automacao): casos de borda de C-17 (413) que a construção não cobria.
+describe('lerCorpoJson: fluxo em pedaços, cabeçalho inválido e mensagens (C-17)', () => {
+  const doFluxo = (pedacos: Uint8Array[], aoCancelar?: () => void) => {
+    let i = 0;
+    const fluxo = new ReadableStream<Uint8Array>({
+      pull(c) {
+        const p = pedacos[i++];
+        if (p) c.enqueue(p);
+        else c.close();
+      },
+      cancel() {
+        aoCancelar?.();
+      },
+    });
+    return new Request('http://127.0.0.1:3101/api/x', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: fluxo,
+      duplex: 'half',
+    } as RequestInit);
+  };
+  const emTres = (b: Uint8Array) => [b.slice(0, 33), b.slice(33, 66), b.slice(66)];
+  const bytes = (s: string) => new TextEncoder().encode(s);
+
+  it('junta os pedaços na ordem, mesmo com caractere de dois bytes partido entre eles', async () => {
+    const b = bytes('{"t":"ação"}');
+    const corte = b.indexOf(0xc3) + 1; // meio do "ã"
+    expect(await lerCorpoJson(doFluxo([b.slice(0, 3), b.slice(3, corte), b.slice(corte)]))).toEqual({ t: 'ação' });
+  });
+
+  it('em vários pedaços, a soma exata do limite passa e um byte a mais é 413', async () => {
+    const limite = 100;
+    const noLimite = bytes(`{"t":"${'a'.repeat(limite - 8)}"}`);
+    expect(noLimite.byteLength).toBe(limite);
+    expect(await lerCorpoJson(doFluxo(emTres(noLimite)), limite)).toEqual({ t: 'a'.repeat(limite - 8) });
+    const umAMais = bytes(`{"t":"${'a'.repeat(limite - 7)}"}`);
+    await expect(lerCorpoJson(doFluxo(emTres(umAMais)), limite)).rejects.toMatchObject({ codigo: 'corpo_grande' });
+  });
+
+  it('ao passar do limite, cancela o fluxo do corpo', async () => {
+    let cancelado = 0;
+    const r = doFluxo(emTres(bytes(`{"t":"${'a'.repeat(200)}"}`)), () => (cancelado += 1));
+    await expect(lerCorpoJson(r, 100)).rejects.toMatchObject({ codigo: 'corpo_grande' });
+    expect(cancelado).toBe(1);
+  });
+
+  it.each(['abc', '-1', ''])('Content-Length inválido (%j) não decide nada: vale a contagem dos bytes', async (cl) => {
+    expect(await lerCorpoJson(req('{"a":1}', { 'content-length': cl }))).toEqual({ a: 1 });
+    await expect(
+      lerCorpoJson(req(JSON.stringify({ t: 'a'.repeat(200) }), { 'content-length': cl }), 100),
+    ).rejects.toMatchObject({ codigo: 'corpo_grande' });
+  });
+
+  it.each(['   ', 'undefined', "{'a':1}", '{"a":1}{"b":2}', '{"a":1,}', '\u0000'])(
+    'texto que não é um JSON só (%j) vira entrada_invalida',
+    async (corpo) => {
+      await expect(lerCorpoJson(req(corpo))).rejects.toMatchObject({ codigo: 'entrada_invalida' });
+    },
+  );
+
+  it('a mensagem de 413 diz o limite usado: em bytes abaixo de 1 KB e em KB com milhar pt-BR', async () => {
+    const pequeno = await lerCorpoJson(req(JSON.stringify({ t: 'a'.repeat(200) })), 100).catch((e: unknown) => e);
+    expect(mapearErro(pequeno)).toEqual({
+      status: 413,
+      corpo: { erro: 'corpo_grande', mensagem: 'O conteúdo enviado passa do limite de 100 bytes.' },
+    });
+    const grande = await lerCorpoJson(req('{}', { 'content-length': String(3 * 1024 * 1024) }), 2 * 1024 * 1024).catch(
+      (e: unknown) => e,
+    );
+    expect(mapearErro(grande).corpo.mensagem).toBe('O conteúdo enviado passa do limite de 2.048 KB.');
+  });
+
+  it('o erro de 413 e o de JSON inválido são ErroDominio, para o mapeador nunca cair no 500', async () => {
+    const e413 = await lerCorpoJson(req(JSON.stringify({ t: 'a'.repeat(200) })), 100).catch((e: unknown) => e);
+    const e400 = await lerCorpoJson(req('{ruim')).catch((e: unknown) => e);
+    expect(e413).toBeInstanceOf(ErroDominio);
+    expect(e400).toBeInstanceOf(ErroDominio);
+    expect(mapearErro(e413).status).toBe(413);
+    expect(mapearErro(e400).status).toBe(400);
+  });
+});

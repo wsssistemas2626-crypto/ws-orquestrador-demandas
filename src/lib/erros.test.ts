@@ -187,3 +187,125 @@ describe('deZod: mensagens pt-BR sem o valor recebido (C-20, RNF-16)', () => {
     expect(e.mensagem).toBe('Corrija os campos abaixo para continuar.');
   });
 });
+
+// Testes da etapa 06-T03-testes (qa-automacao): casos de borda de C-20 e da RNF-16 que a construção não cobria.
+describe('mapearErro: casos de borda (C-20)', () => {
+  const MENSAGEM_500 = 'Não foi possível concluir agora. Nada foi alterado. Tente de novo em instantes.';
+  const CODIGOS = Object.keys(STATUS_DO_CODIGO) as (keyof typeof STATUS_DO_CODIGO)[];
+
+  it.each(CODIGOS)('ErroDominio %s sai com o status da tabela e o próprio código no corpo', (codigo) => {
+    expect(mapearErro(new ErroDominio(codigo, 'Mensagem fictícia.'))).toEqual({
+      status: STATUS_DO_CODIGO[codigo],
+      corpo: { erro: codigo, mensagem: 'Mensagem fictícia.' },
+    });
+  });
+
+  it('sem extras, o corpo tem só erro e mensagem; com os três, nessa ordem e sem chave a mais', () => {
+    expect(Object.keys(mapearErro(new ErroDominio('nao_encontrado', 'Demanda não encontrada.')).corpo)).toEqual([
+      'erro',
+      'mensagem',
+    ]);
+    const completo = new ErroDominio('entrada_invalida', 'Corrija.', {
+      campos: [{ campo: 'titulo', mensagem: 'Campo obrigatório.' }],
+      faltando: ['parecer_risco'],
+      erros: ['Falta a ESP.'],
+    });
+    expect(Object.keys(mapearErro(completo).corpo)).toEqual(['erro', 'mensagem', 'campos', 'faltando', 'erros']);
+  });
+
+  it('objeto que imita ErroDominio (codigo, mensagem, extras) sem ser instância vira 500 genérico', () => {
+    const imitacoes = [
+      Object.assign(new Error(SENTINELAS.texto), {
+        codigo: 'conflito',
+        mensagem: SENTINELAS.email,
+        extras: { campos: [{ campo: 'x', mensagem: SENTINELAS.nome }] },
+      }),
+      { codigo: 'conflito', mensagem: SENTINELAS.email, name: 'ErroDominio' },
+    ];
+    for (const v of imitacoes) {
+      const m = mapearErro(v);
+      expect(m).toEqual({ status: 500, corpo: { erro: 'erro_interno', mensagem: MENSAGEM_500 } });
+      expect(contemSentinela(JSON.stringify(m))).toBe(false);
+    }
+  });
+
+  it('ErroDominio só na causa de outro erro não é desembrulhado: vira 500 genérico', () => {
+    const e = new Error(`falhou com ${SENTINELAS.texto}`, { cause: new ErroDominio('conflito', 'Já existe.') });
+    const m = mapearErro(e);
+    expect(m).toEqual({ status: 500, corpo: { erro: 'erro_interno', mensagem: MENSAGEM_500 } });
+  });
+});
+
+describe('deZod: casos de borda (C-20, C-17 Zod sem input, RNF-16)', () => {
+  const camposDe = (s: z.ZodType, entrada: unknown, reportInput = false) => {
+    const r = s.safeParse(entrada, { reportInput });
+    expect(r.success).toBe(false);
+    return { erro: r.error!, m: mapearErro(deZod(r.error!)) };
+  };
+
+  it('com reportInput ligado, a issue carrega o valor, mas ele não chega ao corpo (deZod nem ZodError cru)', () => {
+    const s = z.object({ titulo: z.string(), quantidade: z.number(), email: z.email() });
+    const { erro, m } = camposDe(s, { quantidade: SENTINELAS.texto, email: SENTINELAS.senha }, true);
+    // Sem isso o teste não provaria nada: a issue de fato leva o valor recebido.
+    expect(contemSentinela(JSON.stringify(erro.issues))).toBe(true);
+    expect(m.status).toBe(400);
+    expect(m.corpo.campos).toEqual([
+      { campo: 'titulo', mensagem: 'Campo obrigatório.' },
+      { campo: 'quantidade', mensagem: 'Valor inválido.' },
+      { campo: 'email', mensagem: 'Valor inválido.' },
+    ]);
+    expect(contemSentinela(JSON.stringify(m))).toBe(false);
+    const cru = mapearErro(erro);
+    expect(cru.status).toBe(500);
+    expect(contemSentinela(JSON.stringify(cru))).toBe(false);
+  });
+
+  it('união sem alternativa válida não ecoa o valor nem as issues internas', () => {
+    const s = z.object({ origem: z.union([z.literal('painel'), z.email()]) });
+    const { erro, m } = camposDe(s, { origem: SENTINELAS.texto }, true);
+    expect(contemSentinela(JSON.stringify(erro.issues))).toBe(true);
+    expect(m.corpo.campos).toEqual([{ campo: 'origem', mensagem: 'Valor inválido.' }]);
+    expect(contemSentinela(JSON.stringify(m))).toBe(false);
+  });
+
+  it('texto abaixo de mínimo maior que 1 e número acima do máximo dizem Valor fora do limite', () => {
+    const s = z.object({ codigo: z.string().min(3), dias: z.number().int().max(365) });
+    expect(camposDe(s, { codigo: 'ab', dias: 366 }).m.corpo.campos).toEqual([
+      { campo: 'codigo', mensagem: 'Valor fora do limite.' },
+      { campo: 'dias', mensagem: 'Valor fora do limite.' },
+    ]);
+  });
+
+  it('mensagem de superRefine escrita por nós passa, com o caminho dado na issue', () => {
+    const s = z.object({ opcao: z.string() }).superRefine((v, ctx) => {
+      if (v.opcao !== 'A' && v.opcao !== 'B') {
+        ctx.addIssue({ code: 'custom', path: ['opcao'], message: 'Use só A ou B.' });
+      }
+    });
+    const { m } = camposDe(s, { opcao: SENTINELAS.texto });
+    expect(m.corpo.campos).toEqual([{ campo: 'opcao', mensagem: 'Use só A ou B.' }]);
+    expect(contemSentinela(JSON.stringify(m))).toBe(false);
+  });
+
+  it('nenhuma mensagem devolvida é a mensagem padrão do Zod em inglês', () => {
+    const s = z.object({
+      a: z.string(),
+      b: z.number(),
+      c: z.enum(['x', 'y']),
+      d: z.uuid(),
+      e: z.boolean(),
+      f: z.array(z.string()).min(1),
+    });
+    const { erro, m } = camposDe(s, { b: 'x', c: 'z', d: 'nao-e-uuid', e: 'sim', f: [] });
+    const doZod = erro.issues.map((i) => i.message);
+    for (const c of m.corpo.campos ?? []) expect(doZod).not.toContain(c.mensagem);
+    expect(m.corpo.campos?.map((c) => c.mensagem)).toEqual([
+      'Campo obrigatório.',
+      'Valor inválido.',
+      'Valor inválido.',
+      'Valor inválido.',
+      'Valor inválido.',
+      'Informe ao menos um item.',
+    ]);
+  });
+});
