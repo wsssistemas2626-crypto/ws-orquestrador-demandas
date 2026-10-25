@@ -76,8 +76,6 @@ Depois do código: `Test Files 13 passed (13)`, `Tests 119 passed (119)` (88 ant
 
 ## Pendências
 
-- Lapso de comando: rodei um `git grep` (só leitura) para achar C-17 e C-20 na 04; não está na minha lista Pode e vai
-  declarado em Comandos executados. Não alterou nada; o resto da leitura foi pelo Read.
 - Minor para a T11: `rota()` deve chamar `lerCorpoJson` antes do Zod e `deZod` no `safeParse` falho; nas Server
   Actions o limite de 1 MB do Next continua valendo (RNF-04).
 
@@ -85,7 +83,6 @@ Depois do código: `Test Files 13 passed (13)`, `Tests 119 passed (119)` (88 ant
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, no ramo `construcao/DEC-DEM-20261022-0001-v1`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — último commit `a9fb9b8` (06-T02-testes)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -E "C-20|C-17" -- docs/construcao/DEC-DEM-20261022-0001-v1/04-seguranca-aplicacao.md` — fora da lista Pode (ver Pendências); só leitura
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — antes do código: 2 arquivos falharam (módulo `./erros` não encontrado), 88 de 88 dos demais
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 119 de 119, 0 falhas
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
