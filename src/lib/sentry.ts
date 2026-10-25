@@ -19,10 +19,22 @@ export function iniciarSentry(op: OpcoesSentry): void {
   });
 }
 
-// Só as linhas de quadro da pilha ("    at ..."): a mensagem, mesmo com várias linhas, fica de fora.
+// Só os quadros da pilha ("    at ..."), nunca a mensagem. O V8 começa o `stack` com o texto de
+// `Error.prototype.toString` (nome e mensagem, que pode ter várias linhas, inclusive linhas que começam por "    at ").
+// O cabeçalho sai pelo conteúdo conhecido, não pelo formato da linha. Se o `stack` não começar por ele (nome ou
+// mensagem trocados depois do primeiro acesso ao `stack`), não sai quadro nenhum: só o título.
 function quadrosDaPilha(e: unknown): string[] {
-  if (!(e instanceof Error) || typeof e.stack !== 'string') return [];
-  return e.stack.split('\n').filter((linha) => /^\s+at\s/.test(linha));
+  try {
+    if (!(e instanceof Error) || typeof e.stack !== 'string') return [];
+    const cabecalho = `${Error.prototype.toString.call(e)}\n`;
+    if (!e.stack.startsWith(cabecalho)) return [];
+    return e.stack
+      .slice(cabecalho.length)
+      .split('\n')
+      .filter((linha) => /^\s+at\s/.test(linha));
+  } catch {
+    return [];
+  }
 }
 
 export function capturarErro(e: unknown, contexto?: { evento: string }): void {
