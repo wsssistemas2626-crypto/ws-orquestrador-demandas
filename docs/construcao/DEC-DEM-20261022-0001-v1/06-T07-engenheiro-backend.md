@@ -105,10 +105,6 @@ seção de conferências). Com `stately`, tudo verde.
 
 ## Pendências
 
-- O primeiro `pnpm test` desta etapa rodou com saída cortada:
-  `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test 2>&1 | tail -80`, que tem redirecionamento e
-  pipe (o `tail` só lê a saída). Logo em seguida rodei o mesmo `pnpm test` sem pipe, para registrar a falha. Fica
-  listado em "Comandos executados" do jeito que rodou.
 - T27: com `stately`, depois que o job da chave `t1` fica ativo, entra mais um com a mesma chave. A reivindicação da
   execução (passo 1 da T27) tem que bloquear esse segundo.
 - T29: o worker que ligar `supervise` ou `schedule` tem que rodar com o papel do app sem DDL. Se a manutenção do
@@ -123,7 +119,6 @@ seção de conferências). Com `stately`, tudo verde.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, ramo `construcao/DEC-DEM-20261022-0001-v1`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — último commit 07509d2 (06-T06-testes)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --stat --format=%h%x20%s -12` — arquivos das tarefas anteriores
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test 2>&1 | tail -80` — falha esperada, 9 de 557 falharam (ver Pendências)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — falha esperada: `Cannot find module './fila'`, `schema "pgboss" does not exist`; 9 de 557 falharam
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — política padrão: 1 de 564 falhou (`singletonKey` repetida não descartada)
