@@ -7,6 +7,10 @@ import { novoBanco, type BancoDeTeste } from '../../../test/banco';
 import {
   aprovacao,
   AUTORES_ARTEFATO,
+  demanda,
+  especificacaoTecnica,
+  pacoteDecisao,
+  parecerRisco,
   LINHAS_SERVICO,
   NIVEIS_APROVACAO,
   NIVEIS_RISCO,
@@ -466,5 +470,232 @@ describe('índices das consultas críticas (EXPLAIN)', () => {
     const p = await plano(sql, valores);
     expect(p).toContain(`"Index Name":"${indice}"`);
     expect(p).not.toContain('"Node Type":"Seq Scan"');
+  });
+});
+
+// Etapa 06-T05-testes (qa-automacao). Cada describe abaixo usa demandas só suas (DEM-20261022-0301 a 0602), para não depender
+// do que os grupos acima gravaram nem da ordem.
+describe('RSK e DEC: as mesmas restrições de autoria e de versão da ESP (parecer 4 da 06-T05-tech-lead.md)', () => {
+  const D3 = 'DEM-20261022-0301';
+  beforeAll(async () => {
+    await inserir('demanda', demandaBase(D3));
+    await inserir('especificacao_tecnica', espBase(D3, 1));
+    await inserir('parecer_risco', rskBase(D3, 1));
+  });
+  const decD3 = (versao: number): Campos => ({
+    ...decBase(versao),
+    id: `DEC-${D3}-v${versao}`,
+    demanda_id: D3,
+    especificacao_id: `ESP-${D3}-v1`,
+    parecer_risco_id: `RSK-${D3}-v1`,
+  });
+
+  it.each([
+    ['parecer_risco', 'agente sem rascunho', { autor_tipo: 'agente', autor_id: 'risco', rascunho_agente: false }],
+    ['parecer_risco', 'pessoa com rascunho', { autor_tipo: 'pessoa', autor_id: 'u-ficticio', rascunho_agente: true }],
+    ['pacote_decisao', 'agente sem rascunho', { autor_tipo: 'agente', autor_id: 'consolidacao', rascunho_agente: false }],
+    ['pacote_decisao', 'pessoa com rascunho', { autor_tipo: 'pessoa', autor_id: 'u-ficticio', rascunho_agente: true }],
+  ])('%s: rascunho_agente acompanha o autor, %s é recusado (23514, C-11 no banco)', async (tabela, _caso, autoria) => {
+    const base = tabela === 'parecer_risco' ? rskBase(D3, 2) : decD3(1);
+    await expect(inserir(tabela, { ...base, ...autoria })).rejects.toMatchObject({ code: '23514', constraint: `${tabela}_rascunho_agente_check` });
+  });
+
+  it.each(['parecer_risco', 'pacote_decisao'])('%s: rascunho_agente é obrigatório (23502)', async (tabela) => {
+    const base = tabela === 'parecer_risco' ? rskBase(D3, 2) : decD3(1);
+    await expect(inserir(tabela, sem(base, 'rascunho_agente'))).rejects.toMatchObject({ code: '23502' });
+  });
+
+  it.each([
+    ['parecer_risco', 0],
+    ['parecer_risco', 10_000],
+    ['pacote_decisao', 0],
+    ['pacote_decisao', 10_000],
+  ])('%s: versão %i fora de 1..9999 é recusada (23514)', async (tabela, versao) => {
+    const base = tabela === 'parecer_risco' ? rskBase(D3, versao) : decD3(versao);
+    await expect(inserir(tabela, base)).rejects.toMatchObject({ code: '23514', constraint: `${tabela}_versao_check` });
+  });
+
+  it('agente com rascunho e pessoa sem rascunho entram nos dois artefatos, e v9999 é o último número aceito', async () => {
+    await inserir('parecer_risco', { ...rskBase(D3, 2), autor_tipo: 'pessoa', autor_id: 'u-ficticio', rascunho_agente: false });
+    await inserir('pacote_decisao', { ...decD3(1), autor_tipo: 'agente', autor_id: 'consolidacao', rascunho_agente: true });
+    await inserir('pacote_decisao', decD3(9999));
+    const r = await b.poolApp.query(`select id, rascunho_agente from pacote_decisao where demanda_id = $1 order by versao`, [D3]);
+    expect(r.rows).toEqual([
+      { id: `DEC-${D3}-v1`, rascunho_agente: true },
+      { id: `DEC-${D3}-v9999`, rascunho_agente: false },
+    ]);
+  });
+});
+
+describe('decisão devolvida ou arquivada, sem opção, é aceita; aprovação de CTO sem documento também', () => {
+  const D4 = 'DEM-20261022-0401';
+  const decD4 = (versao: number): Campos => ({
+    ...decBase(versao),
+    id: `DEC-${D4}-v${versao}`,
+    demanda_id: D4,
+    especificacao_id: `ESP-${D4}-v1`,
+    parecer_risco_id: `RSK-${D4}-v1`,
+    nivel_aprovacao_requerido: 'cto',
+  });
+  beforeAll(async () => {
+    await inserir('demanda', demandaBase(D4));
+    await inserir('especificacao_tecnica', espBase(D4, 1));
+    await inserir('parecer_risco', rskBase(D4, 1));
+    for (const v of [1, 2, 3]) await inserir('pacote_decisao', decD4(v));
+  });
+
+  it.each([
+    [1, 'devolvida'],
+    [2, 'arquivada'],
+  ])('DEC v%i %s sem opção é gravado, com a opção nula', async (versao, status) => {
+    await inserir('decisao', { pacote_decisao_id: `DEC-${D4}-v${versao}`, status_decisao: status, decidida_por: 'u-ficticio', decidida_em: QUANDO });
+    const r = await b.poolApp.query(`select status_decisao, opcao_escolhida from decisao where pacote_decisao_id = $1`, [`DEC-${D4}-v${versao}`]);
+    expect(r.rows).toEqual([{ status_decisao: status, opcao_escolhida: null }]);
+  });
+
+  it('aprovação de papel cto não exige documento, e o mesmo DEC aceita a da administradora com documento', async () => {
+    await inserir('aprovacao', { ...aprovacaoBase('cto'), pacote_decisao_id: `DEC-${D4}-v3` });
+    await inserir('aprovacao', {
+      ...aprovacaoBase('administradora'),
+      pacote_decisao_id: `DEC-${D4}-v3`,
+      referencia_documento: 'DOC-FICTICIO-2',
+      data_documento: '2026-10-21',
+    });
+    const r = await b.poolApp.query(
+      `select papel_aprovacao, referencia_documento from aprovacao where pacote_decisao_id = $1 order by papel_aprovacao`,
+      [`DEC-${D4}-v3`],
+    );
+    expect(r.rows).toEqual([
+      { papel_aprovacao: 'administradora', referencia_documento: 'DOC-FICTICIO-2' },
+      { papel_aprovacao: 'cto', referencia_documento: null },
+    ]);
+  });
+});
+
+describe('versão repetida em gravações simultâneas: o banco deixa entrar uma só (segunda barreira de CA-04.3)', () => {
+  const D5 = 'DEM-20261022-0501';
+  beforeAll(async () => {
+    await inserir('demanda', demandaBase(D5));
+  });
+
+  it('5 conexões gravam a ESP v1 da mesma demanda ao mesmo tempo: 1 entra e 4 recebem 23505', async () => {
+    const resultados = await Promise.allSettled(Array.from({ length: 5 }, (_, i) => inserir('especificacao_tecnica', { ...espBase(D5, 1), descricao_objetiva: `Descricao ficticia ${i}` })));
+    expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const recusas = resultados.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(recusas.map((r) => (r.reason as { code: string; constraint: string }).code)).toEqual(['23505', '23505', '23505', '23505']);
+    // Com o id derivado da demanda e da versão (CHECK), a chave primária já barra a repetição; o único
+    // (demanda_id, versao) é a outra barreira. Qualquer uma das duas serve, e nenhuma outra restrição é aceita.
+    for (const r of recusas) {
+      expect(['especificacao_tecnica_pkey', 'especificacao_tecnica_demanda_versao_unique']).toContain((r.reason as { constraint: string }).constraint);
+    }
+    const r = await b.poolApp.query(`select count(*)::int as n from especificacao_tecnica where demanda_id = $1`, [D5]);
+    expect(r.rows).toEqual([{ n: 1 }]);
+  });
+});
+
+// O caminho das T14 a T22 é o Drizzle, com listas de JS em colunas jsonb. O teste prova que o esquema TypeScript bate
+// com a migration: as listas chegam ao banco como lista jsonb (passam no CHECK) e voltam como lista de JS.
+describe('pelo Drizzle, com o papel do app: listas e objetos jsonb, padrões e datas', () => {
+  const D6 = 'DEM-20261022-0601';
+  const data = new Date(QUANDO);
+
+  it('grava e lê de volta demanda, ESP, RSK e DEC com listas e opções', async () => {
+    await b.db.insert(demanda).values({
+      id: D6,
+      titulo: 'Demanda ficticia',
+      tipo: 'novo_projeto',
+      solicitanteNome: 'Pessoa Ficticia',
+      anexos: [{ tipo: 'url', referencia: 'https://exemplo.test/anexo', descricao: 'Anexo ficticio' }],
+      duvidasEntrada: ['Duvida ficticia?'],
+      autorTipo: 'pessoa',
+      autorId: 'u-ficticio',
+      criadaEm: data,
+      atualizadaEm: data,
+    });
+    await b.db.insert(especificacaoTecnica).values({
+      id: `ESP-${D6}-v1`,
+      demandaId: D6,
+      versao: 1,
+      descricaoObjetiva: 'Descricao ficticia',
+      escopoInclui: ['inclui ficticio'],
+      escopoExclui: ['exclui ficticio'],
+      criteriosAceitePreliminares: ['criterio ficticio'],
+      definicaoDePronto: ['pronto ficticio'],
+      sistemaAlvo: 'sistema-ficticio',
+      repositorioDestino: 'wsssistemas2626-crypto/sistema-ficticio',
+      autorTipo: 'pessoa',
+      autorId: 'u-ficticio',
+      rascunhoAgente: false,
+      criadaEm: data,
+    });
+    await b.db.insert(parecerRisco).values({
+      id: `RSK-${D6}-v1`,
+      demandaId: D6,
+      versao: 1,
+      riscoTecnicoNivel: 'alto',
+      riscoOperacionalNivel: 'baixo',
+      riscoJuridicoNivel: 'medio',
+      preCondicoes: ['pre-condicao ficticia'],
+      autorTipo: 'agente',
+      autorId: 'risco',
+      rascunhoAgente: true,
+      criadaEm: data,
+    });
+    await b.db.insert(pacoteDecisao).values({
+      id: `DEC-${D6}-v1`,
+      demandaId: D6,
+      versao: 1,
+      especificacaoId: `ESP-${D6}-v1`,
+      especificacaoVersao: 1,
+      parecerRiscoId: `RSK-${D6}-v1`,
+      parecerRiscoVersao: 1,
+      demandaTipo: 'novo_projeto',
+      demandaTitulo: 'Demanda ficticia',
+      demandaDescricao: 'Contexto: ficticio',
+      resumoExecutivo: 'Resumo ficticio',
+      opcaoA: { descricao: 'Opcao A ficticia', vantagens: 'rapida' },
+      opcaoB: { descricao: 'Opcao B ficticia' },
+      nivelAprovacaoRequerido: 'cto',
+      autorTipo: 'pessoa',
+      autorId: 'u-ficticio',
+      rascunhoAgente: false,
+      criadaEm: data,
+    });
+
+    const [d] = await b.db.select().from(demanda).where(eq(demanda.id, D6));
+    expect(d).toMatchObject({ status: 'nova', rascunhoAgente: false, duvidasEntrada: ['Duvida ficticia?'], anexos: [{ tipo: 'url', referencia: 'https://exemplo.test/anexo', descricao: 'Anexo ficticio' }] });
+    expect(d?.criadaEm.toISOString()).toBe('2026-10-22T12:00:00.000Z');
+    const [e] = await b.db.select().from(especificacaoTecnica).where(eq(especificacaoTecnica.id, `ESP-${D6}-v1`));
+    expect(e).toMatchObject({ escopoInclui: ['inclui ficticio'], escopoExclui: ['exclui ficticio'], duvidasEmAberto: [], criteriosAceitePreliminares: ['criterio ficticio'], definicaoDePronto: ['pronto ficticio'] });
+    const [r] = await b.db.select().from(parecerRisco).where(eq(parecerRisco.id, `RSK-${D6}-v1`));
+    expect(r).toMatchObject({ preCondicoes: ['pre-condicao ficticia'], recomendacoesMitigacao: [] });
+    const [p] = await b.db.select().from(pacoteDecisao).where(eq(pacoteDecisao.id, `DEC-${D6}-v1`));
+    expect(p).toMatchObject({ opcaoA: { descricao: 'Opcao A ficticia', vantagens: 'rapida' }, opcaoB: { descricao: 'Opcao B ficticia' } });
+    const tipos = await b.poolMigrator.query(
+      `select jsonb_typeof(escopo_inclui) as escopo, jsonb_typeof(criterios_aceite_preliminares) as criterios from especificacao_tecnica where id = $1`,
+      [`ESP-${D6}-v1`],
+    );
+    expect(tipos.rows).toEqual([{ escopo: 'array', criterios: 'array' }]);
+  });
+
+  it('o app altera a demanda pelo Drizzle nas colunas da regra, e a autoria não muda', async () => {
+    await b.db.insert(demanda).values({
+      id: 'DEM-20261022-0602',
+      titulo: 'Demanda ficticia',
+      tipo: 'bug',
+      solicitanteNome: 'Pessoa Ficticia',
+      autorTipo: 'pessoa',
+      autorId: 'u-ficticio',
+      criadaEm: data,
+      atualizadaEm: data,
+    });
+    await b.db
+      .update(demanda)
+      .set({ status: 'em_analise', duvidasEntrada: ['Outra duvida ficticia?'], atualizadaEm: new Date('2026-10-23T09:00:00Z') })
+      .where(eq(demanda.id, 'DEM-20261022-0602'));
+    const [d] = await b.db.select().from(demanda).where(eq(demanda.id, 'DEM-20261022-0602'));
+    expect(d).toMatchObject({ status: 'em_analise', duvidasEntrada: ['Outra duvida ficticia?'], autorTipo: 'pessoa', autorId: 'u-ficticio' });
+    expect(d?.atualizadaEm.toISOString()).toBe('2026-10-23T09:00:00.000Z');
+    expect(d?.criadaEm.toISOString()).toBe('2026-10-22T12:00:00.000Z');
   });
 });
