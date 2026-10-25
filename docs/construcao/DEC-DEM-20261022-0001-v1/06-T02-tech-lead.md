@@ -2,7 +2,7 @@
 pedido: DEC-DEM-20261022-0001-v1
 etapa: 06-T02-revisao
 agente: tech-lead
-leu: [contrato-passagem.md, padrao-tecnico.md (seção 12), 2026-10-25-ws-orquestrador-demandas-plano.md (cabeçalho, G1 a G6, T02), 06-T02-engenheiro-backend.md, commit 6372a4ac5e6a008a0837fc91df8fb475243ac516]
+leu: [contrato-passagem.md, padrao-tecnico.md (seção 12), 2026-10-25-ws-orquestrador-demandas-plano.md (cabeçalho e G1 a G6 e T02), 06-T02-engenheiro-backend.md, commit 6372a4ac5e6a008a0837fc91df8fb475243ac516]
 status: devolvido
 proximo: engenheiro-backend
 devolvido_para: 06-T02-construcao
@@ -92,7 +92,6 @@ Um problema Important impede a passagem (parecer 1). Os demais são Minor e vão
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 6372a4ac5e6a008a0837fc91df8fb475243ac516` — 9 arquivos: os 7 da T02, a entrega do engenheiro e o `passagens.jsonl`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 6372a4ac5e6a008a0837fc91df8fb475243ac516 -- src test` — diff do código e dos testes
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — árvore limpa no ramo `construcao/DEC-DEM-20261022-0001-v1`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files docs` — localizar o plano e as entregas
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 10 arquivos, 54 de 54 passaram
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
