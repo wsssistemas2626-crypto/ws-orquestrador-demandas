@@ -2,97 +2,91 @@
 pedido: DEC-DEM-20261022-0001-v1
 etapa: 06-T02-revisao
 agente: tech-lead
-leu: [contrato-passagem.md, padrao-tecnico.md (seção 12), 2026-10-25-ws-orquestrador-demandas-plano.md (cabeçalho e G1 a G6 e T02), 06-T02-engenheiro-backend.md, commit 6372a4ac5e6a008a0837fc91df8fb475243ac516]
-status: devolvido
-proximo: engenheiro-backend
-devolvido_para: 06-T02-construcao
+leu: [contrato-passagem.md, padrao-tecnico.md (seção 12), 2026-10-25-ws-orquestrador-demandas-plano.md (cabeçalho e G1 a G6 e T02), 06-T02-tech-lead.md (revisão anterior), 06-T02-engenheiro-backend.md, src/lib/sentry.ts, commit b9737dea0064399d493c448bde9698cea9bd821a]
+status: pronto
+proximo: qa-automacao
+devolvido_para: null
 ---
 ## Entrega
 
-Revisão da T02 (Log por lista de permissão e Sentry sem dado pessoal, risco alto, C-21 base, RNF-10 base, D9) sobre o
-commit `6372a4a`. Arquivos do commit: os 7 da lista da T02 e a entrega do engenheiro; nenhum outro arquivo de código
-mudou. `pnpm test` (54 de 54), `pnpm lint` e `pnpm typecheck` conferidos de novo nesta revisão: verdes.
+Segunda revisão da T02 (Log por lista de permissão e Sentry sem dado pessoal, risco alto, C-21 base, RNF-10 base, D9).
+Ela cobre a correção do parecer 1 da primeira revisão (`src/lib/sentry.ts:25`), que está no commit `b9737de`. O código
+original da T02 é o do `6372a4a`, já revisado. O commit muda só `src/lib/sentry.ts` e `src/lib/sentry.test.ts`, os dois
+da lista da T02, além da entrega do engenheiro e do `passagens.jsonl`. As interfaces do plano continuam as mesmas.
+Rodei de novo nesta revisão: `pnpm test` (57 de 57), `pnpm lint` e `pnpm typecheck`, todos verdes.
 
-Um problema Important impede a passagem (parecer 1). Os demais são Minor e vão para Pendências.
+O parecer 1 está resolvido e não há problema Critical nem Important. A passagem segue para a `06-T02-testes`.
 
-### Pareceres
+### Conferência do parecer 1
 
-**1. Important — `src/lib/sentry.ts:25` (`quadrosDaPilha`)**
-
-- **Problema:** o filtro guarda toda linha do `stack` que case com `^\s+at\s`. A mensagem do erro também fica no
-  `stack`, logo depois de `Nome: `. Se a mensagem tiver uma linha que comece por espaço e `at ` (ex.:
-  `` `falhou\n    at ${SENTINELAS.texto}` ``), essa linha passa no filtro, entra em `enviado.stack` (linha 32) e vira
-  quadro de pilha no evento que vai ao Sentry.
-- **Razão:** é o controle central da tarefa (C-21: nada da mensagem original sai). O próprio plano registra que o
-  erro de consulta do Drizzle leva os parâmetros na mensagem. Assim, texto livre da demanda, escrito por pessoa ou por
-  agente de IA, chega à mensagem, e uma linha recuada que comece com "at " sai inteira. O desvio 2 da entrega fechou o
-  caso da mensagem com várias linhas, mas filtrar pelo formato da linha não separa a mensagem dos quadros. O teste
-  atual não pega o problema porque a segunda linha da mensagem dele não começa com `    at `.
-- **Caminho:**
-  1. Escreva primeiro o teste que falha, em `src/lib/sentry.test.ts`: um erro com mensagem
-     `` `falhou\n    at ${SENTINELAS.texto}\n    at ${SENTINELAS.email}` ``, capturado por `capturarErro` com o
-     transporte falso; conferir que `contemSentinela(enviados.join(''))` é `false` e que o envelope ainda traz quadro
-     de pilha do arquivo do teste (ex.: `sentry.test`), para provar que a pilha não sumiu.
-  2. Em `quadrosDaPilha`, tire o cabeçalho pelo conteúdo conhecido, sem tentar adivinhar pelo formato. O V8 começa o
-     `stack` com o mesmo texto de `Error.prototype.toString.call(e)`. Se o `stack` começar com esse cabeçalho seguido
-     de `\n`, use só o que vem depois (e mantenha o filtro `^\s+at\s` sobre esse resto). Se não começar, por exemplo
-     quando o nome ou a mensagem mudaram depois do primeiro acesso ao `stack`, não envie quadro nenhum, só o título.
-     Envolva em `try/catch` e devolva `[]` se `toString` lançar.
-  3. `pnpm test`, `pnpm lint` e `pnpm typecheck` verdes, e a falha do passo 1 mostrada na entrega.
+- **`src/lib/sentry.ts:26-38` (`quadrosDaPilha`):** segue o caminho do parecer. O cabeçalho é
+  `Error.prototype.toString.call(e) + '\n'` e sai por comparação literal (`startsWith` e depois `slice`), e o filtro
+  `^\s+at\s` só se aplica ao que vem depois dele. Se o `stack` não começa pelo cabeçalho, a função devolve `[]`. O
+  `try/catch` devolve `[]` se o `toString` ou um getter de `name` ou `message` lançar. Três casos de borda dão `[]` e
+  assim não vazam nada: `Error.stackTraceLimit = 0` (o `stack` não tem o `\n` depois do cabeçalho), `name` vazio (o
+  V8 e o `toString` dão os dois só a mensagem) e mensagem trocada depois do primeiro acesso ao `stack`.
+- **`src/lib/sentry.ts:44`:** o `stack` enviado continua sendo `Error: <classe> [code]` mais os quadros. O título sai de
+  `reduzirErro` e não leva texto livre.
+- **Teste do passo 1 (`src/lib/sentry.test.ts:60`):** a mensagem é a do parecer. O teste confere que nenhuma sentinela
+  chega ao envelope e que o quadro `sentry.test` está lá, o que prova que a pilha não sumiu. A entrega mostra esse teste
+  falhando no código antigo (`expected true to be false`, linha 62). O teste do cabeçalho divergente também falhou no
+  código antigo, porque a linha `    at SENTINELA-TEXTO-7f3a` passava no filtro.
+- **Teste da subclasse (`src/lib/sentry.test.ts:67`):** foi escrito depois da correção, mas falharia no código antigo,
+  porque a mensagem tem uma linha `    at ${SENTINELAS.nome}`. Ele prova que o caminho "sem quadro" não dispara no caso
+  comum, em que a biblioteca define `this.name` no construtor. Aceito.
+- **Reorganização do `sentry.test.ts`:** o arquivo passou a ter um `Sentry.init` só, no `beforeAll`, e a zerar os envios
+  no `beforeEach`. Os testes não dependem de ordem, porque cada um zera os envios e espera o `flush`. As asserções dos
+  dois testes antigos não mudaram. Aceito: a mudança tirou o `MaxListenersExceededWarning`.
 
 ### Checklist da seção 12 do padrão técnico
 
-- [x] A tarefa faz o que o plano pede, nem mais nem menos; arquivos fora da tarefa não mudaram. Os desvios 1 a 8 só
-      apertam o filtro e não mudam interface: aceitos (ver Decisões). Exceção: a implementação do desvio 2 está
-      incompleta (parecer 1).
-- [ ] Há teste para cada comportamento novo, e ele falharia sem o código. Os 13 testes falhariam sem o código, mas o
-      comportamento "a mensagem nunca vai ao Sentry" não tem teste para a mensagem com linha que começa por `at`
-      (parecer 1).
-- [x] Nenhum segredo, valor de `.env` ou dado pessoal real em código, teste, log ou fixture. As sentinelas são
-      fictícias, no formato de G3.2, e o DSN do teste é `sentry.exemplo.test`.
-- [x] Entrada externa validada com Zod; erro sem vazar detalhe. Não se aplica: a tarefa não cria rota, Server Action nem
-      job. A redução de erro está correta (`reduzirErro`).
+- [x] A tarefa faz o que o plano pede, nem mais nem menos; arquivos fora da tarefa não mudaram. Só mudaram os dois
+      arquivos que o parecer aponta, e as interfaces da T02 ficaram como estavam.
+- [x] Há teste para cada comportamento novo, e ele falharia sem o código. Os três testes novos falham no código do
+      `6372a4a`, e a falha do passo 1 está na entrega.
+- [x] Nenhum segredo, valor de `.env` ou dado pessoal real em código, teste, log ou fixture. Os testes usam só as
+      sentinelas de G3.2, e o DSN continua `sentry.exemplo.test`.
+- [x] Entrada externa validada com Zod; erro sem vazar detalhe. Não se aplica à rota, porque a tarefa não cria rota,
+      Server Action nem job. A mensagem do erro já não chega ao Sentry nem pela pilha.
 - [x] Banco: não se aplica (sem migration nem tabela).
-- [x] Nada duplica função que já existe no repositório (`reduzirErro` é usado por `log.ts` e por `sentry.ts`).
+- [x] Nada duplica função que já existe no repositório.
 - [x] Textos de interface e axe: não se aplica (sem tela).
-- [x] Minor vai para Pendências; só o Important do parecer 1 bloqueia.
+- [x] Minor vai para Pendências; nenhum Critical ou Important sobrou.
 - [x] PR (`/code-review`, `/security-review`): não se aplica nesta etapa; fica com a `08-revisao`.
 
 ## Decisões tomadas
 
-- Status `devolvido`: o parecer 1 é falha no controle principal de uma tarefa de risco alto e tem correção pequena e
-  testável. Não dá para deixar como dívida.
-- Desvio 1 aceito (sem `sendDefaultPii`). O `tsc` recusou a opção. O que segura o dado é
-  `defaultIntegrations: false` junto com `limparEvento`, e o teste do envelope prova o resultado.
-- Desvios 3 a 8 aceitos. `code` e `name` só passam no formato de identificador; texto solto em `erro` vira
-  `desconhecido`; o `REDACT` ganhou caminhos; a query sai da `url`; o `evento` vai como tag; o filtro usa
-  `hasOwnProperty`. Todos apertam o filtro sem mudar as interfaces do plano.
-- `Logger` foi declarado à mão em vez de `ReturnType<typeof criarLogger>`. O formato é o mesmo do plano: aceito.
+- Status `pronto`: a correção fecha o parecer 1 do jeito que ele pedia, e o teste que reproduzia o vazamento está verde.
+- Devolver `[]` quando o cabeçalho não confere está aceito. Perder a pilha nesse caso raro é menos grave que vazar a
+  mensagem (C-21).
+- O teste da subclasse foi escrito depois da correção, e isso está aceito: ele falha no código antigo, então cumpre o
+  item "falharia sem o código".
+- O aviso do `beforeSendTransaction` vai como Minor, não como bloqueio. Hoje o `iniciarSentry` não liga tracing
+  (`tracesSampleRate` não aparece), e então nenhum span sai.
 
 ## Pendências
 
-- Devolvido: `src/lib/sentry.ts:25` deixa passar para o Sentry uma linha da mensagem do erro que comece por espaço e "at ", o que fura C-21 (parecer 1).
-- Minor 1, para a T34 (teste transversal de sentinelas): em `src/lib/log.ts:54`, valor de `erro` que seja objeto
-  simples ou array passa inteiro, e só o `redact` o filtra. O `redact` funciona como lista de negação e só desce um
-  nível, então `erro: { motivo: <dado> }`, `erro: { a: { email } }` ou `erro: [<dado>]` saem como vieram. O plano manda
-  aceitar objeto sob o `redact`, e por isso o problema não bloqueia agora. A T34 deve testar esses três formatos e,
-  se algum vazar, reduzir todo valor de `erro` que não seja `Error` com `reduzirErro`.
-- Minor 2, para a T11 (configuração): em `src/lib/log.ts:70`, `LOG_LEVEL` com valor inválido faz o `pino` lançar
-  exceção na primeira chamada de `log`, que pode cair dentro do mapeador de erro. Valide `LOG_LEVEL` na carga da
-  configuração.
-- Minor 3, para a T13 (testes estáticos): o `limparEvento` (`src/lib/sentry.ts:37`) não mexe em `event.message` nem em
-  `exception.values[].value`. Hoje isso está certo porque só o `capturarErro` envia evento, mas uma chamada direta a
-  `Sentry.captureException` em outro arquivo mandaria a mensagem original. Proíba a importação de `@sentry/node` fora
-  de `src/lib/sentry.ts`.
-- Segue em aberto o Minor 2 da `06-T01-tech-lead.md` (`@types/node` para `^24`), para a próxima tarefa do backend que
-  rodar `pnpm add`.
+- Nenhuma que segure a passagem.
+- Minor 4, para a T11 (configuração): o engenheiro conta que o `@sentry/node` 11.4.0 avisa que `beforeSendTransaction`
+  (`src/lib/sentry.ts:17`) é ignorado com `traceLifecycle: 'stream'`. Assim essa opção não protege nada. Quando a T11
+  montar a configuração do Sentry, troque essa opção por `beforeSendSpan: () => null` ou `ignoreSpans`, depois de
+  conferir no `tsc` que a opção existe nessa versão, ou registre que o tracing fica desligado. Não ligue
+  `tracesSampleRate` sem isso.
+- Minor 5, para a T34 (teste transversal de sentinelas): o `quadrosDaPilha` confia que, depois do cabeçalho, o `stack`
+  só tem quadros. Uma biblioteca que escreva o `stack` à mão com a pilha da `cause` emendada (por exemplo
+  `Caused by: <mensagem>` mais quadros) e que tenha na mensagem interna uma linha que comece por `    at ` faria essa
+  linha passar. Na T34, capture pelo `capturarErro` os erros reais do Drizzle e do `pg` com sentinela nos parâmetros
+  (Testcontainers) e confira o envelope. Se algum emendar pilha, guarde só as linhas que vêm antes da primeira que não
+  é quadro.
+- Seguem em aberto os Minors 1, 2 e 3 da primeira revisão desta tarefa (T34, T11 e T13) e o Minor 2 da
+  `06-T01-tech-lead.md` (`@types/node` para `^24`), com as tarefas já indicadas.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 6372a4ac5e6a008a0837fc91df8fb475243ac516` — 9 arquivos: os 7 da T02, a entrega do engenheiro e o `passagens.jsonl`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 6372a4ac5e6a008a0837fc91df8fb475243ac516 -- src test` — diff do código e dos testes
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show b9737dea0064399d493c448bde9698cea9bd821a` — diff da correção: `src/lib/sentry.ts`, `src/lib/sentry.test.ts`, a entrega do engenheiro e o `passagens.jsonl`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat b9737dea0064399d493c448bde9698cea9bd821a` — 4 arquivos
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — árvore limpa no ramo `construcao/DEC-DEM-20261022-0001-v1`
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 10 arquivos, 54 de 54 passaram
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 10 arquivos, 57 de 57 passaram
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 
