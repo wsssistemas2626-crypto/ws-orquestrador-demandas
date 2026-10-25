@@ -108,3 +108,88 @@ describe('guarda de privilégios do orquestrador_app (C-34)', () => {
     await b.poolApp.query('update token_servico set revogado_em = now() where false');
   });
 });
+
+// Testes da etapa 06-T04-testes (qa-automacao): a guarda acima confere a lista de privilégios; estes conferem o que o
+// papel do app de fato consegue fazer, e fecham os lados que a lista não cobre (esquemas, banco, sequências, registro
+// de migrations).
+describe('guarda de privilégios: DDL, esquemas, sequências e registro de migrations (C-34, ADR-03, ADR-12)', () => {
+  // Esquemas do usuário: fora os do catálogo do Postgres (pg_catalog, pg_toast, information_schema).
+  const ESQUEMAS_DO_USUARIO = `select nspname from pg_namespace where nspname not like 'pg\\_%' and nspname <> 'information_schema'`;
+
+  it('o app tem USAGE só em public e drizzle, e CREATE em nenhum esquema nem no banco', async () => {
+    const usa = (await q(`${ESQUEMAS_DO_USUARIO} and has_schema_privilege($1, oid, 'USAGE') order by 1`, [PAPEL_APP])).map((r) => r.nspname);
+    expect(usa).toEqual(['drizzle', 'public']);
+    const cria = await q(`${ESQUEMAS_DO_USUARIO} and has_schema_privilege($1, oid, 'CREATE')`, [PAPEL_APP]);
+    expect(cria).toEqual([]);
+    const [banco] = await q(`select has_database_privilege($1, current_database(), 'CREATE') as cria`, [PAPEL_APP]);
+    expect(banco.cria).toBe(false);
+  });
+
+  it('o app não é dono de esquema nem do banco', async () => {
+    expect(await q(`select nspname from pg_namespace n join pg_roles r on r.oid = n.nspowner where r.rolname = $1`, [PAPEL_APP])).toEqual([]);
+    expect(await q(`select datname from pg_database d join pg_roles r on r.oid = d.datdba where r.rolname = $1`, [PAPEL_APP])).toEqual([]);
+  });
+
+  it.each([
+    ['criar tabela', 'create table public.t_qa (id int)'],
+    ['criar esquema', 'create schema qa_esquema'],
+    ['acrescentar coluna em evento', 'alter table evento add column qa int'],
+    ['apagar a tabela evento', 'drop table evento'],
+    ['criar índice em evento', 'create index evento_qa_idx on evento (acao)'],
+    ['criar gatilho em user', 'create trigger qa_gatilho before update on "user" for each row execute function suppress_redundant_updates_trigger()'],
+    ['criar função em public', 'create function public.qa_fn() returns int language sql as $$ select 1 $$'],
+    ['criar tabela no esquema drizzle', 'create table drizzle.t_qa (id int)'],
+  ])('o papel do app não faz DDL: %s é recusado (42501)', async (_nome, sql) => {
+    await expect(b.poolApp.query(sql)).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('TRUNCATE é recusado ao app em toda tabela da regra, mutável ou não (42501)', async () => {
+    for (const r of PRIVILEGIOS) {
+      await expect(b.poolApp.query(`truncate "${r.tabela}"`), r.tabela).rejects.toMatchObject({ code: '42501' });
+    }
+  });
+
+  it('toda sequência de public fora de SEQUENCIAS fica sem privilégio do app, e toda entrada de SEQUENCIAS existe', async () => {
+    const sequencias = (await q(`select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind = 'S' and n.nspname = 'public' order by 1`)).map((r) => r.relname as string);
+    // Hoje só a identidade de evento; a T05 traz a demanda_seq (com USAGE, em SEQUENCIAS).
+    expect(sequencias).toContain('evento_id_seq');
+    const listadas = SEQUENCIAS.map((s) => s.nome);
+    for (const nome of listadas) expect(sequencias, nome).toContain(nome);
+    for (const nome of sequencias) {
+      const [r] = await q(
+        `select has_sequence_privilege($1, $2, 'USAGE') as usa, has_sequence_privilege($1, $2, 'SELECT') as le, has_sequence_privilege($1, $2, 'UPDATE') as altera`,
+        [PAPEL_APP, `public.${nome}`],
+      );
+      expect(r, nome).toEqual({ usa: listadas.includes(nome), le: false, altera: false });
+    }
+  });
+
+  it('o app não mexe na sequência da identidade de evento: nextval e setval recusados (42501)', async () => {
+    await expect(b.poolApp.query(`select nextval('evento_id_seq')`)).rejects.toMatchObject({ code: '42501' });
+    await expect(b.poolApp.query(`select setval('evento_id_seq', 1000)`)).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('no registro de migrations o app tem só SELECT: INSERT, UPDATE e TRUNCATE também recusados', async () => {
+    const tem = (await q(`select privilege_type from information_schema.table_privileges where grantee = $1 and table_schema = 'drizzle'`, [PAPEL_APP])).map((r) => r.privilege_type);
+    expect(tem).toEqual(['SELECT']);
+    for (const sql of [
+      `insert into drizzle.__drizzle_migrations (hash, created_at) values ('qa', 1)`,
+      `update drizzle.__drizzle_migrations set hash = 'qa'`,
+      'truncate drizzle.__drizzle_migrations',
+    ]) {
+      await expect(b.poolApp.query(sql), sql).rejects.toMatchObject({ code: '42501' });
+    }
+  });
+
+  it('o app faz o CRUD das tabelas do Better Auth e do bloqueio (privilégio dado de fato, não só listado)', async () => {
+    await b.poolApp.query(`insert into "user" (id, name, email, papel) values ('u-qa-crud', 'Pessoa Ficticia', 'crud@exemplo.test', 'cto')`);
+    await b.poolApp.query(`insert into bloqueio_verificacao (usuario_id) values ('u-qa-crud')`);
+    await b.poolApp.query(`update bloqueio_verificacao set falhas = 3 where usuario_id = 'u-qa-crud'`);
+    await b.poolApp.query(`update "user" set name = 'Pessoa Ficticia Dois' where id = 'u-qa-crud'`);
+    const [u] = (await b.poolApp.query(`select name from "user" where id = 'u-qa-crud'`)).rows;
+    expect(u.name).toBe('Pessoa Ficticia Dois');
+    await b.poolApp.query(`delete from bloqueio_verificacao where usuario_id = 'u-qa-crud'`);
+    await b.poolApp.query(`delete from "user" where id = 'u-qa-crud'`);
+    expect((await b.poolApp.query(`select 1 from "user" where id = 'u-qa-crud'`)).rows).toEqual([]);
+  });
+});

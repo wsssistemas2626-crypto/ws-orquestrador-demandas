@@ -1,4 +1,4 @@
-import { count } from 'drizzle-orm';
+import { count, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../test/banco';
 import { evento } from './schema';
@@ -79,4 +79,76 @@ it('evento recusa ator_tipo fora da lista', async () => {
 it('a conexão tem statement_timeout de 10 s', async () => {
   const r = await b.poolApp.query('show statement_timeout');
   expect(r.rows[0].statement_timeout).toBe('10s');
+});
+
+// Testes da etapa 06-T04-testes (qa-automacao).
+
+it('o Drizzle e o executor da transação usam a mesma conexão (ADR-06: o job enfileirado desfaz junto)', async () => {
+  const pids = await comTransacao(b.poolApp, async ({ tx, executor }) => {
+    const peloDrizzle = await tx.execute(sql`select pg_backend_pid() as pid`);
+    const peloExecutor = await executor.executeSql('select pg_backend_pid() as pid');
+    return [peloDrizzle.rows[0]?.pid, (peloExecutor.rows[0] as { pid: number }).pid];
+  });
+  expect(pids[0]).toBeTypeOf('number');
+  expect(pids[0]).toBe(pids[1]);
+});
+
+it('antes do commit, o que a transação gravou não aparece para outra conexão', async () => {
+  let vistoDeFora: number | undefined;
+  await comTransacao(b.poolApp, async ({ tx }) => {
+    await tx.insert(evento).values(linha);
+    const r = await b.poolMigrator.query('select count(*)::int as n from evento');
+    vistoDeFora = r.rows[0].n;
+  });
+  expect(vistoDeFora).toBe(0);
+  expect(await total()).toBe(1);
+});
+
+it('o erro da função sai como veio, sem embrulho, e nada fica gravado', async () => {
+  const erro = new Error('erro de regra ficticio');
+  await expect(
+    comTransacao(b.poolApp, async ({ tx }) => {
+      await tx.insert(evento).values(linha);
+      throw erro;
+    }),
+  ).rejects.toBe(erro);
+  expect(await total()).toBe(0);
+});
+
+it('dentro da transação, o papel do app também não altera evento (CA-21.2) e a inclusão anterior é desfeita', async () => {
+  const falha = await comTransacao(b.poolApp, async ({ tx, executor }) => {
+    await tx.insert(evento).values(linha);
+    await executor.executeSql('update evento set acao = $1', ['alterada']);
+  }).then(
+    () => null,
+    (e: { code?: string }) => e,
+  );
+  expect(falha?.code).toBe('42501');
+  expect(await total()).toBe(0);
+});
+
+// Se o rollback não rodasse, a conexão voltaria ao pool presa numa transação abortada, e a próxima transação nela
+// falharia (25P02). As 10 chamadas pedem conexão no mesmo instante, então cada uma pega uma conexão diferente do pool
+// de 10: todas as conexões passam pelo erro e, depois, todas gravam.
+it('depois de 10 transações com erro ao mesmo tempo, 10 transações seguintes gravam em todas as conexões', async () => {
+  const comErro = await Promise.allSettled(
+    Array.from({ length: 10 }, () =>
+      comTransacao(b.poolApp, async ({ tx }) => {
+        await tx.insert(evento).values(linha);
+        await tx.insert(evento).values({ ...linha, atorTipo: 'invalido' as never });
+      }),
+    ),
+  );
+  expect(comErro.every((r) => r.status === 'rejected')).toBe(true);
+  expect(b.poolApp.totalCount).toBe(10);
+  const pids = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      comTransacao(b.poolApp, async ({ tx, executor }) => {
+        await tx.insert(evento).values(linha);
+        return (await executor.executeSql('select pg_backend_pid() as pid')).rows[0] as { pid: number };
+      }),
+    ),
+  );
+  expect(new Set(pids.map((p) => p.pid)).size).toBe(10);
+  expect(await total()).toBe(10);
 });
