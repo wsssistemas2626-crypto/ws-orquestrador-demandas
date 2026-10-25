@@ -17,7 +17,8 @@ export const PRIVILEGIOS: RegraPrivilegio[] = [
   })),
   { tabela: 'token_servico', privilegios: ['SELECT', 'INSERT'], colunasUpdate: ['revogado_em'] },
   { tabela: 'evento', privilegios: ['SELECT', 'INSERT'] },
-  // T05. A demanda é mutável, mas o UPDATE é por coluna: id, autor_tipo, autor_id e criada_em não mudam (C-11).
+  // T05. A demanda é mutável, mas o UPDATE é por coluna: id, autor_tipo, autor_id, criada_em e (desde a T06, parecer 1
+  // da 06-T05-tech-lead.md) rascunho_agente não mudam (C-11).
   {
     tabela: 'demanda',
     privilegios: ['SELECT', 'INSERT'],
@@ -35,7 +36,6 @@ export const PRIVILEGIOS: RegraPrivilegio[] = [
       'impacto_percebido',
       'anexos',
       'duvidas_entrada',
-      'rascunho_agente',
       'atualizada_em',
     ],
   },
@@ -47,6 +47,23 @@ export const PRIVILEGIOS: RegraPrivilegio[] = [
     tabela,
     privilegios: ['SELECT', 'INSERT'] as RegraPrivilegio['privilegios'],
   })),
+  // T06. Interruptor e teto: o app liga, desliga, troca modelo e teto; não cria nem apaga agente nem a linha do teto,
+  // e não troca a chave nem a moeda (C-26, P1-f).
+  { tabela: 'configuracao_agente', privilegios: ['SELECT'], colunasUpdate: ['ligado', 'modelo', 'atualizado_em', 'atualizado_por'] },
+  { tabela: 'configuracao_ia', privilegios: ['SELECT'], colunasUpdate: ['teto_mensal', 'atualizado_em', 'atualizado_por'] },
+  // Preço novo é vigência nova; uso de IA é registro de cobrança: os dois só de inclusão (CA-17.3).
+  { tabela: 'preco_modelo', privilegios: ['SELECT', 'INSERT'] },
+  { tabela: 'uso_ia', privilegios: ['SELECT', 'INSERT'] },
+  // A execução muda de estado (ADR-07), mas agente, entrada, demanda e criação não mudam, e ela não é apagada.
+  {
+    tabela: 'execucao_agente',
+    privilegios: ['SELECT', 'INSERT'],
+    colunasUpdate: ['status', 'tentativas', 'proxima_tentativa_em', 'bloqueada_ate', 'artefato_id', 'atualizada_em'],
+  },
+  { tabela: 'aviso_email', privilegios: ['SELECT', 'INSERT'], colunasUpdate: ['status', 'tentativas', 'id_provedor', 'enviado_em', 'atualizado_em'] },
+  // O worker grava o próprio batimento e limpa o das instâncias antigas.
+  { tabela: 'worker_batimento', privilegios: [...TUDO] },
+  { tabela: 'rotina_execucao', privilegios: ['SELECT', 'INSERT'], colunasUpdate: ['ultima_execucao_em', 'quantidade'] },
 ];
 
 // USAGE dá nextval; setval (UPDATE) e a leitura direta (SELECT) ficam com o migrator.

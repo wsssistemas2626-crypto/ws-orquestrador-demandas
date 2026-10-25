@@ -3,10 +3,9 @@
 // restrição única (demanda_id, versao) é a segunda barreira da trava da demanda (CA-04.3) e o índice do max(versao)
 // que calcula o DEC desatualizado (RF-12).
 import { sql } from 'drizzle-orm';
-import { boolean, check, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, integer, jsonb, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
+import { momento } from './comum';
 import { demanda, type AutorArtefato } from './demandas';
-
-const momento = () => timestamp({ withTimezone: true });
 
 export const NIVEIS_RISCO = ['baixo', 'medio', 'alto'] as const;
 export type NivelRisco = (typeof NIVEIS_RISCO)[number];

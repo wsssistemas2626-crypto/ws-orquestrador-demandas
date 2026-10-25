@@ -2,11 +2,10 @@
 // C-34). statusDecisao e aprovadores do DEC são derivados destas tabelas: pendente = sem linha em decisao; uma decisão
 // por DEC é a chave primária de decisao (CA-11.3).
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, integer, jsonb, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
+import { momento } from './comum';
 import { demanda, type AutorArtefato, type TipoDemanda } from './demandas';
 import { especificacaoTecnica, parecerRisco } from './versoes';
-
-const momento = () => timestamp({ withTimezone: true });
 
 export const NIVEIS_APROVACAO = ['cto', 'cto_e_administradora'] as const;
 export const PAPEIS_APROVACAO = ['cto', 'administradora'] as const;

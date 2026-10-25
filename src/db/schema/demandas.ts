@@ -2,9 +2,8 @@
 // (T-01). Enumerações como text + CHECK (sem ALTER TYPE em migration futura); listas em jsonb, validadas pelo Zod da
 // API e, no banco, pelo menos quanto a serem listas. Datas sem padrão no banco: vêm do Relogio (G3.4).
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, jsonb, pgSequence, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-
-const momento = () => timestamp({ withTimezone: true });
+import { boolean, check, index, jsonb, pgSequence, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { momento } from './comum';
 
 export const TIPOS_DEMANDA = ['bug', 'melhoria', 'novo_projeto', 'estudo', 'produto_proprio'] as const;
 export const STATUS_DEMANDA = [

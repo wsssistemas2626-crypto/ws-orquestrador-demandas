@@ -3,9 +3,9 @@
 // dos agentes (C-09). Datas em timestamptz. Nenhuma coluna usa `new Date()` do lado da aplicação (G3.4): os padrões
 // de data são do banco.
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-
-const momento = () => timestamp({ withTimezone: true });
+import { boolean, check, index, integer, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import type { Agente } from './agentes';
+import { momento } from './comum';
 
 export const user = pgTable(
   'user',
@@ -108,7 +108,7 @@ export const tokenServico = pgTable(
   'token_servico',
   {
     id: uuid().primaryKey().defaultRandom(),
-    agente: text().$type<'orquestrador' | 'insumo_tecnico' | 'risco' | 'consolidacao'>().notNull(),
+    agente: text().$type<Agente>().notNull(),
     hash: text().notNull().unique(),
     prefixo: text().notNull(),
     criadoEm: momento().notNull(),

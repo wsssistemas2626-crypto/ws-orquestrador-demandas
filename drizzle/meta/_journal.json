@@ -29,6 +29,20 @@
       "when": 1792969495905,
       "tag": "0003_rls_privilegios_dominio",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792971032249,
+      "tag": "0004_busy_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792971040045,
+      "tag": "0005_rls_privilegios_agentes",
+      "breakpoints": true
     }
   ]
 }

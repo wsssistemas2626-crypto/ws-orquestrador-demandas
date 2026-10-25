@@ -60,7 +60,7 @@ describe('versões gravadas não mudam (RF-11)', () => {
 describe('demanda: o app altera os campos descritivos e o status, nunca id, autoria nem criação', () => {
   it('o app altera título, status, listas e atualizada_em', async () => {
     await b.poolApp.query(
-      `update demanda set titulo = $1, status = 'em_analise', linha_servico_provavel = 'indefinida', duvidas_entrada = '["duvida ficticia"]', rascunho_agente = false, atualizada_em = now() where id = 'DEM-20261022-0001'`,
+      `update demanda set titulo = $1, status = 'em_analise', linha_servico_provavel = 'indefinida', duvidas_entrada = '["duvida ficticia"]', atualizada_em = now() where id = 'DEM-20261022-0001'`,
       ['Demanda ficticia alterada'],
     );
     const r = await b.poolApp.query(`select titulo, status, duvidas_entrada from demanda where id = 'DEM-20261022-0001'`);
@@ -72,6 +72,8 @@ describe('demanda: o app altera os campos descritivos e o status, nunca id, auto
     ['autor_tipo', `update demanda set autor_tipo = 'agente'`],
     ['autor_id', `update demanda set autor_id = 'outra-pessoa'`],
     ['criada_em', 'update demanda set criada_em = now()'],
+    // Parecer 1 da 06-T05-tech-lead.md, na T06: o selo de rascunho é autoria (C-11), e nenhum fluxo do app o muda.
+    ['rascunho_agente', 'update demanda set rascunho_agente = false'],
   ])('mudar %s é recusado com o papel do app (42501)', async (_coluna, sql) => {
     await expect(b.poolApp.query(sql)).rejects.toMatchObject({ code: '42501' });
   });
