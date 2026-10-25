@@ -17,6 +17,37 @@ export const PRIVILEGIOS: RegraPrivilegio[] = [
   })),
   { tabela: 'token_servico', privilegios: ['SELECT', 'INSERT'], colunasUpdate: ['revogado_em'] },
   { tabela: 'evento', privilegios: ['SELECT', 'INSERT'] },
+  // T05. A demanda é mutável, mas o UPDATE é por coluna: id, autor_tipo, autor_id e criada_em não mudam (C-11).
+  {
+    tabela: 'demanda',
+    privilegios: ['SELECT', 'INSERT'],
+    colunasUpdate: [
+      'titulo',
+      'tipo',
+      'status',
+      'solicitante_nome',
+      'solicitante_papel',
+      'linha_servico_provavel',
+      'urgencia',
+      'justificativa_urgencia',
+      'contexto',
+      'descricao_problema',
+      'impacto_percebido',
+      'anexos',
+      'duvidas_entrada',
+      'rascunho_agente',
+      'atualizada_em',
+    ],
+  },
+  // Só o expurgo muda a entrada bruta (C-31, C-34).
+  { tabela: 'entrada_bruta', privilegios: ['SELECT', 'INSERT'], colunasUpdate: ['texto', 'origem', 'expurgada_em'] },
+  { tabela: 'entrada_pendente', privilegios: [...TUDO] },
+  // Versões e decisão: só de inclusão (RF-11, CA-11.2).
+  ...['especificacao_tecnica', 'parecer_risco', 'pacote_decisao', 'aprovacao', 'decisao'].map((tabela) => ({
+    tabela,
+    privilegios: ['SELECT', 'INSERT'] as RegraPrivilegio['privilegios'],
+  })),
 ];
 
-export const SEQUENCIAS: Array<{ nome: string; privilegios: Array<'USAGE'> }> = [];
+// USAGE dá nextval; setval (UPDATE) e a leitura direta (SELECT) ficam com o migrator.
+export const SEQUENCIAS: Array<{ nome: string; privilegios: Array<'USAGE'> }> = [{ nome: 'demanda_seq', privilegios: ['USAGE'] }];

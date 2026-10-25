@@ -152,3 +152,33 @@ it('depois de 10 transações com erro ao mesmo tempo, 10 transações seguintes
   expect(new Set(pids.map((p) => p.pid)).size).toBe(10);
   expect(await total()).toBe(10);
 });
+
+// Etapa 06-T05-construcao (parecer 2 da 06-T04-tech-lead.md): o banco derruba a conexão no meio da transação. A
+// conexão emprestada não tem o ouvinte de erro do pool; sem um ouvinte próprio, o 'error' do cliente derrubaria o
+// processo. O rollback falha, e a conexão morta não pode voltar ao pool. A transação mata a própria conexão, para o
+// erro chegar na consulta ativa (06-T04-qa-automacao.md, Decisões tomadas).
+it('conexão derrubada no meio da transação: o erro sai, o processo segue, a conexão morta sai do pool e a próxima transação grava', async () => {
+  let pidMorto: number | undefined;
+  const falha = await comTransacao(b.poolApp, async ({ tx, executor }) => {
+    await tx.insert(evento).values(linha);
+    pidMorto = ((await executor.executeSql('select pg_backend_pid() as pid')).rows[0] as { pid: number }).pid;
+    await executor.executeSql('select pg_terminate_backend(pg_backend_pid())');
+    await executor.executeSql('select 1');
+  }).then(
+    () => null,
+    (e: unknown) => e,
+  );
+  expect(falha).toBeInstanceOf(Error);
+  expect(pidMorto).toBeTypeOf('number');
+  const pids = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      comTransacao(b.poolApp, async ({ tx, executor }) => {
+        await tx.insert(evento).values(linha);
+        return ((await executor.executeSql('select pg_backend_pid() as pid')).rows[0] as { pid: number }).pid;
+      }),
+    ),
+  );
+  expect(pids).not.toContain(pidMorto);
+  expect(b.poolApp.totalCount).toBeLessThanOrEqual(10);
+  expect(await total()).toBe(10);
+});
