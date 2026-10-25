@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
+import { instalarFilas } from '../src/lib/fila';
 import { reduzirErro } from '../src/lib/reduzir-erro';
 
 const PASTA = fileURLToPath(new URL('../drizzle', import.meta.url));
@@ -16,7 +17,8 @@ export async function migrar(urlMigrator: string): Promise<void> {
   } finally {
     await pool.end();
   }
-  // a T07 acrescenta aqui o esquema e as filas do pg-boss, com o migrator
+  // Esquema e filas do pg-boss, também com o migrator: o app sobe com `migrate: false` e não tem DDL (T-02, C-34).
+  await instalarFilas(urlMigrator);
 }
 
 // Verdadeiro só quando este arquivo é o chamado pela linha de comando (tsx scripts/migrate.ts), com caminho absoluto

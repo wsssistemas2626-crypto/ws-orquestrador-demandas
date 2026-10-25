@@ -116,9 +116,9 @@ describe('guarda de privilégios: DDL, esquemas, sequências e registro de migra
   // Esquemas do usuário: fora os do catálogo do Postgres (pg_catalog, pg_toast, information_schema).
   const ESQUEMAS_DO_USUARIO = `select nspname from pg_namespace where nspname not like 'pg\\_%' and nspname <> 'information_schema'`;
 
-  it('o app tem USAGE só em public e drizzle, e CREATE em nenhum esquema nem no banco', async () => {
+  it('o app tem USAGE só em public, drizzle e pgboss (T07), e CREATE em nenhum esquema nem no banco', async () => {
     const usa = (await q(`${ESQUEMAS_DO_USUARIO} and has_schema_privilege($1, oid, 'USAGE') order by 1`, [PAPEL_APP])).map((r) => r.nspname);
-    expect(usa).toEqual(['drizzle', 'public']);
+    expect(usa).toEqual(['drizzle', 'pgboss', 'public']);
     const cria = await q(`${ESQUEMAS_DO_USUARIO} and has_schema_privilege($1, oid, 'CREATE')`, [PAPEL_APP]);
     expect(cria).toEqual([]);
     const [banco] = await q(`select has_database_privilege($1, current_database(), 'CREATE') as cria`, [PAPEL_APP]);
@@ -191,5 +191,56 @@ describe('guarda de privilégios: DDL, esquemas, sequências e registro de migra
     await b.poolApp.query(`delete from bloqueio_verificacao where usuario_id = 'u-qa-crud'`);
     await b.poolApp.query(`delete from "user" where id = 'u-qa-crud'`);
     expect((await b.poolApp.query(`select 1 from "user" where id = 'u-qa-crud'`)).rows).toEqual([]);
+  });
+});
+
+// T07: o esquema do pg-boss é do migrator (instalarFilas, em scripts/migrate.ts). O app usa a fila sem DDL (T-02).
+describe('esquema pgboss: criado pelo migrator, usado pelo app sem DDL (T07, C-34)', () => {
+  it('o esquema pgboss existe e é do migrator, não do app', async () => {
+    const [esq] = await q(`select r.rolname as dono from pg_namespace n join pg_roles r on r.oid = n.nspowner where n.nspname = 'pgboss'`);
+    expect(esq).toBeDefined();
+    expect(esq.dono).not.toBe(PAPEL_APP);
+  });
+
+  it('o app não tem CREATE no esquema pgboss', async () => {
+    const [esq] = await q(`select has_schema_privilege($1, 'pgboss', 'CREATE') as cria`, [PAPEL_APP]);
+    expect(esq.cria).toBe(false);
+  });
+
+  it('nenhum objeto do esquema pgboss é do app', async () => {
+    expect(
+      await q(`select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace join pg_roles r on r.oid = c.relowner where n.nspname = 'pgboss' and r.rolname = $1`, [PAPEL_APP]),
+    ).toEqual([]);
+    expect(
+      await q(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_roles r on r.oid = p.proowner where n.nspname = 'pgboss' and r.rolname = $1`, [PAPEL_APP]),
+    ).toEqual([]);
+  });
+
+  it('o app tem SELECT, INSERT, UPDATE e DELETE nas tabelas do pgboss, sem TRUNCATE, TRIGGER nem REFERENCES', async () => {
+    const tabelas = (await q(`select tablename from pg_tables where schemaname = 'pgboss' order by 1`)).map((r) => r.tablename as string);
+    expect(tabelas).toContain('job');
+    expect(tabelas).toContain('queue');
+    for (const t of tabelas) {
+      const tem = (
+        await q(`select privilege_type from information_schema.table_privileges where grantee = $1 and table_schema = 'pgboss' and table_name = $2`, [PAPEL_APP, t])
+      )
+        .map((x) => x.privilege_type)
+        .sort();
+      expect(tem, t).toEqual(['DELETE', 'INSERT', 'SELECT', 'UPDATE']);
+    }
+  });
+
+  it('PUBLIC não tem privilégio em tabela do esquema pgboss', async () => {
+    expect(await q(`select table_name, privilege_type from information_schema.table_privileges where grantee = 'PUBLIC' and table_schema = 'pgboss'`)).toEqual([]);
+  });
+
+  it.each([
+    ['criar tabela no esquema pgboss', 'create table pgboss.t_qa (id int)'],
+    ['acrescentar coluna em pgboss.job', 'alter table pgboss.job add column qa int'],
+    ['apagar a tabela pgboss.queue', 'drop table pgboss.queue'],
+    ['criar índice em pgboss.job', 'create index job_qa_idx on pgboss.job (name)'],
+    ['esvaziar pgboss.job', 'truncate pgboss.job'],
+  ])('o papel do app não faz DDL no pgboss: %s é recusado (42501)', async (_nome, sql) => {
+    await expect(b.poolApp.query(sql)).rejects.toMatchObject({ code: '42501' });
   });
 });
