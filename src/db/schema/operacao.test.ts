@@ -1,5 +1,6 @@
 // Integridade das tabelas de operação (T06): aviso por e-mail do DEC (RF-25), batimento do worker (RNF-05) e registro
 // das rotinas (C-31), provada no Postgres real com o papel do app (C-34). Dados só fictícios.
+import type { PoolClient } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../test/banco';
 
@@ -139,5 +140,55 @@ describe('rotina_execucao: a última execução de cada rotina, para o painel (C
     ['apagar o registro', 'delete from rotina_execucao'],
   ])('%s é recusado com o papel do app (42501)', async (_caso, sql) => {
     await expect(b.poolApp.query(sql)).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+// Testes da etapa 06-T06-testes (qa-automacao): a lista de colunas por permissão (o aviso não guarda destinatário nem
+// corpo, C-38) e o agendamento concorrente do aviso (CA-25.2), com duas conexões e a espera conferida no pg_locks.
+describe('colunas das tabelas de operação por lista de permissão (C-38)', () => {
+  const TSTZ = 'timestamp with time zone';
+  it.each([
+    ['aviso_email', [`atualizado_em:${TSTZ}`, `enviado_em:${TSTZ}`, 'id_provedor:text', 'pacote_decisao_id:text', 'status:text', 'tentativas:integer']],
+    ['worker_batimento', ['instancia:text', `visto_em:${TSTZ}`]],
+    ['rotina_execucao', ['quantidade:integer', 'rotina:text', `ultima_execucao_em:${TSTZ}`]],
+  ])('%s tem exatamente as colunas e os tipos esperados', async (tabela, esperado) => {
+    const r = await b.poolMigrator.query(
+      `select a.attname || ':' || format_type(a.atttypid, a.atttypmod) as coluna from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped`,
+      [`public.${tabela}`],
+    );
+    expect(r.rows.map((x) => x.coluna as string).sort()).toEqual([...esperado].sort());
+  });
+});
+
+describe('aviso_email sob concorrência: dois agendamentos do mesmo DEC, um aviso (CA-25.2)', () => {
+  beforeAll(async () => {
+    await b.poolMigrator.query(
+      `insert into pacote_decisao (id, demanda_id, versao, especificacao_id, especificacao_versao, parecer_risco_id, parecer_risco_versao, demanda_tipo, demanda_titulo, demanda_descricao, resumo_executivo, opcao_a, opcao_b, nivel_aprovacao_requerido, autor_tipo, autor_id, rascunho_agente, criada_em) values ($1, $2, 5, $3, 1, $4, 1, 'melhoria', 'Demanda ficticia', 'Descricao ficticia', 'Resumo ficticio', '{"descricao":"A ficticia"}', '{"descricao":"B ficticia"}', 'cto', 'pessoa', 'u-ficticio', false, $5)`,
+      [DEC(5), D1, `ESP-${D1}-v1`, `RSK-${D1}-v1`, QUANDO],
+    );
+  });
+
+  it('o segundo agendamento espera o primeiro e não insere nada', async () => {
+    const primeiro = await b.poolApp.connect();
+    const segundo = await b.poolApp.connect();
+    const agendar = (c: PoolClient) =>
+      c.query(`insert into aviso_email (pacote_decisao_id, atualizado_em) values ($1, $2) on conflict (pacote_decisao_id) do nothing returning status`, [DEC(5), QUANDO]);
+    try {
+      await primeiro.query('begin');
+      expect((await agendar(primeiro)).rows).toEqual([{ status: 'pendente' }]);
+      const pid = (await segundo.query('select pg_backend_pid() as pid')).rows[0].pid as number;
+      const doSegundo = agendar(segundo);
+      await expect
+        .poll(async () => (await b.poolMigrator.query('select count(*)::int as n from pg_locks where pid = $1 and not granted', [pid])).rows[0].n, { timeout: 5_000 })
+        .toBe(1);
+      await primeiro.query('commit');
+      expect((await doSegundo).rows).toEqual([]);
+      const r = await b.poolApp.query('select count(*)::int as n from aviso_email where pacote_decisao_id = $1', [DEC(5)]);
+      expect(r.rows[0].n).toBe(1);
+    } finally {
+      await primeiro.query('rollback');
+      primeiro.release();
+      segundo.release();
+    }
   });
 });

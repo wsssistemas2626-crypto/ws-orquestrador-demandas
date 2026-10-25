@@ -1,7 +1,8 @@
 // Integridade das tabelas de agentes e de uso de IA (T06), provada no Postgres real com o papel do app: o banco segura
 // o interruptor, o teto, o preço, a execução única por entrada e o registro de uso só de inclusão (RF-17 a RF-19,
 // C-26, C-34). Dados só fictícios.
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { PoolClient } from 'pg';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../test/banco';
 import { AGENTES, MOEDAS, RESULTADOS_USO, ROTINAS, STATUS_AVISO_EMAIL, STATUS_EXECUCAO } from './index';
 
@@ -375,5 +376,183 @@ describe('índices das consultas críticas de agentes e operação (EXPLAIN)', (
     const p = await plano(sql, valores);
     expect(p).toContain(`"Index Name":"${indice}"`);
     expect(p).not.toContain('"Node Type":"Seq Scan"');
+  });
+});
+
+// Testes da etapa 06-T06-testes (qa-automacao). Os de cima conferem cada restrição; estes fecham o que eles não pegam:
+// a lista de colunas por permissão (o filtro por nome de CA-17.3 deixa passar coluna de conteúdo com outro nome), as
+// bordas da chave de entrada e a concorrência real entre dois workers (ADR-07), com duas conexões e a espera pela trava
+// conferida no pg_locks, sem depender de tempo.
+const colunasDe = async (tabela: string) =>
+  (
+    await b.poolMigrator.query(
+      `select a.attname || ':' || format_type(a.atttypid, a.atttypmod) as coluna from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped`,
+      [`public.${tabela}`],
+    )
+  ).rows
+    .map((x) => x.coluna as string)
+    .sort();
+
+describe('colunas das tabelas de agentes por lista de permissão (CA-17.3, C-22, RF-18)', () => {
+  const TSTZ = 'timestamp with time zone';
+  it.each([
+    [
+      'uso_ia',
+      [
+        'agente:text',
+        'custo:numeric(12,6)',
+        'demanda_id:text',
+        'execucao_agente_id:uuid',
+        'id:uuid',
+        'modelo:text',
+        `ocorrido_em:${TSTZ}`,
+        'resultado:text',
+        'tokens_entrada:integer',
+        'tokens_saida:integer',
+      ],
+    ],
+    [
+      'execucao_agente',
+      [
+        'agente:text',
+        'artefato_id:text',
+        `atualizada_em:${TSTZ}`,
+        `bloqueada_ate:${TSTZ}`,
+        'chave_entrada:text',
+        `criada_em:${TSTZ}`,
+        'demanda_id:text',
+        'id:uuid',
+        `proxima_tentativa_em:${TSTZ}`,
+        'status:text',
+        'tentativas:integer',
+      ],
+    ],
+    ['configuracao_agente', ['agente:text', `atualizado_em:${TSTZ}`, 'atualizado_por:text', 'ligado:boolean', 'modelo:text']],
+    ['configuracao_ia', [`atualizado_em:${TSTZ}`, 'atualizado_por:text', 'id:smallint', 'moeda:text', 'teto_mensal:numeric(12,2)']],
+    [
+      'preco_modelo',
+      ['id:uuid', 'modelo:text', 'moeda:text', 'preco_entrada_por_milhao:numeric(12,6)', 'preco_saida_por_milhao:numeric(12,6)', `vigente_desde:${TSTZ}`],
+    ],
+  ])('%s tem exatamente as colunas e os tipos esperados (sem coluna de conteúdo; valores em numeric, sem ponto flutuante)', async (tabela, esperado) => {
+    expect(await colunasDe(tabela)).toEqual([...esperado].sort());
+  });
+});
+
+describe('execucao_agente: bordas da chave de entrada (C-22)', () => {
+  it.each([
+    ['quebra de linha depois do id', { chave_entrada: `demanda:${D1}\n` }],
+    ['quebra de linha antes do id', { chave_entrada: `demanda:\n${D1}` }],
+    ['chave vazia', { chave_entrada: '' }],
+    ['só o prefixo', { chave_entrada: 'demanda:' }],
+    ['versão com cinco dígitos', { agente: 'risco', chave_entrada: `esp:ESP-${D1}-v12345` }],
+    ['prefixo em maiúsculas', { chave_entrada: `DEMANDA:${D1}` }],
+    ['espaço antes do prefixo', { chave_entrada: ` demanda:${D1}` }],
+  ] as const)('%s é recusada (23514)', async (_caso, campos) => {
+    await expect(inserir('execucao_agente', execucao(campos))).rejects.toMatchObject({ code: '23514', constraint: 'execucao_agente_chave_entrada_check' });
+  });
+
+  it('a versão de quatro dígitos, o limite de G3.10, entra', async () => {
+    await expect(inserir('execucao_agente', execucao({ agente: 'risco', chave_entrada: `esp:ESP-${D1}-v9999` }))).resolves.toMatchObject({ rowCount: 1 });
+  });
+});
+
+describe('uso_ia: demanda opcional, mas sempre existente (RF-17)', () => {
+  it('o uso do orquestrador, antes de a demanda existir, é registrado sem demanda', async () => {
+    const [e] = (await inserir('execucao_agente', execucao({ agente: 'orquestrador', chave_entrada: 'entrada:0a1b2c3d-0000-4000-8000-000000000002', demanda_id: null }))).rows;
+    const [u] = (
+      await inserir('uso_ia', {
+        execucao_agente_id: e.id,
+        agente: 'orquestrador',
+        demanda_id: null,
+        modelo: 'modelo-ficticio',
+        tokens_entrada: 10,
+        tokens_saida: 5,
+        custo: '0',
+        resultado: 'sucesso',
+        ocorrido_em: QUANDO,
+      })
+    ).rows;
+    expect(u).toMatchObject({ agente: 'orquestrador', demanda_id: null });
+  });
+
+  it('uso com demanda que não existe é recusado (23503)', async () => {
+    const [e] = (await inserir('execucao_agente', execucao({ agente: 'risco', chave_entrada: `esp:ESP-${D1}-v21` }))).rows;
+    await expect(
+      inserir('uso_ia', {
+        execucao_agente_id: e.id,
+        agente: 'risco',
+        demanda_id: 'DEM-20261022-0797',
+        modelo: 'modelo-ficticio',
+        tokens_entrada: 1,
+        tokens_saida: 1,
+        custo: '0',
+        resultado: 'sucesso',
+        ocorrido_em: QUANDO,
+      }),
+    ).rejects.toMatchObject({ code: '23503' });
+  });
+});
+
+describe('execucao_agente sob concorrência: dois workers, uma execução (ADR-07, CA-16.4)', () => {
+  // A segunda conexão fica parada na trava da primeira; o teste só segue quando o pg_locks mostra a espera.
+  const esperandoTrava = async (pid: number) =>
+    (await b.poolMigrator.query('select count(*)::int as n from pg_locks where pid = $1 and not granted', [pid])).rows[0].n as number;
+  const pidDe = async (c: PoolClient) => (await c.query('select pg_backend_pid() as pid')).rows[0].pid as number;
+  const reivindicar = (c: PoolClient, id: string) =>
+    c.query(
+      `update execucao_agente set status = 'em_andamento', bloqueada_ate = $2::timestamptz + interval '150 seconds', tentativas = tentativas + 1, atualizada_em = $2 where id = $1 and (status = 'pendente' or (status = 'em_andamento' and bloqueada_ate < $2)) returning tentativas`,
+      [id, QUANDO],
+    );
+  let primeiro: PoolClient;
+  let segundo: PoolClient;
+  beforeEach(async () => {
+    primeiro = await b.poolApp.connect();
+    segundo = await b.poolApp.connect();
+  });
+  afterEach(async () => {
+    await primeiro.query('rollback');
+    primeiro.release();
+    segundo.release();
+  });
+
+  it('duas criações simultâneas da mesma execução: a segunda espera a primeira e não insere nada', async () => {
+    const criar = (c: PoolClient) =>
+      c.query(
+        `insert into execucao_agente (agente, chave_entrada, criada_em, atualizada_em) values ('insumo_tecnico', 'demanda:DEM-20261022-0710', $1, $1) on conflict (agente, chave_entrada) do nothing returning id`,
+        [QUANDO],
+      );
+    await primeiro.query('begin');
+    expect((await criar(primeiro)).rows).toHaveLength(1);
+    const pid = await pidDe(segundo);
+    const daSegunda = criar(segundo);
+    await expect.poll(() => esperandoTrava(pid), { timeout: 5_000 }).toBe(1);
+    await primeiro.query('commit');
+    expect((await daSegunda).rows).toEqual([]);
+    const r = await b.poolApp.query(`select count(*)::int as n from execucao_agente where chave_entrada = 'demanda:DEM-20261022-0710'`);
+    expect(r.rows[0].n).toBe(1);
+  });
+
+  it('duas reivindicações simultâneas: só a primeira leva, e a tentativa conta uma vez', async () => {
+    const [e] = (await inserir('execucao_agente', execucao({ chave_entrada: 'demanda:DEM-20261022-0711', demanda_id: null }))).rows;
+    await primeiro.query('begin');
+    expect((await reivindicar(primeiro, e.id)).rows).toEqual([{ tentativas: 1 }]);
+    const pid = await pidDe(segundo);
+    const daSegunda = reivindicar(segundo, e.id);
+    await expect.poll(() => esperandoTrava(pid), { timeout: 5_000 }).toBe(1);
+    await primeiro.query('commit');
+    expect((await daSegunda).rows).toEqual([]);
+    const r = await b.poolApp.query('select status, tentativas from execucao_agente where id = $1', [e.id]);
+    expect(r.rows).toEqual([{ status: 'em_andamento', tentativas: 1 }]);
+  });
+
+  it('se o primeiro desiste (rollback), o segundo, que esperava, leva a execução: nenhuma fica perdida', async () => {
+    const [e] = (await inserir('execucao_agente', execucao({ chave_entrada: 'demanda:DEM-20261022-0712', demanda_id: null }))).rows;
+    await primeiro.query('begin');
+    expect((await reivindicar(primeiro, e.id)).rows).toEqual([{ tentativas: 1 }]);
+    const pid = await pidDe(segundo);
+    const daSegunda = reivindicar(segundo, e.id);
+    await expect.poll(() => esperandoTrava(pid), { timeout: 5_000 }).toBe(1);
+    await primeiro.query('rollback');
+    expect((await daSegunda).rows).toEqual([{ tentativas: 1 }]);
   });
 });

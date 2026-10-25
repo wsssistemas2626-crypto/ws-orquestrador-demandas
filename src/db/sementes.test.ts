@@ -54,3 +54,40 @@ it('as tabelas de operação nascem vazias: nenhum preço, execução, uso, avis
     expect(r.rows[0].n, tabela).toBe(0);
   }
 });
+
+// Etapa 06-T06-testes (qa-automacao): a semente explícita podia esconder um padrão errado na tabela. Aqui a linha é
+// refeita só com a chave, numa transação desfeita no fim, e o que vale é o padrão do banco: agente desligado e teto zero
+// em USD também para qualquer semente ou restauração futura que não informe o valor (CA-19.1, RF-18, P1-f).
+const refazerSoComAChave = async (apagar: string, inserir: string, ler: string) => {
+  const c = await b.poolMigrator.connect();
+  try {
+    await c.query('begin');
+    await c.query(apagar);
+    await c.query(inserir);
+    return (await c.query(ler)).rows;
+  } finally {
+    await c.query('rollback');
+    c.release();
+  }
+};
+
+it('pelo padrão da tabela, agente incluído sem dizer se está ligado nasce desligado e sem modelo', async () => {
+  const linhas = await refazerSoComAChave(
+    `delete from configuracao_agente where agente = 'risco'`,
+    `insert into configuracao_agente (agente) values ('risco')`,
+    `select ligado, modelo from configuracao_agente where agente = 'risco'`,
+  );
+  expect(linhas).toEqual([{ ligado: false, modelo: null }]);
+});
+
+it('pelo padrão da tabela, a linha do teto incluída só com o id nasce com teto zero em USD', async () => {
+  const linhas = await refazerSoComAChave('delete from configuracao_ia', 'insert into configuracao_ia (id) values (1)', 'select teto_mensal, moeda from configuracao_ia');
+  expect(linhas).toEqual([{ teto_mensal: '0.00', moeda: 'USD' }]);
+});
+
+it('a transação desfeita deixou as sementes como estavam', async () => {
+  const agentes = await b.poolApp.query(`select count(*)::int as n from configuracao_agente where not ligado`);
+  const teto = await b.poolApp.query('select teto_mensal from configuracao_ia');
+  expect(agentes.rows[0].n).toBe(4);
+  expect(teto.rows).toEqual([{ teto_mensal: '0.00' }]);
+});
