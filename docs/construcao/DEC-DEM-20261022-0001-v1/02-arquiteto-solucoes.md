@@ -2,17 +2,18 @@
 pedido: DEC-DEM-20261022-0001-v1
 etapa: 02-arquitetura
 agente: arquiteto-solucoes
-leu: [pedido.json, 01-analista-requisitos.md, padrao-tecnico.md, contrato-passagem.md, passagens.jsonl, 02-arquiteto-solucoes.md (volta 0), 2026-10-15_orquestrador-demandas_spec-original.md, 2026-10-15_orquestrador-demandas_ajustes.md, pedido.mjs, permissoes.mjs, .gitignore]
-status: bloqueado
-proximo: arquiteto-solucoes
+leu: [pedido.json, 01-analista-requisitos.md, padrao-tecnico.md, contrato-passagem.md, passagens.jsonl, 02-arquiteto-solucoes.md (volta 2), pedido.mjs, .gitignore]
+status: pronto
+proximo: seguranca-aplicacao
 devolvido_para: null
 ---
 ## Entrega
 
-Arquitetura do WS Orquestrador de Demandas, versão 0.1.0 (volta 1 da etapa 02). Base: requisitos de
+Arquitetura do WS Orquestrador de Demandas, versão 0.1.0 (volta 3 da etapa 02). Base: requisitos de
 `01-analista-requisitos.md` (RF-01 a RF-26, RNF-01 a RNF-18), `padrao-tecnico.md` e o pedido. O repositório hoje só
-tem `.gitignore` e `docs/`, sem código anterior a respeitar. O desenho está completo; o status `bloqueado` se deve só
-à disciplina de comandos (ver a primeira linha de Pendências), não a falta de informação de arquitetura.
+tem `.gitignore` e `docs/`, sem código anterior a respeitar. Esta volta mantém o desenho da volta 2 sem mudança; só
+foram refeitas, sem nenhum comando git, as conferências do repositório e das portas (ver Comandos executados). A spec
+original e os ajustes de 15/10 foram lidos na volta 0 e já estão refletidos nos requisitos da etapa 01.
 
 Mudanças em relação à volta 0: uma fila só para os quatro agentes (a volta 0 tinha quatro filas com concorrência 1
 cada, o que permitia quatro chamadas simultâneas e furava a tolerância do teto da RNF-07); varredura de execuções
@@ -453,7 +454,10 @@ reivindicação do passo 1 torna o reenfileiramento repetido inofensivo. Batimen
 
 ## Pendências
 
-- Bloqueado por comando fora da lista Pode: rodei `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` (só leitura, sem efeito); o conferir só aceita `git status` como primeiras palavras, e sem `-C` nem `cd` (que não está na lista) não há como rodar `git status`, `git log` ou `git diff` no repositório do sistema, porque o Bash começa na estruturaAutonoma. O desenho está completo; Fabiano decide se libera esta entrega como está ou se a lista Pode do arquiteto passa a aceitar `git -C <repo> status|log|diff`.
+- Nenhuma bloqueia a etapa. Itens para a Parada 1 (Fabiano) ou para as etapas seguintes:
+- Fabiano / demanda à parte (antes da 06): a lista Pode do arquiteto cita `git status`, `git log` e `git diff`, mas o
+  Bash começa na estruturaAutonoma e a forma `git -C <repo>` é recusada pelo conferir. Nesta volta nenhum comando git
+  foi rodado; o estado do repositório foi conferido com `ls`.
 - `analista-requisitos` / Parada 1: a RNF-06 cita três esperas (30 s, 2 min, 10 min) para três tentativas, que só têm
   duas esperas. Adotei 30 s e 2 min; se a intenção era 3 **novas** tentativas (4 no total), basta acrescentar 10 min à
   função `esperaAntesDaTentativa`, sem mudar a arquitetura.
@@ -476,11 +480,9 @@ reivindicação do passo 1 torna o reenfileiramento repetido inofensivo. Batimen
 
 ## Comandos executados
 
-- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261022-0001-v1` — pasta do pedido com `pedido.json`, `01`, `02` (volta 0), `03` e `passagens.jsonl`
-- `ss -ltn` — 3101 e 5434 livres; 3000 ocupada pelo Easypanel
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261022-0001-v1`, árvore limpa; fora da lista **Pode** pela forma com `-C` (ver Pendências)
-- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas` — repositório só com `.gitignore` e `docs/`
-- `ls -la /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/lib` — localizar o `pedido.mjs` e o `permissoes.mjs`
+- `ss -ltn` — em escuta 22, 53, 80, 443, 2377, 3000, 7946, 24282 a 24285 e 65529; 3101 e 5434 livres; 3000 ocupada pelo Easypanel
+- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas` — repositório só com `.git`, `.gitignore` e `docs/`, sem código
+- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261022-0001-v1` — pasta do pedido com `pedido.json`, `01`, `02` (volta 2), `03` e `passagens.jsonl`
 
 ## Critério de pronto atendido
 
