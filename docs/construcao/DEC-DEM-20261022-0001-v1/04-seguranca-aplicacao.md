@@ -2,7 +2,7 @@
 pedido: DEC-DEM-20261022-0001-v1
 etapa: 04-ameacas
 agente: seguranca-aplicacao
-leu: [pedido.json, 01-analista-requisitos.md, 02-arquiteto-solucoes.md, 03-ux-ui-design.md, padrao-tecnico.md, contrato-passagem.md, passagens.jsonl, pedido.mjs]
+leu: [pedido.json, 01-analista-requisitos.md, 02-arquiteto-solucoes.md, 03-ux-ui-design.md, padrao-tecnico.md, contrato-passagem.md, 04-seguranca-aplicacao.md (volta anterior), pedido.mjs]
 status: pronto
 proximo: tech-lead
 devolvido_para: null
@@ -337,7 +337,6 @@ preveem para os 90 dias. "Status final" = `entregue` ou `encerrada`.
 ## Pendências
 
 - Nenhuma bloqueia a etapa. Itens para a Parada 1 e para as etapas seguintes:
-- Registro de comando: no início da etapa rodei pelo Bash um `ls -la` da pasta do pedido, que não está na minha lista Pode (deveria ter usado Glob). Só leu a lista de arquivos e não mudou nada. Está declarado em Comandos executados; se o conferir recusar por isso, o conteúdo desta entrega não muda.
 - Fabiano: regra mínima de nível de aprovação (por exemplo, risco jurídico `alto` exige `cto_e_administradora`). Sem ela, um DEC de agente com nível rebaixado depende só da revisão humana (C-14).
 - Fabiano: quem registra a aprovação da administradora, e se ela aprova DEC de nível `cto` (afeta C-12; o código nasce no modo mais restrito).
 - `juridico-contratos` (Parada 1): confirmar as bases legais e os prazos de D1 a D8 (90 dias; 5 anos depois do status final); transferência internacional (art. 33) antes de ligar qualquer agente.
@@ -345,12 +344,12 @@ preveem para os 90 dias. "Status final" = `entregue` ou `encerrada`.
 - `gestao-riscos`: risco residual para aceite formal de Fabiano: (a) nome de pessoa dentro de texto livre ainda chega ao provedor depois da minimização; (b) instrução injetada que passe pela revisão humana chega ao /construir, cujos agentes têm Bash.
 - `tech-lead` (05): a 03 prevê "Entradas aguardando o agente orquestrador" com nome, papel e texto guardados antes de a demanda existir, e a 02 tem `entrada_bruta` com chave igual a `demanda_id`. A escolha de onde guardar essa entrada é da 05; C-22 e C-31 valem para qualquer escolha.
 - `devops-sre` (09): itens do `deploy.md` da seção 5, item 6.
-- `pnpm audit --prod` não rodou: o repositório ainda não tem `package.json`. Roda no CI (C-39) e antes da 08.
+- `pnpm audit --prod` não rodou: o repositório ainda não tem `package.json` (conferido por leitura, o arquivo não existe na raiz), então não há dependência a verificar. Roda no CI (C-39) e antes da 08.
 - Script de desativação de conta (D6) não está na lista de scripts de 02: entra no plano ou fica registrado para a 0.2.0.
 
 ## Comandos executados
 
-- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261022-0001-v1` — fora da lista Pode, rodado por engano no início; só listou `pedido.json`, `01`, `02`, `03` e `passagens.jsonl`
+Nenhum.
 
 ## Critério de pronto atendido
 
