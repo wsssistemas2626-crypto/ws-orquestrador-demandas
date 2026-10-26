@@ -4,15 +4,17 @@
 // (test/matriz-rotas.test.ts); aqui ficam os comportamentos de cada uma. Dados só fictícios.
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../../test/banco';
-import { criarDepsDeTeste } from '../../../../test/deps';
+import { AGORA_TESTE, criarDepsDeTeste } from '../../../../test/deps';
 import { chamarRota, type OpRequisicao } from '../../../../test/requisicao';
 import { SENTINELAS, contemSentinela } from '../../../../test/sentinelas';
 import { criarPessoa } from '../../../../test/sessao';
+import { user } from '../../../db/schema';
 import { comTransacao } from '../../../db/transacao';
 import { definirDepsParaTeste, type Deps } from '../../../lib/deps';
 import { MENSAGEM_NAO_ENCONTRADO } from '../../../lib/erros';
 import { substituirDestinoDoLog } from '../../../lib/log';
-import type { AtorAgente, AtorPessoa, AtorSistema } from '../../../modules/acesso/ator';
+import { relogioFixo, type RelogioFixo } from '../../../lib/relogio';
+import type { Ator, AtorAgente, AtorPessoa, AtorSistema } from '../../../modules/acesso/ator';
 import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenServico } from '../../../modules/acesso/tokens-servico';
 import { criarDemandaSchema, type Status, type Tipo } from '../../../modules/demandas/schemas';
@@ -23,6 +25,7 @@ import { MENSAGEM_LIMITE } from '../../../modules/limites';
 import { listarPareceresRisco, obterParecerRisco } from '../../../modules/pareceres-risco/consultas';
 import { criarParecerRiscoSchema } from '../../../modules/pareceres-risco/schemas';
 import { criarParecerRisco } from '../../../modules/pareceres-risco/servico';
+import { idVersao } from '../../../modules/versoes';
 import * as rotaDaVersao from './[rskId]/route';
 import { GET as GET_VERSAO } from './[rskId]/route';
 import * as rotaDaLista from '../demandas/[id]/pareceres-risco/route';
@@ -488,5 +491,216 @@ describe('log das rotas do RSK (C-21)', () => {
     expect(tudo).not.toMatch(/DEM-\d{8}-\d{4}/);
     expect(tudo).not.toContain(tokenRisco);
     expect(contemSentinela(tudo)).toBe(false);
+  });
+});
+
+// Acrescentados na 06-T19-testes (qa-automacao): concorrência além de duas criações, fronteira e janela do limite com
+// ESP, RSK e DEC somados, limite do agente pelo nome, número de versão por demanda e com dez versões ou mais, ESP mais
+// nova de outra demanda, recusas que não consomem versão, autoria no sentido contrário e a v1 lida pela rota.
+//
+// Independência de ordem. O limite (C-36) conta tudo o que foi criado depois de "agora menos uma hora", inclusive o que
+// tem data mais nova que o relógio de quem pergunta. Por isso:
+//   - cada teste fixa o próprio dia (`usarDia(n)`, um n por teste, escrito no teste e não num contador), sempre antes do
+//     relógio do arquivo: o que este bloco grava fica no passado dos testes acima e não pesa no limite deles;
+//   - quem enche o limite tem pessoa só sua (B na fronteira, C na janela; D só aparece na concorrência), e o teste que enche o
+//     limite do agente risco fica no dia mais antigo, onde as versões dele não estão no futuro de nenhum outro teste;
+//   - as pessoas fictícias são gravadas direto na tabela de contas.
+// As rotas usam o relógio fixo do arquivo, com poucas versões por credencial.
+describe('bordas (06-T19-testes)', () => {
+  const pessoa = (letra: string, papel: AtorPessoa['papel']): AtorPessoa => ({ tipo: 'pessoa', usuarioId: `u-rsk-qa-${letra}`, nome: `Pessoa Ficticia ${letra.toUpperCase()}`, papel });
+  const pessoaA = pessoa('a', 'cto');
+  const pessoaB = pessoa('b', 'administradora');
+  const pessoaC = pessoa('c', 'cto');
+  const pessoaD = pessoa('d', 'administradora');
+  let relogio: RelogioFixo;
+  let svc: { db: BancoDeTeste['db']; pool: BancoDeTeste['poolApp']; relogio: RelogioFixo };
+
+  beforeAll(async () => {
+    await b.db.insert(user).values(
+      [pessoaA, pessoaB, pessoaC, pessoaD].map((p) => ({ id: p.usuarioId, name: p.nome, email: `${p.usuarioId}@exemplo.test`, papel: p.papel })),
+    );
+  });
+
+  // n dias antes do relógio do arquivo (AGORA_TESTE).
+  function usarDia(n: number): void {
+    relogio = relogioFixo(AGORA_TESTE);
+    relogio.avancar(-n * 86_400_000);
+    svc = { db: b.db, pool: b.poolApp, relogio };
+  }
+
+  const novaDemandaQa = async (): Promise<string> =>
+    (await criarDemanda(svc, pessoaA, criarDemandaSchema.parse({ titulo: 'Pedidos duplicados', tipo: 'bug', solicitanteNome: 'Pessoa Ficticia' }))).id;
+
+  // Versões gravadas direto pelo migrator, sem evento, com a autoria e a data dadas (só para montar o cenário).
+  const inserirRsk = (demandaId: string, de: number, ate: number, autorTipo: 'pessoa' | 'agente', autorId: string, quando: Date) =>
+    b.poolMigrator.query(
+      `insert into parecer_risco (id, demanda_id, versao, risco_tecnico_nivel, risco_operacional_nivel, risco_juridico_nivel, autor_tipo, autor_id, rascunho_agente, criada_em)
+       select 'RSK-' || $1::text || '-v' || v, $1::text, v, 'baixo', 'baixo', 'baixo', $2::text, $3::text, $2::text = 'agente', $4::timestamptz
+       from generate_series($5::int, $6::int) as v`,
+      [demandaId, autorTipo, autorId, quando, de, ate],
+    );
+  const inserirEsp = (demandaId: string, de: number, ate: number, autorId: string, quando: Date) =>
+    b.poolMigrator.query(
+      `insert into especificacao_tecnica (id, demanda_id, versao, descricao_objetiva, escopo_inclui, autor_tipo, autor_id, rascunho_agente, criada_em)
+       select 'ESP-' || $1::text || '-v' || v, $1::text, v, 'x', '["x"]'::jsonb, 'pessoa', $2::text, false, $3::timestamptz
+       from generate_series($4::int, $5::int) as v`,
+      [demandaId, autorId, quando, de, ate],
+    );
+  const inserirDec = (demandaId: string, autorId: string, quando: Date) =>
+    b.poolMigrator.query(
+      `insert into pacote_decisao (id, demanda_id, versao, especificacao_id, especificacao_versao, parecer_risco_id, parecer_risco_versao, demanda_tipo, demanda_titulo, demanda_descricao, resumo_executivo, opcao_a, opcao_b, nivel_aprovacao_requerido, autor_tipo, autor_id, rascunho_agente, criada_em)
+       values ('DEC-' || $1::text || '-v1', $1::text, 1, 'ESP-' || $1::text || '-v1', 1, 'RSK-' || $1::text || '-v1', 1, 'bug', 'Pedidos duplicados', 'Contexto: ficticio', 'Resumo ficticio', '{"descricao":"Opcao A ficticia"}', '{"descricao":"Opcao B ficticia"}', 'cto', 'pessoa', $2::text, false, $3::timestamptz)`,
+      [demandaId, autorId, quando],
+    );
+  const criadosPeloServico = async (demandaId: string) => (await eventosDa(demandaId)).filter((e) => e.acao === 'parecer_risco_criado');
+
+  it('CA-04.3: cinco criações simultâneas, de duas pessoas e do agente risco → v1 a v5, sem erro e sem número repetido', async () => {
+    usarDia(1);
+    const id = await novaDemandaQa();
+    const atores: Ator[] = [pessoaA, pessoaD, agenteRisco, pessoaA, agenteRisco];
+    const resultados = await Promise.allSettled(atores.map((a, i) => criarParecerRisco(svc, a, id, rsk({ resumo: `Concorrente ${i}` }))));
+    expect(resultados.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']);
+    const versoes = resultados.map((r) => (r as PromiseFulfilledResult<{ versao: number }>).value.versao).sort((a, x) => a - x);
+    expect(versoes).toEqual([1, 2, 3, 4, 5]);
+    const linhas = (await b.poolMigrator.query<{ id: string; resumo: string }>('select id, resumo from parecer_risco where demanda_id = $1 order by versao', [id])).rows;
+    expect(linhas.map((l) => l.id)).toEqual([1, 2, 3, 4, 5].map((v) => idVersao('RSK', id, v)));
+    // Cada versão guarda o texto de uma chamada só: nenhuma sobrescreveu outra.
+    expect(new Set(linhas.map((l) => l.resumo)).size).toBe(5);
+    expect(await criadosPeloServico(id)).toHaveLength(5);
+  });
+
+  it('C-36 na fronteira, com ESP, RSK e DEC somados: com 59 do ator na hora, o 60º é gravado e o 61º → limite_excedido, sem versão nem evento', async () => {
+    usarDia(2);
+    const id = await novaDemandaQa();
+    const agora = relogio.agora();
+    await inserirEsp(id, 1, 30, pessoaB.usuarioId, agora);
+    await inserirRsk(id, 1, 28, 'pessoa', pessoaB.usuarioId, agora);
+    await inserirDec(id, pessoaB.usuarioId, agora);
+    expect((await criarParecerRisco(svc, pessoaB, id, rsk())).versao).toBe(29);
+    await expect(criarParecerRisco(svc, pessoaB, id, rsk())).rejects.toMatchObject({ codigo: 'limite_excedido', mensagem: MENSAGEM_LIMITE.artefato });
+    expect(await contarRsk(id)).toBe(29);
+    expect(await criadosPeloServico(id)).toHaveLength(1);
+    // A recusa não consumiu número: a versão seguinte, de outro ator, é a 30.
+    expect((await criarParecerRisco(svc, pessoaA, id, rsk())).versao).toBe(30);
+  });
+
+  it('C-36: a janela é de uma hora pelo relógio injetado; com uma hora menos 1 ms conta, com uma hora exata não conta', async () => {
+    usarDia(3);
+    const id = await novaDemandaQa();
+    await inserirRsk(id, 1, 60, 'pessoa', pessoaC.usuarioId, new Date(relogio.agora().getTime() - 3_599_999));
+    await expect(criarParecerRisco(svc, pessoaC, id, rsk())).rejects.toMatchObject({ codigo: 'limite_excedido' });
+    expect(await contarRsk(id)).toBe(60);
+    relogio.avancar(1);
+    expect((await criarParecerRisco(svc, pessoaC, id, rsk())).versao).toBe(61);
+  });
+
+  it('C-36: o limite do agente conta pelo nome do agente, e não pelo token; uma pessoa não é afetada', async () => {
+    // O dia mais antigo do bloco: as 60 versões do agente ficam no passado de todos os outros testes.
+    usarDia(100);
+    const id = await novaDemandaQa();
+    await inserirRsk(id, 1, 60, 'agente', 'risco', relogio.agora());
+    const outroToken: AtorAgente = { tipo: 'agente', agente: 'risco', prefixoToken: 'Qa7wE2rT' };
+    for (const ator of [agenteRisco, outroToken]) {
+      await expect(criarParecerRisco(svc, ator, id, rsk())).rejects.toMatchObject({ codigo: 'limite_excedido' });
+    }
+    expect(await criadosPeloServico(id)).toHaveLength(0);
+    expect((await criarParecerRisco(svc, pessoaA, id, rsk())).versao).toBe(61);
+  });
+
+  it('a versão do RSK é por demanda e não segue a da ESP: com ESP v1 e v2, o primeiro RSK é v1; em outra demanda, também v1', async () => {
+    usarDia(4);
+    const a = await novaDemandaQa();
+    const outra = await novaDemandaQa();
+    const esp = criarEspecificacaoSchema.parse({
+      descricaoObjetiva: 'x',
+      escopoInclui: ['a'],
+      sistemaAlvo: 'meu-sistema',
+      repositorioDestino: 'wsssistemas2626-crypto/meu-sistema',
+      criteriosAceitePreliminares: ['c'],
+      definicaoDePronto: ['p'],
+    });
+    await criarEspecificacao(svc, pessoaA, a, esp);
+    await criarEspecificacao(svc, pessoaA, a, esp);
+    expect((await criarParecerRisco(svc, pessoaA, a, rsk())).id).toBe(idVersao('RSK', a, 1));
+    expect((await criarParecerRisco(svc, pessoaA, a, rsk())).id).toBe(idVersao('RSK', a, 2));
+    expect((await criarParecerRisco(svc, pessoaA, outra, rsk())).id).toBe(idVersao('RSK', outra, 1));
+    expect((await obterParecerRisco(b.db, idVersao('RSK', a, 1))).especificacaoMaisNova).toBe(idVersao('ESP', a, 2));
+  });
+
+  it('com dez versões ou mais, a lista segue o número (v11, v10, …, v1) e versaoMaisNova e especificacaoMaisNova também', async () => {
+    usarDia(5);
+    const id = await novaDemandaQa();
+    // ESP v1 a v10 de duas horas antes: fora da janela do limite deste teste.
+    await inserirEsp(id, 1, 10, pessoaA.usuarioId, new Date(relogio.agora().getTime() - 7_200_000));
+    for (let i = 1; i <= 11; i++) await criarParecerRisco(svc, i % 2 ? pessoaA : agenteRisco, id, rsk({ resumo: `Versão ${i}` }));
+    const lista = await listarPareceresRisco(b.db, id);
+    expect(lista.map((r) => r.versao)).toEqual([11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    expect(lista.map((r) => r.resumo)).toEqual(Array.from({ length: 11 }, (_, i) => `Versão ${11 - i}`));
+    const v2 = await obterParecerRisco(b.db, idVersao('RSK', id, 2));
+    expect(v2).toMatchObject({ versao: 2, resumo: 'Versão 2', versaoMaisNova: idVersao('RSK', id, 11), especificacaoMaisNova: idVersao('ESP', id, 10) });
+  });
+
+  it('especificacaoMaisNova só olha a demanda do parecer: a ESP de outra demanda não entra', async () => {
+    usarDia(6);
+    const id = await novaDemandaQa();
+    const outra = await novaDemandaQa();
+    await inserirEsp(outra, 1, 3, pessoaA.usuarioId, new Date(relogio.agora().getTime() - 7_200_000));
+    const v = await criarParecerRisco(svc, pessoaA, id, rsk());
+    expect(v).toMatchObject({ especificacaoMaisNova: null });
+    expect((await obterParecerRisco(b.db, v.id)).especificacaoMaisNova).toBeNull();
+    await inserirEsp(id, 1, 1, pessoaA.usuarioId, new Date(relogio.agora().getTime() - 7_200_000));
+    expect((await obterParecerRisco(b.db, v.id)).especificacaoMaisNova).toBe(idVersao('ESP', id, 1));
+  });
+
+  it('CA-09.2 e CA-09.3 pela rota nos campos que faltavam: cada recusa traz só o seu campo, e nenhuma consome versão nem grava evento', async () => {
+    usarDia(7);
+    const id = await novaDemandaQa();
+    const casos: Array<[string, unknown]> = [
+      ['riscoTecnicoNivel', 'ALTO'],
+      ['riscoOperacionalNivel', 'critico'],
+      ['riscoOperacionalNivel', 'médio'],
+      ['riscoJuridicoNivel', 'critico'],
+      ['riscoJuridicoNivel', 3],
+      ['recomendacoesMitigacao', 'mitigar tudo antes'],
+      ['preCondicoes', { item: 'antes de tudo' }],
+    ];
+    for (const [campo, valor] of casos) {
+      const r = await criar(id, { ...VALIDO, [campo]: valor });
+      expect(r.status, `${campo} ${JSON.stringify(valor)}`).toBe(400);
+      const texto = await r.text();
+      expect((JSON.parse(texto) as { campos: Array<{ campo: string }> }).campos.map((c) => c.campo), campo).toEqual([campo]);
+      if (typeof valor === 'string') expect(texto, campo).not.toContain(valor);
+    }
+    expect(await contarRsk(id)).toBe(0);
+    expect((await criarOk(id)).id).toBe(`RSK-${id}-v1`);
+    expect((await eventosDa(id)).map((e) => e.acao)).toEqual(['demanda_criada', 'parecer_risco_criado']);
+  });
+
+  it('C-11 pela rota, no sentido contrário: pessoa que manda rascunhoAgente:true e autoria de agente → grava a pessoa, sem rascunho', async () => {
+    usarDia(8);
+    const id = await novaDemandaQa();
+    const v = await criarOk(id, {
+      rascunhoAgente: true,
+      autorTipo: 'agente',
+      autorId: 'risco',
+      responsavel: 'risco',
+      execucaoAgenteId: '00000000-0000-4000-8000-000000000119',
+    });
+    expect(v).toMatchObject({ rascunhoAgente: false, autor: { tipo: 'pessoa', nome: expect.any(String) } });
+    expect(await linhaRsk(v.id)).toMatchObject({ autor_tipo: 'pessoa', autor_id: ctoAtor.usuarioId, rascunho_agente: false, execucao_agente_id: null });
+    const ev = (await eventosDa(id)).find((e) => e.acao === 'parecer_risco_criado')!;
+    expect(ev).toMatchObject({ ator_tipo: 'pessoa', ator_id: ctoAtor.usuarioId, depois: { versao: 1, rascunhoAgente: false } });
+  });
+
+  it('CA-11.1 pela rota: a v1 lida é a mesma antes e depois da v2, com a data do relógio injetado', async () => {
+    usarDia(9);
+    const id = await novaDemandaQa();
+    const v1 = await criarOk(id, COMPLETO);
+    const antes = (await (await obter(v1.id)).json()) as Record<string, unknown>;
+    expect(antes).toMatchObject({ ...COMPLETO, versaoMaisNova: v1.id, criadaEm: deps.relogio.agora().toISOString() });
+    await criarOk(id, { ...COMPLETO, resumo: 'Mudou', riscoTecnicoNivel: 'baixo', preCondicoes: ['Outra pré-condição'] }, { bearer: tokenRisco });
+    const depois = (await (await obter(v1.id)).json()) as Record<string, unknown>;
+    expect({ ...depois, versaoMaisNova: antes.versaoMaisNova }).toEqual(antes);
+    expect(depois.versaoMaisNova).toBe(`RSK-${id}-v2`);
   });
 });

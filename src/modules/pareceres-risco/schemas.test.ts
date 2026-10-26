@@ -74,3 +74,37 @@ describe('criarParecerRiscoSchema', () => {
     for (const k of ['rascunhoAgente', 'autorTipo', 'autorId', 'responsavel', 'id', 'versao', 'demandaId', 'execucaoAgenteId']) expect(r).not.toHaveProperty(k);
   });
 });
+
+// Acrescentados na 06-T19-testes (qa-automacao): os limites exatos de cada campo de texto e de lista (RNF-04), item de
+// lista que não é texto e a lista completa de campos de autoria e de decisão da G3.9 (C-11).
+describe('criarParecerRiscoSchema: bordas (06-T19-testes)', () => {
+  const TEXTOS = ['resumo', 'riscoTecnicoComentario', 'riscoOperacionalComentario', 'riscoJuridicoComentario', 'envolverJuridicoOuAdministradoraQuando'];
+  const LISTAS = ['recomendacoesMitigacao', 'preCondicoes'];
+
+  it.each(TEXTOS)('%s: 10.000 caracteres aceitos; 10.001 recusados, só com aquele campo', (campo) => {
+    expect(criarParecerRiscoSchema.safeParse({ ...NIVEIS_OK, [campo]: 'x'.repeat(10_000) }).success).toBe(true);
+    const r = criarParecerRiscoSchema.safeParse({ ...NIVEIS_OK, [campo]: 'x'.repeat(10_001) });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.path.join('.'))).toEqual([campo]);
+  });
+
+  it.each(LISTAS)('%s: 50 itens aceitos, 51 recusados; item com 10.000 caracteres aceito, com 10.001 recusado', (campo) => {
+    const itens = (n: number) => Array.from({ length: n }, (_, i) => `Item ${i}`);
+    expect(criarParecerRiscoSchema.parse({ ...NIVEIS_OK, [campo]: itens(50) })[campo as 'preCondicoes']).toHaveLength(50);
+    expect(criarParecerRiscoSchema.safeParse({ ...NIVEIS_OK, [campo]: itens(51) }).success).toBe(false);
+    expect(criarParecerRiscoSchema.safeParse({ ...NIVEIS_OK, [campo]: ['x'.repeat(10_000)] }).success).toBe(true);
+    expect(criarParecerRiscoSchema.safeParse({ ...NIVEIS_OK, [campo]: ['x'.repeat(10_001)] }).success).toBe(false);
+  });
+
+  it.each(LISTAS)('%s: item que não é texto (número, nulo, objeto, lista) → recusado', (campo) => {
+    for (const item of [1, null, { texto: 'x' }, ['x']]) {
+      expect(criarParecerRiscoSchema.safeParse({ ...NIVEIS_OK, [campo]: ['Item válido', item] }).success, JSON.stringify(item)).toBe(false);
+    }
+  });
+
+  it('C-11 (G3.9): nenhum campo de autoria, de aprovação ou de decisão chega à saída', () => {
+    const proibidos = ['autorTipo', 'autorId', 'rascunhoAgente', 'responsavel', 'papelAprovacao', 'registradaPor', 'nomeAprovador', 'aprovadorNome', 'aprovadorPapel', 'decididaPor'];
+    const r = criarParecerRiscoSchema.parse({ ...NIVEIS_OK, ...Object.fromEntries(proibidos.map((k) => [k, 'Pessoa Ficticia'])) });
+    expect(Object.keys(r).sort()).toEqual(['preCondicoes', 'recomendacoesMitigacao', 'riscoJuridicoNivel', 'riscoOperacionalNivel', 'riscoTecnicoNivel']);
+  });
+});
