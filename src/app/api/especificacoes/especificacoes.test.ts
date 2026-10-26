@@ -21,6 +21,7 @@ import { MENSAGEM_LIMITE } from '../../../modules/limites';
 import * as rotaDaVersao from './[espId]/route';
 import { GET as GET_VERSAO } from './[espId]/route';
 import { GET as GET_LISTA, POST } from '../demandas/[id]/especificacoes/route';
+import * as rotaDaLista from '../demandas/[id]/especificacoes/route';
 
 let b: BancoDeTeste;
 let deps: Deps;
@@ -306,6 +307,77 @@ describe('GET /api/especificacoes/:espId', () => {
 
   it('CA-01.3: sem sessão nem token → 401', async () => {
     expect((await obter('ESP-DEM-20261022-0001-v1', {})).status).toBe(401);
+  });
+
+  // Acrescentado na 06-T18-testes (qa-automacao): a rota da lista também não oferece método que altere versão gravada.
+  it('CA-11.1: a rota da lista só exporta GET e POST; nenhuma rota da ESP exporta PATCH, PUT ou DELETE', () => {
+    const daLista = Object.keys(rotaDaLista).filter((k) => /^[A-Z]+$/.test(k)).sort();
+    expect(daLista).toEqual(['GET', 'POST']);
+    for (const rotaEsp of [rotaDaLista, rotaDaVersao] as Array<Record<string, unknown>>) {
+      for (const m of ['PATCH', 'PUT', 'DELETE']) expect(rotaEsp[m], m).toBeUndefined();
+    }
+  });
+});
+
+describe('bordas pela rota (06-T18-testes)', () => {
+  it('CA-08.2: novo_projeto com repositorioDestino só de espaços → 400 com o campo, e nada gravado', async () => {
+    const id = await novaDemanda('novo_projeto');
+    const r = await criar(id, { ...VALIDA, repositorioDestino: '   ' });
+    expect(r.status).toBe(400);
+    expect(((await r.json()) as { campos: Array<{ campo: string; mensagem: string }> }).campos).toEqual([
+      { campo: 'repositorioDestino', mensagem: 'Informe o repositório destino.' },
+    ]);
+    expect(await contarEsp(id)).toBe(0);
+  });
+
+  it('CA-08.3: o 400 lista o campo com a mensagem da conta, e a versão seguinte válida ainda é a v1', async () => {
+    const id = await novaDemanda('produto_proprio');
+    const r = await criar(id, { ...VALIDA, repositorioDestino: 'outra-conta/meu-sistema' });
+    expect(r.status).toBe(400);
+    const corpo = (await r.json()) as { erro: string; campos: Array<{ campo: string; mensagem: string }> };
+    expect(corpo.erro).toBe('entrada_invalida');
+    expect(corpo.campos).toHaveLength(1);
+    expect(corpo.campos[0]!.campo).toBe('repositorioDestino');
+    expect(corpo.campos[0]!.mensagem).toContain('wsssistemas2626-crypto');
+    expect((await criarOk(id)).id).toBe(`ESP-${id}-v1`);
+  });
+
+  it('CA-08.2: bug sem nenhum dos quatro campos → 400 com os quatro, nesta ordem', async () => {
+    const id = await novaDemanda('bug');
+    const r = await criar(id, { descricaoObjetiva: 'Sem os campos de construção', escopoInclui: ['Item fictício'] });
+    expect(r.status).toBe(400);
+    expect(((await r.json()) as { campos: Array<{ campo: string }> }).campos.map((c) => c.campo)).toEqual([
+      'sistemaAlvo',
+      'repositorioDestino',
+      'criteriosAceitePreliminares',
+      'definicaoDePronto',
+    ]);
+    expect(await contarEsp(id)).toBe(0);
+  });
+
+  it('CA-08.5: duvidasEmAberto como texto corrido → 400, e o status da demanda não muda', async () => {
+    const id = await novaDemanda('bug', 'em_analise');
+    const r = await criar(id, { ...VALIDA, duvidasEmAberto: 'Uma dúvida em texto corrido' });
+    expect(r.status).toBe(400);
+    expect(((await r.json()) as { campos: Array<{ campo: string }> }).campos.map((c) => c.campo)).toEqual(['duvidasEmAberto']);
+    expect(await contarEsp(id)).toBe(0);
+    expect(await statusDa(id)).toBe('em_analise');
+  });
+
+  it('CA-15.1 pela rota: ESP sem dúvida não muda o status', async () => {
+    const id = await novaDemanda('bug', 'em_analise');
+    await criarOk(id, { duvidasEmAberto: [] });
+    expect(await statusDa(id)).toBe('em_analise');
+  });
+
+  it('CA-11.1: o conteúdo da v1 lido pela rota é o mesmo antes e depois da v2', async () => {
+    const id = await novaDemanda();
+    const v1 = await criarOk(id, { descricaoObjetiva: 'Original', escopoInclui: ['Item original'] });
+    const antes = (await (await obter(v1.id)).json()) as Record<string, unknown>;
+    await criarOk(id, { descricaoObjetiva: 'Mudou', escopoInclui: ['Item novo'] });
+    const depois = (await (await obter(v1.id)).json()) as Record<string, unknown>;
+    expect({ ...depois, versaoMaisNova: null }).toEqual({ ...antes, versaoMaisNova: null });
+    expect(depois.versaoMaisNova).toBe(`ESP-${id}-v2`);
   });
 });
 

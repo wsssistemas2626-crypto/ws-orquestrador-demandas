@@ -282,3 +282,102 @@ describe('consultas', () => {
     await expect(obterEspecificacao(b.db, idVersao('ESP', id, 1))).rejects.toMatchObject({ codigo: 'nao_encontrado' });
   });
 });
+
+// Acrescentados na 06-T18-testes (qa-automacao): concorrência além de duas criações, fronteira do limite, número de
+// versão que uma recusa não consome e dúvida numa demanda que já aguarda informação.
+describe('bordas (06-T18-testes)', () => {
+  it('CA-04.3: cinco criações simultâneas, de atores diferentes e do mesmo ator → v1 a v5, sem erro e sem número repetido', async () => {
+    const id = await novaDemanda();
+    const atores = [cto, administradora, insumo, cto, insumo];
+    const resultados = await Promise.allSettled(atores.map((a, i) => criarEspecificacao(deps, a, id, esp({ descricaoObjetiva: `Concorrente ${i}` }))));
+    expect(resultados.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']);
+    const versoes = resultados.map((r) => (r as PromiseFulfilledResult<{ versao: number }>).value.versao).sort((a, x) => a - x);
+    expect(versoes).toEqual([1, 2, 3, 4, 5]);
+    const linhas = await linhasEsp(id);
+    expect(linhas.map((l) => l.id)).toEqual([1, 2, 3, 4, 5].map((v) => idVersao('ESP', id, v)));
+    // Cada versão gravada guarda o texto de uma chamada só: nenhuma sobrescreveu outra.
+    expect(new Set(linhas.map((l) => l.descricaoObjetiva)).size).toBe(5);
+    expect((await eventosDa(id)).filter((e) => e.acao === 'especificacao_criada')).toHaveLength(5);
+  });
+
+  it('C-36 na fronteira: com 59 artefatos do ator na hora, o 60º é gravado e o 61º → limite_excedido', async () => {
+    const id = await novaDemanda();
+    const agora = relogio.agora();
+    await migrator()
+      .insert(especificacaoTecnica)
+      .values(
+        Array.from({ length: 59 }, (_, i) => ({
+          id: idVersao('ESP', id, i + 1),
+          demandaId: id,
+          versao: i + 1,
+          descricaoObjetiva: 'x',
+          escopoInclui: ['x'],
+          autorTipo: 'pessoa' as const,
+          autorId: administradora.usuarioId,
+          rascunhoAgente: false,
+          criadaEm: agora,
+        })),
+      );
+    expect((await criarEspecificacao(deps, administradora, id, esp())).versao).toBe(60);
+    await expect(criarEspecificacao(deps, administradora, id, esp())).rejects.toMatchObject({ codigo: 'limite_excedido' });
+    expect(await linhasEsp(id)).toHaveLength(60);
+  });
+
+  it('C-36: artefato criado há mais de uma hora não conta para o limite', async () => {
+    const id = await novaDemanda();
+    const antes = new Date(relogio.agora().getTime() - 3_600_001);
+    await migrator()
+      .insert(especificacaoTecnica)
+      .values(
+        Array.from({ length: 60 }, (_, i) => ({
+          id: idVersao('ESP', id, i + 1),
+          demandaId: id,
+          versao: i + 1,
+          descricaoObjetiva: 'x',
+          escopoInclui: ['x'],
+          autorTipo: 'pessoa' as const,
+          autorId: administradora.usuarioId,
+          rascunhoAgente: false,
+          criadaEm: antes,
+        })),
+      );
+    expect((await criarEspecificacao(deps, administradora, id, esp())).versao).toBe(61);
+  });
+
+  it('recusa por campo de construção não consome número de versão nem grava evento', async () => {
+    const id = await novaDemanda('novo_projeto');
+    await expect(criarEspecificacao(deps, cto, id, esp({ repositorioDestino: undefined }))).rejects.toMatchObject({ codigo: 'entrada_invalida' });
+    await expect(criarEspecificacao(deps, cto, id, esp({ repositorioDestino: 'outra-conta/meu-sistema' }))).rejects.toMatchObject({ codigo: 'entrada_invalida' });
+    expect((await criarEspecificacao(deps, cto, id, esp())).id).toBe(idVersao('ESP', id, 1));
+    expect((await eventosDa(id)).map((e) => e.acao)).toEqual(['demanda_criada', 'especificacao_criada']);
+  });
+
+  it('CA-15.1: com dúvida, numa demanda que já está em aguardando_informacao → fica, sem novo evento de status', async () => {
+    const id = await novaDemanda('bug', 'aguardando_informacao');
+    await criarEspecificacao(deps, cto, id, esp({ duvidasEmAberto: ['Dúvida fictícia'] }));
+    expect(await statusDa(id)).toBe('aguardando_informacao');
+    expect((await eventosDa(id)).map((e) => e.acao)).toEqual(['demanda_criada', 'especificacao_criada']);
+  });
+
+  it('CA-15.1: dúvida gravada pelo agente insumo_tecnico também leva a aguardando_informacao, com o evento do sistema', async () => {
+    const id = await novaDemanda('bug', 'em_analise');
+    await criarEspecificacao(deps, insumo, id, esp({ duvidasEmAberto: ['Dúvida fictícia'] }));
+    expect(await statusDa(id)).toBe('aguardando_informacao');
+    const eventos = await eventosDa(id);
+    expect(eventos.map((e) => [e.acao, e.atorTipo])).toEqual([
+      ['demanda_criada', 'pessoa'],
+      ['especificacao_criada', 'agente'],
+      ['status_alterado', 'sistema'],
+    ]);
+  });
+
+  it('RF-11: a versão anterior continua igual depois de uma nova versão', async () => {
+    const id = await novaDemanda();
+    await criarEspecificacao(deps, cto, id, esp({ descricaoObjetiva: 'Original', escopoInclui: ['Item original'] }));
+    const antes = await obterEspecificacao(b.db, idVersao('ESP', id, 1));
+    await criarEspecificacao(deps, administradora, id, esp({ descricaoObjetiva: 'Mudou', escopoInclui: ['Item novo'] }));
+    const depois = await obterEspecificacao(b.db, idVersao('ESP', id, 1));
+    expect({ ...depois, versaoMaisNova: antes.versaoMaisNova }).toEqual(antes);
+    expect(depois.versaoMaisNova).toBe(idVersao('ESP', id, 2));
+  });
+});
