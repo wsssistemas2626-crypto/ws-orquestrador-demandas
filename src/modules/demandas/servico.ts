@@ -41,7 +41,8 @@ const CAMPOS_EDITAVEIS = [
 
 type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number];
 
-function autoriaDo(ator: Ator): { autorTipo: 'pessoa' | 'agente'; autorId: string } {
+// Exportada para os serviços de ESP, RSK e DEC (T18 a T20): a mesma autoria gravada em todo artefato (C-11).
+export function autoriaDo(ator: Ator): { autorTipo: 'pessoa' | 'agente'; autorId: string } {
   if (ator.tipo === 'agente') return { autorTipo: 'agente', autorId: ator.agente };
   if (ator.tipo === 'pessoa') return { autorTipo: 'pessoa', autorId: ator.usuarioId };
   // autorizar já negou o sistema; isto só protege contra uso sem autorizar.

@@ -54,7 +54,8 @@ export type DemandaResumo = {
 
 const ehAgente = (v: string): v is Agente => (AGENTES as readonly string[]).includes(v);
 
-function responsavelDe(autorTipo: string, autorId: string, nome: string | null): Responsavel {
+// Exportada para as leituras de ESP, RSK e DEC (T18 a T20): a mesma autoria visível em toda vista.
+export function responsavelDe(autorTipo: string, autorId: string, nome: string | null): Responsavel {
   if (autorTipo === 'pessoa') return { tipo: 'pessoa', nome };
   // O id do agente só é gravado a partir de um ator resolvido (C-11); fora da lista é linha corrompida, e vira 500.
   if (autorTipo === 'agente' && ehAgente(autorId)) return { tipo: 'agente', agente: autorId };
@@ -64,7 +65,7 @@ function responsavelDe(autorTipo: string, autorId: string, nome: string | null):
 type TabelaVersionada = typeof especificacaoTecnica | typeof parecerRisco | typeof pacoteDecisao;
 
 // A junção com `user` só vale para autor pessoa: um agente nunca casa com uma conta.
-const contaDoAutor = (t: typeof demanda | TabelaVersionada): SQL => and(eq(t.autorTipo, 'pessoa'), eq(user.id, t.autorId))!;
+export const contaDoAutor = (t: typeof demanda | TabelaVersionada): SQL => and(eq(t.autorTipo, 'pessoa'), eq(user.id, t.autorId))!;
 
 async function versoesDe(db: Db, tabela: typeof especificacaoTecnica | typeof parecerRisco, demandaId: string): Promise<VersaoResumo[]> {
   const linhas = await db
