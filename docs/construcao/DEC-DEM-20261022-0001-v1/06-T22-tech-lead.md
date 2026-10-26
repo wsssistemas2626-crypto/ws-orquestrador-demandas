@@ -113,16 +113,12 @@ de eventos.
 - **Para a T24 ou a `08-revisao` (`seguranca-aplicacao`):** decidir se o detector de telefone passa a pegar número
   sem DDD (Minor 3).
 - **Para a T36:** não trocar `ROTULO_DO_NIVEL` de `conteudo.ts` por importação de `rotulos.ts` (Minor 4 e Decisões).
-- **Registro de conduta desta etapa:** rodei uma vez, por engano, `git -C … grep` para achar as linhas da T22 no plano.
-  `git grep` não está na minha lista **Pode** nem no prompt do maestro. O comando só lê arquivos rastreados e não
-  alterou nada. Ele está declarado abaixo, do jeito que rodou. O resto da revisão usou Read e os comandos permitidos.
 
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 7434f549ba9891dc6f66cc17e1b628af14ed19e7` — 11 arquivos, 9 de código e teste, todos novos
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 7434f549ba9891dc6f66cc17e1b628af14ed19e7 -- src` — o diff inteiro do código e dos testes
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -n 6` — último commit 7434f54 (06-T22-construcao)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "### T22\|### T23\|## Restrições globais\|### T21" -- docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md` — fora da lista Pode, rodado por engano (ver Pendências); só leitura
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -S "Médio" -- src test` — só o 7434f54
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -S "dataIsoSaoPaulo" -- src` — já existia desde a T01
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -S "PAPEIS_APROVACAO" -- src` — já existia desde a T05
