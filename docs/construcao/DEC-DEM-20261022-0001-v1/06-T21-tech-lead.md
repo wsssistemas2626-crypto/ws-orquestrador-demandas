@@ -126,7 +126,6 @@ segue para a `06-T21-testes`. Os três pontos Minor estão em Pendências, cada 
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 3ebf24a84a49cfe4ec68b5faf4460fb0069364d8` — 8 arquivos: os 6 da T21, a entrega do engenheiro e `passagens.jsonl`
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma log --oneline -1 -- docs/construcao/padrao-tecnico.md` — 8fcea5b, arquivo rastreado
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 3ebf24a84a49cfe4ec68b5faf4460fb0069364d8 -- src/modules/pacotes-decisao/decidir.ts src/modules/pacotes-decisao/schemas.ts src/app/api/pacotes-decisao/[decId]/decisao/route.ts` — código de produção da tarefa
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 3ebf24a84a49cfe4ec68b5faf4460fb0069364d8 -- src/modules/pacotes-decisao/decidir.test.ts` — 44 testes
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 1892 de 1892, 100 arquivos
