@@ -159,3 +159,37 @@ describe('modelo físico', () => {
     ]);
   });
 });
+
+describe('two_factor: colunas do plugin twoFactor do Better Auth 1.7.6 (T47)', () => {
+  it('tem verified, failed_verification_count e locked_until com os tipos e padrões', async () => {
+    const r = await b.poolMigrator.query(
+      `select column_name, data_type, is_nullable, column_default from information_schema.columns
+        where table_schema = 'public' and table_name = 'two_factor' and column_name = any($1) order by column_name`,
+      [['failed_verification_count', 'locked_until', 'verified']],
+    );
+    expect(r.rows).toEqual([
+      { column_name: 'failed_verification_count', data_type: 'integer', is_nullable: 'NO', column_default: '0' },
+      { column_name: 'locked_until', data_type: 'timestamp with time zone', is_nullable: 'YES', column_default: null },
+      { column_name: 'verified', data_type: 'boolean', is_nullable: 'YES', column_default: 'true' },
+    ]);
+  });
+
+  it('linha gravada sem as colunas novas nasce verificada, com zero falhas e sem bloqueio', async () => {
+    const u = await novoUsuario();
+    await app(`insert into two_factor (id, secret, backup_codes, user_id) values ('tf-qa-t47-a', 'segredo-ficticio-cifrado', 'codigos-ficticios', $1)`, [u]);
+    const [r] = (await app(`select verified, failed_verification_count, locked_until from two_factor where id = 'tf-qa-t47-a'`)).rows;
+    expect(r).toEqual({ verified: true, failed_verification_count: 0, locked_until: null });
+  });
+
+  it('o app grava falha e bloqueio, e a contagem não fica negativa (23514)', async () => {
+    const u = await novoUsuario();
+    await app(`insert into two_factor (id, secret, backup_codes, user_id, verified) values ('tf-qa-t47-b', 'segredo-ficticio-cifrado', 'codigos-ficticios', $1, false)`, [u]);
+    await app(`update two_factor set failed_verification_count = 5, locked_until = $1 where id = 'tf-qa-t47-b'`, ['2026-10-22T12:15:00Z']);
+    const [r] = (await app(`select verified, failed_verification_count, locked_until from two_factor where id = 'tf-qa-t47-b'`)).rows;
+    expect(r).toEqual({ verified: false, failed_verification_count: 5, locked_until: new Date('2026-10-22T12:15:00Z') });
+    await expect(app(`update two_factor set failed_verification_count = -1 where id = 'tf-qa-t47-b'`)).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'two_factor_failed_verification_count_check',
+    });
+  });
+});

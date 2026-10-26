@@ -85,8 +85,15 @@ export const twoFactor = pgTable(
     userId: text()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    // T47: campos que o plugin twoFactor do Better Auth 1.7.6 confere no boot do adaptador.
+    verified: boolean().default(true),
+    failedVerificationCount: integer().notNull().default(0),
+    lockedUntil: momento(),
   },
-  (t) => [index('two_factor_user_id_idx').on(t.userId)],
+  (t) => [
+    index('two_factor_user_id_idx').on(t.userId),
+    check('two_factor_failed_verification_count_check', sql`"failed_verification_count" >= 0`),
+  ],
 );
 
 // C-06: falhas de código na janela de 15 min, por conta (não por IP).
