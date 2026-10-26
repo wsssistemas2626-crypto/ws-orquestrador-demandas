@@ -1,11 +1,13 @@
 // Id da demanda (RF-04, CA-04.1, CA-04.2, CA-04.4, RNF-09) contra o Postgres real, pelo papel do app. A sequência é
 // preparada pelo migrator (setval é dele); o relógio é sempre o fixo. Dados só fictícios.
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../test/banco';
 import { criarDb } from '../../db';
 import { demanda } from '../../db/schema';
 import { comTransacao } from '../../db/transacao';
-import { ErroDominio, mapearErro } from '../../lib/erros';
+import { ErroDominio, MENSAGEM_ERRO_INTERNO, mapearErro } from '../../lib/erros';
+import { reduzirErro } from '../../lib/reduzir-erro';
 import { relogioFixo } from '../../lib/relogio';
 import { RE_ID_DEMANDA as RE_ID_DEMANDA_DA_ROTA } from '../../lib/rota';
 import { LIMITE_AVISO_CAPACIDADE, proximoIdDemanda, RE_ID_DEMANDA, totalDeDemandas } from './gerar-id';
@@ -127,6 +129,77 @@ describe('regex do id da demanda', () => {
   it('é a mesma regex que rota() usa no parâmetro de caminho (G3.10)', () => {
     expect(RE_ID_DEMANDA.source).toBe(RE_ID_DEMANDA_DA_ROTA.source);
     expect(RE_ID_DEMANDA.flags).toBe(RE_ID_DEMANDA_DA_ROTA.flags);
+  });
+});
+
+// Bordas acrescentadas na 06-T14-testes (qa-automacao). Cada teste prepara a própria sequência; nenhum depende de outro.
+describe('id da demanda: bordas', () => {
+  const definirProximo = (n: number) => b.poolMigrator.query('select setval($1, $2, false)', ['demanda_seq', n]);
+
+  it.each([
+    [1, 'DEM-20261022-0001'],
+    [9, 'DEM-20261022-0009'],
+    [99, 'DEM-20261022-0099'],
+    [999, 'DEM-20261022-0999'],
+    [1000, 'DEM-20261022-1000'],
+  ])('o número %i sai com 4 dígitos: %s', async (proximo, esperado) => {
+    await definirProximo(proximo);
+    expect(await gerar('2026-10-22T10:00:00-03:00')).toBe(esperado);
+  });
+
+  it('CA-04.2, como escrito: com a sequência em 7, a demanda de 22/10 e a seguinte, de 23/10, são -0007 e -0008', async () => {
+    await definirProximo(7);
+    expect(await gerar('2026-10-22T15:00:00-03:00')).toBe('DEM-20261022-0007');
+    expect(await gerar('2026-10-23T09:00:00-03:00')).toBe('DEM-20261023-0008');
+  });
+
+  it('a data vem do relógio injetado, não da data do servidor', async () => {
+    await definirProximo(5);
+    expect(await gerar('2031-02-28T12:00:00-03:00')).toBe('DEM-20310228-0005');
+  });
+
+  it('virada do ano: 02:59 UTC de 01/01 ainda é 31/12 em São Paulo; 03:00 UTC já é 01/01', async () => {
+    await definirProximo(30);
+    expect(await gerar('2027-01-01T02:59:59Z')).toBe('DEM-20261231-0030');
+    expect(await gerar('2027-01-01T03:00:00Z')).toBe('DEM-20270101-0031');
+  });
+
+  it('C-36: o número gasto numa transação desfeita não volta, e a demanda seguinte não o repete', async () => {
+    await definirProximo(21);
+    let desfeito = '';
+    await comTransacao(b.poolApp, async ({ tx }) => {
+      desfeito = await proximoIdDemanda(tx, relogioFixo('2026-10-22T10:00:00-03:00'));
+      throw new Error('desfazer');
+    }).catch(() => undefined);
+    expect(desfeito).toBe('DEM-20261022-0021');
+    expect(await gerar('2026-10-22T10:00:00-03:00')).toBe('DEM-20261022-0022');
+  });
+
+  it('CA-04.4: esgotada, a sequência continua esgotada (não volta para 0001)', async () => {
+    await definirSequencia(9999);
+    const motivo = { codigo: 'capacidade_de_ids_esgotada' };
+    await expect(gerar('2026-10-23T09:00:00-03:00')).rejects.toMatchObject(motivo);
+    await expect(gerar('2026-10-24T09:00:00-03:00')).rejects.toMatchObject(motivo);
+  });
+
+  it('CA-04.4: o banco não aceita id fora do formato, como o de 5 dígitos (CHECK do id, 23514)', async () => {
+    const id = 'DEM-20261023-10000';
+    const erro = await b.db
+      .insert(demanda)
+      .values(linhaDemanda(id))
+      .catch((e: unknown) => e);
+    expect(reduzirErro(erro).code).toBe('23514');
+    expect(await b.db.select({ id: demanda.id }).from(demanda).where(eq(demanda.id, id))).toEqual([]);
+  });
+
+  it('transação já abortada: sobe o 25P02 do Postgres, que vira 500 genérico, sem detalhe', async () => {
+    await definirSequencia(10);
+    const erro = await comTransacao(b.poolApp, async ({ tx }) => {
+      await tx.execute('select 1/0').catch(() => undefined);
+      return proximoIdDemanda(tx, relogioFixo('2026-10-22T10:00:00-03:00'));
+    }).catch((e: unknown) => e);
+    expect(reduzirErro(erro).code).toBe('25P02');
+    expect(mapearErro(erro)).toEqual({ status: 500, corpo: { erro: 'erro_interno', mensagem: MENSAGEM_ERRO_INTERNO } });
   });
 });
 

@@ -290,6 +290,98 @@ describe('CA-04.3: versões simultâneas da mesma demanda', () => {
   });
 });
 
+// Bordas acrescentadas na 06-T14-testes (qa-automacao). Cada teste cria a própria demanda; nenhum depende de outro.
+describe('versões e trava: bordas', () => {
+  const versoesRsk = async (demandaId: string) =>
+    (
+      await b.db
+        .select({ versao: parecerRisco.versao })
+        .from(parecerRisco)
+        .where(eq(parecerRisco.demandaId, demandaId))
+        .orderBy(asc(parecerRisco.versao))
+    ).map((l) => l.versao);
+
+  it('cada tabela tem a sua numeração: ESP até v3 não muda a próxima RSK nem a próxima DEC', async () => {
+    const id = await novaDemanda();
+    await b.db.insert(especificacaoTecnica).values([linhaEsp(id, 1), linhaEsp(id, 2), linhaEsp(id, 3)]);
+    await comTransacao(b.poolApp, async ({ tx }) => {
+      expect(await proximaVersao(tx, especificacaoTecnica, id)).toBe(4);
+      expect(await proximaVersao(tx, parecerRisco, id)).toBe(1);
+      expect(await proximaVersao(tx, pacoteDecisao, id)).toBe(1);
+    });
+  });
+
+  it('CA-04.3: ESP e RSK criadas em paralelo na mesma demanda ficam cada uma com v1, sem erro', async () => {
+    const id = await novaDemanda();
+    const esp = comTransacao(b.poolApp, async ({ tx }) => {
+      await travarDemanda(tx, id);
+      const v = await proximaVersao(tx, especificacaoTecnica, id);
+      await tx.insert(especificacaoTecnica).values(linhaEsp(id, v));
+      return v;
+    });
+    const rsk = comTransacao(b.poolApp, async ({ tx }) => {
+      await travarDemanda(tx, id);
+      const v = await proximaVersao(tx, parecerRisco, id);
+      await tx.insert(parecerRisco).values(linhaRsk(id, v));
+      return v;
+    });
+    expect(await Promise.all([esp, rsk])).toEqual([1, 1]);
+    expect(await versoesGravadas(id)).toEqual([1]);
+    expect(await versoesRsk(id)).toEqual([1]);
+  });
+
+  it('a trava não impede a leitura simples da demanda (a fila e o detalhe não esperam)', async () => {
+    const id = await novaDemanda();
+    const aTravou = adiado();
+    const liberarA = adiado();
+    const a = comTransacao(b.poolApp, async ({ tx }) => {
+      await travarDemanda(tx, id);
+      aTravou.resolver();
+      await liberarA.promessa;
+    });
+    await aTravou.promessa;
+    // Se a leitura esperasse a trava, esta consulta não terminaria antes de liberar a primeira transação.
+    const linhas = await b.db.select({ id: demanda.id }).from(demanda).where(eq(demanda.id, id));
+    expect(linhas).toEqual([{ id }]);
+    liberarA.resolver();
+    await a;
+  });
+
+  it.each(["DEM-20261022-0001' or '1'='1", "x'; drop table demanda; --"])(
+    'travarDemanda com %j: nao_encontrado, sem erro de SQL e sem efeito',
+    async (idMalicioso) => {
+      await novaDemanda();
+      const tentativa = comTransacao(b.poolApp, ({ tx }) => travarDemanda(tx, idMalicioso));
+      await expect(tentativa).rejects.toBeInstanceOf(ErroDominio);
+      await expect(tentativa).rejects.toMatchObject({ codigo: 'nao_encontrado' });
+      const [linha] = await b.poolMigrator.query<{ existe: boolean }>("select to_regclass('public.demanda') is not null as existe").then((r) => r.rows);
+      expect(linha?.existe).toBe(true);
+    },
+  );
+
+  it('passada a v9999, a gravação da versão seguinte é recusada pelo banco (23514) e nada fora do formato fica gravado', async () => {
+    const id = await novaDemanda();
+    await b.db.insert(especificacaoTecnica).values(linhaEsp(id, 9999));
+    const erro = await comTransacao(b.poolApp, async ({ tx }) => {
+      await travarDemanda(tx, id);
+      const v = await proximaVersao(tx, especificacaoTecnica, id);
+      await tx.insert(especificacaoTecnica).values(linhaEsp(id, v));
+    }).catch((e: unknown) => e);
+    expect(reduzirErro(erro).code).toBe('23514');
+    expect(await versoesGravadas(id)).toEqual([9999]);
+  });
+
+  it('id que não bate com a demanda e a versão é recusado pelo banco (23514)', async () => {
+    const id = await novaDemanda();
+    const erro = await b.db
+      .insert(especificacaoTecnica)
+      .values({ ...linhaEsp(id, 1), id: idVersao('ESP', id, 2) })
+      .catch((e: unknown) => e);
+    expect(reduzirErro(erro).code).toBe('23514');
+    expect(await versoesGravadas(id)).toEqual([]);
+  });
+});
+
 describe('idVersao e RE_ID_VERSAO', () => {
   it.each([
     ['ESP', 'DEM-20261022-0001', 1, 'ESP-DEM-20261022-0001-v1'],
