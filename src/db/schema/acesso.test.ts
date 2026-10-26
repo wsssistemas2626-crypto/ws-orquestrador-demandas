@@ -193,3 +193,42 @@ describe('two_factor: colunas do plugin twoFactor do Better Auth 1.7.6 (T47)', (
     });
   });
 });
+
+// Testes da etapa 06-T47-testes (qa-automacao): bordas das colunas novas e o papel do app sem DDL sobre elas (C-34).
+describe('two_factor: bordas das colunas do plugin e privilégio do app (T47, C-34)', () => {
+  it('contagem negativa já na inclusão é recusada (23514)', async () => {
+    const u = await novoUsuario();
+    await expect(
+      app(`insert into two_factor (id, secret, backup_codes, user_id, failed_verification_count) values ('tf-qa-t47-neg', 'segredo-ficticio-cifrado', 'codigos-ficticios', $1, -1)`, [u]),
+    ).rejects.toMatchObject({ code: '23514', constraint: 'two_factor_failed_verification_count_check' });
+    expect((await app(`select 1 from two_factor where id = 'tf-qa-t47-neg'`)).rows).toEqual([]);
+  });
+
+  it('contagem nula é recusada (23502), na inclusão e na alteração', async () => {
+    const u = await novoUsuario();
+    await expect(
+      app(`insert into two_factor (id, secret, backup_codes, user_id, failed_verification_count) values ('tf-qa-t47-nulo', 'segredo-ficticio-cifrado', 'codigos-ficticios', $1, null)`, [u]),
+    ).rejects.toMatchObject({ code: '23502' });
+    await app(`insert into two_factor (id, secret, backup_codes, user_id) values ('tf-qa-t47-nulo2', 'segredo-ficticio-cifrado', 'codigos-ficticios', $1)`, [u]);
+    await expect(app(`update two_factor set failed_verification_count = null where id = 'tf-qa-t47-nulo2'`)).rejects.toMatchObject({ code: '23502' });
+  });
+
+  it('verified aceita nulo explícito (o plugin não o exige) e o app desfaz o bloqueio', async () => {
+    const u = await novoUsuario();
+    await app(
+      `insert into two_factor (id, secret, backup_codes, user_id, verified, failed_verification_count, locked_until) values ('tf-qa-t47-c', 'segredo-ficticio-cifrado', 'codigos-ficticios', $1, null, 3, $2)`,
+      [u, '2026-10-22T12:15:00Z'],
+    );
+    await app(`update two_factor set failed_verification_count = 0, locked_until = null where id = 'tf-qa-t47-c'`);
+    const [r] = (await app(`select verified, failed_verification_count, locked_until from two_factor where id = 'tf-qa-t47-c'`)).rows;
+    expect(r).toEqual({ verified: null, failed_verification_count: 0, locked_until: null });
+  });
+
+  it.each([
+    ['apagar a coluna locked_until', 'alter table two_factor drop column locked_until'],
+    ['apagar a constraint da contagem', 'alter table two_factor drop constraint two_factor_failed_verification_count_check'],
+    ['trocar o padrão de verified', 'alter table two_factor alter column verified set default false'],
+  ])('o papel do app não faz DDL em two_factor: %s é recusado (42501)', async (_nome, sql) => {
+    await expect(app(sql)).rejects.toMatchObject({ code: '42501' });
+  });
+});

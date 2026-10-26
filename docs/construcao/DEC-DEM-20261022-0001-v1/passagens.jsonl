@@ -49,3 +49,4 @@
 {"pedido":"DEC-DEM-20261022-0001-v1","etapa":"P2","de":"fabiano","para":null,"status":"aprovado","volta":1,"inicio":"2026-10-26T12:31:21.000Z","fim":"2026-10-26T13:08:45.793Z","minutos":37,"motivo":"Plano com T47 (migration da two_factor) antes da T08","modo":"por_risco"}
 {"pedido":"DEC-DEM-20261022-0001-v1","etapa":"06-T47-construcao","de":"engenheiro-dados-bd","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-10-26T13:08:46.000Z","fim":"2026-10-26T13:13:28.035Z","minutos":5,"motivo":null}
 {"pedido":"DEC-DEM-20261022-0001-v1","etapa":"06-T47-revisao","de":"tech-lead","para":"qa-automacao","status":"pronto","volta":0,"inicio":"2026-10-26T13:13:28.000Z","fim":"2026-10-26T13:16:39.041Z","minutos":3,"motivo":null}
+{"pedido":"DEC-DEM-20261022-0001-v1","etapa":"06-T47-testes","de":"qa-automacao","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-10-26T13:16:39.000Z","fim":"2026-10-26T13:23:37.657Z","minutos":7,"motivo":null}
