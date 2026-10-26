@@ -42,7 +42,7 @@ A lista **Pode** de cada engenheiro limita os arquivos. A tarefa foi atribuída 
 
 Consequências que o plano já respeita:
 
-- Toda migration é de `engenheiro-dados-bd` (T04, T05, T06). Por isso o modelo físico inteiro nasce na Fundação.
+- Toda migration é de `engenheiro-dados-bd` (T04, T05, T06 e T47). Por isso o modelo físico inteiro nasce na Fundação.
 - Migration custom tem sempre o nome `rls_<nome>` (é o único formato que a lista Pode aceita): `rls_privilegios_acesso`,
   `rls_privilegios_dominio`, `rls_privilegios_agentes`.
 - Todas as dependências do padrão são instaladas na T01 (o `engenheiro-dados-bd` não roda `pnpm add` nem edita
@@ -148,7 +148,7 @@ conferido pelo teste estático de C-27 (T13).
 
 | Fase | Tarefas | Por que nesta ordem |
 |---|---|---|
-| Fundação | T01 a T13 | Log e mapeador de erro antes de qualquer rota (C-20, C-21); guarda de privilégios com a primeira migration (C-34); matriz de acesso e o teste que percorre as rotas antes das rotas de demanda (C-10, C-12); controles críticos C-01, C-02, C-04, C-11, C-12 e os de banco, log e acesso (C-09, C-15, C-17) |
+| Fundação | T01 a T07, T47, T08 a T13 | Log e mapeador de erro antes de qualquer rota (C-20, C-21); guarda de privilégios com a primeira migration (C-34); matriz de acesso e o teste que percorre as rotas antes das rotas de demanda (C-10, C-12); controles críticos C-01, C-02, C-04, C-11, C-12 e os de banco, log e acesso (C-09, C-15, C-17) |
 | Demandas | T14 a T17 | Id, serviço, rotas e entrada manual: base de todo artefato |
 | Versões e decisão | T18 a T22 | ESP, RSK, DEC, decisão e Pedido de Construção: o caminho manual completo, sem IA |
 | Agentes de IA | T23 a T29 | Interruptor e teto antes do provedor; provedor e minimização antes da execução; execução antes dos gatilhos |
@@ -1181,10 +1181,120 @@ manutenção pedirem DDL ao papel do app, a tarefa volta ao tech-lead (`devolvid
 
 ---
 
+### T47. Colunas do plugin `twoFactor` na tabela `two_factor`
+
+**Engenheiro:** `engenheiro-dados-bd` · **Risco:** alto · **Cobre:** RF-01 (base do 2FA), C-33 (a linha do 2FA
+continua cifrada e sem segredo novo), C-34 (privilégios sem mudança) · **Antes de:** T08, que já está no ramo
+(commit `06-T08-construcao`) e só volta a rodar a suíte depois desta
+
+Entrou na volta 2 da `05-plano`. A `two_factor` da T04 não tem três colunas que o plugin `twoFactor` do Better Auth
+1.7.6 confere no primeiro acesso ao banco (`BetterAuthError: Drizzle schema mismatch — Missing columns
+twoFactor.verified, twoFactor.failedVerificationCount, twoFactor.lockedUntil`): 9 testes de `auth.test.ts` da T08
+falham por isso, e passam todos quando as três existem (`06-T08-engenheiro-backend.md`). A 0000 não se edita (G3.12):
+a correção é uma migration nova. Os tipos são os que a sonda da T08 provou com `/two-factor/enable` gravando e lendo a
+linha:
+
+| Campo no Drizzle | Coluna | Tipo |
+|---|---|---|
+| `verified` | `verified` | `boolean`, padrão `true`, nulo (o campo não é obrigatório no plugin; a sonda passou assim) |
+| `failedVerificationCount` | `failed_verification_count` | `integer not null default 0`, com `CHECK (>= 0)` como em `bloqueio_verificacao` |
+| `lockedUntil` | `locked_until` | `momento()` (timestamptz), nulo, sem padrão (G3.4) |
+
+Sem migration custom: o `GRANT` de `two_factor` é de tabela inteira (`SELECT, INSERT, UPDATE, DELETE`), cobre coluna
+nova, e `PRIVILEGIOS` não muda. A guarda da T04 tem que continuar verde sem nenhuma edição em `privilegios.ts`.
+
+**Arquivos:**
+- Modificar: `src/db/schema/acesso.ts` (três campos e o `check` em `twoFactor`), `src/db/schema/acesso.test.ts`
+  (bloco novo abaixo), `drizzle/meta/_journal.json` (pelo drizzle-kit)
+- Criar: `drizzle/0006_<gerado>.sql` e `drizzle/meta/0006_snapshot.json` (saída do `pnpm db:generate`, sem edição)
+
+**Interfaces produzidas:** a tabela `twoFactor` passa a ter `verified: boolean | null`, `failedVerificationCount:
+number` e `lockedUntil: Date | null`. Nenhuma função nova.
+
+- [ ] **Passo 1: escrever os testes que falham** (no fim de `src/db/schema/acesso.test.ts`, que já tem `app`,
+  `novoUsuario` e o banco por arquivo)
+
+```ts
+describe('two_factor: colunas do plugin twoFactor do Better Auth 1.7.6 (T47)', () => {
+  it('tem verified, failed_verification_count e locked_until com os tipos e padrões', async () => {
+    const r = await b.poolMigrator.query(
+      `select column_name, data_type, is_nullable, column_default from information_schema.columns
+        where table_schema = 'public' and table_name = 'two_factor' and column_name = any($1) order by column_name`,
+      [['failed_verification_count', 'locked_until', 'verified']],
+    );
+    expect(r.rows).toEqual([
+      { column_name: 'failed_verification_count', data_type: 'integer', is_nullable: 'NO', column_default: '0' },
+      { column_name: 'locked_until', data_type: 'timestamp with time zone', is_nullable: 'YES', column_default: null },
+      { column_name: 'verified', data_type: 'boolean', is_nullable: 'YES', column_default: 'true' },
+    ]);
+  });
+
+  it('linha gravada sem as colunas novas nasce verificada, com zero falhas e sem bloqueio', async () => {
+    const u = await novoUsuario();
+    await app(`insert into two_factor (id, secret, backup_codes, user_id) values ('tf-qa-t47-a', 'segredo-ficticio-cifrado', 'codigos-ficticios', $1)`, [u]);
+    const [r] = (await app(`select verified, failed_verification_count, locked_until from two_factor where id = 'tf-qa-t47-a'`)).rows;
+    expect(r).toEqual({ verified: true, failed_verification_count: 0, locked_until: null });
+  });
+
+  it('o app grava falha e bloqueio, e a contagem não fica negativa (23514)', async () => {
+    const u = await novoUsuario();
+    await app(`insert into two_factor (id, secret, backup_codes, user_id, verified) values ('tf-qa-t47-b', 'segredo-ficticio-cifrado', 'codigos-ficticios', $1, false)`, [u]);
+    await app(`update two_factor set failed_verification_count = 5, locked_until = $1 where id = 'tf-qa-t47-b'`, ['2026-10-22T12:15:00Z']);
+    const [r] = (await app(`select verified, failed_verification_count, locked_until from two_factor where id = 'tf-qa-t47-b'`)).rows;
+    expect(r).toEqual({ verified: false, failed_verification_count: 5, locked_until: new Date('2026-10-22T12:15:00Z') });
+    await expect(app(`update two_factor set failed_verification_count = -1 where id = 'tf-qa-t47-b'`)).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'two_factor_failed_verification_count_check',
+    });
+  });
+});
+```
+
+- [ ] **Passo 2: rodar e ver falhar** — `pnpm test`; esperado: FAIL nos três testes novos (`column "verified" does
+  not exist` e lista de colunas vazia) e nos 9 de `src/modules/acesso/auth.test.ts` da T08 (`Drizzle schema
+  mismatch`). A entrega mostra os dois trechos.
+- [ ] **Passo 3: escrever o esquema** em `src/db/schema/acesso.ts`:
+
+```ts
+export const twoFactor = pgTable(
+  'two_factor',
+  {
+    id: text().primaryKey(),
+    secret: text().notNull(),
+    backupCodes: text().notNull(),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    // T47: campos que o plugin twoFactor do Better Auth 1.7.6 confere no boot do adaptador.
+    verified: boolean().default(true),
+    failedVerificationCount: integer().notNull().default(0),
+    lockedUntil: momento(),
+  },
+  (t) => [
+    index('two_factor_user_id_idx').on(t.userId),
+    check('two_factor_failed_verification_count_check', sql`"failed_verification_count" >= 0`),
+  ],
+);
+```
+
+- [ ] **Passo 4: gerar** — `pnpm db:generate`; esperado: `drizzle/0006_<gerado>.sql` só com `ALTER TABLE
+  "two_factor" ADD COLUMN` das três colunas e o `ADD CONSTRAINT` do `CHECK`, sem tocar outra tabela. Se o drizzle-kit
+  gerar qualquer outra instrução, parar e devolver (`devolvido`, 05-plano): o esquema e as migrations commitadas
+  divergiram. Não criar migration custom.
+- [ ] **Passo 5: rodar e ver passar** — `pnpm test` (a suíte inteira, com os 9 de `auth.test.ts` da T08 verdes e a
+  guarda de `privilegios.test.ts` sem edição), `pnpm lint`, `pnpm typecheck`; esperado: PASS.
+- [ ] **Passo 6: entrega `06-T47-engenheiro-dados-bd.md`**, com a volta da migration em `## Decisões tomadas`
+  (`ALTER TABLE "two_factor" DROP CONSTRAINT "two_factor_failed_verification_count_check", DROP COLUMN "verified",
+  DROP COLUMN "failed_verification_count", DROP COLUMN "locked_until";`, que perde só o estado de bloqueio do plugin;
+  depois dela a T08 volta a falhar) e a contagem de testes antes e depois
+
+---
+
 ### T08. Better Auth: configuração fechada, papel protegido e segredo conferido
 
 **Engenheiro:** `engenheiro-backend` · **Risco:** alto · **Cobre:** RF-01 (base), C-01, C-02, C-03, C-07, C-33
-(segredo do boot e cifra do TOTP), RNF-12 (sessão de 8 h), ADR-11
+(segredo do boot e cifra do TOTP), RNF-12 (sessão de 8 h), ADR-11 · **Depende de:** T47 (colunas do plugin
+`twoFactor`); o código e os testes desta tarefa já estão no ramo, e a volta dela roda a suíte e regrava a entrega
 
 **Arquivos:**
 - Criar: `src/lib/env.ts`, `src/lib/env.test.ts`, `src/modules/acesso/auth.ts`, `src/modules/acesso/auth.test.ts`,
@@ -3888,7 +3998,7 @@ test('C-15: OPTIONS não devolve Access-Control-Allow-Origin', async ({ request 
 
 | RF | Tarefas | RF | Tarefas |
 |---|---|---|---|
-| RF-01 | T08, T09, T32, T37 | RF-14 | T21, T43 |
+| RF-01 | T47, T08, T09, T32, T37 | RF-14 | T21, T43 |
 | RF-02 | T10, T13, T16, T33 | RF-15 | T18, T28, T40 |
 | RF-03 | T15, T16, T39 | RF-16 | T26, T27, T28, T29 |
 | RF-04 | T14 | RF-17 | T06, T23, T27 |
@@ -3923,8 +4033,8 @@ RNF-18 (todas; `docker build` e CI na 09).
 | C-10 | T10, T13, T19 | C-30 | T12, T15, T16 |
 | C-11 | T15, T18, T19, T20, T21 | C-31 | T08, T28, T29, T31, T45 |
 | C-12 | T10, T13, T21, T23 | C-32 | T31 |
-| C-13 | T21 | C-33 | T08, T09 |
-| C-14 | T43 | C-34 | T04, T05, T06, T07 |
+| C-13 | T21 | C-33 | T47, T08, T09 |
+| C-14 | T43 | C-34 | T04, T05, T06, T07, T47 |
 | C-15 | T11, T46 | C-35 | T01 (dev); hml na 09 |
 | C-16 | T22, T44 | C-36 | T14, T15, T16, T18 |
 | C-17 | T03, T11, T13 | C-37 | T32, T33 |

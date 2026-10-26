@@ -2,24 +2,43 @@
 pedido: DEC-DEM-20261022-0001-v1
 etapa: 05-plano
 agente: tech-lead
-leu: [pedido.json, 2026-10-25-ws-orquestrador-demandas-design.md, 01-analista-requisitos.md, 02-arquiteto-solucoes.md, 03-ux-ui-design.md, 04-seguranca-aplicacao.md, padrao-tecnico.md, contrato-passagem.md, construir.mjs, cadeias.mjs, permissoes.mjs, pedido.mjs, engenheiro-backend.md, engenheiro-frontend.md, engenheiro-dados-bd.md]
+leu: [contrato-passagem.md, 05-tech-lead.md (volta anterior), tarefas.json, passagens.jsonl, 06-T08-engenheiro-backend.md, 06-T04-engenheiro-dados-bd.md, 2026-10-25-ws-orquestrador-demandas-plano.md (G1 a G4 e T06 a T09 e Rastreabilidade), src/db/schema/acesso.ts, src/db/schema/acesso.test.ts, drizzle/meta/_journal.json, construir.mjs, cadeias.mjs, estado.mjs]
 status: pronto
-proximo: engenheiro-backend
+proximo: engenheiro-dados-bd
 devolvido_para: null
 ---
 ## Entrega
 
-- Plano: `docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md` (formato writing-plans: cabeçalho,
-  restrições globais G1 a G6, 46 tarefas com arquivos, interfaces, passos TDD com o código e rastreabilidade de RF e
-  controles).
-- Lista de tarefas: `docs/construcao/DEC-DEM-20261022-0001-v1/tarefas.json` (46 linhas, mesma ordem do plano, todas
-  com `risco`; passa em `construir.mjs tarefas`).
+Volta do plano pedida pela `06-T08-construcao`. O motivo: a tabela `two_factor` da T04 não tem as colunas `verified`,
+`failed_verification_count` e `locked_until`, que o plugin `twoFactor` do Better Auth 1.7.6 exige. Por isso 9 de 615
+testes falham em `auth.test.ts`.
+
+Nesta volta mudou só o que é preciso para pôr a migration antes de a T08 voltar. As tarefas T01 a T07, já prontas,
+ficam como estão. O resto do plano aprovado na Parada 2 também não mudou.
+
+- Plano: `docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md`
+  - **T47 nova** (`engenheiro-dados-bd`, risco `alto`, fase Fundação), escrita entre a T07 e a T08. Ela traz:
+    - a tabela das três colunas, com os tipos que a sonda da T08 provou;
+    - três testes que falham, em `src/db/schema/acesso.test.ts`: as colunas e os padrões, a linha gravada sem as
+      colunas novas e a gravação de falha e bloqueio pelo app com o `CHECK >= 0`;
+    - o esquema Drizzle de `twoFactor` com o `check`;
+    - `pnpm db:generate` (migration `0006_<gerado>`, sem migration custom);
+    - a suíte inteira verde, incluindo os 9 de `auth.test.ts` da T08 e a guarda de privilégios sem edição;
+    - a volta da migration.
+  - **T08**: o cabeçalho ganhou "Depende de: T47". O conteúdo da tarefa não mudou: a volta da T08 só roda a suíte e
+    regrava a entrega.
+  - **G1**: a lista de tarefas com migration passa a incluir a T47.
+  - **Mapa das fases**: a Fundação passa a ser "T01 a T07, T47, T08 a T13".
+  - **Rastreabilidade**: a T47 entra em RF-01, C-33 e C-34.
+- Lista de tarefas: `docs/construcao/DEC-DEM-20261022-0001-v1/tarefas.json`
+  - 47 linhas, com a T47 logo depois da T07 e antes da T08, na mesma ordem do plano.
+  - Passa em `construir.mjs tarefas`.
 
 ### Fases e tarefas
 
 | Fase | Tarefas | Engenheiros | Riscos | Por que nesta ordem |
 |---|---|---|---|---|
-| Fundação | T01 a T13 | backend (10), dados-bd (3) | 9 alto, 1 medio, 3 baixo | Log por lista de permissão e mapeador de erro antes de qualquer rota (C-20, C-21); guarda de privilégios com a primeira migration (C-34); autenticação, matriz e teste que percorre as rotas antes das rotas de demanda (C-01, C-02, C-04, C-09 a C-12, C-15, C-17) |
+| Fundação | T01 a T07, T47, T08 a T13 | backend (10), dados-bd (4) | 10 alto, 1 medio, 3 baixo | Log por lista de permissão e mapeador de erro antes de qualquer rota (C-20, C-21). Guarda de privilégios com a primeira migration (C-34). As colunas do plugin `twoFactor` vêm antes da configuração do Better Auth (T47 antes da T08). Autenticação, matriz e o teste que percorre as rotas vêm antes das rotas de demanda (C-01, C-02, C-04, C-09 a C-12, C-15, C-17) |
 | Demandas | T14 a T17 | backend | 2 alto, 1 medio, 1 baixo | Id, serviço, rotas e entrada manual: base de todo artefato |
 | Versões e decisão | T18 a T22 | backend | 2 alto, 3 medio | O caminho manual completo, sem IA, até o Pedido de Construção |
 | Agentes de IA | T23 a T29 | backend | 6 alto, 1 medio | Interruptor e teto antes do provedor; provedor e minimização antes da execução; execução antes dos gatilhos |
@@ -27,8 +46,7 @@ devolvido_para: null
 | Operação | T32 a T35 | backend (3), dados-bd (1) | 3 alto, 1 baixo | Scripts, teste de sentinelas e desempenho com o sistema de pé |
 | Painel | T36 a T46 | frontend | 6 alto, 5 baixo | Telas sobre módulos já testados; e2e e axe por tela |
 
-Todas as fases têm tarefa de risco `alto`; no modo `por_risco` da Parada 2, o maestro para antes de cada fase depois
-da primeira.
+A T47 fica na fase Fundação. No modo `por_risco` da Parada 2, ela não cria parada nova entre fases.
 
 | Tarefa | Engenheiro | Risco | Tarefa | Engenheiro | Risco |
 |---|---|---|---|---|---|
@@ -39,67 +57,85 @@ da primeira.
 | T05 Demanda, versões e decisão | dados-bd | alto | T28 Gatilhos e orquestrador | backend | alto |
 | T06 Agentes, uso, avisos, operação | dados-bd | alto | T29 Worker, batimento, varredura | backend | medio |
 | T07 Fila pg-boss | backend | medio | T30 Aviso por e-mail | backend | alto |
-| T08 Better Auth fechado | backend | alto | T31 Expurgo | backend | alto |
-| T09 exigirPessoa e verificação | backend | alto | T32 Scripts de conta | backend | alto |
-| T10 Tokens, resolverAtor, matriz | backend | alto | T33 Scripts de token, seed, hml | backend | alto |
-| T11 Adaptador de rota, cabeçalhos, saúde | backend | alto | T34 Sentinelas transversais | backend | alto |
-| T12 Histórico | backend | baixo | T35 Desempenho | dados-bd | baixo |
-| T13 Estáticos e matriz × rotas | backend | alto | T36 Design system, moldura, e2e | frontend | baixo |
-| T14 Id, versão e trava | backend | baixo | T37 Entrar e 2FA | frontend | alto |
-| T15 Serviço de demanda | backend | alto | T38 Fila | frontend | baixo |
-| T16 Rotas de demanda | backend | medio | T39 Nova demanda e edição | frontend | alto |
-| T17 Entrada manual | backend | alto | T40 Detalhe | frontend | alto |
-| T18 ESP | backend | medio | T41 ESP no painel | frontend | baixo |
-| T19 RSK | backend | medio | T42 RSK no painel | frontend | baixo |
-| T20 DEC | backend | medio | T43 DEC e decisão | frontend | alto |
-| T21 Decisão e dupla aprovação | backend | alto | T44 Pedido na tela de decisão | frontend | alto |
-| T22 Pedido de Construção | backend | alto | T45 Agentes e teto | frontend | alto |
-| T23 Interruptores, teto, preço, uso | backend | alto | T46 Transversais do painel | frontend | baixo |
+| **T47 Colunas do plugin twoFactor** | dados-bd | alto | T31 Expurgo | backend | alto |
+| T08 Better Auth fechado | backend | alto | T32 Scripts de conta | backend | alto |
+| T09 exigirPessoa e verificação | backend | alto | T33 Scripts de token, seed, hml | backend | alto |
+| T10 Tokens, resolverAtor, matriz | backend | alto | T34 Sentinelas transversais | backend | alto |
+| T11 Adaptador de rota, cabeçalhos, saúde | backend | alto | T35 Desempenho | dados-bd | baixo |
+| T12 Histórico | backend | baixo | T36 Design system, moldura, e2e | frontend | baixo |
+| T13 Estáticos e matriz × rotas | backend | alto | T37 Entrar e 2FA | frontend | alto |
+| T14 Id, versão e trava | backend | baixo | T38 Fila | frontend | baixo |
+| T15 Serviço de demanda | backend | alto | T39 Nova demanda e edição | frontend | alto |
+| T16 Rotas de demanda | backend | medio | T40 Detalhe | frontend | alto |
+| T17 Entrada manual | backend | alto | T41 ESP no painel | frontend | baixo |
+| T18 ESP | backend | medio | T42 RSK no painel | frontend | baixo |
+| T19 RSK | backend | medio | T43 DEC e decisão | frontend | alto |
+| T20 DEC | backend | medio | T44 Pedido na tela de decisão | frontend | alto |
+| T21 Decisão e dupla aprovação | backend | alto | T45 Agentes e teto | frontend | alto |
+| T22 Pedido de Construção | backend | alto | T46 Transversais do painel | frontend | baixo |
+| T23 Interruptores, teto, preço, uso | backend | alto | | | |
 
 ### Cobertura
 
-- Os 26 RF de 01 e as 18 RNF estão na tabela "RF de 01 → tarefas" do plano.
-- Os 40 controles de 04 estão na tabela "Controles de 04 → tarefas". C-35 e C-39 ficam divididos: a parte que mora
-  no código (compose de dev em `127.0.0.1`, `packageManager`, `audit:prod`, lockfile) está na T01; o
-  `docker-compose.hml.yml` e os portões do CI são da `09-entrega` (G2 do plano), porque nenhum engenheiro edita
-  `.github/` nem o compose da homologação.
-- Cada tarefa começa pelo teste que falha. Nas três que cobrem controles já construídos (T34, T35, T46), o plano manda
-  mostrar a falha provocada antes do verde.
+- Os 26 RF de 01 e as 18 RNF continuam na tabela "RF de 01 → tarefas" do plano. A T47 entra em RF-01.
+- Os 40 controles de 04 continuam na tabela "Controles de 04 → tarefas". A T47 entra em C-33 e C-34. C-35 e C-39
+  ficam divididos como na volta anterior: a parte do código na T01, e o compose da homologação e os portões do CI na
+  `09-entrega`.
+- Toda tarefa começa pelo teste que falha. A T47 começa pelos três testes novos de `acesso.test.ts`, e os 9 de
+  `auth.test.ts` da T08 também estão vermelhos antes do esquema.
 
 ## Decisões tomadas
 
-- P1-a a P1-f com os padrões aprovados na Parada 1 (G4 do plano): só a própria administradora registra a aprovação dela (constante `MODO_APROVACAO_ADMINISTRADORA` deixa o outro modo a uma linha); administradora não aprova DEC de nível `cto`; sem regra mínima de nível; aprovação não muda o status da demanda; 3 tentativas com esperas de 30 s e 2 min; moeda USD.
-- T-01: entrada enviada ao orquestrador fica em `entrada_pendente`, apagada quando a demanda nasce ou no expurgo; mantém `entrada_bruta` com PK = `demanda_id` e o `UPDATE` só nas três colunas de C-34.
-- T-02: as conferências do pg-boss 12.34.0 viraram testes de integração da T07, com caminho alternativo escrito; as filas são criadas pelo migrator no `migrate.ts`, porque `createQueue` pode exigir DDL, e o papel do app nunca ganha DDL.
-- T-03: `agentesEmAndamento` vem de `execucao_agente` e `GET /api/demandas` devolve `total`; nenhuma tela lê o esquema do pg-boss.
-- T-04: `scripts/desativar-conta.ts` entra na 0.1.0 (T32), porque fecha a remoção de conta da LGPD (D6) com pouco código.
-- T-05: estrutura do RSK como desenhada na T08 (três pares nível + comentário, duas listas, um texto).
-- Todo o modelo físico nasce na Fundação (T04 a T06), porque só o `engenheiro-dados-bd` gera migration e as tarefas de backend não podem esperar por ele no meio.
-- Migrations custom com o nome `rls_<nome>`, o único formato da lista Pode do `engenheiro-dados-bd`.
-- Todas as dependências do padrão instaladas na T01, porque o `engenheiro-dados-bd` não roda `pnpm add` nem edita `vitest.config.ts`.
-- `src/vendor/construir/pedido.mjs` entra na T18 (não na T22), para a regra de donos de repositório da ESP vir da mesma cópia que valida o pedido, sem duplicar.
-- Detectores de dado pessoal em `src/modules/dados-pessoais/`, usados pelo pedido (C-28) e pela minimização (C-23): uma regra só.
-- Ordem dentro de `rota()`: parâmetro pela regex, CSRF, ator, `autorizar`, Zod, função. O 403 sai antes de qualquer consulta, e o teste da matriz passa a cobrir sozinho cada rota nova.
-- Serviços aceitam a transação de quem chama (G3.8), para o worker gravar artefato, execução e job juntos (ADR-02, ADR-06).
-- Opções A e B do DEC como objetos em `jsonb` validado por Zod e coluna `recomendacao`: um schema só para as duas opções.
-- IP do cliente pelo `x-real-ip` (configurável), que o Traefik do Easypanel sobrescreve; a 10 confirma no `deploy.md`.
-- Dados do e2e criados pela API com a conta fictícia, e contas fictícias separadas por cenário no seed, para o mesmo e2e rodar na homologação e nenhum teste depender da ordem.
-- Rotas do painel `/configuracao/agentes`, `.../pareceres-risco/novo` e `.../pacotes-decisao/novo`, como a 03 (divergência da spec, seção 8).
-- Testes de integração longos (T09, T13, T15 a T33) trazem o corpo dos casos principais e o roteiro dos demais no nome e no comentário; o critério de cada um está no nome do teste, e o engenheiro escreve o corpo no mesmo molde.
+- **Tarefa nova com id T47**, e não renumeração. A `06-T08-construcao` já tem passagem e entrega no registro, e
+  renumerar quebraria esse vínculo. O formato `Tnn` não exige ordem numérica: a ordem de execução é a da lista.
+- **T47 com o `engenheiro-dados-bd`.** Migration é só dele (G1). A T08 não tem como ficar verde sem ela.
+- **Risco `alto`.** A T47 altera uma tabela já existente e toca a autenticação (2FA).
+- **`verified` nulo com padrão `true`**, como na sonda que passou. Um `NOT NULL` não foi provado contra a
+  biblioteca: se o plugin gravar nulo em algum caminho, quebraria o login.
+- **`CHECK (failed_verification_count >= 0)`**, pela mesma regra de `bloqueio_verificacao`. O plugin só incrementa
+  e zera esse campo, então o `CHECK` não bloqueia nenhum caminho dele.
+- **`locked_until` sem padrão no banco** (G3.4). A data vem de quem grava.
+- **Sem migration custom.** O `GRANT` de `two_factor` é de tabela inteira e cobre coluna nova, então a guarda não
+  muda. Se o drizzle-kit gerar algo além das três colunas e do `CHECK`, a tarefa volta ao plano: isso seria sinal de
+  divergência entre o esquema e as migrations.
+- **A T08 não muda de conteúdo.** O código dela já está no ramo (commit `06-T08-construcao`) e passou com as três
+  colunas na sonda. A volta só roda a suíte e regrava a entrega.
+- **Os desvios 1 a 7 da T08 não entram no plano.** São da revisão `06-T08-revisao`, que julga cada um quando a T08
+  passar.
 
 ## Pendências
 
-- Esta volta regrava só esta entrega, a pedido do maestro: o plano e o `tarefas.json` ficam como estavam, e nenhum comando git foi rodado.
-- X-01 (Fabiano, antes da 06): confirmar se os comandos git da lista Pode dos três engenheiros (`git status`, `git diff`, `git log`) passam no `conferir` como estão escritos. O plano não depende de git, mas a entrega dos engenheiros costuma listar esses comandos.
-- `09-entrega` (`devops-sre`): `Dockerfile`, `ci.yml` (lint, typecheck, test, e2e, build e os portões de C-39), `deploy.yml`, `docker-compose.hml.yml` (usando `scripts/hml/criar-papeis.sql` e `pnpm start:hml` da T33; `db` sem publicação, C-35) e `.env.example` com os nomes de G6.
-- `10-documentacao` (`documentacao-tecnica`): README, manual técnico, `deploy.md` com os itens de O-01 e as pré-condições para ligar agente (04, seção 5, item 7), CHANGELOG 0.1.0.
-- T45 tem três textos que a 03 não previu (último expurgo, worker sem sinal, duas instâncias); o plano manda escrevê-los no estilo de 03, 2.8 e registrar na entrega. Se o maestro preferir, a `ux-ui-design` revisa na 07 ou na 08.
-- T36 e T09 são as maiores tarefas (perto de dois dias); se a construção estourar, a quebra natural é T36 em componentes e moldura + infraestrutura do e2e, e T09 em `exigirPessoa` + bloqueio da verificação.
-- J-01, J-02, J-03, O-02 e F-01 da spec seguem com as áreas donas; nenhuma bloqueia a construção.
+- **Para o maestro: a devolução reabre P2 e T01 a T07.** Pelo `estado.mjs`, a devolução para `05-plano` reabre tudo o
+  que vem depois dela: a P2 e as etapas de T01 a T07, que já estavam prontas. Com o registro como está, depois desta
+  entrega o próximo passo é a P2. Aprovada a P2, o próximo seria a `06-T01-construcao`, e não a `06-T47-construcao`.
+  Fabiano pediu para não refazer T01 a T07. Cabe ao maestro, com Fabiano, decidir como o registro passa direto para a
+  T47 sem que essas tarefas rodem de novo.
+- **Para a T09: sobreposição com o bloqueio do plugin.** Com as colunas novas, o plugin `twoFactor` 1.7.6 passa a ter
+  bloqueio próprio de verificação (`failed_verification_count` e `locked_until`). Esse bloqueio se sobrepõe a C-06 e
+  à tabela `bloqueio_verificacao` da T09. O plano aprovado mantém a tabela própria (5 falhas em 15 min, por conta).
+  - A T09 deve conferir, pelo teste de C-06, que o limite e a janela padrão do plugin não contradizem essa regra.
+  - Se contradisserem, e a única saída for configurar ou trocar o mecanismo, a T09 volta ao plano. A decisão fica
+    para essa volta ou para a `06-T09-revisao`.
+- **Para a T09: limite próprio no `/sign-in`.** Fica em aberto se o Better Auth aplica ao `/sign-in` uma regra de
+  limite própria, mais estrita que 10 por minuto. O teste de C-06 da T09 mostra.
+- **Para a T11 e a T13:** os testes de C-15 dependem de `disableOriginCheck: false` explícito (desvio 3 da T08).
+- **Itens da volta anterior que seguem abertos:**
+  - X-01 (comandos git da lista Pode no `conferir`);
+  - itens da `09-entrega` e da `10-documentacao`;
+  - textos da T45;
+  - tamanho da T36 e da T09;
+  - J-01, J-02, J-03, O-02 e F-01 da spec.
 
 ## Comandos executados
 
+- `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs tarefas /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261022-0001-v1/tarefas.json` — antes da mudança: `{ "ok": true, "erros": [] }`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -30` — último commit a643bc1 (06-T08-construcao)
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, no ramo `construcao/DEC-DEM-20261022-0001-v1`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat --format=%h 6e06587` — arquivos de teste da 06-T04-testes, entre eles `src/db/schema/acesso.test.ts`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat --format=%h a643bc1` — 12 arquivos da T08, nenhum em `src/db/` nem em `drizzle/`
 - `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs tarefas /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261022-0001-v1/tarefas.json` — `{ "ok": true, "erros": [] }`
+- `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs tarefas /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261022-0001-v1/tarefas.json` — depois da T47 no arquivo: `{ "ok": true, "erros": [] }`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — só `tarefas.json` (+1) e o plano (+117 −6)
 
 ## Critério de pronto atendido
 

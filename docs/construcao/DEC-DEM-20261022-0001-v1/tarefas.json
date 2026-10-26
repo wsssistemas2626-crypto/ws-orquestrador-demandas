@@ -6,6 +6,7 @@
   { "id": "T05", "titulo": "Tabelas de demanda, versões e decisão, com privilégios e índices", "engenheiro": "engenheiro-dados-bd", "fase": "Fundação", "risco": "alto" },
   { "id": "T06", "titulo": "Tabelas de agentes, uso de IA, avisos e operação, com sementes e privilégios", "engenheiro": "engenheiro-dados-bd", "fase": "Fundação", "risco": "alto" },
   { "id": "T07", "titulo": "Fila pg-boss com esquema pelo migrator e envio na transação", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "medio" },
+  { "id": "T47", "titulo": "Colunas do plugin twoFactor na tabela two_factor", "engenheiro": "engenheiro-dados-bd", "fase": "Fundação", "risco": "alto" },
   { "id": "T08", "titulo": "Better Auth: configuração fechada, papel protegido e segredo conferido", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
   { "id": "T09", "titulo": "exigirPessoa, bloqueio da verificação, limite por IP e sessão sem 2FA", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
   { "id": "T10", "titulo": "Tokens de serviço, resolverAtor, matriz de acesso e autorizar", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
