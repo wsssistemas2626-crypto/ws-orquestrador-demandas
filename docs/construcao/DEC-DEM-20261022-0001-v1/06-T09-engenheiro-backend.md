@@ -111,7 +111,8 @@ dependem dos ganchos:
 ```
 
 Contraprova da regra do login: sem a `customRules`, os dois testes de C-06 do login falham. A rajada dá
-`[401, 401, 401, 429, …]`, e os pares a cada 11 s dão `expected 401 to be 429`. Com a regra de volta, os dois passam.
+`[401, 401, 401, 429, …]`, e os pares a cada 11 s dão `expected 401 to be 429`. Na suíte inteira sem a regra, foram
+esses 2 que falharam, e os outros 723 passaram. Com a regra de volta, os dois passam.
 
 ### Resultado
 
@@ -121,7 +122,7 @@ Contraprova da regra do login: sem a `customRules`, os dois testes de C-06 do lo
 - `git status`: modificado só `src/modules/acesso/auth.ts`; novos, os 7 arquivos da lista do plano.
 
 A saída da suíte tem linhas `{"level":40,...,"evento":"login_falhou","atorTipo":"anonimo"}` e
-`{"level":40|50,...,"evento":"better_auth"}`. São os logins e códigos errados de propósito, só com nível, hora, evento e
+`{"level":40,...,"evento":"better_auth"}` (ou `"level":50`). São os logins e códigos errados de propósito, só com nível, hora, evento e
 tipo de ator.
 
 ### Desvios do plano
@@ -162,6 +163,10 @@ tipo de ator.
 - **A falha de verificação é registrada em transação, com `SELECT … FOR UPDATE`.** Duas falhas ao mesmo tempo não
   perdem contagem.
 - **Não subi o banco de desenvolvimento**, porque todos os testes usam o Testcontainers.
+- **Nesta volta, só a entrega foi regravada.** O código ficou o do commit 25f4fb4. A contraprova da `customRules` fica
+  registrada pela suíte inteira sem a regra (2 falharam, 723 passaram). A rodada filtrada da volta anterior saiu da
+  lista porque o filtro usava uma expressão regular com alternância. A primeira reconfirmação do `pnpm test` nesta
+  volta teve a saída cortada no terminal, e por isso foi repetida inteira. Só a repetição está na lista.
 
 ## Pendências
 
@@ -185,9 +190,6 @@ tipo de ator.
 - **Minor do `06-T08-qa-automacao.md`:** os dois testes de C-02 em `auth.test.ts` (o que não confere o status e o de
   `desativadoEm: null`) continuam como estão. `auth.test.ts` não está na lista de arquivos da T09, e a cobertura forte
   já existe em `auth-comportamento.test.ts`.
-- **Para o `conferir`:** um comando da lista abaixo tem `|` dentro de aspas: `-t "C-06: (11|em pares)"`. O `|` é a
-  alternância da expressão regular do filtro de testes do Vitest, não um pipe. O comando é um `pnpm test` só, sem
-  composição.
 
 ## Comandos executados
 
@@ -205,13 +207,17 @@ tipo de ator.
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 38 arquivos, 725 de 725
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/acesso/verificacao.test.ts -t "C-06: (11|em pares)"` — contraprova sem a `customRules`: 2 falharam
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — ainda sem a `customRules`, porque a edição que a repunha falhou: 2 falharam (os mesmos da contraprova) e 723 passaram
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — com a regra de volta: 38 arquivos, 725 de 725
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — modificado `src/modules/acesso/auth.ts`; novos `bloqueio-verificacao.ts`, `destino-seguro.ts`, `destino-seguro.test.ts`, `exigir-pessoa.ts`, `exigir-pessoa.test.ts`, `verificacao.test.ts` e `test/sessao.ts`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — 1 arquivo rastreado, `auth.ts`, com 108 linhas a mais e 6 a menos
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — reconfirmação desta volta: limpo, código no commit 25f4fb4
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -3` — 84f8057, 25f4fb4 e de8cdec
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 38 arquivos, 725 de 725
 
 ## Critério de pronto atendido
 
