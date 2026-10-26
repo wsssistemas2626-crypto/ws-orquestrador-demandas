@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lerConfigApp } from './env';
+import { ErroConfiguracao, lerConfigApp } from './env';
 
 const base = {
   BETTER_AUTH_SECRET: 'x'.repeat(48),
@@ -76,6 +76,44 @@ describe('lerConfigApp', () => {
   it('C-06: cabeçalho do IP configurável, em minúsculas, e recusado se não for nome de cabeçalho', () => {
     expect(lerConfigApp({ ...base, CABECALHO_IP_CLIENTE: 'X-Forwarded-Client-IP' }).cabecalhoIp).toBe('x-forwarded-client-ip');
     expect(() => lerConfigApp({ ...base, CABECALHO_IP_CLIENTE: 'x real ip' })).toThrow(/CABECALHO_IP_CLIENTE/);
+  });
+
+  // Testes da etapa 06-T08-testes (qa-automacao).
+  it('C-33: o segredo é medido em bytes, não em caracteres', () => {
+    // 'é' tem 2 bytes em UTF-8: 16 caracteres dão 32 bytes (aceito); 15 dão 30 (recusado).
+    expect(lerConfigApp({ ...base, BETTER_AUTH_SECRET: 'é'.repeat(16) }).segredoAuth).toBe('é'.repeat(16));
+    expect(() => lerConfigApp({ ...base, BETTER_AUTH_SECRET: 'é'.repeat(15) })).toThrow(/BETTER_AUTH_SECRET/);
+    expect(() => lerConfigApp({ ...base, BETTER_AUTH_SECRET: 'x'.repeat(16) })).toThrow(/BETTER_AUTH_SECRET/);
+  });
+
+  it('variável vazia conta como ausente: a obrigatória falha e a opcional fica no padrão', () => {
+    expect(() => lerConfigApp({ ...base, BETTER_AUTH_SECRET: '' })).toThrow(/BETTER_AUTH_SECRET/);
+    expect(() => lerConfigApp({ ...base, DATABASE_URL: '' })).toThrow(/DATABASE_URL/);
+    expect(lerConfigApp({ ...base, RETENCAO_TEXTO_BRUTO_DIAS: '', CABECALHO_IP_CLIENTE: '' })).toMatchObject({
+      retencaoDias: 90,
+      cabecalhoIp: 'x-real-ip',
+    });
+  });
+
+  it('erro de várias variáveis traz só os nomes, em ordem, sem nenhum dos valores', () => {
+    let erro: unknown;
+    try {
+      lerConfigApp({
+        BETTER_AUTH_SECRET: 'SENTINELA-SEGREDO',
+        BETTER_AUTH_URL: 'SENTINELA-URL',
+        DATABASE_URL: 'postgres://u:SENTINELA-SENHA@127.0.0.1:5434/d',
+        RETENCAO_TEXTO_BRUTO_DIAS: '999',
+      });
+    } catch (e) {
+      erro = e;
+    }
+    expect(erro).toBeInstanceOf(ErroConfiguracao);
+    expect((erro as ErroConfiguracao).variaveis).toEqual(['BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'RETENCAO_TEXTO_BRUTO_DIAS']);
+    // Sem a pilha, cujos números de linha não têm a ver com o valor.
+    const propriedades = Object.getOwnPropertyNames(erro).filter((p) => p !== 'stack');
+    expect(JSON.stringify(erro, propriedades)).not.toMatch(/SENTINELA|999/);
+    expect((erro as Error).stack).not.toContain('SENTINELA');
+    expect((erro as Error).cause).toBeUndefined();
   });
 
   it('sem argumento lê process.env', () => {
