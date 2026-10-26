@@ -1,7 +1,7 @@
 // Dependências que rota, Server Action, job e serviço recebem (G5). `obterDeps` monta as de produção uma vez por
 // processo, a partir de lerConfigApp() (C-33): importar o módulo, como faz o `next build`, não lê variável de ambiente.
-// Só DATABASE_URL e a configuração do app: nunca DATABASE_URL_MIGRATOR, a chave do provedor de IA nem a do e-mail,
-// que são do migrate e do worker (C-27).
+// Só DATABASE_URL e a configuração do app: nunca a URL do migrator, a chave do provedor de IA nem a do e-mail, que são
+// do migrate e do worker (C-27; o teste estático test/estatico/variaveis.test.ts recusa o nome delas aqui).
 import type pg from 'pg';
 import { criarDb, criarPool, type Db } from '../db';
 import { criarAuth, type Auth } from '../modules/acesso/auth';

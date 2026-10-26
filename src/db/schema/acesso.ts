@@ -1,7 +1,7 @@
 // Tabelas de acesso: as cinco do Better Auth 1.7.6 (formato do adaptador Drizzle, chaves em camelCase que o
 // `casing: 'snake_case'` grava em snake_case), o bloqueio da verificação em duas etapas (C-06) e os tokens de serviço
-// dos agentes (C-09). Datas em timestamptz. Nenhuma coluna usa `new Date()` do lado da aplicação (G3.4): os padrões
-// de data são do banco.
+// dos agentes (C-09). Datas em timestamptz. Nenhuma coluna tira a hora do processo do lado da aplicação (G3.4): os
+// padrões de data são do banco.
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import type { Agente } from './agentes';
