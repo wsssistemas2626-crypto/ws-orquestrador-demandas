@@ -307,3 +307,66 @@ describe('listarPacotes (RF-23)', () => {
     expect(alem).toMatchObject({ itens: [], total: 2 });
   });
 });
+
+// Etapa 06-T20-testes (qa-automacao). Banco próprio, montado uma vez no beforeAll e só lido pelos testes (nenhum depende
+// da ordem). Tudo no mesmo instante do relógio fixo: a ordem da lista depende só do desempate (demanda, depois a versão
+// pelo número), e a paginação por offset não pode repetir nem pular item. A demanda X tem 11 DEC (v1 a v11: pela ordem
+// do texto, v9 viria antes de v11); a demanda Y, criada depois, tem um DEC de nível cto_e_administradora com só a
+// aprovação do CTO, que continua pendente (CA-14.1) e não pode aparecer entre os aprovados (RF-23).
+describe('listarPacotes: aprovação parcial e desempate no mesmo instante', () => {
+  let b: BancoDeTeste;
+  let x = '';
+  let y = '';
+  let parcial = '';
+
+  beforeAll(async () => {
+    b = await prepararBanco();
+    const svc: Svc = { db: b.db, pool: b.poolApp, relogio: relogioFixo('2026-11-10T12:00:00Z') };
+    const dx = await demandaComDec(svc);
+    x = dx.demandaId;
+    for (let i = 2; i <= 11; i++) await criarPacoteDecisao(svc, i % 2 ? cto : consolidacao, x, dec({ resumoExecutivo: `Versão ${i}` }));
+    const d = await criarDemanda(svc, cto, criarDemandaSchema.parse({ titulo: 'Dupla aprovação', tipo: 'novo_projeto', solicitanteNome: 'Pessoa Ficticia' }));
+    y = d.id;
+    await criarEspecificacao(svc, cto, y, esp());
+    await criarParecerRisco(svc, cto, y, rsk());
+    parcial = (await criarPacoteDecisao(svc, cto, y, dec({ nivelAprovacaoRequerido: 'cto_e_administradora' }))).id;
+    await b.poolMigrator.query(
+      `insert into aprovacao (pacote_decisao_id, papel_aprovacao, nome_aprovador, registrada_por, opcao, registrada_em) values ($1, 'cto', $2, $3, 'A', $4)`,
+      [parcial, cto.nome, cto.usuarioId, svc.relogio.agora()],
+    );
+  });
+  afterAll(async () => {
+    await b.fechar();
+  });
+
+  const filtro = (q: Record<string, unknown> = {}) => filtroPacotesSchema.parse(q);
+  const esperados = () => [parcial, ...Array.from({ length: 11 }, (_, i) => idVersao('DEC', x, 11 - i))];
+
+  it('CA-14.1 na lista: só a aprovação do CTO → pendente, com o aprovador visível; nada em aprovada', async () => {
+    expect(y > x).toBe(true);
+    const aprovados = await listarPacotes(b.db, filtro({ statusDecisao: 'aprovada' }));
+    expect(aprovados).toEqual({ itens: [], total: 0, limit: 20, offset: 0 });
+    const pendentes = await listarPacotes(b.db, filtro({ statusDecisao: 'pendente' }));
+    expect(pendentes.total).toBe(12);
+    const item = pendentes.itens.find((p) => p.id === parcial);
+    expect(item).toMatchObject({ statusDecisao: 'pendente', decisao: null, nivelAprovacaoRequerido: 'cto_e_administradora' });
+    expect(item!.aprovadores).toEqual([expect.objectContaining({ papel: 'cto', nome: cto.nome, opcao: 'A' })]);
+  });
+
+  it('mesmo instante: a demanda mais nova primeiro e, dentro dela, a versão pelo número (v11 antes de v10 e de v9)', async () => {
+    const r = await listarPacotes(b.db, filtro({ limit: '100' }));
+    expect(r.total).toBe(12);
+    expect(r.itens.map((p) => p.id)).toEqual(esperados());
+  });
+
+  it('páginas de 5 por offset: juntas dão a lista inteira, sem repetir nem pular, com o mesmo total em cada uma', async () => {
+    const vistos: string[] = [];
+    for (let offset = 0; offset < 15; offset += 5) {
+      const r = await listarPacotes(b.db, filtro({ limit: '5', offset: String(offset) }));
+      expect(r).toMatchObject({ total: 12, limit: 5, offset });
+      vistos.push(...r.itens.map((p) => p.id));
+    }
+    expect(vistos).toEqual(esperados());
+    expect(new Set(vistos).size).toBe(12);
+  });
+});

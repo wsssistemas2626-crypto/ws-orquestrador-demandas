@@ -172,6 +172,21 @@ describe('criarPacoteDecisao: gravação', () => {
     expect(linha).toMatchObject({ especificacaoVersao: 2, parecerRiscoVersao: 1, autorTipo: 'pessoa', autorId: cto.usuarioId, execucaoAgenteId: null });
   });
 
+  // Etapa 06-T20-testes (qa-automacao): o lado do RSK de CA-10.3, com o RSK mais novo gravado pelo agente risco.
+  it('CA-10.3, lado do RSK: ESP v1, RSK v1 e v2 → cita RSK-…-v2, com os níveis e o selo de rascunho dele', async () => {
+    const id = await demandaPronta();
+    await criarParecerRisco(deps, { tipo: 'agente', agente: 'risco', prefixoToken: null }, id, rsk({ riscoTecnicoNivel: 'alto', riscoOperacionalNivel: 'alto', riscoJuridicoNivel: 'baixo' }));
+    const v = await criarPacoteDecisao(deps, cto, id, dec());
+    expect(v).toMatchObject({
+      especificacaoId: idVersao('ESP', id, 1),
+      parecerRiscoId: idVersao('RSK', id, 2),
+      desatualizado: false,
+      niveisRisco: { tecnico: 'alto', operacional: 'alto', juridico: 'baixo' },
+      rascunhosCitados: [idVersao('RSK', id, 2)],
+    });
+    expect((await linhasDec(id))[0]).toMatchObject({ especificacaoVersao: 1, parecerRiscoVersao: 2 });
+  });
+
   it('grava as opções, a recomendação e o nível; o DEC seguinte é v2', async () => {
     const id = await demandaPronta();
     const v1 = await criarPacoteDecisao(deps, cto, id, dec());

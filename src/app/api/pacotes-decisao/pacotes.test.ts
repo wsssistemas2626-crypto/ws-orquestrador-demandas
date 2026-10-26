@@ -88,6 +88,16 @@ async function demandaPronta(): Promise<string> {
   return id;
 }
 
+const espDaRota = (descricaoObjetiva: string) =>
+  criarEspecificacaoSchema.parse({
+    descricaoObjetiva,
+    escopoInclui: ['a'],
+    sistemaAlvo: 'meu-sistema',
+    repositorioDestino: 'wsssistemas2626-crypto/meu-sistema',
+    criteriosAceitePreliminares: ['c'],
+    definicaoDePronto: ['p'],
+  });
+
 async function criarOk(demandaId: string, corpo: Record<string, unknown> = {}, cred: Credencial = cto()): Promise<{ id: string } & Record<string, unknown>> {
   const r = await criar(demandaId, { ...VALIDO, ...corpo }, cred);
   expect(r.status).toBe(201);
@@ -167,6 +177,36 @@ describe('POST /api/demandas/:id/pacotes-decisao', () => {
     expect(await r.json()).toEqual({ erro: 'entrada_invalida', mensagem: 'Faltam itens para o pacote.', faltando: ['especificacao', 'parecer_risco'] });
     expect(await contarDec(id)).toBe(0);
     expect(await statusDa(id)).toBe('nova');
+  });
+
+  // Etapa 06-T20-testes (qa-automacao): os outros dois casos de "o que falta" pela rota, com o corpo exato do 400, e a
+  // escolha da ESP e do RSK de maior versão pela rota (CA-10.3), seguida do RSK v2 deixando esse DEC desatualizado.
+  it('CA-10.2 pela rota: só com a ESP → 400 com faltando: ["parecer_risco"], e nada gravado', async () => {
+    const id = await novaDemanda();
+    await criarEspecificacao(deps, insumo, id, espDaRota('ESP só'));
+    const r = await criar(id, VALIDO);
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ erro: 'entrada_invalida', mensagem: 'Faltam itens para o pacote.', faltando: ['parecer_risco'] });
+    expect(await contarDec(id)).toBe(0);
+    expect(await statusDa(id)).toBe('nova');
+  });
+
+  it('pela rota: só com o RSK → 400 com faltando: ["especificacao"], e nada gravado', async () => {
+    const id = await novaDemanda();
+    await criarParecerRisco(deps, risco, id, criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' }));
+    const r = await criar(id, VALIDO, { bearer: tokenConsolidacao });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ erro: 'entrada_invalida', mensagem: 'Faltam itens para o pacote.', faltando: ['especificacao'] });
+    expect(await contarDec(id)).toBe(0);
+  });
+
+  it('CA-10.3 pela rota: ESP v1, v2 e RSK v1 → cita ESP-…-v2 e RSK-…-v1, pendente; o RSK v2 depois o deixa desatualizado', async () => {
+    const id = await demandaPronta();
+    await criarEspecificacao(deps, insumo, id, espDaRota('ESP v2'));
+    const v = await criarOk(id);
+    expect(v).toMatchObject({ id: `DEC-${id}-v1`, especificacaoId: `ESP-${id}-v2`, parecerRiscoId: `RSK-${id}-v1`, statusDecisao: 'pendente', desatualizado: false });
+    await criarParecerRisco(deps, risco, id, criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'alto', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' }));
+    expect(await (await obter(v.id)).json()).toMatchObject({ id: v.id, parecerRiscoId: `RSK-${id}-v1`, desatualizado: true, statusDecisao: 'pendente' });
   });
 
   it('corpo sem resumo, sem opções e com nível fora da lista → 400 com os campos, sem o valor recebido', async () => {
