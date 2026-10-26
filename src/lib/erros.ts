@@ -38,6 +38,8 @@ export class ErroDominio extends Error {
 }
 
 export const MENSAGEM_ERRO_INTERNO = 'Não foi possível concluir agora. Nada foi alterado. Tente de novo em instantes.';
+// 03, seção 2.8: o mesmo texto para id fora do formato (rota(), sem consulta) e para id que não existe (serviços).
+export const MENSAGEM_NAO_ENCONTRADO = 'Confira o endereço ou o id. A demanda, a versão ou o pacote podem não existir.';
 
 type IssueZod = z.core.$ZodIssue;
 

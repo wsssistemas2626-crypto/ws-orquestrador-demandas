@@ -3,6 +3,7 @@
 // que não chamam `autorizar`. Ação, agente ou papel desconhecido é negado.
 import { ErroDominio } from '../../lib/erros';
 import { AGENTES, PAPEIS, ehPapel, type Agente, type Ator, type Papel } from './ator';
+import { MENSAGENS_ACESSO } from './mensagens';
 
 export const ACOES = [
   'criar_demanda',
@@ -58,7 +59,7 @@ export const MATRIZ: Readonly<Record<Acao, Linha>> = Object.freeze({
 });
 
 // Mensagem da 03, seção 2.8. Não cita o ator nem a ação.
-const MENSAGEM_SEM_PERMISSAO = 'Sua conta não pode fazer esta ação. Se precisar, fale com o CTO.';
+const MENSAGEM_SEM_PERMISSAO = MENSAGENS_ACESSO.sem_permissao;
 
 // Só chave própria da matriz: `toString`, `__proto__` e afins não viram linha.
 const linhaDa = (acao: Acao): Linha | undefined =>

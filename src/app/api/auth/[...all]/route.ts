@@ -1,18 +1,6 @@
-// Rotas do Better Auth (login, sessão, 2FA). Até a T11 trazer `obterDeps`, a instância é montada aqui, na primeira
-// requisição: importar o módulo (como faz o `next build`) não lê variável de ambiente.
+// Rotas do Better Auth (login, sessão, 2FA), com a mesma instância das rotas e das páginas (obterDeps, T11). Importar o
+// módulo (como faz o `next build`) não lê variável de ambiente: a configuração é lida na primeira requisição.
 import { toNextJsHandler } from 'better-auth/next-js';
-import { criarDb, criarPool } from '../../../../db';
-import { lerConfigApp } from '../../../../lib/env';
-import { criarAuth, type Auth } from '../../../../modules/acesso/auth';
+import { obterDeps } from '../../../../lib/deps';
 
-let auth: Auth | undefined;
-
-function obterAuth(): Auth {
-  if (!auth) {
-    const config = lerConfigApp();
-    auth = criarAuth({ db: criarDb(criarPool(config.databaseUrl)), config });
-  }
-  return auth;
-}
-
-export const { GET, POST } = toNextJsHandler(async (requisicao: Request) => obterAuth().handler(requisicao));
+export const { GET, POST } = toNextJsHandler(async (requisicao: Request) => (await obterDeps()).auth.handler(requisicao));

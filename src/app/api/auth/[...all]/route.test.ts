@@ -26,4 +26,25 @@ describe('rota /api/auth/[...all]', () => {
     expect(String(erro)).toContain('BETTER_AUTH_SECRET');
     expect(String(erro)).not.toContain('SENTINELA');
   });
+
+  it('T11: usa o Better Auth de obterDeps, o mesmo das rotas e das páginas', async () => {
+    const rota = await import('./route');
+    const { definirDepsParaTeste } = await import('../../../../lib/deps');
+    const vistos: string[] = [];
+    definirDepsParaTeste({
+      auth: {
+        handler: async (r: Request) => {
+          vistos.push(new URL(r.url).pathname);
+          return new Response(null, { status: 299 });
+        },
+      },
+    } as never);
+    try {
+      const r = await rota.POST(new Request('http://127.0.0.1:3101/api/auth/sign-in/email', { method: 'POST' }));
+      expect(r.status).toBe(299);
+      expect(vistos).toEqual(['/api/auth/sign-in/email']);
+    } finally {
+      definirDepsParaTeste(null);
+    }
+  });
 });

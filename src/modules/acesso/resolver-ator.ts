@@ -5,19 +5,15 @@ import type { Deps } from '../../lib/deps';
 import { ErroDominio } from '../../lib/erros';
 import type { Ator } from './ator';
 import { exigirPessoa } from './exigir-pessoa';
+import { MENSAGENS_ACESSO as MENSAGEM } from './mensagens';
 import { validarTokenServico } from './tokens-servico';
 
 // `cookiePrefix: 'wsod'` do Better Auth (auth.ts); `__Secure-` em produção (C-07).
 const COOKIES_DE_SESSAO = new Set(['wsod.session_token', '__Secure-wsod.session_token']);
 const RE_BEARER = /^Bearer ([^\s]+)$/i;
 
-// Mensagem de 401 da 03, seção 2.8, a mesma de `exigirPessoa`; para token inválido, revogado ou inexistente, uma só,
-// que não diz qual dos três foi.
-const MENSAGEM = {
-  nao_autenticado: 'Sua sessão terminou. Entre de novo para continuar.',
-  token_invalido: 'Token de serviço inválido ou revogado.',
-  ambiguo: 'Use só uma forma de autenticação.',
-} as const;
+// O 401 sem credencial é o mesmo de `exigirPessoa`; para token inválido, revogado ou inexistente, uma mensagem só, que
+// não diz qual dos três foi.
 
 function temCookieDeSessao(cabecalho: string | null): boolean {
   if (!cabecalho) return false;

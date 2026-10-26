@@ -3,25 +3,15 @@
 // adaptador. Conta sem 2FA tem sessão de no máximo 15 min, que só abre /configurar-2fa (C-08).
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { criarDb, criarPool } from '../../db';
-import type { Deps } from '../../lib/deps';
-import { lerConfigApp } from '../../lib/env';
+import { obterDeps, type Deps } from '../../lib/deps';
 import { ErroDominio } from '../../lib/erros';
-import { relogioDoSistema } from '../../lib/relogio';
 import { ehPapel, type AtorPessoa } from './ator';
-import { criarAuth } from './auth';
 import { destinoSeguro } from './destino-seguro';
+import { MENSAGENS_ACESSO as MENSAGEM } from './mensagens';
 
 export const SESSAO_SEM_2FA_MS = 15 * 60 * 1000;
 
 type DepsAcesso = Pick<Deps, 'auth' | 'relogio'>;
-
-// Mensagens de 03, seção 2.8. Nenhuma cita dado da sessão.
-const MENSAGEM = {
-  nao_autenticado: 'Sua sessão terminou. Entre de novo para continuar.',
-  sem_2fa: 'Para usar o painel, configure a verificação em duas etapas.',
-  sem_permissao: 'Sua conta não pode fazer esta ação. Se precisar, fale com o CTO.',
-} as const;
 
 // A sessão como o acesso a enxerga. `null` quando não há sessão, a conta está desativada ou a sessão sem 2FA passou
 // dos 15 min (as três dão 401).
@@ -47,24 +37,13 @@ export async function exigirPessoa(deps: DepsAcesso, cabecalhos: Headers): Promi
   return { tipo: 'pessoa', usuarioId: p.usuarioId, nome: p.nome, papel: p.papel };
 }
 
-// Até a T11 trazer `obterDeps`, as páginas montam o próprio Better Auth na primeira chamada, como a rota
-// /api/auth/[...all]: importar o módulo (no `next build`) não lê variável de ambiente.
-let depsPagina: DepsAcesso | undefined;
-function depsDaPagina(): DepsAcesso {
-  if (!depsPagina) {
-    const config = lerConfigApp();
-    depsPagina = {
-      auth: criarAuth({ db: criarDb(criarPool(config.databaseUrl)), config, relogio: relogioDoSistema }),
-      relogio: relogioDoSistema,
-    };
-  }
-  return depsPagina;
-}
-
+// As páginas usam os mesmos `Deps` das rotas (obterDeps, T11): um Better Auth só no processo. Importar o módulo (no
+// `next build`) não lê variável de ambiente; a configuração é lida na primeira chamada.
+//
 // Primeira linha de toda página do painel fora de /entrar e /configurar-2fa (C-04). `deps` só é passado nos testes.
-export async function exigirPessoaNaPagina(caminhoAtual: string, deps: DepsAcesso = depsDaPagina()): Promise<AtorPessoa> {
+export async function exigirPessoaNaPagina(caminhoAtual: string, deps?: DepsAcesso): Promise<AtorPessoa> {
   try {
-    return await exigirPessoa(deps, await headers());
+    return await exigirPessoa(deps ?? (await obterDeps()), await headers());
   } catch (e) {
     if (!(e instanceof ErroDominio)) throw e;
     if (e.codigo === 'nao_autenticado') {
@@ -77,8 +56,8 @@ export async function exigirPessoaNaPagina(caminhoAtual: string, deps: DepsAcess
 }
 
 // Só para /configurar-2fa: sessão válida de conta ativa, com papel válido e ainda sem 2FA.
-export async function exigirSessaoParaConfigurar2fa(deps: DepsAcesso = depsDaPagina()): Promise<{ usuarioId: string; nome: string }> {
-  const p = await lerPessoa(deps, await headers());
+export async function exigirSessaoParaConfigurar2fa(deps?: DepsAcesso): Promise<{ usuarioId: string; nome: string }> {
+  const p = await lerPessoa(deps ?? (await obterDeps()), await headers());
   if (!p) redirect('/entrar?motivo=sessao');
   if (!ehPapel(p.papel)) redirect('/sem-permissao');
   if (p.com2fa) redirect('/demandas');
