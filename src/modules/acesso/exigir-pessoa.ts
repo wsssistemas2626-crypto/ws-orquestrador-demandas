@@ -8,14 +8,9 @@ import type { Deps } from '../../lib/deps';
 import { lerConfigApp } from '../../lib/env';
 import { ErroDominio } from '../../lib/erros';
 import { relogioDoSistema } from '../../lib/relogio';
+import { ehPapel, type AtorPessoa } from './ator';
 import { criarAuth } from './auth';
 import { destinoSeguro } from './destino-seguro';
-
-// `PAPEIS` e `AtorPessoa` são de src/modules/acesso/ator.ts (G5), que chega na T10; até lá, ficam aqui com o mesmo
-// formato, e a T10 troca pelo import.
-const PAPEIS = ['cto', 'administradora'] as const;
-type Papel = (typeof PAPEIS)[number];
-type AtorPessoa = { tipo: 'pessoa'; usuarioId: string; nome: string; papel: Papel };
 
 export const SESSAO_SEM_2FA_MS = 15 * 60 * 1000;
 
@@ -27,8 +22,6 @@ const MENSAGEM = {
   sem_2fa: 'Para usar o painel, configure a verificação em duas etapas.',
   sem_permissao: 'Sua conta não pode fazer esta ação. Se precisar, fale com o CTO.',
 } as const;
-
-const papelValido = (p: unknown): p is Papel => typeof p === 'string' && (PAPEIS as readonly string[]).includes(p);
 
 // A sessão como o acesso a enxerga. `null` quando não há sessão, a conta está desativada ou a sessão sem 2FA passou
 // dos 15 min (as três dão 401).
@@ -50,7 +43,7 @@ export async function exigirPessoa(deps: DepsAcesso, cabecalhos: Headers): Promi
   const p = await lerPessoa(deps, cabecalhos);
   if (!p) throw new ErroDominio('nao_autenticado', MENSAGEM.nao_autenticado);
   if (!p.com2fa) throw new ErroDominio('sem_2fa', MENSAGEM.sem_2fa);
-  if (!papelValido(p.papel)) throw new ErroDominio('sem_permissao', MENSAGEM.sem_permissao);
+  if (!ehPapel(p.papel)) throw new ErroDominio('sem_permissao', MENSAGEM.sem_permissao);
   return { tipo: 'pessoa', usuarioId: p.usuarioId, nome: p.nome, papel: p.papel };
 }
 
@@ -87,7 +80,7 @@ export async function exigirPessoaNaPagina(caminhoAtual: string, deps: DepsAcess
 export async function exigirSessaoParaConfigurar2fa(deps: DepsAcesso = depsDaPagina()): Promise<{ usuarioId: string; nome: string }> {
   const p = await lerPessoa(deps, await headers());
   if (!p) redirect('/entrar?motivo=sessao');
-  if (!papelValido(p.papel)) redirect('/sem-permissao');
+  if (!ehPapel(p.papel)) redirect('/sem-permissao');
   if (p.com2fa) redirect('/demandas');
   return { usuarioId: p.usuarioId, nome: p.nome };
 }

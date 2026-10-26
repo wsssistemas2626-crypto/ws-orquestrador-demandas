@@ -8,10 +8,9 @@
 import { createHmac } from 'node:crypto';
 import type { Deps } from '../src/lib/deps';
 import { relogioDoSistema } from '../src/lib/relogio';
+import type { Papel } from '../src/modules/acesso/ator';
 import type { Auth } from '../src/modules/acesso/auth';
 import { CONFIG_TESTE, criarContaDeTeste } from './auth';
-
-type Papel = 'cto' | 'administradora';
 
 // IPs fictícios das faixas de documentação 192.0.2.0/24 e 203.0.113.0/24 (198.51.100.0/24 é dos outros arquivos):
 // um por requisição, para o limite por IP do Better Auth não ligar um teste ao outro.

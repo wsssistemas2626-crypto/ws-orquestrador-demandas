@@ -1,12 +1,9 @@
 // Configuração e contas fictícias para os testes do Better Auth. A conta é criada pelo `internalAdapter` do próprio
 // Better Auth, o mesmo caminho do script de criação de usuário (T32): nada de inserir linha à mão.
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { user } from '../src/db/schema';
 import type { ConfigApp } from '../src/lib/env';
+import type { Papel } from '../src/modules/acesso/ator';
 import type { Auth } from '../src/modules/acesso/auth';
-
-// O tipo `Papel` de src/modules/acesso/ator.ts chega na T10; até lá, vem da coluna `user.papel`.
-type Papel = (typeof user.$inferSelect)['papel'];
 
 export const CONFIG_TESTE: ConfigApp = {
   urlBase: 'http://127.0.0.1:3101',
