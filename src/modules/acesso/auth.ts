@@ -11,10 +11,12 @@ import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/a
 import { nextCookies } from 'better-auth/next-js';
 import { twoFactor } from 'better-auth/plugins';
 import type { Db } from '../../db';
-import { account, evento, session, twoFactor as tabelaTwoFactor, user, verification } from '../../db/schema';
+import { account, session, twoFactor as tabelaTwoFactor, user, verification } from '../../db/schema';
 import type { ConfigApp } from '../../lib/env';
 import { log } from '../../lib/log';
 import { relogioDoSistema, type Relogio } from '../../lib/relogio';
+import { registrarEvento } from '../historico/registrar';
+import { ehPapel, type AtorPessoa } from './ator';
 import { registrarFalhaDeVerificacao, verificacaoBloqueada, zerarFalhasDeVerificacao } from './bloqueio-verificacao';
 
 export const EMISSOR_TOTP = 'WS Orquestrador de Demandas';
@@ -29,22 +31,29 @@ const CAMINHOS_VERIFICACAO = new Set([
 ]);
 const MENSAGEM_BLOQUEIO = 'Muitas tentativas de código. A verificação desta conta está bloqueada por 15 minutos.';
 
-type AlvoDaVerificacao = { usuarioId: string; ativando: boolean };
+// `pessoa` só existe quando há sessão (na ativação); no login, a verificação não grava evento.
+type AlvoDaVerificacao = { usuarioId: string; ativando: boolean; pessoa: AtorPessoa | null };
 type ContextoDoGancho = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
-// Evento de ativação ou desativação do 2FA (C-08), no formato de `evento`: a própria pessoa como ator, e em `antes` e
-// `depois` só o booleano, nunca o segredo. `registrarEvento` chega na T12 e substitui este insert.
-async function registrarEventoDe2fa(db: Db, relogio: Relogio, usuarioId: string, ativo: boolean): Promise<void> {
-  await db.insert(evento).values({
-    ocorridoEm: relogio.agora(),
-    atorTipo: 'pessoa',
-    atorId: usuarioId,
-    entidade: 'usuario',
-    entidadeId: usuarioId,
-    acao: ativo ? '2fa_ativado' : '2fa_desativado',
-    antes: { twoFactorEnabled: !ativo },
-    depois: { twoFactorEnabled: ativo },
-  });
+// A pessoa da sessão como ator do histórico. O papel é NOT NULL com CHECK no banco; fora de PAPEIS, não há ator.
+const pessoaDaSessao = (u: { id: string; name: string; papel?: unknown }): AtorPessoa | null =>
+  ehPapel(u.papel) ? { tipo: 'pessoa', usuarioId: u.id, nome: u.name, papel: u.papel } : null;
+
+// Evento de ativação ou desativação do 2FA (C-08): a própria pessoa como ator, e em `antes` e `depois` só o booleano,
+// nunca o segredo.
+async function registrarEventoDe2fa(db: Db, relogio: Relogio, pessoa: AtorPessoa, ativo: boolean): Promise<void> {
+  await registrarEvento(
+    db,
+    {
+      ator: pessoa,
+      entidade: 'usuario',
+      entidadeId: pessoa.usuarioId,
+      acao: ativo ? '2fa_ativado' : '2fa_desativado',
+      antes: { twoFactorEnabled: !ativo },
+      depois: { twoFactorEnabled: ativo },
+    },
+    relogio,
+  );
 }
 
 const falhou = (devolvido: unknown): devolvido is APIError | Response =>
@@ -62,12 +71,14 @@ export function criarAuth(op: { db: Db; config: ConfigApp; relogio?: Relogio }) 
   // cookie assinado de dois fatores, pelo mesmo caminho do plugin (cookie → verification → id do usuário).
   const apurarAlvo = async (ctx: ContextoDoGancho): Promise<AlvoDaVerificacao | null> => {
     const sessao = await getSessionFromCtx(ctx).catch(() => null);
-    if (sessao) return { usuarioId: sessao.user.id, ativando: sessao.user.twoFactorEnabled !== true };
+    if (sessao) {
+      return { usuarioId: sessao.user.id, ativando: sessao.user.twoFactorEnabled !== true, pessoa: pessoaDaSessao(sessao.user) };
+    }
     const nomeDoCookie = ctx.context.createAuthCookie('two_factor').name;
     const identificador = await ctx.getSignedCookie(nomeDoCookie, ctx.context.secret);
     if (!identificador) return null;
     const pendente = await ctx.context.internalAdapter.findVerificationValue(identificador);
-    return pendente ? { usuarioId: pendente.value, ativando: false } : null;
+    return pendente ? { usuarioId: pendente.value, ativando: false, pessoa: null } : null;
   };
 
   return betterAuth({
@@ -146,7 +157,8 @@ export function criarAuth(op: { db: Db; config: ConfigApp; relogio?: Relogio }) 
         if (ctx.path === '/two-factor/disable') {
           if (falhou(devolvido)) return;
           const sessao = await getSessionFromCtx(ctx).catch(() => null);
-          if (sessao) await registrarEventoDe2fa(db, relogio, sessao.user.id, false);
+          const pessoa = sessao ? pessoaDaSessao(sessao.user) : null;
+          if (pessoa) await registrarEventoDe2fa(db, relogio, pessoa, false);
           return;
         }
         if (!CAMINHOS_VERIFICACAO.has(ctx.path)) return;
@@ -160,7 +172,7 @@ export function criarAuth(op: { db: Db; config: ConfigApp; relogio?: Relogio }) 
           return;
         }
         await zerarFalhasDeVerificacao(db, alvo.usuarioId);
-        if (alvo.ativando) await registrarEventoDe2fa(db, relogio, alvo.usuarioId, true);
+        if (alvo.ativando && alvo.pessoa) await registrarEventoDe2fa(db, relogio, alvo.pessoa, true);
       }),
     },
     plugins: [twoFactor({ issuer: EMISSOR_TOTP, skipVerificationOnEnable: false }), nextCookies()],
