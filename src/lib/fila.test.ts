@@ -96,11 +96,18 @@ describe('pg-boss 12.34.0 sobre o esquema criado pelo migrator (T-02)', () => {
     expect(r.rows[0].n).toBe(0);
   });
 
+  // 06-T07-testes: o teste envia o próprio job, numa fila que nenhum outro teste deste arquivo usa, e espera pelo id
+  // dele. Antes, dependia do job que o teste do ADR-06 deixava em aviso.dec-pronto (parecer 4 da 06-T07-revisao).
   it('um worker com o papel do app processa o job', async () => {
+    const id = await comTransacao(b.poolApp, ({ executor }) => fila.enviar(executor, FILAS.workerBatimento, {}));
+    expect(id).not.toBeNull();
     const vistos: string[] = [];
-    await fila.boss.work(FILAS.avisoDecPronto, async ([job]) => {
-      vistos.push((job!.data as { decId: string }).decId);
+    await fila.boss.work(FILAS.workerBatimento, async ([job]) => {
+      vistos.push(job!.id);
     });
-    await expect.poll(() => vistos, { timeout: 10_000 }).toContain('DEC-DEM-20261022-0001-v1');
+    await expect.poll(() => vistos, { timeout: 10_000 }).toContain(id);
+    await expect
+      .poll(async () => (await b.poolMigrator.query(`select state from pgboss.job where id = $1`, [id])).rows[0]?.state, { timeout: 10_000 })
+      .toBe('completed');
   });
 });
