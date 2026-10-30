@@ -189,4 +189,36 @@ describe('minimizar: nome conhecido do solicitante (RF-20)', () => {
       `${MARCADOR_NOME} [e-mail removido] ${MARCADOR_NOME}`,
     );
   });
+
+  // 06-T24-testes, 2ª passada (qa-automacao): bordas da ordem nova (detectores antes do nome) e da partição.
+  it('regressão RF-20: nome no começo do usuário (nome.x@) ou no domínio do e-mail não desmonta o e-mail', () => {
+    const op = { nomes: ['Ficticia'] };
+    const s = minimizar('Para ficticia.contato@empresa-exemplo.test e contato@ficticia.test, ou FICTICIA_2@exemplo.test', op);
+    expect(s).toBe('Para [e-mail removido] e [e-mail removido], ou [e-mail removido]');
+    expect(minimizar(s, op)).toBe(s);
+  });
+
+  it.each<[string[], string]>([
+    [['Pessoa Ficticia', 'nome'], `${MARCADOR_NOME} assinou; ${MARCADOR_NOME} também.`],
+    [['nome', 'Pessoa Ficticia'], `${MARCADOR_NOME} assinou; ${MARCADOR_NOME} também.`],
+    [['Pessoa Ficticia', 'nome removido', 'removido'], `${MARCADOR_NOME} assinou; Nome também.`],
+  ])('vários nomes (%j): o marcador posto por um não é estragado pelo seguinte', (nomes, esperado) => {
+    const s = minimizar('Pessoa Ficticia assinou; Nome também.', { nomes });
+    expect(s).toBe(esperado);
+    expect(minimizar(s, { nomes })).toBe(s);
+  });
+
+  it('cabeçalho, e-mail com o nome, telefone e o nome solto juntos: a ordem completa num texto só', () => {
+    const op = { nomes: ['Ficticia'] };
+    const t = 'De: Ficticia <ficticia@empresa-exemplo.test>\nOi, aqui é Ficticia (ficticia@empresa-exemplo.test, (11) 90000-0000).';
+    const s = minimizar(t, op);
+    expect(s).toBe(`Oi, aqui é ${MARCADOR_NOME} ([e-mail removido], [telefone removido]).`);
+    expect(s).not.toMatch(/empresa-exemplo|ficticia/i);
+    expect(minimizar(s, op)).toBe(s);
+  });
+
+  it('texto que só tem marcadores, com o nome igual a palavra de marcador, passa igual', () => {
+    const t = `${MARCADOR_NOME}${MARCADORES['e-mail']}${MARCADORES.CPF}`;
+    expect(minimizar(t, { nomes: ['removido', 'nome removido'] })).toBe(t);
+  });
 });

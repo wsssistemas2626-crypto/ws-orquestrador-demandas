@@ -445,6 +445,26 @@ describe('montador: nome do solicitante e repetição (06-T24-testes)', () => {
     expect(dadosDe(conteudo)).toEqual({ textoRecebido: 'Escreva para [e-mail removido] sobre os pedidos.' });
     expect(conteudo).not.toContain('empresa-exemplo.test');
   });
+
+  // 06-T24-testes, 2ª passada: o mesmo defeito pelos campos da demanda, da ESP e do RSK, com o nome no começo do usuário
+  // e no domínio do e-mail.
+  it('regressão RF-20 (consolidação): e-mail com o nome do solicitante no usuário ou no domínio vira marcador em demanda, ESP e RSK', async () => {
+    const dem = await novaDemanda({
+      solicitanteNome: 'Ficticia',
+      contexto: 'Escreva para ficticia.contato@empresa-exemplo.test',
+      descricaoProblema: 'Ficticia relatou; cópia para contato@ficticia.test',
+    });
+    await novaEsp(dem.id, { escopoInclui: ['Responder a ficticia@empresa-exemplo.test'] });
+    const rsk = await novoRsk(dem.id, { preCondicoes: ['Aceite de Ficticia (ficticia@empresa-exemplo.test)'] });
+    const { conteudo } = await montarEntrada(b.db, 'consolidacao', `rsk:${rsk.id}`);
+    const d = dadosDe(conteudo);
+    const demanda = d.demanda as Record<string, unknown>;
+    expect(demanda.contexto).toBe('Escreva para [e-mail removido]');
+    expect(demanda.descricaoProblema).toBe(`${MARCADOR_NOME} relatou; cópia para [e-mail removido]`);
+    expect((d.especificacao as Record<string, unknown>).escopoInclui).toEqual(['Responder a [e-mail removido]']);
+    expect((d.parecer as Record<string, unknown>).preCondicoes).toEqual([`Aceite de ${MARCADOR_NOME} ([e-mail removido])`]);
+    expect(conteudo).not.toMatch(/empresa-exemplo|ficticia\.test|@/);
+  });
 });
 
 describe('delimitarComoDado (C-24)', () => {
