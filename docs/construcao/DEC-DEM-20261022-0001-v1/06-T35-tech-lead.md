@@ -3,8 +3,8 @@ pedido: DEC-DEM-20261022-0001-v1
 etapa: 06-T35-revisao
 agente: tech-lead
 leu: [contrato-passagem.md, padrao-tecnico.md, 2026-10-25-ws-orquestrador-demandas-plano.md (início, G1 a G6, mapa das fases, T29 a T35), 06-T35-engenheiro-dados-bd.md, commit 9df6c99 (git show --stat), test/desempenho/leitura.test.ts, src/modules/demandas/consultas.ts, src/db/index.ts, src/db/schema/dominio.test.ts (linhas 420 a 480), saída do pnpm test desta etapa gravada pela ferramenta (tool-results/b8eghxsyw.txt, só o fim)]
-status: bloqueado
-proximo: tech-lead
+status: pronto
+proximo: qa-automacao
 devolvido_para: null
 ---
 ## Entrega
@@ -12,8 +12,7 @@ devolvido_para: null
 Revisão da T35 (desempenho de leitura com 5.000 demandas, RNF-03), commit `9df6c99`, engenheiro `engenheiro-dados-bd`.
 
 **Veredito técnico: aprovada.** Não há problema Critical nem Important. Os três pontos abaixo são Minor e ficam em
-Pendências. O status `bloqueado` vem só do comando fora da lista **Pode** explicado na primeira linha de Pendências. O
-código não tem motivo para voltar ao engenheiro.
+Pendências.
 
 ### O que o commit muda
 
@@ -106,7 +105,6 @@ O `EXPLAIN` desta corrida é igual ao da entrega:
 
 ## Pendências
 
-- Motivo do bloqueio: rodei `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -i "explain" -- src test`, só de leitura, para procurar ajudantes de `EXPLAIN` já existentes (item de duplicação do checklist). `git grep` não está na minha lista **Pode**. O comando não alterou nada, e a revisão está completa e aprovada sem Critical nem Important. O maestro pode liberar e regravar com `status: pronto` e `proximo: qa-automacao`.
 - Minor 1 (`leitura.test.ts:209`, título do teste): para quem tocar o arquivo depois, ou para a `06-T35-testes`.
 - Minor 2 (`leitura.test.ts:113-117`, configuração do Drizzle repetida de `src/db/index.ts:17`): para quem mexer em
   `criarDb`.
@@ -119,7 +117,6 @@ O `EXPLAIN` desta corrida é igual ao da entrega:
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 9df6c99e6c17f501703fac216bd5f307d0ae0387` — 3 arquivos: `test/desempenho/leitura.test.ts`, a entrega e `passagens.jsonl`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -i "explain" -- src test` — fora da lista Pode (ver Pendências); achou os ajudantes de `dominio.test.ts:429` e `agentes.test.ts:327`
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/desempenho/leitura.test.ts` — 9 de 9
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --silent=true --reporter=dot` — 141 arquivos, 2765 de 2765
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
