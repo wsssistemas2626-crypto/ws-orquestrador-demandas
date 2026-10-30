@@ -41,7 +41,7 @@ export const PROMPT_INSUMO_TECNICO = montarPrompt({
     'restricoesTecnicas: limites que a construção precisa respeitar (desempenho, volume, integração, segurança).',
     'duvidasEmAberto: o que falta saber para construir, uma pergunta por item. Qualquer item aqui leva a demanda a aguardar informação e segura o parecer de risco; por isso, liste só o que de fato impede a construção. Não invente a resposta.',
     `sistemaAlvo, repositorioDestino, criteriosAceitePreliminares e definicaoDePronto são obrigatórios quando o tipo da demanda é ${TIPOS_CONSTRUIDOS.join(', ')}; no tipo estudo, podem ficar de fora.`,
-    'sistemaAlvo: nome curto do sistema, só com letras minúsculas, números e hífen, começando por letra ou número. Se a demanda não disser, proponha um a partir do título; quem revisa confirma.',
+    'sistemaAlvo: nome curto do sistema, só com letras minúsculas, números e hífen, começando por letra ou número. Se a demanda não disser, proponha um a partir do título; quem revisa confirma. Esta é a única exceção à regra de não inventar sistema: o nome proposto é só o do sistema a construir, nunca um sistema envolvido.',
     `repositorioDestino: <conta>/<sistemaAlvo>, com a conta ${DONOS_REPOSITORIO.join(' ou ')}. Sistema novo fica em wsssistemas2626-crypto.`,
     'criteriosAceitePreliminares: condições verificáveis de que a entrega funciona, uma por item. definicaoDePronto: o que precisa estar feito para a entrega ser dada como pronta, um item por linha.',
   ],

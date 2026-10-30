@@ -148,6 +148,12 @@ describe('regras de cada agente', () => {
     expect(PROMPTS.insumo_tecnico.sistema).toContain('duvidasEmAberto');
     expect(PROMPTS.insumo_tecnico.sistema).toMatch(/não invente/i);
   });
+  it('insumo técnico: propor o sistemaAlvo é dito como a única exceção à regra de não inventar sistema (Minor 1 da 06-T26-revisao)', () => {
+    const s = PROMPTS.insumo_tecnico.sistema;
+    expect(s).toMatch(/não invente sistema/i);
+    expect(s).toMatch(/sistemaAlvo[^\n]*única exceção à regra de não inventar sistema/i);
+    for (const a of ['orquestrador', 'risco', 'consolidacao'] as const) expect(PROMPTS[a].sistema).not.toMatch(/única exceção/i);
+  });
   it('orquestrador: não devolve nome, papel nem anexo do solicitante, e a pergunta não sai sem aprovação humana', () => {
     expect(PROMPTS.orquestrador.sistema).toContain('perguntasParaSolicitante');
     expect(PROMPTS.orquestrador.sistema).toMatch(/não inclua nome/i);

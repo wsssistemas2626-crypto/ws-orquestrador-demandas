@@ -41,7 +41,8 @@ const OPCOES_FILA: Record<NomeFila, Parameters<PgBoss['createQueue']>[1]> = {
   [FILAS.workerBatimento]: {},
 };
 
-const PAYLOADS: { [N in NomeFila]: z.ZodType<PayloadDe[N]> } = {
+// Exportado para os handlers do worker lerem o payload com o mesmo schema do envio (T27 em diante).
+export const PAYLOADS: { [N in NomeFila]: z.ZodType<PayloadDe[N]> } = {
   [FILAS.agenteExecutar]: z.strictObject({ execucaoId: z.uuid() }),
   [FILAS.avisoDecPronto]: z.strictObject({ decId: z.string().regex(/^DEC-DEM-\d{8}-\d{4}-v\d{1,4}$/) }),
   [FILAS.retencaoExpurgo]: z.strictObject({}) as unknown as z.ZodType<Record<string, never>>,
