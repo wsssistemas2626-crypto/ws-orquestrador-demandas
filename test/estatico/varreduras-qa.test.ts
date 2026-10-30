@@ -18,8 +18,10 @@ const semTeste = (x: string) => !/\.test\.tsx?$/.test(x);
 describe('C-04 b: nenhum ponto de entrada fica fora das varreduras', () => {
   const USE_SERVER = /^\s*['"]use server['"]/m;
   const ADAPTADOR_DA_ACAO = /\bacaoDoPainel\(|\bexigirPessoa\(/;
-  // Páginas sem exigirPessoaNaPagina: a raiz (só redireciona) e as duas que C-04 deixa de fora, em qualquer grupo.
-  const PAGINA_PUBLICA = /^src\/app\/(?:\([^/]+\)\/)*(?:(?:entrar|configurar-2fa)\/)?page\.tsx$/;
+  // Páginas sem exigirPessoaNaPagina: a raiz (só redireciona), as duas que C-04 deixa de fora e /sem-permissao (T36:
+  // texto fixo da 03, 2.8, destino de exigirPessoaNaPagina para papel inválido; dentro do painel seria um laço), em
+  // qualquer grupo.
+  const PAGINA_PUBLICA = /^src\/app\/(?:\([^/]+\)\/)*(?:(?:entrar|configurar-2fa|sem-permissao)\/)?page\.tsx$/;
 
   it('a varredura enxerga src/ (falha se o glob quebrar)', () => {
     expect(listar('src/**/*.{ts,tsx}')).toEqual(expect.arrayContaining(['src/lib/acao-painel.ts', 'src/app/page.tsx']));
@@ -35,7 +37,7 @@ describe('C-04 b: nenhum ponto de entrada fica fora das varreduras', () => {
     expect(listar('src/app/api/**/route.{tsx,js,mjs}')).toEqual([]);
   });
 
-  it('toda page.tsx fora do grupo (painel) é uma das públicas: raiz, entrar ou configurar-2fa', () => {
+  it('toda page.tsx fora do grupo (painel) é uma das públicas: raiz, entrar, configurar-2fa ou sem-permissao', () => {
     const fora = listar('src/app/**/page.{tsx,ts,jsx,js}').filter((p) => !p.startsWith('src/app/(painel)/'));
     expect(fora.filter((p) => !PAGINA_PUBLICA.test(p))).toEqual([]);
   });
@@ -44,9 +46,21 @@ describe('C-04 b: nenhum ponto de entrada fica fora das varreduras', () => {
     expect("'use server';\nexport async function f() {}").toMatch(USE_SERVER);
     expect('export async function f() {\n  "use server";\n}').toMatch(USE_SERVER);
     expect('// sem a diretiva').not.toMatch(USE_SERVER);
-    for (const p of ['src/app/page.tsx', 'src/app/entrar/page.tsx', 'src/app/(publico)/entrar/page.tsx', 'src/app/(publico)/configurar-2fa/page.tsx'])
+    for (const p of [
+      'src/app/page.tsx',
+      'src/app/entrar/page.tsx',
+      'src/app/(publico)/entrar/page.tsx',
+      'src/app/(publico)/configurar-2fa/page.tsx',
+      'src/app/sem-permissao/page.tsx',
+    ])
       expect(p).toMatch(PAGINA_PUBLICA);
-    for (const p of ['src/app/demandas/page.tsx', 'src/app/(publico)/demandas/page.tsx', 'src/app/entrar/outra/page.tsx', 'src/app/configuracao/page.tsx'])
+    for (const p of [
+      'src/app/demandas/page.tsx',
+      'src/app/(publico)/demandas/page.tsx',
+      'src/app/entrar/outra/page.tsx',
+      'src/app/configuracao/page.tsx',
+      'src/app/sem-permissao/outra/page.tsx',
+    ])
       expect(p).not.toMatch(PAGINA_PUBLICA);
   });
 });

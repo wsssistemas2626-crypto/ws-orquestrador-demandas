@@ -1,0 +1,58 @@
+// Apoio dos testes e2e do painel (T36): entrar com as contas fictícias do seed, conferir o axe e chamar a API com a
+// sessão da página. Tudo pela API do próprio sistema (Better Auth e rotas), para o mesmo teste rodar contra a
+// homologação (BASE_URL).
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test, type Page } from '@playwright/test';
+import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
+import { relogioDoSistema } from '../src/lib/relogio';
+import { codigoTotp } from '../test/sessao';
+
+// 03, seção 5, e RNF-11: as regras do axe que toda tela cumpre.
+export const TAGS_AXE = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const;
+
+function origem(): string {
+  const base = test.info().project.use.baseURL;
+  if (!base) throw new Error('e2e: baseURL ausente no playwright.config.ts');
+  return new URL(base).origin;
+}
+
+// IP fictício da faixa de documentação 198.18.0.0/15 (testes de rede), um por chamada de login: o limite por IP do
+// Better Auth (10 por minuto, C-06) não liga um teste ao outro. Atrás do proxy da homologação, o cabeçalho é trocado
+// pelo IP real.
+let contadorIp = 0;
+function ipFicticio(): string {
+  const n = contadorIp++ % 65_000;
+  return `198.18.${Math.floor(n / 250)}.${(n % 250) + 1}`;
+}
+
+// Login pela API do Better Auth: e-mail e senha, depois o código TOTP do segredo fictício do seed. Os cookies ficam no
+// contexto da página, como num login pela tela.
+export async function entrarComo(page: Page, conta: 'cto' | 'administradora'): Promise<void> {
+  const c = CONTAS_FICTICIAS[conta];
+  const cabecalhos = { origin: origem(), 'x-real-ip': ipFicticio() };
+  const login = await page.request.post('/api/auth/sign-in/email', { headers: cabecalhos, data: { email: c.email, password: c.senha } });
+  expect(login.status(), `login da conta ${conta}`).toBe(200);
+  const codigo = codigoTotp(c.segredoTotp, relogioDoSistema.agora());
+  const verificar = await page.request.post('/api/auth/two-factor/verify-totp', { headers: cabecalhos, data: { code: codigo } });
+  expect(verificar.status(), `código TOTP da conta ${conta}`).toBe(200);
+}
+
+// Nenhuma violação do axe nas regras de TAGS_AXE. A mensagem do erro lista regra, impacto e alvo, sem o HTML da página.
+export async function semViolacoes(page: Page, rotulo: string): Promise<void> {
+  const r = await new AxeBuilder({ page }).withTags([...TAGS_AXE]).analyze();
+  const violacoes = r.violations.map((v) => ({ regra: v.id, impacto: v.impact, alvos: v.nodes.map((n) => n.target.join(' ')) }));
+  expect(violacoes, `axe em ${rotulo}`).toEqual([]);
+}
+
+// Chamada à API com a sessão da página: `Origin` do painel e corpo JSON (C-15). Resposta fora de 2xx falha o teste com
+// o método, o caminho e o status.
+export async function api<T>(page: Page, metodo: string, caminho: string, corpo?: unknown): Promise<T> {
+  const leitura = metodo.toUpperCase() === 'GET';
+  const r = await page.request.fetch(caminho, {
+    method: metodo,
+    headers: leitura ? {} : { origin: origem(), 'content-type': 'application/json' },
+    ...(corpo === undefined ? {} : { data: JSON.stringify(corpo) }),
+  });
+  expect(r.ok(), `${metodo} ${caminho} respondeu ${r.status()}`).toBe(true);
+  return (await r.json()) as T;
+}
