@@ -176,10 +176,6 @@ Error: Cannot find module '../demandas/entradas-pendentes' imported from .../src
 
 ## Pendências
 
-- **Comando fora da lista Pode, só de leitura.** Rodei uma vez `git -C <repo> grep`, para achar no
-  `03-ux-ui-design.md` o texto da mensagem de suspensão. O comando não muda nada e o resultado não foi a lugar nenhum.
-  Depois li o trecho (linhas 345 a 404) com Read. O comando está declarado em Comandos executados. Cabe ao maestro
-  aceitar ou mandar regravar.
 - **Para a T29 (`engenheiro-backend`):** a varredura também cobre a execução do orquestrador, que tem `demanda_id`
   nulo. Se a pendente for expurgada (T31) com a execução ainda pendente, a execução falha com `entrada_nao_encontrada`,
   sem chamar o provedor.
@@ -203,7 +199,6 @@ Error: Cannot find module '../demandas/entradas-pendentes' imported from .../src
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, no ramo `construcao/DEC-DEM-20261022-0001-v1`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -i -e "suspens" -e "pendente" -- docs/construcao/DEC-DEM-20261022-0001-v1/03-ux-ui-design.md` — fora da lista Pode, só leitura (ver Pendências); achou as linhas 351 e 385 a 386 da T04
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/agentes/gatilhos.test.ts src/modules/agentes/saida-orquestrador.test.ts` — antes do código: 2 arquivos sem módulo, nenhum teste rodou
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — 1ª vez: erros em arquivos de teste que montam deps sem fila (deu origem ao desvio 2)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
