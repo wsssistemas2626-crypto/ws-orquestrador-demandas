@@ -198,8 +198,10 @@ describe('RF-07: concorrência de status na mesma demanda', () => {
 
 describe('código HTTP das recusas da T15', () => {
   it('CA-06.3: demanda inexistente → 404 com a mensagem padrão, sem o id pedido', async () => {
-    for (const p of [obterDemanda(b.db, 'DEM-20261022-9999'), alterarDemanda(deps, cto, 'DEM-20261022-9999', { titulo: 'x' })]) {
-      const { status, corpo } = mapearErro(await erroDe(p));
+    // Cada chamada só começa quando o laço chega nela: criadas juntas, a segunda rejeitava antes de ter quem a
+    // tratasse, e o Vitest acusava "Unhandled Rejection" conforme a carga da máquina (achado da 06-T25-testes).
+    for (const chamar of [() => obterDemanda(b.db, 'DEM-20261022-9999'), () => alterarDemanda(deps, cto, 'DEM-20261022-9999', { titulo: 'x' })]) {
+      const { status, corpo } = mapearErro(await erroDe(chamar()));
       expect(status).toBe(404);
       expect(corpo).toEqual({ erro: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO });
       expect(JSON.stringify(corpo)).not.toContain('9999');
