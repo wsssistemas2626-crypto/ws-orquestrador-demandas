@@ -121,11 +121,6 @@ Error: Cannot find module './minimizar' imported from .../src/modules/dados-pess
 
 ## Pendências
 
-- **Comando fora da lista Pode, só de leitura.** No começo da etapa, rodei uma vez
-  `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "^### T2[3-8]" -e "^## " -- docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md`
-  para achar os títulos das tarefas no plano. É `git grep`, que não está na lista **Pode** nem nas formas que o prompt
-  autorizou. O comando só leu, não alterou nada, e todo o resto da leitura foi pelo Read. Está declarado em Comandos
-  executados para o maestro decidir no `conferir`.
 - **Para a T27:**
   - `montarEntrada` lança `ErroDominio('nao_encontrado')` quando a chave está fora do formato ou o registro sumiu, por
     exemplo uma pendente já convertida. A T27 precisa tratar esse erro como falha da execução, sem nova tentativa: tentar
@@ -147,7 +142,6 @@ Error: Cannot find module './minimizar' imported from .../src/modules/dados-pess
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, ramo `construcao/DEC-DEM-20261022-0001-v1`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — último commit 8e92ce8 (06-T23-testes qa-automacao)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "^### T2[3-8]" -e "^## " -- docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md` — fora da lista Pode, só leitura (ver Pendências); títulos das fases e das tarefas T23 a T28
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format=%h%x20%s --diff-filter=A` — arquivos criados em cada commit do ramo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 --format=%h` — 8e92ce8
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/dados-pessoais/minimizar.test.ts src/modules/agentes/entrada-agente.test.ts` — antes do código: os 2 arquivos falharam (módulos ausentes)
