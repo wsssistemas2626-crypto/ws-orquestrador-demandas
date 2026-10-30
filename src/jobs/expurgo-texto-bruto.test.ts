@@ -7,6 +7,9 @@ import { SENTINELAS, contemSentinela } from '../../test/sentinelas';
 import { criarFila, FILAS } from '../lib/fila';
 import { substituirDestinoDoLog } from '../lib/log';
 import { relogioFixo } from '../lib/relogio';
+import type { AtorPessoa } from '../modules/acesso/ator';
+import { entradaSchema, registrarEntrada } from '../modules/demandas/entrada';
+import { listarHistorico } from '../modules/historico/consultas';
 import { iniciarWorker, type DepsWorker } from '../worker/iniciar';
 import { tratarExpurgo, type DepsExpurgo } from './expurgo-texto-bruto';
 
@@ -37,7 +40,9 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   relogio.definir(AGORA);
-  await b.poolMigrator.query('truncate entrada_pendente, evento, rotina_execucao cascade');
+  // `demanda` (com `entrada_bruta` pelo cascade) entrou na 06-T31-testes: os testes de ponta a ponta criam texto bruto,
+  // e o expurgo varre a base toda.
+  await b.poolMigrator.query('truncate demanda, entrada_pendente, evento, rotina_execucao cascade');
   await b.poolMigrator.query(`delete from pgboss.job where name = $1`, [FILAS.retencaoExpurgo]);
   linhas.length = 0;
   substituirDestinoDoLog({ write: (l) => void linhas.push(l) });
@@ -137,5 +142,108 @@ describe('no worker', () => {
     await new Promise((r) => setTimeout(r, 2_500));
     expect(await estadoDoJob(job)).toBe('created');
     expect(await pendentes()).toHaveLength(1);
+  });
+});
+
+// 06-T31-testes (qa-automacao): os CA do RF-24 pelo job de verdade, no worker, com texto bruto (os testes acima usam
+// só a entrada pendente), e a nova tentativa real do pg-boss quando a primeira execução falha.
+describe('no worker, de ponta a ponta (CA-24.1 a CA-24.4)', () => {
+  const cto: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-expurgo-job-cto', nome: 'Pessoa Ficticia CTO', papel: 'cto' };
+
+  beforeAll(async () => {
+    await b.poolMigrator.query(`insert into "user" (id, name, email, papel) values ($1, $2, 'expurgo-job-cto@exemplo.test', 'cto')`, [cto.usuarioId, cto.nome]);
+  });
+
+  async function iniciar(d: DepsWorker = deps) {
+    const w = await iniciarWorker(d);
+    paradas.push(w.parar);
+    return w;
+  }
+  const estadoDoJob = async (id: string | null) => (await b.poolMigrator.query('select state from pgboss.job where id = $1', [id])).rows[0]?.state;
+  const entradaBrutaDe = async (id: string) => (await b.poolMigrator.query('select texto, origem, expurgada_em from entrada_bruta where demanda_id = $1', [id])).rows[0];
+  const eventosDoExpurgo = async () =>
+    (await b.poolMigrator.query(`select demanda_id, entidade, entidade_id, ator_tipo, antes, depois from evento where acao = 'texto_expurgado' order by id`)).rows;
+
+  // A demanda nasce pela entrada manual (RF-05), com o texto e a origem colados `dias` antes de AGORA.
+  async function criarDemandaComTexto(dias: number): Promise<string> {
+    relogio.definir(new Date(new Date(AGORA).getTime() - dias * DIA).toISOString());
+    try {
+      const r = await registrarEntrada(
+        deps,
+        cto,
+        entradaSchema.parse({
+          modo: 'manual',
+          titulo: 'Pedido em duplicidade',
+          tipo: 'bug',
+          solicitanteNome: SENTINELAS.nome,
+          texto: SENTINELAS.texto,
+          origem: { canal: 'email', referencia: SENTINELAS.email },
+        }),
+      );
+      if (r.tipo !== 'demanda') throw new Error('entrada manual sem demanda');
+      return r.demanda.id;
+    } finally {
+      relogio.definir(AGORA);
+    }
+  }
+
+  it('CA-24.1, CA-24.2 e CA-24.3 pelo job: com o prazo 30 da configuração, o texto de 31 dias sai com evento do sistema e o de 29 dias fica', async () => {
+    const vencida = await criarDemandaComTexto(31);
+    const recente = await criarDemandaComTexto(29);
+    await iniciar();
+    const job = await deps.fila.boss.send(FILAS.retencaoExpurgo, {});
+    await expect.poll(() => estadoDoJob(job), { timeout: 15_000 }).toBe('completed');
+
+    expect(await entradaBrutaDe(vencida)).toEqual({ texto: null, origem: null, expurgada_em: relogio.agora() });
+    expect(await entradaBrutaDe(recente)).toEqual({ texto: SENTINELAS.texto, origem: { canal: 'email', referencia: SENTINELAS.email }, expurgada_em: null });
+    const historico = await listarHistorico(b.db, vencida);
+    const doExpurgo = historico.filter((e) => e.acao === 'texto_expurgado');
+    expect(doExpurgo).toHaveLength(1);
+    expect(doExpurgo[0]).toMatchObject({ acao: 'texto_expurgado', ator: { tipo: 'sistema' }, entidade: 'entrada_bruta', entidadeId: vencida, ocorridoEm: relogio.agora() });
+    expect(contemSentinela(JSON.stringify(historico))).toBe(false);
+    expect((await listarHistorico(b.db, recente)).map((e) => e.acao)).not.toContain('texto_expurgado');
+    expect(registros()).toContainEqual(expect.objectContaining({ evento: 'expurgo_job_tratado', fila: FILAS.retencaoExpurgo, jobId: job, quantidade: 1 }));
+    expect(contemSentinela(linhas.join('\n'))).toBe(false);
+  });
+
+  it('CA-24.4 pelo job: o job do dia seguinte termina concluído sem evento novo e sem mudar a data do expurgo', async () => {
+    const id = await criarDemandaComTexto(31);
+    await iniciar();
+    const primeiro = await deps.fila.boss.send(FILAS.retencaoExpurgo, {});
+    await expect.poll(() => estadoDoJob(primeiro), { timeout: 15_000 }).toBe('completed');
+    const dataDoExpurgo = relogio.agora();
+
+    relogio.avancar(DIA);
+    const segundo = await deps.fila.boss.send(FILAS.retencaoExpurgo, {});
+    await expect.poll(() => estadoDoJob(segundo), { timeout: 15_000 }).toBe('completed');
+
+    expect((await entradaBrutaDe(id)).expurgada_em).toEqual(dataDoExpurgo);
+    expect(await eventosDoExpurgo()).toEqual([{ demanda_id: id, entidade: 'entrada_bruta', entidade_id: id, ator_tipo: 'sistema', antes: null, depois: null }]);
+    expect(await rotina()).toEqual([{ ultima_execucao_em: relogio.agora(), quantidade: 0 }]);
+  });
+
+  it('nova tentativa real: a primeira execução falha, o pg-boss tenta de novo e o job termina concluído, com um evento só', async () => {
+    const id = await criarDemandaComTexto(31);
+    // A primeira leitura do prazo dá 0, fora da regra: a primeira tentativa falha antes de abrir a transação. As
+    // seguintes leem 30. Só o handler do expurgo lê `retencaoDias` no worker.
+    let leituras = 0;
+    const config = {
+      ...deps.config,
+      get retencaoDias() {
+        leituras += 1;
+        return leituras === 1 ? 0 : 30;
+      },
+    };
+    await iniciar({ ...deps, config });
+    const job = await deps.fila.boss.send(FILAS.retencaoExpurgo, {});
+    await expect.poll(() => estadoDoJob(job), { timeout: 30_000 }).toBe('completed');
+
+    // retry_count 1: o pg-boss buscou o job de novo depois da falha (a nova tentativa veio da fila, não de um laço local).
+    expect((await b.poolMigrator.query('select retry_count from pgboss.job where id = $1', [job])).rows[0].retry_count).toBe(1);
+    expect(leituras).toBe(2);
+    expect(await entradaBrutaDe(id)).toEqual({ texto: null, origem: null, expurgada_em: relogio.agora() });
+    expect(await eventosDoExpurgo()).toHaveLength(1);
+    expect(registros().filter((r) => r.jobId === job).map((r) => r.evento)).toEqual(['expurgo_erro', 'expurgo_job_tratado']);
+    expect(contemSentinela(linhas.join('\n'))).toBe(false);
   });
 });
