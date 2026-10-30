@@ -202,6 +202,116 @@ describe('varredura de execuções órfãs', () => {
   });
 });
 
+// 06-T29-testes (qa-automacao): bordas da varredura, a corrida com a reivindicação, o teto de 100 e a trava vencida na
+// 3ª tentativa. Mesma base, relógio fixo e dados fictícios dos testes acima.
+describe('varredura: bordas e corridas (06-T29-testes)', () => {
+  const ligarInsumo = () => b.poolMigrator.query('update configuracao_agente set ligado = true, modelo = $1 where agente = $2', [MODELO, 'insumo_tecnico']);
+  const respostaValida = () => ({ texto: JSON.stringify(PROMPTS.insumo_tecnico.exemploSaida), modelo: MODELO, tokensEntrada: 10, tokensSaida: 10 });
+
+  it('borda de 1 min da pendente: exatamente 1 min parada não volta; 1 min e 1 ms volta (com e sem proxima_tentativa_em)', async () => {
+    const naBordaComProxima = await execucao({ status: 'pendente', tentativas: 1, proxima: mais(-MINUTO) });
+    const passouComProxima = await execucao({ status: 'pendente', tentativas: 1, proxima: mais(-MINUTO - 1) });
+    const naBordaSemProxima = await execucao({ status: 'pendente', atualizada: mais(-MINUTO) });
+    const passouSemProxima = await execucao({ status: 'pendente', atualizada: mais(-MINUTO - 1) });
+    // proxima_tentativa_em recente vale mais que atualizada_em velha: o job dessa tentativa ainda pode estar esperando.
+    const proximaRecenteAtualizadaVelha = await execucao({ status: 'pendente', tentativas: 1, proxima: mais(-30_000), atualizada: mais(-HORA) });
+
+    expect(await batimento(deps, 'instancia-a')).toEqual({ reenfileiradas: 2 });
+    const ids = (await jobsDeAgente()).map((j) => j.data.execucaoId);
+    expect(ids.sort()).toEqual([passouComProxima.id, passouSemProxima.id].sort());
+    for (const fica of [naBordaComProxima, naBordaSemProxima, proximaRecenteAtualizadaVelha]) expect(ids).not.toContain(fica.id);
+  });
+
+  it('borda da trava: em_andamento com bloqueada_ate igual a agora não volta; 1 ms vencida volta', async () => {
+    const naBorda = await execucao({ status: 'em_andamento', tentativas: 1, trava: mais(0) });
+    const vencida = await execucao({ status: 'em_andamento', tentativas: 1, trava: mais(-1) });
+    expect(await batimento(deps, 'instancia-a')).toEqual({ reenfileiradas: 1 });
+    expect(await jobsDeAgente()).toEqual([{ data: { execucaoId: vencida.id }, singleton_key: `insumo_tecnico:${vencida.chave}:t2`, state: 'created' }]);
+    expect((await jobsDeAgente()).map((j) => j.data.execucaoId)).not.toContain(naBorda.id);
+  });
+
+  it('corrida com a reivindicação: job t1 ativo e execução ainda pendente; a varredura cria no máximo um job e o provedor é chamado uma vez', async () => {
+    await ligarInsumo();
+    const dem = await criarDemanda(deps, cto, criarDemandaSchema.parse({ titulo: 'Corrida', tipo: 'melhoria', solicitanteNome: 'Pessoa Ficticia' }));
+    // Um worker pegou o job da 1ª tentativa (active) e ainda não reivindicou: a execução segue pendente, parada há 10 min.
+    await b.poolMigrator.query(`update pgboss.job set state = 'active', started_on = now() where name = 'agente.executar'`);
+    relogio.avancar(10 * MINUTO);
+    const [exec] = (await b.poolMigrator.query<{ id: string; status: string }>('select id, status from execucao_agente')).rows;
+    expect(exec!.status).toBe('pendente');
+
+    await batimento(deps, 'instancia-a');
+    relogio.avancar(MINUTO);
+    await batimento(deps, 'instancia-a');
+    const jobs = await jobsDeAgente();
+    // Um ativo e no máximo um novo na fila, os dois da mesma tentativa: nunca um job por batimento.
+    expect(jobs.filter((j) => j.state === 'active')).toHaveLength(1);
+    expect(jobs.filter((j) => j.state === 'created').length).toBeLessThanOrEqual(1);
+    expect(new Set(jobs.map((j) => j.singleton_key))).toEqual(new Set([`insumo_tecnico:demanda:${dem.id}:t1`]));
+    expect(jobs.every((j) => j.data.execucaoId === exec!.id)).toBe(true);
+
+    // Os dois jobs chegam ao worker: o primeiro reivindica e conclui; o outro não acha nada para fazer.
+    const provedor = new ProvedorFalso();
+    provedor.respostas.push(respostaValida());
+    const resultados = [];
+    for (const j of jobs) resultados.push(await executarAgente({ ...deps, provedor }, j.data.execucaoId as string));
+    expect(resultados.sort()).toEqual(['concluida', ...Array<string>(jobs.length - 1).fill('ja_tratada')].sort());
+    expect(provedor.chamadas).toHaveLength(1);
+    expect((await b.poolMigrator.query('select id from especificacao_tecnica where demanda_id = $1', [dem.id])).rows).toHaveLength(1);
+    expect((await b.poolMigrator.query<{ status: string }>('select status from execucao_agente where id = $1', [exec!.id])).rows[0]!.status).toBe('concluida');
+    relogio.avancar(10 * MINUTO);
+    expect(await batimento(deps, 'instancia-a')).toEqual({ reenfileiradas: 0 });
+  });
+
+  it('teto de 100 por batimento: 101 órfãs dão 100 jobs, sem repetir; a mais nova entra quando as outras saem da varredura', async () => {
+    const r = await b.poolMigrator.query<{ id: string }>(
+      `insert into execucao_agente (agente, chave_entrada, status, tentativas, proxima_tentativa_em, criada_em, atualizada_em)
+       select 'insumo_tecnico', 'demanda:DEM-20261022-' || lpad((5000 + i)::text, 4, '0'), 'pendente', 1, $1::timestamptz,
+              $1::timestamptz - interval '3 hours' + i * interval '1 second', $1::timestamptz - interval '3 hours' + i * interval '1 second'
+       from generate_series(1, 101) as i order by i returning id`,
+      [mais(-2 * MINUTO)],
+    );
+    const ids = r.rows.map((x) => x.id);
+    const maisNova = ids[100]!;
+
+    expect(await batimento(deps, 'instancia-a')).toEqual({ reenfileiradas: 100 });
+    let jobs = await jobsDeAgente();
+    expect(jobs).toHaveLength(100);
+    expect(jobs.map((j) => j.data.execucaoId)).not.toContain(maisNova);
+
+    // As 100 ainda estão na fila: o batimento seguinte não duplica nenhuma.
+    relogio.avancar(MINUTO);
+    expect(await batimento(deps, 'instancia-a')).toEqual({ reenfileiradas: 0 });
+    expect(await jobsDeAgente()).toHaveLength(100);
+
+    // O worker tratou as 100 (aqui, ignoradas): a que sobrou entra no batimento seguinte.
+    await b.poolMigrator.query(`update execucao_agente set status = 'ignorada' where id <> $1`, [maisNova]);
+    relogio.avancar(MINUTO);
+    expect(await batimento(deps, 'instancia-a')).toEqual({ reenfileiradas: 1 });
+    jobs = await jobsDeAgente();
+    expect(jobs).toHaveLength(101);
+    expect(jobs.filter((j) => j.data.execucaoId === maisNova)).toHaveLength(1);
+  });
+
+  it('trava vencida na 3ª tentativa: a varredura manda o job t4, e ele falha sem chamar o provedor (P1-e)', async () => {
+    await ligarInsumo();
+    const dem = await criarDemanda(deps, cto, criarDemandaSchema.parse({ titulo: 'Terceira caiu', tipo: 'melhoria', solicitanteNome: 'Pessoa Ficticia' }));
+    await b.poolMigrator.query(`update pgboss.job set state = 'failed' where name = 'agente.executar'`);
+    await b.poolMigrator.query(`update execucao_agente set status = 'em_andamento', tentativas = 3, bloqueada_ate = $1`, [mais(-1_000)]);
+
+    expect(await batimento(deps, 'instancia-a')).toEqual({ reenfileiradas: 1 });
+    const novo = (await jobsDeAgente()).filter((j) => j.state === 'created');
+    expect(novo.map((j) => j.singleton_key)).toEqual([`insumo_tecnico:demanda:${dem.id}:t4`]);
+
+    const provedor = new ProvedorFalso();
+    provedor.respostas.push(respostaValida());
+    expect(await executarAgente({ ...deps, provedor }, novo[0]!.data.execucaoId as string)).toBe('falhou');
+    expect(provedor.chamadas).toHaveLength(0);
+    expect((await b.poolMigrator.query('select id from uso_ia')).rows).toHaveLength(0);
+    relogio.avancar(10 * MINUTO);
+    expect(await batimento(deps, 'instancia-a')).toEqual({ reenfileiradas: 0 });
+  });
+});
+
 describe('situacaoDoWorker', () => {
   it('sem batimento nenhum: atrasado e sem instâncias', async () => {
     expect(await situacaoDoWorker(deps.db, relogio)).toEqual({ ultimoBatimento: null, atrasado: true, instanciasRecentes: 0, duasInstancias: false });

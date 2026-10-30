@@ -83,6 +83,25 @@ describe('lerConfigWorker', () => {
     expect((erro as Error).stack).not.toContain('SENTINELA');
   });
 
+  // 06-T29-testes (qa-automacao): as bordas de C-31 no worker, não só o 400 do plano.
+  it.each(['0', '366', '-1', '90.5', 'noventa'])('C-31: RETENCAO_TEXTO_BRUTO_DIAS=%s não sobe, e o erro cita só o nome', (valor) => {
+    let erro: unknown;
+    try {
+      lerConfigWorker({ ...base, RETENCAO_TEXTO_BRUTO_DIAS: valor });
+    } catch (e) {
+      erro = e;
+    }
+    expect(erro).toBeInstanceOf(ErroConfiguracao);
+    expect((erro as ErroConfiguracao).variaveis).toEqual(['RETENCAO_TEXTO_BRUTO_DIAS']);
+  });
+
+  it.each([
+    ['1', 1],
+    ['365', 365],
+  ])('C-31: RETENCAO_TEXTO_BRUTO_DIAS=%s sobe com o prazo lido', (valor, dias) => {
+    expect(lerConfigWorker({ ...base, RETENCAO_TEXTO_BRUTO_DIAS: valor }).retencaoDias).toBe(dias);
+  });
+
   it('obrigatória do app ausente também impede o worker de subir', () => {
     expect(() => lerConfigWorker({ BETTER_AUTH_URL: base.BETTER_AUTH_URL })).toThrow(/BETTER_AUTH_SECRET.*DATABASE_URL/);
   });

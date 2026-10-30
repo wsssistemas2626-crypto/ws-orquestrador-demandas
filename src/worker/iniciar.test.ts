@@ -1,6 +1,6 @@
 // T29: o processo worker sobre o pg-boss do banco de teste, pelo papel do app (migrate: false), com o provedor de IA
 // falso (RNF-14) e o relógio fixo (RNF-15). Dados só fictícios.
-import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { CONFIG_TESTE } from '../../test/auth';
 import { novoBanco, type BancoDeTeste } from '../../test/banco';
 import { PROMPTS } from '../agents';
@@ -151,6 +151,83 @@ it('job de batimento com payload fora do formato é descartado pelo schema, sem 
     expect(linhas.join('\n')).not.toContain('SENTINELA');
   } finally {
     substituirDestinoDoLog(null);
+  }
+});
+
+// 06-T29-testes (qa-automacao): o caminho de erro do job agendado e o temporizador de batimento fora da fila.
+it('erro na varredura do job worker.batimento vai ao log sem a mensagem, o job termina sem relançar e o worker segue', async () => {
+  let quebrar = false;
+  const relogioQuebradico = {
+    agora: () => {
+      if (quebrar) throw new Error('SENTINELA-ERRO-BATIMENTO');
+      return relogio.agora();
+    },
+  };
+  const linhas: string[] = [];
+  substituirDestinoDoLog({ write: (l) => void linhas.push(l) });
+  try {
+    const w = await iniciar({ ...deps, relogio: relogioQuebradico });
+    quebrar = true;
+    const job = await deps.fila.boss.send(FILAS.workerBatimento, {});
+    await expect
+      .poll(async () => (await b.poolMigrator.query(`select state from pgboss.job where id = $1`, [job])).rows[0]?.state, { timeout: 15_000 })
+      .toBe('completed');
+    const erros = linhas.map((l) => JSON.parse(l) as Record<string, unknown>).filter((r) => r.evento === 'worker_batimento_erro' && r.jobId === job);
+    expect(erros).toHaveLength(1);
+    expect(erros[0]).toMatchObject({ level: 50, fila: FILAS.workerBatimento, instancia: w.instancia, erro: { classe: 'Error' } });
+    expect(linhas.join('\n')).not.toContain('SENTINELA');
+
+    // O minuto seguinte, com o banco de volta, varre normalmente.
+    quebrar = false;
+    const orfa = await b.poolMigrator.query<{ id: string }>(
+      `insert into execucao_agente (agente, chave_entrada, status, tentativas, proxima_tentativa_em, criada_em, atualizada_em)
+       values ('insumo_tecnico', 'demanda:DEM-20261022-0903', 'pendente', 1, $1, $1, $1) returning id`,
+      [new Date(relogio.agora().getTime() - 5 * 60_000)],
+    );
+    await deps.fila.boss.send(FILAS.workerBatimento, {});
+    await expect
+      .poll(async () => (await b.poolMigrator.query(`select count(*)::int as n from pgboss.job where name = 'agente.executar' and data->>'execucaoId' = $1`, [orfa.rows[0]!.id])).rows[0].n, {
+        timeout: 15_000,
+      })
+      .toBe(1);
+  } finally {
+    substituirDestinoDoLog(null);
+  }
+});
+
+it('o temporizador regrava o batimento da instância a cada minuto, fora da fila, e parar() o desliga', async () => {
+  // Só o setInterval é falso: o pg-boss e o banco seguem com os temporizadores reais.
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const w = await iniciar();
+    // Sem o cron no meio: um worker.batimento agendado também grava a instância e poderia chegar depois do temporizador
+    // com a hora antiga. Tira o agendamento, os jobs na fila e espera o que estiver rodando terminar.
+    await deps.fila.boss.unschedule(FILAS.workerBatimento);
+    await b.poolMigrator.query(`delete from pgboss.job where name = $1 and state = 'created'`, [FILAS.workerBatimento]);
+    await expect
+      .poll(async () => (await b.poolMigrator.query(`select count(*)::int as n from pgboss.job where name = $1 and state = 'active'`, [FILAS.workerBatimento])).rows[0].n, {
+        timeout: 5_000,
+      })
+      .toBe(0);
+    const vistoEm = async () => (await b.poolMigrator.query<{ visto_em: Date }>('select visto_em from worker_batimento where instancia = $1', [w.instancia])).rows[0]?.visto_em;
+    const subida = relogio.agora();
+    expect(await vistoEm()).toEqual(subida);
+
+    relogio.avancar(59_000);
+    vi.advanceTimersByTime(59_000);
+    relogio.avancar(1_000);
+    vi.advanceTimersByTime(1_000);
+    const umMinuto = relogio.agora();
+    await expect.poll(vistoEm, { timeout: 5_000 }).toEqual(umMinuto);
+
+    await w.parar();
+    relogio.avancar(60_000);
+    vi.advanceTimersByTime(120_000);
+    // Parado, nenhum batimento novo: a hora gravada continua a do último minuto.
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await vistoEm()).toEqual(umMinuto);
+  } finally {
+    vi.useRealTimers();
   }
 });
 
