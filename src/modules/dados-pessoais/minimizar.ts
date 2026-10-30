@@ -1,10 +1,12 @@
 // Minimização do texto que vai ao provedor de IA (RF-20, C-23). Vale para todo campo de texto de todo agente, não só
 // para o texto bruto. Em ordem:
 // 1. as linhas de cabeçalho de e-mail encaminhado saem inteiras, com a quebra de linha;
-// 2. o nome do solicitante, quando informado, vira marcador;
-// 3. e-mail, CNPJ, CPF e telefone viram marcadores, pelos mesmos detectores do Pedido de Construção (T22).
+// 2. e-mail, CNPJ, CPF e telefone viram marcadores, pelos mesmos detectores do Pedido de Construção (T22);
+// 3. o nome do solicitante, quando informado, vira marcador, fora dos marcadores já postos.
 // O cabeçalho sai primeiro para que nome e e-mail da linha "De:" não sobrem nem como marcador. O CNPJ vem antes do CPF,
-// e os dois antes do telefone, para o número mais longo ganhar o marcador certo.
+// e os dois antes do telefone, para o número mais longo ganhar o marcador certo. Os detectores vêm antes do nome: o nome
+// trocado primeiro desmontaria o e-mail "nome@dominio" (o "]" do marcador não casa no usuário do e-mail) e deixaria o
+// domínio no texto. O nome não é trocado dentro de um marcador, para um nome como "removido" ou "CPF" não o estragar.
 import { DETECTORES, type TipoDadoPessoal } from './detectores';
 
 export const MARCADORES: Record<TipoDadoPessoal, string> = {
@@ -37,14 +39,26 @@ function padraoDoNome(nome: string): RegExp | null {
   return new RegExp(`(?<![\\p{L}\\p{N}_])${partes.map(escaparRegex).join('\\s+')}(?![\\p{L}\\p{N}_])`, 'giu');
 }
 
+// Qualquer marcador, num grupo de captura: `split` devolve os marcadores nas posições ímpares, e o texto entre eles nas
+// pares.
+const RE_MARCADOR = new RegExp(`(${[...Object.values(MARCADORES), MARCADOR_NOME].map(escaparRegex).join('|')})`);
+
+// Troca o nome só no texto fora dos marcadores. A borda do nome não muda: o "[" e o "]" dos marcadores não são letra.
+function trocarNome(s: string, re: RegExp): string {
+  return s
+    .split(RE_MARCADOR)
+    .map((parte, i) => (i % 2 === 1 ? parte : parte.replace(re, MARCADOR_NOME)))
+    .join('');
+}
+
 export function minimizar(texto: string, op: { nomes?: readonly string[] } = {}): string {
   let s = texto.replace(CABECALHOS_DE_EMAIL, '');
-  for (const nome of op.nomes ?? []) {
-    const re = padraoDoNome(nome);
-    if (re) s = s.replace(re, MARCADOR_NOME);
-  }
   // `replace` com regex global começa do zero e devolve o `lastIndex` a zero: os detectores compartilhados não guardam
   // estado de uma chamada para a outra.
   for (const tipo of ORDEM) s = s.replace(DETECTORES[tipo], MARCADORES[tipo]);
+  for (const nome of op.nomes ?? []) {
+    const re = padraoDoNome(nome);
+    if (re) s = trocarNome(s, re);
+  }
   return s;
 }

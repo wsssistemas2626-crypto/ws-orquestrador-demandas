@@ -172,4 +172,21 @@ describe('minimizar: nome conhecido do solicitante (RF-20)', () => {
     expect(minimizar('Escreva para ficticia@empresa-exemplo.test hoje', { nomes: ['Ficticia'] })).toBe('Escreva para [e-mail removido] hoje');
     expect(minimizar('Ou contato.ficticia@empresa-exemplo.test', { nomes: ['Ficticia'] })).toBe('Ou [e-mail removido]');
   });
+
+  // 06-T24-construcao (2ª volta): o nome é trocado depois dos detectores, e nunca dentro de um marcador.
+  it.each(['removido', 'Removido', 'e-mail', 'telefone', 'CPF', 'CNPJ', 'nome removido', 'e-mail removido'])(
+    'nome igual a palavra de marcador ("%s") não estraga marcador, nem chamando de novo',
+    (nome) => {
+      const op = { nomes: [nome] };
+      const s = minimizar(`A: contato@exemplo.test; B: (11) 90000-0000; C: 123.456.789-09; D: 12.345.678/0001-90; E: ${nome}.`, op);
+      expect(s).toBe(`A: [e-mail removido]; B: [telefone removido]; C: [CPF removido]; D: [CNPJ removido]; E: ${MARCADOR_NOME}.`);
+      expect(minimizar(s, op)).toBe(s);
+    },
+  );
+
+  it('o nome colado a um marcador, fora dele, ainda vira marcador', () => {
+    expect(minimizar('Ficticia [e-mail removido] Ficticia', { nomes: ['Ficticia'] })).toBe(
+      `${MARCADOR_NOME} [e-mail removido] ${MARCADOR_NOME}`,
+    );
+  });
 });
