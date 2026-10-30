@@ -3,7 +3,8 @@
 // - agente.executar com concorrência 1: uma chamada ao provedor por vez (RNF-07);
 // - worker.batimento a cada minuto (batimento e varredura de execuções órfãs);
 // - aviso.dec-pronto com concorrência 1 (T30): o e-mail de DEC pronto, com a nova tentativa do pg-boss;
-// - retencao.expurgo todo dia às 03:00 de São Paulo (o handler é da T31).
+// - retencao.expurgo todo dia às 03:00 de São Paulo, com concorrência 1 (T31): texto bruto, entrada pendente, sessões
+//   e verificações vencidas.
 // Cada instância grava o próprio batimento ao subir e a cada minuto, fora da fila: o job agendado roda em uma instância
 // só, e o alerta de duas instâncias (RNF-05) precisa ver as duas.
 import { randomUUID } from 'node:crypto';
@@ -11,6 +12,7 @@ import type { PgBoss } from 'pg-boss';
 import { tratarAvisoDecPronto } from '../jobs/aviso-dec-pronto';
 import { batimento, gravarBatimento } from '../jobs/batimento';
 import { tratarAgenteExecutar, type JobRecebido } from '../jobs/agente-executar';
+import { tratarExpurgo } from '../jobs/expurgo-texto-bruto';
 import type { ConfigWorker } from '../lib/env-worker';
 import { FILAS, PAYLOADS, type Fila } from '../lib/fila';
 import { log } from '../lib/log';
@@ -54,11 +56,13 @@ export async function iniciarWorker(deps: DepsWorker): Promise<{ instancia: stri
   await boss.schedule(FILAS.retencaoExpurgo, CRON_EXPURGO, {}, { tz: FUSO_AGENDAMENTOS });
 
   const depsAviso = { ...deps, enviador: deps.enviador ?? new EnviadorSemProvedor() };
-  const filas = [FILAS.agenteExecutar, FILAS.workerBatimento, FILAS.avisoDecPronto] as const;
+  const filas = [FILAS.agenteExecutar, FILAS.workerBatimento, FILAS.avisoDecPronto, FILAS.retencaoExpurgo] as const;
   await boss.work(FILAS.agenteExecutar, { localConcurrency: 1, batchSize: 1 }, (jobs) => tratarAgenteExecutar(deps, jobs));
   await boss.work(FILAS.workerBatimento, { localConcurrency: 1, batchSize: 1 }, (jobs) => tratarBatimento(deps, instancia, jobs));
   // batchSize 1: o erro relançado para a nova tentativa vale só para o job que falhou.
   await boss.work(FILAS.avisoDecPronto, { localConcurrency: 1, batchSize: 1 }, (jobs) => tratarAvisoDecPronto(depsAviso, jobs));
+  // O prazo é o da configuração do worker (lerConfigWorker, conferido no boot: 1 a 365 dias).
+  await boss.work(FILAS.retencaoExpurgo, { localConcurrency: 1, batchSize: 1 }, (jobs) => tratarExpurgo(deps, jobs));
 
   // Evento próprio (Minor 4 da 06-T29-revisao): a falha do temporizador fica só no log, como aviso; a do job agendado,
   // `worker_batimento_erro`, vai também ao Sentry.
