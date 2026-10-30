@@ -17,6 +17,7 @@ import { criarEspecificacaoSchema } from '../especificacoes/schemas';
 import { criarEspecificacao } from '../especificacoes/servico';
 import { criarParecerRiscoSchema } from '../pareceres-risco/schemas';
 import { criarParecerRisco } from '../pareceres-risco/servico';
+import { RE_ID_VERSAO } from '../versoes';
 import {
   CAMPOS_DA_ESPECIFICACAO,
   CAMPOS_DO_PARECER,
@@ -363,6 +364,86 @@ describe('chave de entrada', () => {
     ['consolidacao', 'rsk:'],
   ])('%s com "%s" → nao_encontrado, sem consultar o banco', async (agente, chave) => {
     await esperarNaoEncontrado(montarEntrada(bancoProibido, agente, chave));
+  });
+
+  // 06-T24-testes (qa-automacao): casos de borda acrescentados.
+  it.each<[Agente, string]>([
+    ['insumo_tecnico', 'demanda:DEM-20261022-0001\n'],
+    ['insumo_tecnico', ' demanda:DEM-20261022-0001'],
+    ['risco', `esp:${ESP}\n`],
+    ['orquestrador', `entrada:${UUID}\n`],
+    ['consolidacao', `rsk:${RSK} `],
+  ])('%s com %j (espaço ou quebra nas pontas) → nao_encontrado, sem consultar o banco', async (agente, chave) => {
+    await esperarNaoEncontrado(montarEntrada(bancoProibido, agente, chave));
+  });
+
+  // Contrato com a regex de versão de rota() (G3.10, Minor 1 da 06-T24-revisao): o montador aceita um id de ESP ou RSK
+  // se e só se RE_ID_VERSAO aceita e o prefixo é o do agente. Se as cópias se afastarem, este teste quebra.
+  async function chegaAoBanco(agente: Agente, chave: string): Promise<boolean> {
+    const e = await montarEntrada(bancoProibido, agente, chave).then(
+      () => null,
+      (erro: unknown) => erro,
+    );
+    if (e instanceof Error && e.message === 'consultou o banco') return true;
+    expect(e).toBeInstanceOf(ErroDominio);
+    return false;
+  }
+  const IDS_DE_VERSAO = [
+    'ESP-DEM-20261022-0001-v1',
+    'ESP-DEM-20261022-0001-v9999',
+    'ESP-DEM-20261022-0001-v10000',
+    'ESP-DEM-20261022-0001-v',
+    'ESP-DEM-2026102-0001-v1',
+    'esp-DEM-20261022-0001-v1',
+    'RSK-DEM-20261022-0001-v1',
+    'RSK-DEM-20261022-0001-v9999',
+    'RSK-DEM-20261022-00010-v1',
+    'DEC-DEM-20261022-0001-v1',
+  ];
+  it.each<[Agente, string, string]>([
+    ['risco', 'esp:', 'ESP-'],
+    ['consolidacao', 'rsk:', 'RSK-'],
+  ])('%s: aceita o id de versão exatamente quando RE_ID_VERSAO aceita e o prefixo é %s…', async (agente, chave, prefixo) => {
+    for (const id of IDS_DE_VERSAO) {
+      const esperado = RE_ID_VERSAO.test(id) && id.startsWith(prefixo);
+      expect([id, await chegaAoBanco(agente, `${chave}${id}`)]).toEqual([id, esperado]);
+    }
+  });
+
+  it('id da pendente em maiúscula é o mesmo uuid e é lido', async () => {
+    const id = await novaPendente('Texto ficticio em caixa alta');
+    const r = await montarEntrada(b.db, 'orquestrador', `entrada:${id.toUpperCase()}`);
+    expect(dadosDe(r.conteudo)).toEqual({ textoRecebido: 'Texto ficticio em caixa alta' });
+  });
+});
+
+describe('montador: nome do solicitante e repetição (06-T24-testes)', () => {
+  it('o nome do solicitante citado na ESP e no RSK vira marcador na consolidação', async () => {
+    const dem = await novaDemanda();
+    await novaEsp(dem.id, { escopoInclui: [`Validar com ${SENTINELAS.nome}`], situacaoDesejada: `Aprovado por ${SENTINELAS.nome.toLowerCase()}` });
+    const rsk = await novoRsk(dem.id, { resumo: `Conversado com ${SENTINELAS.nome}`, preCondicoes: [`Aceite de ${SENTINELAS.nome}`] });
+    const d = dadosDe((await montarEntrada(b.db, 'consolidacao', `rsk:${rsk.id}`)).conteudo);
+    const esp = d.especificacao as Record<string, unknown>;
+    const par = d.parecer as Record<string, unknown>;
+    expect(esp.escopoInclui).toEqual([`Validar com ${MARCADOR_NOME}`]);
+    expect(esp.situacaoDesejada).toBe(`Aprovado por ${MARCADOR_NOME}`);
+    expect(par.resumo).toBe(`Conversado com ${MARCADOR_NOME}`);
+    expect(par.preCondicoes).toEqual([`Aceite de ${MARCADOR_NOME}`]);
+  });
+
+  it('montar duas vezes a mesma chave dá o mesmo conteúdo (nova tentativa recebe a mesma entrada)', async () => {
+    const dem = await novaDemanda();
+    await novaEsp(dem.id);
+    const rsk = await novoRsk(dem.id);
+    const uma = await montarEntrada(b.db, 'consolidacao', `rsk:${rsk.id}`);
+    expect(await montarEntrada(b.db, 'consolidacao', `rsk:${rsk.id}`)).toEqual(uma);
+  });
+
+  it('regressão RF-20 (CA-20.1 pelo orquestrador): e-mail com o nome do solicitante como usuário não deixa o domínio no conteúdo', async () => {
+    const id = await novaPendente('Escreva para ficticia@empresa-exemplo.test sobre os pedidos.', { solicitanteNome: 'Ficticia' });
+    const { conteudo } = await montarEntrada(b.db, 'orquestrador', `entrada:${id}`);
+    expect(dadosDe(conteudo)).toEqual({ textoRecebido: 'Escreva para [e-mail removido] sobre os pedidos.' });
+    expect(conteudo).not.toContain('empresa-exemplo.test');
   });
 });
 

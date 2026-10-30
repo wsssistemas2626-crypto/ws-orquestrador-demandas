@@ -158,4 +158,18 @@ describe('minimizar: nome conhecido do solicitante (RF-20)', () => {
     expect(minimizar('Pessoa Ficticia', { nomes: [] })).toBe('Pessoa Ficticia');
     expect(minimizar('Pessoa Ficticia')).toBe('Pessoa Ficticia');
   });
+
+  // 06-T24-testes (qa-automacao): casos de borda acrescentados.
+  it('nome com acento em maiúscula também vira marcador', () => {
+    expect(minimizar('Falei com PESSOA FICTÍCIA ontem', { nomes: ['Pessoa Fictícia'] })).toBe(`Falei com ${MARCADOR_NOME} ontem`);
+  });
+
+  it('letra acentuada colada ao nome conta como parte de outra palavra', () => {
+    expect(minimizar('Ana, éAna e Anaé', { nomes: ['Ana'] })).toBe(`${MARCADOR_NOME}, éAna e Anaé`);
+  });
+
+  it('regressão RF-20: e-mail cujo usuário é o nome do solicitante vira o marcador de e-mail, sem sobrar o domínio', () => {
+    expect(minimizar('Escreva para ficticia@empresa-exemplo.test hoje', { nomes: ['Ficticia'] })).toBe('Escreva para [e-mail removido] hoje');
+    expect(minimizar('Ou contato.ficticia@empresa-exemplo.test', { nomes: ['Ficticia'] })).toBe('Ou [e-mail removido]');
+  });
 });
