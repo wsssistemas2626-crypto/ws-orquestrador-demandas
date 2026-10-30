@@ -83,9 +83,11 @@ export async function instalarFilas(urlMigrator: string): Promise<void> {
   }
 }
 
-// Com o papel do app: sem migração, sem supervisão nem agendador (o worker da T29 liga o que precisar).
-export async function criarFila(urlApp: string): Promise<Fila & { boss: PgBoss }> {
-  const boss = new PgBoss({ connectionString: urlApp, schema: ESQUEMA, migrate: false, supervise: false, schedule: false });
+// Com o papel do app: sem migração. O app sobe sem supervisão nem agendador; o worker (T29) liga os dois com
+// `agendador: true`, para disparar os `schedule` e cuidar dos jobs vencidos e da limpeza da fila.
+export async function criarFila(urlApp: string, op: { agendador?: boolean } = {}): Promise<Fila & { boss: PgBoss }> {
+  const agendador = op.agendador ?? false;
+  const boss = new PgBoss({ connectionString: urlApp, schema: ESQUEMA, migrate: false, supervise: agendador, schedule: agendador });
   ouvirErros(boss);
   await boss.start();
   return {
