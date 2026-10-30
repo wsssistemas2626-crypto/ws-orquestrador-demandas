@@ -26,6 +26,7 @@ import { comTransacao } from '../../src/db/transacao';
 import { tratarAgenteExecutar } from '../../src/jobs/agente-executar';
 import { tratarAvisoDecPronto } from '../../src/jobs/aviso-dec-pronto';
 import { definirDepsParaTeste, type Deps } from '../../src/lib/deps';
+import { MENSAGEM_ERRO_INTERNO } from '../../src/lib/erros';
 import { criarFila, FILAS } from '../../src/lib/fila';
 import { substituirDestinoDoLog } from '../../src/lib/log';
 import { relogioFixo } from '../../src/lib/relogio';
@@ -64,6 +65,12 @@ const transporteFalso = () => ({
   flush: async () => true,
 });
 const espioes: Array<{ mockRestore(): void }> = [];
+// Corpo de cada resposta de erro devolvida ao usuário (RNF-10: sem sentinela, pilha, SQL nem nome interno).
+const respostasDeErro: Array<{ rotulo: string; corpo: string }> = [];
+async function guardarErro(rotulo: string, r: Response): Promise<Response> {
+  respostasDeErro.push({ rotulo, corpo: await r.clone().text() });
+  return r;
+}
 
 let cookieAutora: string;
 let cookieDecisora: string;
@@ -284,7 +291,7 @@ it(
       demanda: { contexto: `Contato ${SENTINELAS.email} ${SENTINELAS.telefone}` },
     });
     expect((await aprovar(comEmail.decId)).status).toBe(200);
-    expect((await gerarPedido(comEmail.decId)).status).toBe(422);
+    expect((await guardarErro('422 do pedido com e-mail', await gerarPedido(comEmail.decId))).status).toBe(422);
 
     // 3. Caminhos de erro.
     // 400 de validação com sentinelas no corpo, inclusive em chave desconhecida e em link recusado.
@@ -300,9 +307,11 @@ it(
       },
     });
     expect(r400.status).toBe(400);
+    await guardarErro('400 de validação', r400);
     // Corpo que nem é JSON, com sentinela.
     const rJson = await chamar(rotaDemandas.POST, 'POST', '/api/demandas', { ...comoPessoa(cookieAutora), corpo: `{"titulo": "${SENTINELAS.texto}"` });
     expect(rJson.status).toBe(400);
+    await guardarErro('400 de corpo que não é JSON', rJson);
     // 409 de transição, com sentinela no corpo.
     const r409 = await chamar(rotaDemanda.PATCH, 'PATCH', `/api/demandas/${aprovado.demandaId}`, {
       ...comoPessoa(cookieAutora),
@@ -310,19 +319,25 @@ it(
       corpo: { status: 'entregue', titulo: SENTINELAS.texto, contexto: SENTINELAS.email },
     });
     expect(r409.status).toBe(409);
+    await guardarErro('409 de transição', r409);
     // Violação de CHECK provocada pelo migrator: a linha recusada traz os sentinelas na mensagem do Postgres (500).
     await b.poolMigrator.query(`alter table demanda add constraint t34_sem_sentinela check (position('SENTINELA' in titulo) = 0) not valid`);
     try {
       const r500 = await criarDemandaPelaApi({ titulo: `Pedido ${SENTINELAS.texto}` });
       expect(r500.status).toBe(500);
+      await guardarErro('500 da violação de CHECK', r500);
+      // O 500 é o genérico do mapeador (C-20), sem a mensagem nem o `detail` do Postgres.
+      expect(await r500.json()).toEqual({ erro: 'erro_interno', mensagem: MENSAGEM_ERRO_INTERNO });
     } finally {
       await b.poolMigrator.query('alter table demanda drop constraint t34_sem_sentinela');
     }
     // Token de serviço que não existe (o próprio sentinela) e login errado com e-mail e senha sentinelas.
     const rToken = await chamar(rotaDemandas.GET, 'GET', '/api/demandas', { bearer: SENTINELAS.token });
     expect(rToken.status).toBe(401);
+    await guardarErro('401 do token inexistente', rToken);
     const rLogin = await postAuth(deps.auth, '/sign-in/email', { email: SENTINELAS.email, password: SENTINELAS.senha });
     expect(rLogin.status).toBe(401);
+    await guardarErro('401 do login errado', rLogin);
 
     // Resend falhando com sentinela no erro de rede e no corpo da resposta; a chave e o destinatário são sentinelas.
     let chamadasAoResend = 0;
@@ -395,6 +410,53 @@ it(
     expect(contemSentinela(envelopesDoSentry.join(''))).toBe(false);
     expect(contemSentinela(JSON.stringify(linhasPgboss))).toBe(false);
     expect(contemSentinela(JSON.stringify(execucoes))).toBe(false);
+
+    // RNF-10: o cookie de sessão e o token de serviço de verdade (não só os sentinelas) também não saem. O valor do
+    // cookie entra como veio e decodificado, e o token de sessão (antes da assinatura) entra sozinho.
+    const valoresDosCookies = [cookieAutora, cookieDecisora].flatMap((c) =>
+      c.split('; ').flatMap((par) => {
+        const valor = par.slice(par.indexOf('=') + 1);
+        const decodificado = decodeURIComponent(valor);
+        return [valor, decodificado, decodificado.split('.')[0]!];
+      }),
+    );
+    const segredosReais = [...new Set([...valoresDosCookies, tokenInsumo])].filter((s) => s.length >= 16);
+    expect(segredosReais.length, 'cookies e token de serviço capturados').toBeGreaterThanOrEqual(3);
+    const todasAsSaidas = [linhasDoLog.join(''), linhasDoConsole.join(''), envelopesDoSentry.join(''), JSON.stringify(linhasPgboss), JSON.stringify(execucoes)].join('\n');
+    for (const s of segredosReais) expect(todasAsSaidas.includes(s), `segredo real de ${s.length} caracteres numa saída`).toBe(false);
+
+    // RNF-10: conteúdo de prompt também não vai ao log nem ao Sentry. O texto sentinela chegou mesmo ao provedor (a
+    // asserção acima não é vazia), e nenhum trecho do prompt de sistema aparece nas saídas.
+    expect(JSON.stringify(provedor.chamadas)).toContain(SENTINELAS.texto);
+    for (const c of provedor.chamadas) {
+      expect(c.sistema.length).toBeGreaterThan(60);
+      expect(todasAsSaidas.includes(c.sistema.slice(0, 60)), 'prompt de sistema numa saída').toBe(false);
+    }
+
+    // C-22: payload de job só com ids. `agente.executar` leva só `{ execucaoId }` e `aviso.dec-pronto` só `{ decId }`.
+    const jobs = (linhasPgboss.job ?? []) as Array<{ name: string; data: unknown }>;
+    const dadosDaFila = (fila: string) => jobs.filter((j) => j.name === fila).map((j) => j.data as Record<string, unknown>);
+    expect(dadosDaFila(FILAS.agenteExecutar).length).toBeGreaterThanOrEqual(4);
+    for (const d of dadosDaFila(FILAS.agenteExecutar)) expect(Object.keys(d)).toEqual(['execucaoId']);
+    expect(dadosDaFila(FILAS.avisoDecPronto)).toHaveLength(3);
+    for (const d of dadosDaFila(FILAS.avisoDecPronto)) expect(Object.keys(d)).toEqual(['decId']);
+
+    // RNF-10 e C-20: o erro devolvido ao usuário não leva sentinela, pilha, SQL nem nome interno.
+    expect(respostasDeErro.map((r) => r.rotulo)).toEqual([
+      '422 do pedido com e-mail',
+      '400 de validação',
+      '400 de corpo que não é JSON',
+      '409 de transição',
+      '500 da violação de CHECK',
+      '401 do token inexistente',
+      '401 do login errado',
+    ]);
+    for (const { rotulo, corpo } of respostasDeErro) {
+      expect(corpo.length, rotulo).toBeGreaterThan(0);
+      expect(contemSentinela(corpo), rotulo).toBe(false);
+      expect(corpo, rotulo).not.toMatch(/\n\s+at |\.ts:\d+|node_modules/);
+      expect(corpo, rotulo).not.toMatch(/insert into|t34_sem_sentinela|23514|violates|postgres|drizzle|ErroDominio|ZodError|pgboss/i);
+    }
   },
   180_000,
 );
