@@ -6,6 +6,7 @@ import { novoBanco, type BancoDeTeste } from '../../test/banco';
 import { EnviadorFalso } from '../../test/enviador-falso';
 import { SENTINELAS, contemSentinela } from '../../test/sentinelas';
 import { user } from '../db/schema';
+import { comTransacao } from '../db/transacao';
 import { criarFila, FILAS } from '../lib/fila';
 import { substituirDestinoDoLog } from '../lib/log';
 import { relogioFixo } from '../lib/relogio';
@@ -140,6 +141,26 @@ describe('tratarAvisoDecPronto', () => {
     expect(registros()).toContainEqual(expect.objectContaining({ evento: 'aviso_erro_inesperado', jobId: 'job-5', erro: { classe: 'Error' } }));
     expect(contemSentinela(linhas.join('\n'))).toBe(false);
   });
+
+  // 06-T30-testes (qa-automacao): CA-25.2 pelo handler, com os dois jobs do mesmo DEC no mesmo lote.
+  it('CA-25.2 no handler: dois jobs do mesmo DEC → um e-mail só, o segundo termina ja_enviado', async () => {
+    const decId = await decPronto();
+    await tratarAvisoDecPronto(depsAviso(), [
+      { id: 'job-6', data: { decId } },
+      { id: 'job-7', data: { decId } },
+    ]);
+    expect(enviador.enviados).toHaveLength(1);
+    expect(enviador.chamadas).toBe(1);
+    expect(
+      registros()
+        .filter((r) => r.evento === 'aviso_job_tratado')
+        .map((r) => [r.jobId, r.status]),
+    ).toEqual([
+      ['job-6', 'enviado'],
+      ['job-7', 'ja_enviado'],
+    ]);
+    expect(await statusDoAviso(decId)).toBe('enviado');
+  });
 });
 
 describe('no worker', () => {
@@ -176,5 +197,43 @@ describe('no worker', () => {
     await new Promise((r) => setTimeout(r, 2_500));
     expect(enviador.chamadas).toBe(0);
     expect(await statusDoAviso(decId)).toBe('pendente');
+  });
+
+  // 06-T30-testes (qa-automacao): CA-25.1 e CA-25.2 pelo caminho real (DEC criado → job no pg-boss → worker → enviador).
+  const jobsDoDec = async (decId: string) =>
+    (
+      await b.poolMigrator.query(`select state, retry_count, retry_limit, output from pgboss.job where name = $1 and data->>'decId' = $2 order by created_on, id`, [
+        FILAS.avisoDecPronto,
+        decId,
+      ])
+    ).rows as Array<{ state: string; retry_count: number; retry_limit: number; output: unknown }>;
+
+  it('CA-25.2 no worker: o mesmo aviso enfileirado duas vezes → os dois jobs concluem e sai um e-mail só, com o id e o link (CA-25.1)', async () => {
+    const decId = await decPronto();
+    // O segundo job do mesmo DEC, sem singletonKey (por exemplo, um reenvio manual), antes de o worker subir.
+    await comTransacao(b.poolApp, ({ executor }) => deps.fila.enviar(executor, FILAS.avisoDecPronto, { decId }));
+    expect(await jobsDoDec(decId)).toHaveLength(2);
+    await iniciar();
+    await expect.poll(async () => (await jobsDoDec(decId)).map((j) => j.state), { timeout: 15_000 }).toEqual(['completed', 'completed']);
+    expect(enviador.enviados).toHaveLength(1);
+    expect(enviador.chamadas).toBe(1);
+    expect(enviador.enviados[0]!.texto).toContain(decId);
+    expect(enviador.enviados[0]!.texto).toContain(`Abrir a tela de decisão: ${CONFIG_TESTE.urlBase}/pacotes-decisao/${decId}`);
+    expect(enviador.enviados[0]!.para).toBe(CONFIG.emailAvisoDecisao);
+    expect(await statusDoAviso(decId)).toBe('enviado');
+  });
+
+  it('falha no envio dentro do worker → o job fica em retry no pg-boss (3 execuções), com a mensagem fixa e sem dado do erro original', async () => {
+    const quebrado = { enviar: async () => Promise.reject(new Error(`quebrou para ${SENTINELAS.email} ${SENTINELAS.texto}`)) };
+    await iniciar({ ...deps, enviador: quebrado });
+    const decId = await decPronto();
+    await expect.poll(async () => (await jobsDoDec(decId)).map((j) => j.state), { timeout: 15_000 }).toEqual(['retry']);
+    const [job] = await jobsDoDec(decId);
+    // retry_limit 2 = 1 execução + 2 novas tentativas (TENTATIVAS_AVISO). O pg-boss só conta retry_count ao buscar de novo.
+    expect(job).toMatchObject({ retry_limit: 2 });
+    expect(JSON.stringify(job!.output)).toContain('aviso_nao_enviado');
+    expect(contemSentinela(JSON.stringify(job!.output))).toBe(false);
+    expect((await b.poolMigrator.query('select status, tentativas from aviso_email where pacote_decisao_id = $1', [decId])).rows[0]).toEqual({ status: 'pendente', tentativas: 1 });
+    expect(contemSentinela(linhas.join('\n'))).toBe(false);
   });
 });
