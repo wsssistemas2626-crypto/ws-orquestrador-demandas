@@ -1,6 +1,7 @@
 // T33: scripts de token de serviço, preço por modelo, seed fictício e subida da homologação (RF-02, C-09, C-33, C-37,
 // ADR-12, padrão técnico seção 9). Banco real (Testcontainers), papel do app, relógio fixo (RNF-15). Dados só fictícios
 // (domínio .test, "Pessoa Ficticia", sentinelas).
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -12,6 +13,7 @@ import { codigoTotp, criarPessoa, PoteDeCookies, postAuth } from '../test/sessao
 import { PAPEL_APP } from '../src/db/privilegios';
 import type { Deps } from '../src/lib/deps';
 import { ErroDominio } from '../src/lib/erros';
+import { FILAS } from '../src/lib/fila';
 import { substituirDestinoDoLog } from '../src/lib/log';
 import { relogioDoSistema, relogioFixo } from '../src/lib/relogio';
 import { exigirPessoa } from '../src/modules/acesso/exigir-pessoa';
@@ -23,7 +25,7 @@ import { argumentosDefinirPreco, definirPrecoModelo, executarDefinirPreco } from
 import { lerArgumentos } from './lib/argumentos';
 import { mensagemDeErro } from './lib/saida';
 import { argumentosRevogarToken, executarRevogarToken, revogarTokenPorScript } from './revogar-token-servico';
-import { CONTAS_FICTICIAS, seedFicticio } from './seed-ficticio';
+import { CONTAS_FICTICIAS, executarSeed, seedFicticio } from './seed-ficticio';
 import { iniciarHomologacao } from './start-hml';
 
 // Saída padrão de mentira: guarda tudo o que o script escreveu.
@@ -530,5 +532,175 @@ describe('scripts/hml/criar-papeis.sql', () => {
       c.release();
       await b.fechar();
     }
+  });
+});
+
+// Casos acrescentados pelo qa-automacao na 06-T33-testes: borda, falha, concorrência e o `main` de cada script.
+describe('qa-automacao T33: borda, falha e concorrência', () => {
+  it('CA-02.5: nenhuma coluna de token_servico guarda o token nem a parte secreta; o hash é o SHA-256 do token', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b);
+    try {
+      const saida = saidaDeTeste();
+      const { prefixo } = await criarTokenPorScript(deps, 'insumo_tecnico', saida);
+      const token = tokenDaSaida(saida.texto());
+      const segredo = token.slice(13); // o que vem depois de wsod_ + prefixo
+      const linhas = (await b.poolMigrator.query('select * from token_servico')).rows;
+      expect(linhas).toHaveLength(1);
+      const texto = JSON.stringify(linhas);
+      expect(texto).not.toContain(token);
+      expect(texto).not.toContain(segredo);
+      expect(linhas[0]).toMatchObject({ prefixo, agente: 'insumo_tecnico', hash: createHash('sha256').update(token).digest('hex') });
+      // Nem o evento nem o histórico inteiro têm a parte secreta.
+      expect(JSON.stringify((await b.poolMigrator.query('select * from evento')).rows)).not.toContain(segredo);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
+  });
+
+  it('C-37: o main de criar token com --token ou --senha recusa antes do banco e não escreve nada na saída', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b);
+    try {
+      for (const argv of [
+        ['--agente', 'risco', '--token', SENTINELAS.token],
+        ['--agente', 'risco', '--senha', SENTINELAS.senha],
+        ['--agente', 'admin'],
+        [],
+      ]) {
+        const saida = saidaDeTeste();
+        await expect(executarCriarToken(deps, argv, saida)).rejects.toMatchObject({ codigo: 'entrada_invalida' });
+        expect(saida.texto()).toBe('');
+      }
+      expect(await contar(b, 'select count(*)::int as n from token_servico')).toBe(0);
+      expect(await contar(b, "select count(*)::int as n from evento where acao = 'token_criado'")).toBe(0);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
+  });
+
+  it('revogar um token não toca nos tokens de outro agente', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b);
+    try {
+      const sRisco = saidaDeTeste();
+      const sOrq = saidaDeTeste();
+      const risco = await criarTokenPorScript(deps, 'risco', sRisco);
+      await criarTokenPorScript(deps, 'orquestrador', sOrq);
+      expect(await revogarTokenPorScript(deps, risco.prefixo)).toBe(true);
+      await expect(validarTokenServico(b.db, tokenDaSaida(sRisco.texto()))).resolves.toBeNull();
+      await expect(validarTokenServico(b.db, tokenDaSaida(sOrq.texto()))).resolves.toMatchObject({ agente: 'orquestrador' });
+      expect(await contar(b, 'select count(*)::int as n from token_servico where revogado_em is not null')).toBe(1);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
+  });
+
+  it('duas subidas ao mesmo tempo semeiam uma vez só (trava consultiva), e o aviso do DEC fictício entra com um job', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b);
+    try {
+      const resultados = await Promise.all([seedFicticio(deps, { SEED_FICTICIO: '1' }), seedFicticio(deps, { SEED_FICTICIO: '1' })]);
+      expect([...resultados].sort()).toEqual(['recusado', 'semeado']);
+      expect(await contar(b, 'select count(*)::int as n from "user"')).toBe(4);
+      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(5);
+      expect(await contar(b, 'select count(*)::int as n from preco_modelo')).toBe(1);
+      expect(await contar(b, "select count(*)::int as n from evento where acao = 'conta_criada'")).toBe(4);
+
+      // O DEC de agente deixa o aviso pendente e o job aviso.dec-pronto com payload só { decId } (C-22, para a T43).
+      const decId = (await b.poolMigrator.query('select id from pacote_decisao')).rows[0].id as string;
+      const avisos = (await b.poolMigrator.query('select pacote_decisao_id, status from aviso_email')).rows;
+      expect(avisos).toEqual([{ pacote_decisao_id: decId, status: 'pendente' }]);
+      const jobs = (await b.poolMigrator.query('select data, singleton_key from pgboss.job where name = $1', [FILAS.avisoDecPronto])).rows;
+      expect(jobs).toEqual([{ data: { decId }, singleton_key: decId }]);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
+  });
+
+  it('falha no meio do seed desfaz tudo: nenhuma conta, 2FA, evento nem demanda fica para trás', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b, { relogio: relogioFixo('2026-10-22T12:00:00Z') });
+    try {
+      // O preço do modelo fictício no mesmo instante faz o seed bater no UNIQUE (modelo, vigente_desde) depois das contas.
+      await definirPrecoModelo(deps, { modelo: 'modelo-ficticio', entradaPorMilhao: 1, saidaPorMilhao: 1 });
+      await expect(seedFicticio(deps, { SEED_FICTICIO: '1' })).rejects.toMatchObject({ codigo: 'conflito' });
+      for (const tabela of ['"user"', 'account', 'two_factor', 'evento', 'demanda', 'aviso_email']) {
+        expect(await contar(b, `select count(*)::int as n from ${tabela}`), tabela).toBe(0);
+      }
+      expect(await contar(b, 'select count(*)::int as n from preco_modelo')).toBe(1);
+      expect(await contar(b, 'select count(*)::int as n from pgboss.job where name = $1', [FILAS.avisoDecPronto])).toBe(0);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
+  });
+
+  it('main do seed: 1 sem SEED_FICTICIO=1, recusa argumento sem ecoar o valor, e 0 quando semeia', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b);
+    try {
+      const s1 = saidaDeTeste();
+      expect(await executarSeed(deps, [], s1, {})).toBe(1);
+      expect(s1.texto()).toContain('Nada foi alterado');
+      expect(await contar(b, 'select count(*)::int as n from "user"')).toBe(0);
+
+      const s2 = saidaDeTeste();
+      const recusa = executarSeed(deps, ['--senha', SENTINELAS.senha], s2, { SEED_FICTICIO: '1' });
+      await expect(recusa).rejects.toMatchObject({ codigo: 'entrada_invalida' });
+      await recusa.catch((e: unknown) => expect(contemSentinela(JSON.stringify(e) + mensagemDeErro(e))).toBe(false));
+      expect(s2.texto()).toBe('');
+      expect(await contar(b, 'select count(*)::int as n from "user"')).toBe(0);
+
+      const s3 = saidaDeTeste();
+      expect(await executarSeed(deps, [], s3, { SEED_FICTICIO: '1' })).toBe(0);
+      expect(s3.texto()).toContain('Dados fictícios criados');
+      // A saída não mostra senha nem segredo das contas fictícias.
+      for (const c of Object.values(CONTAS_FICTICIAS)) expect(s3.texto()).not.toContain(c.senha);
+      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(5);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
+  });
+
+  it('start:hml: a migração recebe a URL do migrator, e o app filho só a URL do app', async () => {
+    const b = await novoBanco();
+    try {
+      const urls: string[] = [];
+      let envDoApp: Record<string, string | undefined> = {};
+      const codigo = await iniciarHomologacao(
+        { DATABASE_URL: b.urlApp, DATABASE_URL_MIGRATOR: b.urlMigrator, BETTER_AUTH_SECRET: CONFIG_TESTE.segredoAuth, BETTER_AUTH_URL: CONFIG_TESTE.urlBase },
+        {
+          relogio: relogioFixo('2026-10-22T12:00:00Z'),
+          saida: saidaDeTeste(),
+          erro: saidaDeTeste(),
+          passos: {
+            migrar: async (url) => void urls.push(url),
+            iniciarApp: async (env) => {
+              envDoApp = env;
+              return 0;
+            },
+          },
+        },
+      );
+      expect(codigo).toBe(0);
+      expect(urls).toEqual([b.urlMigrator]);
+      expect(Object.values(envDoApp)).not.toContain(b.urlMigrator);
+      // Sem SEED_FICTICIO, a subida segue sem semear.
+      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(0);
+      expect(await contar(b, 'select count(*)::int as n from "user"')).toBe(0);
+    } finally {
+      await b.fechar();
+    }
+  });
+
+  it('package.json: start:hml roda scripts/start-hml.ts pelo tsx', () => {
+    const pacote = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { scripts: Record<string, string> };
+    expect(pacote.scripts['start:hml']).toBe('tsx scripts/start-hml.ts');
   });
 });
