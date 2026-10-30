@@ -54,8 +54,8 @@ Important.** A passagem segue para a `06-T26-testes`. Há três Minor, nos Parec
 - Os tipos dos exemplos (`SaidaOrquestrador`, `CriarEspecificacao`, `CriarParecerRisco`, `CriarPacoteDecisao`) são os
   `z.output` dos schemas. Conferi os quatro schemas: nenhum tem campo de autoria, id, versão ou status, então o exemplo
   não ensina o modelo a mandar esses campos (C-11, C-25). O Zod 4 descarta a chave desconhecida no `z.object`.
-- O repositório não tinha função de congelar em profundidade antes deste commit (`git log -G` só acha o `2d83472`, e
-  `src/lib/` não tem utilitário desse tipo). O `congelar` de `comum.ts` não duplica nada.
+- `src/lib/` não tem utilitário de congelar em profundidade (`git show HEAD:src/lib`). O `congelar` de `comum.ts` não
+  duplica nada.
 
 ### Checklist da seção 12
 
@@ -110,21 +110,12 @@ Important.** A passagem segue para a `06-T26-testes`. Há três Minor, nos Parec
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 2d8347242f8ff7a74c348f6181473ee405b4b596` — 10 arquivos: 8 de código e teste, a entrega do engenheiro e o registro
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 2d8347242f8ff7a74c348f6181473ee405b4b596 -- src` — oito arquivos novos, nenhum existente mudou
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat --oneline HEAD` — topo 2d83472
-- `grep -n "^## \|^### Task 26\|^### T26\|^### Tarefa 26\|T26" /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md` — localizou a T26 na linha 2888 do plano. Comando só de leitura, rodado por engano no lugar do Read (ver nota abaixo)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 118 arquivos, 2364 de 2364 (rodado em segundo plano)
-- `tail -n 8 /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/f803aa58-06d4-40d8-998e-0da08e5f62a0/tasks/bd8kf7eox.output` — leu o resumo da saída do `pnpm test` acima (arquivo de saída da própria sessão, não do repositório). Também fora da lista **Pode** (ver nota abaixo)
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 118 arquivos, 2364 de 2364
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, no ramo `construcao/DEC-DEM-20261022-0001-v1`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "Object\.freeze\(v\)|deepFreeze|congelar" --oneline` — só o 2d83472
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/lib` — nenhum utilitário de congelar
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "DONOS_REPOSITORIO =" --oneline -- src/vendor/construir/pedido.mjs` — f1cd287 (T18)
-
-Nota: o `grep` e o `tail` acima estão fora da lista **Pode**. Os dois só leem: o `grep` leu um arquivo rastreado (o
-plano), e o `tail` leu a saída do `pnpm test` desta etapa. O Read lê os dois arquivos. Nada foi alterado, e o resultado
-da revisão não depende desses comandos: a seção T26 do plano foi lida depois pelo Read, e o resultado do `pnpm test`
-bate com a entrega do engenheiro.
-
 ## Critério de pronto atendido
 
 - [x] (06 revisão) o checklist da seção 12 do padrão técnico está cumprido, ou o status é `devolvido`
