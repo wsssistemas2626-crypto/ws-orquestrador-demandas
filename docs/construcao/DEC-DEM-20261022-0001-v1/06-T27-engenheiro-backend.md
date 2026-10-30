@@ -186,10 +186,6 @@ AssertionError: expected 'Você é o agente de Insumo Técnico, co…' to match 
 
 ## Pendências
 
-- **Para o maestro: um comando de leitura fora da lista Pode.** Rodei por engano
-  `git -C <repo> grep -n -e agente_ignorado -e suspensao_por_teto -e falha_agente -- docs src test`, só leitura, para
-  achar os nomes dos eventos. Está em "Comandos executados". Não alterou nada, e nenhuma decisão depende só dele: os
-  mesmos nomes estão em `src/modules/historico/registrar.ts` e no plano, que li pelo Read.
 - **Para a T28 (`engenheiro-backend`):**
   - Ao pôr o destino do orquestrador em `DESTINOS`, três testes de `executar.test.ts` mudam junto: `agente sem destino
     nesta versão (orquestrador, até a T28)`, `cada agente da lista tem prompt e schema; só os três de artefato têm
@@ -215,7 +211,6 @@ AssertionError: expected 'Você é o agente de Insumo Técnico, co…' to match 
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, no ramo `construcao/DEC-DEM-20261022-0001-v1`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format=%h%x20%s --diff-filter=A` — arquivos criados em cada commit do ramo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e agente_ignorado -e suspensao_por_teto -e falha_agente -- docs src test` — FORA da lista Pode, só leitura, rodado por engano (ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat HEAD` — vazio, antes de qualquer mudança
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/agentes/espera.test.ts src/modules/agentes/executar.test.ts src/jobs/agente-executar.test.ts src/agents/prompts.test.ts` — antes do código: 3 arquivos sem módulo e 1 teste falhou, 55 passaram
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/agentes/espera.test.ts src/modules/agentes/executar.test.ts src/jobs/agente-executar.test.ts src/agents/prompts.test.ts` — depois do código: 107 de 107
