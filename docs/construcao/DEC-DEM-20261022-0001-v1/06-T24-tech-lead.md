@@ -2,124 +2,111 @@
 pedido: DEC-DEM-20261022-0001-v1
 etapa: 06-T24-revisao
 agente: tech-lead
-leu: [contrato-passagem.md, padrao-tecnico.md, tarefas.json, 2026-10-25-ws-orquestrador-demandas-plano.md (cabeçalho, G1 a G6, mapa das fases, T23 a T28), 06-T24-engenheiro-backend.md, 06-T23-tech-lead.md, 04-seguranca-aplicacao.md (seções 1, 2.17 e 3), git show 198a23b 3b5774d 4fc3c17, src/modules/dados-pessoais/minimizar.ts, src/modules/dados-pessoais/minimizar.test.ts, src/modules/agentes/entrada-agente.ts, src/modules/agentes/entrada-agente.test.ts, src/db/schema/versoes.ts, src/modules/versoes.ts, src/modules/demandas/gerar-id.ts, src/lib/rota.ts (linhas 1 a 80)]
+leu: [contrato-passagem.md, padrao-tecnico.md (seção 12), 06-T24-tech-lead.md (revisão anterior), 06-T24-qa-automacao.md, 06-T24-engenheiro-backend.md, git diff bd8db7e..5a59c01, git show --stat ea995db f83665f 5a59c01, src/modules/dados-pessoais/minimizar.ts, src/modules/dados-pessoais/minimizar.test.ts (linhas 120 a 193), src/modules/dados-pessoais/detectores.ts]
 status: pronto
 proximo: qa-automacao
 devolvido_para: null
 ---
 ## Entrega
 
-Revisão da T24 (minimização e montador da entrada de cada agente), intervalo `8e92ce8..4fc3c17`. O código e os testes
-estão no `198a23b`. O `3b5774d` só mexe no registro, e o `4fc3c17` só regrava a entrega e o registro (6 linhas a menos
-na entrega). **Não há problema Critical nem Important.** A passagem segue para a `06-T24-testes`. Os três pontos Minor
-estão nos Pareceres e em Pendências.
+Segunda revisão da T24, intervalo `bd8db7e..5a59c01`. A correção está no `ea995db` (`minimizar.ts` e
+`minimizar.test.ts`). O `f83665f` só acrescenta uma linha ao registro. O `5a59c01` só regrava a entrega do engenheiro e
+acrescenta uma linha ao registro. **Não há problema Critical nem Important.** O defeito que a `06-T24-testes` devolveu
+está corrigido, e os dois testes de regressão do qa-automacao passam sem mudança. A passagem volta para a
+`06-T24-testes`. Há um Minor novo (Minor 4), que está nos Pareceres e em Pendências.
 
-### Conferência contra o plano
+### Conferência da correção
 
-| Item do plano | Situação |
+| Ponto | Situação |
 |---|---|
-| Arquivos | Os 4 da lista, todos novos. Nenhum arquivo existente mudou (`git diff --stat` e `git show --stat` dos três commits) |
-| `MARCADORES` | Os quatro textos do plano, testados por igualdade |
-| `CABECALHOS_DE_EMAIL` | Os 11 cabeçalhos do plano e de C-23, mais `Enviado em` (desvio 4, aceito). Flags `gim`. A linha sai inteira, com a quebra. "De:" no meio da linha, "Assunto:", "Data:" e as palavras que só começam igual ficam (testado) |
-| `minimizar` | Usa os `DETECTORES` da T22 com `replace`, sem regex nova de dado pessoal. A ordem é cabeçalho, nome, e-mail, CNPJ, CPF e telefone. A chamada de um parâmetro, como no plano, continua valendo (desvio 2, aceito) |
-| `CAMPOS_POR_AGENTE` | Igual ao plano, comparado inteiro no teste. Os 8 campos de demanda são os do plano. As listas da ESP e do RSK têm só colunas de conteúdo de `versoes.ts`, sem id, versão, autoria, execução nem data (conferido no esquema) |
-| `delimitarComoDado` | Instrução antes do bloco, JSON numa linha só, `</dados>` do conteúdo vira `[/dados]`. O texto da instrução mudou porque o texto do plano contém `</dados>` e quebraria o próprio teste de C-24 do plano (desvio 1, aceito) |
-| `montarEntrada` | Assinatura do plano. As chaves batem com a T28 (`entrada:`, `demanda:`, `esp:`, `rsk:`). Uma chave fora do formato dá `nao_encontrado` sem consulta, e o `Db` com Proxy que quebra ao ser tocado prova isso (G3.10, C-17) |
-| Passo 3 | A minimização vale para todo campo de texto, inclusive para os itens das listas `escopoInclui`, `criteriosAceitePreliminares`, `recomendacoesMitigacao` e as demais (testado no risco e na consolidação) |
+| Defeito da devolução (`ficticia@…` com nome `Ficticia` virava `[nome removido]@domínio`) | Corrigido. A ordem passou a ser cabeçalho, detectores (e-mail, CNPJ, CPF, telefone) e nome (`minimizar.ts:55` a `:62`). O e-mail sai inteiro antes que o nome possa desmontá-lo. Os dois testes de regressão do qa-automacao (`minimizar.test.ts:171` e o teste do montador em `entrada-agente.test.ts`) não mudaram no diff e passam |
+| Escolha entre trocar a ordem e travar o `@` no padrão do nome | Correta. Travar o `@` não resolve `x.nome@…` nem `nome.x@…`. Com a ordem nova, o formato do usuário não importa. O segundo caso do teste de regressão (`contato.ficticia@…`) prova isso |
+| Risco que a ordem nova cria (nome igual a palavra de marcador) | Coberto. `trocarNome` (`minimizar.ts:47` a `:52`) parte o texto pelos marcadores com `split` e um grupo de captura, e só troca o nome nas posições pares. Conferi a paridade: com um grupo de captura, o `split` põe sempre o separador nas posições ímpares, mesmo quando o texto começa ou termina por marcador ou tem dois marcadores seguidos (sobra texto vazio nas pares). `RE_MARCADOR` é montado a partir de `MARCADORES` e `MARCADOR_NOME`, com `escaparRegex`. Um marcador novo já entra protegido, sem lista à parte |
+| Borda do nome | Não mudou (`minimizar.ts:39`). `[` e `]` não são letra, número nem `_`, então o nome colado a um marcador continua sendo trocado. O teste `o nome colado a um marcador, fora dele, ainda vira marcador` prende isso |
+| A troca do nome pode criar dado que os detectores pegariam? | Não. O nome vira `[nome removido]`, que não tem dígito nem `@`, e os colchetes separam o que estava em volta. Os detectores não precisam rodar de novo depois do nome |
+| Idempotência | `minimizar(minimizar(t, op), op) === minimizar(t, op)` nos 8 casos de marcador. Isso sustenta a nova tentativa da T27 com a mesma entrada |
+| Arquivos | Só `minimizar.ts` e `minimizar.test.ts` no código. `entrada-agente.ts` não mudou, e a correção vale pelo montador porque ele chama `minimizar(texto, { nomes })` |
+| Comentário do topo | Diz a ordem nova e a razão, e bate com o código |
 
-### Cobertura dos critérios e controles
+### Testes novos e TDD
 
-- **CA-20.1:** o caso do plano em `minimizar.test.ts` e o mesmo texto pelo orquestrador, de ponta a ponta no montador.
-- **CA-20.2:** o caso do plano, mais a comparação do JSON inteiro do bloco. O nome, o papel, o anexo (referência e
-  descrição), a origem e os ids não aparecem, e os detectores não acham nada no conteúdo.
-- **C-23:** os 12 cabeçalhos testados um por um. O `contexto` com e-mail e com `De: Pessoa Ficticia <…@exemplo.test>`
-  passa pelo montador, como o 04 pede. A lista de permissão está no próprio SELECT (`colunas(...)`), e o
-  `solicitanteNome` é lido só para ser trocado no texto.
-- **C-24 (parte do montador):** o caso do plano, mais marcas falsas com caixa, espaço e tab real, marca dentro de chave
-  de objeto, e os quatro agentes passando pelo delimitador. A neutralização antes do `JSON.stringify` fecha o caso do
-  `</dados\t>`, que depois do JSON viraria `\t` escapado e escaparia da troca.
-- **RF-20 (nome no texto):** o nome do solicitante citado no texto vira `[nome removido]`, sem diferença de caixa e
-  nunca como pedaço de outra palavra. O caractere especial do nome é tratado como literal.
-
-Os testes falhariam sem o código: os dois arquivos falharam por módulo ausente, com o comando e o trecho na entrega. Os
-testes de comportamento conferem valores exatos (texto final, JSON inteiro e contagem de marcas), e não só a ausência
-do sentinela.
+- `nome igual a palavra de marcador ("%s") não estraga marcador, nem chamando de novo` (8 casos): o texto tem os quatro
+  tipos de dado e o nome, e o resultado é comparado inteiro, não só pela falta do sentinela. A entrega mostra a falha
+  antes da correção, com o recebido `[e-mail [nome removido]]`. É o teste que a `06-T24-testes` pediu para o caso de a
+  ordem mudar.
+- `o nome colado a um marcador, fora dele, ainda vira marcador`: já passava antes da correção, como a entrega declara.
+  Serve de guarda da partição. Se alguém partir o texto de outro jeito e esconder o vizinho do marcador, ele quebra.
+- Nenhum teste existente foi apagado, afrouxado ou marcado com `.skip`, `.only` ou `.todo`. O diff do arquivo de teste
+  só acrescenta linhas.
 
 ### Verificação própria
 
-- `pnpm test`: 116 arquivos, 2232 de 2232.
-- `pnpm lint` e `pnpm typecheck` limpos.
-- O aviso do undici "Using `patch`" segue na saída, como na `06-T23-revisao`. Não vem desta tarefa, que não tem rota.
-- `git log -S` confirma que a regex de id de ESP já existia em `src/lib/rota.ts` desde a T11 (Minor 1). Não há
-  ajudante de UUID exportado antes desta tarefa: os outros dois commits com essa regex são de teste e de esquema.
+- `pnpm test`: 116 arquivos, 2255 de 2255.
+- `pnpm lint` e `pnpm typecheck`: limpos.
+- `git status`: limpo.
+- O aviso do undici "Using `patch`" segue na saída, como nas revisões anteriores. Não vem desta tarefa.
 
 ### Checklist da seção 12
 
-- [x] Faz o que o plano pede, nem mais nem menos. Os arquivos fora da tarefa não mudaram. Os quatro desvios declarados
-      estão aceitos (ver Decisões).
-- [x] Há teste para cada comportamento novo, e ele falharia sem o código.
-- [x] Não há segredo, valor de `.env` nem dado pessoal real. Os dados são fictícios: domínio `.test`, "Pessoa
-      Ficticia", `SENTINELAS`, CPF e CNPJ de exemplo do plano.
-- [x] Entrada externa validada: a tarefa não tem rota nem Server Action. A chave de entrada é conferida pela regex
-      antes de qualquer consulta, e o erro é o `nao_encontrado` genérico, sem a chave recebida.
-- [x] Banco: não se aplica (sem migration nem tabela nova). As leituras usam só `SELECT`, que o papel do app já tem.
-- [x] Nenhuma função nova repete uma que já existe, com uma exceção pequena: duas regex de id já existem em
-      `src/lib/rota.ts` (Minor 1).
-- [x] Textos em pt-BR. A tarefa não tem tela, então o axe não se aplica.
-- [x] Os Minor estão em Pendências. Não há Critical nem Important.
+- [x] Faz o que a devolução pede, nem mais nem menos. Só os dois arquivos da T24 mudaram no código. Não há desvio novo
+      do plano: a ordem "cabeçalho, depois detectores" do plano continua, e o passo do nome é o desvio 2 já aceito.
+- [x] Há teste para cada comportamento novo (ordem nova e partição pelos marcadores), e ele falharia sem o código
+      (saída da falha na entrega do engenheiro).
+- [x] Não há segredo, valor de `.env` nem dado pessoal real. Os domínios são `.test`, e o nome é "Ficticia". O CPF, o
+      CNPJ e o telefone são os de exemplo.
+- [x] Entrada externa validada: a tarefa não tem rota, Server Action nem job. O montador não mudou.
+- [x] Banco: não se aplica.
+- [x] Nada duplica função existente. `escaparRegex` já era deste arquivo, e `RE_MARCADOR` é montado a partir das
+      constantes que já existem.
+- [x] Textos em pt-BR. A tarefa não tem tela.
+- [x] O Minor está em Pendências. Não há Critical nem Important.
 - [x] PR (`/code-review`, `/security-review`): não se aplica a esta etapa, fica com a `08-revisao`.
 
-### Pareceres (todos Minor; não bloqueiam)
+### Pareceres
+
+Os Minor 1, 2 e 3 da primeira revisão seguem como estavam e não se repetem aqui. Estão em Pendências. O Minor 1 agora
+tem o teste de contrato que a `06-T24-testes` acrescentou.
 
 | # | Arquivo:linha | Problema | Razão |
 |---|---|---|---|
-| 1 | `src/modules/agentes/entrada-agente.ts:73` e `:74` | `RE_ID_ESP` e `RE_ID_RSK` repetem as regex que `src/lib/rota.ts:24` a `:29` já expõe por `reIdVersao('ESP')` e `reIdVersao('RSK')`. O `RE_ID_DEMANDA`, também repetido em `gerar-id.ts`, tem um teste que prende as duas cópias. Estas duas não têm | Se o formato do id mudar só na rota, o montador passa a dar `nao_encontrado` para uma chave válida. A falha fecha (nada vaza, só a execução falha), por isso não bloqueia. Importar `lib/rota` no módulo traria `deps`, Sentry e acesso junto, o que explica a cópia. Correção para a 08: levar o mapa por prefixo para `src/modules/versoes.ts`, que já tem `RE_ID_VERSAO` e não depende da rota, e fazer a rota e o montador lerem dele. Pode ir junto com o ajudante único dos Minor da T21 a T23 |
-| 2 | `src/modules/dados-pessoais/minimizar.ts:25` | O cabeçalho que continua na linha de baixo sai só pela metade. É o caso de `Para:` ou `Cc:` com vários destinatários quebrados em linhas que começam com espaço, sem o nome do cabeçalho. Os e-mails dessas linhas caem nos detectores, mas os nomes ficam. No outro sentido, uma linha legítima que começa por "Para:" (por exemplo "Para: resolver até sexta") também sai | O primeiro caso é mais um limite da mesma natureza dos dois que a entrega já registrou para a 08: o nome que não é o do solicitante continua no texto. O segundo só tira contexto e não vaza nada. Fica para a `seguranca-aplicacao` na `08-revisao` decidir se a continuação de cabeçalho (linha seguinte com espaço inicial, logo depois de um cabeçalho removido) entra na regra |
-| 3 | `src/modules/agentes/entrada-agente.ts:199` | Na consolidação, o RSK é o da chave e a ESP é a mais nova da demanda, e não a ESP que o risco leu. Se uma ESP v2 entrar depois do RSK v1 e a execução `rsk:RSK-…-v1` rodar atrasada, o agente recebe o RSK v1 com a ESP v2 | O `parecer_risco` não guarda a ESP de origem, e a ESP mais nova é a que o `criarPacoteDecisao` cita. A escolha é a única possível com o modelo atual, e o DEC continua passando pela revisão humana e pelo cálculo de desatualizado (RF-12). Fica como aviso para a T28 |
+| 4 (Minor) | `src/modules/dados-pessoais/minimizar.ts:58` com `src/modules/dados-pessoais/detectores.ts:9` | O usuário de e-mail com letra acentuada ainda deixa um pedaço do nome. O detector de e-mail aceita só `[A-Za-z0-9._%+-]` no usuário e não tem borda à esquerda. Em `fictícia@empresa-exemplo.test` com o nome `Fictícia`, ele pega só `cia@empresa-exemplo.test`. Sai `fict[e-mail removido]`, e o nome inteiro não está mais no texto para ser trocado. Antes da correção, o mesmo caso deixava o domínio. Agora o domínio sai e sobra só o pedaço do nome | Não bloqueia: e-mail com acento no usuário é raro (exige SMTPUTF8), o domínio não vaza, e sobra só parte do nome. É o mesmo tipo do limite "só o nome inteiro sai", que já está registrado para a 08. Uma saída para a `seguranca-aplicacao` avaliar na `08-revisao`: o detector de e-mail aceitar `\p{L}` no usuário, ou ganhar uma borda à esquerda que leve a palavra inteira. Isso mexe no detector da T22, que o Pedido de Construção também usa (C-28), e por isso não cabe nesta tarefa |
 
 ## Decisões tomadas
 
-- **Desvio 1 aceito (texto da instrução do bloco).** Razão: o texto do plano contém `</dados>` e quebraria o teste de
-  C-24 do próprio plano. O texto novo mantém o sentido e passa na regex `/não (é|são) instruç/i` que a T26 usa.
-- **Desvio 2 aceito (`minimizar(texto, { nomes })` e `MARCADOR_NOME`).** Razão: o RF-20 proíbe o nome do solicitante no
-  provedor, e o nome aparece no texto colado. A chamada do plano continua valendo, e o mínimo de 3 letras evita apagar
-  palavra comum.
-- **Desvio 3 aceito (exportações a mais).** Razão: as listas da ESP e do RSK tornam explícito o que o plano deixava
-  implícito ("demanda + ESP"). A `INSTRUCAO_DO_BLOCO` exportada evita que a T26 e a T27 redijam outra.
-- **Desvio 4 aceito (`Enviado em:`).** Razão: é a forma do Outlook em pt-BR. Sem ela, a linha passaria inteira, e o
-  C-23 pede que o cabeçalho saia.
-- **A lista de permissão no SELECT está correta como desenho.** Razão: uma coluna nova na tabela não chega ao provedor
-  sem mudança na lista. O teste que compara o JSON inteiro quebra se a lista crescer sem querer.
+- **A correção foi aceita sem ressalva.** Razão: a ordem nova fecha o defeito para qualquer formato de usuário do
+  e-mail, e a partição pelos marcadores fecha o risco que a ordem nova criaria, sem lista de palavras à parte.
+- **O caso do acento no usuário do e-mail é Minor, não Important.** Razão: o formato é raro, o domínio já não vaza e
+  sobra só parte do nome. A correção está no detector compartilhado da T22, fora do escopo desta tarefa.
+- **Nenhum teste novo foi pedido para o Minor 4.** Razão: fixar em teste o comportamento atual (`fict[e-mail
+  removido]`) prenderia um limite que a 08 pode decidir mudar.
 - **`proximo: qa-automacao`.** Razão: a revisão não tem bloqueio, e a próxima etapa da cadeia é a `06-T24-testes`.
 
 ## Pendências
 
-- **Para a 08 (ajudante único):** o Minor 1, junto com os Minor 1 e 2 da `06-T21-revisao`, o Minor 1 da
-  `06-T22-revisao` e o Minor 3 da `06-T23-revisao`.
 - **Para a 08 (`seguranca-aplicacao`):**
-  - o Minor 2: continuação de cabeçalho de e-mail;
-  - os dois limites que a entrega da T24 já registrou: só o nome inteiro sai, e os detectores cobrem só o formato
+  - o Minor 4 desta revisão (usuário de e-mail com acento, `detectores.ts:9`);
+  - o Minor 2 da primeira revisão (continuação de cabeçalho de e-mail);
+  - os dois limites que a entrega da T24 registrou: só o nome inteiro sai, e os detectores cobrem só o formato
     brasileiro.
-- **Para a T27 (`engenheiro-backend`):** as notas da entrega valem como estão.
-  - `nao_encontrado` do `montarEntrada` é falha da execução, sem nova tentativa.
-  - O `conteudo` vai como está na mensagem do usuário, e o prompt da T26 vai em `sistema`.
-- **Para a T28 (`engenheiro-backend`):**
-  - as chaves são exatamente `entrada:`, `demanda:`, `esp:` e `rsk:`, e outro prefixo dá `nao_encontrado`;
-  - o Minor 3: a consolidação usa a ESP mais nova. Se a T28 disparar a consolidação pelo RSK, o disparo deve sair
-    depois da ESP que vale.
+- **Para a 08 (ajudante único):** o Minor 1 da primeira revisão (`RE_ID_ESP` e `RE_ID_RSK` repetem a regex da rota).
+  Agora há teste de contrato, mas a duplicação continua. Vai junto com os Minor 1 e 2 da `06-T21-revisao`, o Minor 1 da
+  `06-T22-revisao` e o Minor 3 da `06-T23-revisao`.
+- **Para a T27 (`engenheiro-backend`):** `nao_encontrado` do `montarEntrada` é falha da execução, sem nova tentativa. O
+  `conteudo` vai como está na mensagem do usuário, e o prompt da T26 vai em `sistema`. O montador é determinístico e
+  `minimizar` é idempotente, então a nova tentativa recebe a mesma entrada.
+- **Para a T28 (`engenheiro-backend`):** as chaves são exatamente `entrada:`, `demanda:`, `esp:` e `rsk:`, e outro
+  prefixo dá `nao_encontrado`. Fica também o Minor 3 da primeira revisão: a consolidação usa a ESP mais nova, então, se a
+  T28 disparar a consolidação pelo RSK, o disparo deve sair depois da ESP que vale.
 - **Para a `06-T24-testes` (`qa-automacao`):** o aviso do undici "Using `patch`" segue aberto desde a `06-T23-revisao`.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — último commit 4fc3c17 (06-T24-construcao engenheiro-backend)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 8e92ce8..4fc3c17` — 6 arquivos, 4 de código e teste, todos novos
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — topo 5a59c01; correção em ea995db
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat bd8db7e..5a59c01` — 4 arquivos: minimizar.ts, minimizar.test.ts, a entrega do engenheiro e o registro
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff bd8db7e..5a59c01 -- src` — ordem nova e `trocarNome` em minimizar.ts, 2 testes novos (9 casos), sem linha de teste removida
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — limpo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --format=%h --name-only -1 -- docs/superpowers/plans` — caminho do plano
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat --format=%h%x20%s 198a23b 3b5774d 4fc3c17` — código e testes só no 198a23b; os outros dois só no registro e na entrega
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -S "[0-9a-f]{8}-[0-9a-f]{4}" -- src` — 198a23b, bc88cf2 (T06) e 6e06587 (T04)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -S "ESP-DEM-\d{8}-\d{4}-v\d{1,4}" -- src` — 198a23b e 9caf56c (T11, `src/lib/rota.ts`; Minor 1)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat --format=%h bc88cf2` — esquema e testes da T06, sem ajudante de UUID exportado
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 116 arquivos, 2232 de 2232
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat --format=%h%x20%s ea995db f83665f 5a59c01` — código só no ea995db; f83665f só no registro; 5a59c01 só na entrega e no registro
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 116 arquivos, 2255 de 2255
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 
