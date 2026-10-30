@@ -249,3 +249,107 @@ describe('plano de execução das consultas da fila e do detalhe, com volume (EX
     }
   });
 });
+
+// qa-automacao (06-T35-testes): o p95 só vale se as chamadas medidas devolvem a resposta certa sobre o volume. O oráculo
+// abaixo refaz em TypeScript a mesma regra da massa (arrays 1-based do SQL: posição 1 + n % k → índice n % k aqui).
+const STATUS_DA_MASSA = ['nova', 'em_analise', 'aguardando_informacao', 'pronta_para_decisao', 'encerrada', 'aprovada', 'em_construcao', 'entregue', 'devolvida'];
+const TIPO_DA_MASSA = ['bug', 'melhoria', 'novo_projeto', 'estudo', 'produto_proprio'];
+const LINHA_DA_MASSA = ['sob_medida', 'automacao_integracao', 'ia_controle_humano', 'diagnostico_sustentacao', 'indefinida', null];
+
+function paginaEsperada(consulta: string): { ids: string[]; total: number } {
+  const q = new URLSearchParams(consulta);
+  const limit = Number(q.get('limit') ?? 20);
+  const offset = Number(q.get('offset') ?? 0);
+  const casam: number[] = [];
+  // Mais nova primeiro: uma demanda por hora, então criada_em desc é n desc.
+  for (let n = TOTAL; n >= 1; n--) {
+    if (q.has('status') && STATUS_DA_MASSA[n % 9] !== q.get('status')) continue;
+    if (q.has('tipo') && TIPO_DA_MASSA[n % 5] !== q.get('tipo')) continue;
+    if (q.has('linhaServicoProvavel') && LINHA_DA_MASSA[n % 6] !== q.get('linhaServicoProvavel')) continue;
+    casam.push(n);
+  }
+  return { ids: casam.slice(offset, offset + limit).map(idDe), total: casam.length };
+}
+
+type VersaoJson = { id: string; versao: number; autor: unknown; rascunhoAgente: boolean };
+type DetalheJson = {
+  id: string;
+  responsavel: unknown;
+  rascunhoAgente: boolean;
+  especificacoes: VersaoJson[];
+  pareceresRisco: VersaoJson[];
+  pacotesDecisao: Array<VersaoJson & { statusDecisao: string; desatualizado: boolean }>;
+  agentesEmAndamento: Array<{ agente: string; status: string }>;
+};
+
+async function detalhe(id: string): Promise<DetalheJson> {
+  const r = await chamarRota(GET_DEMANDA, { caminho: `/api/demandas/${id}`, params: { id }, cookie });
+  expect(r.status).toBe(200);
+  return (await r.json()) as DetalheJson;
+}
+
+describe('as chamadas medidas na RNF-03 devolvem a resposta certa sobre o volume', () => {
+  it.each(FILTROS.map((f) => [f === '' ? '(sem filtro)' : f, f]))('fila %s: total e página iguais ao oráculo da massa', async (_rotulo, filtro) => {
+    const esperada = paginaEsperada(filtro.replace(/^\?/, ''));
+    const r = await chamarRota(GET_LISTA, { caminho: `/api/demandas${filtro}`, cookie });
+    expect(r.status).toBe(200);
+    const corpo = (await r.json()) as { itens: Array<{ id: string }>; total: number };
+    expect(corpo.total).toBe(esperada.total);
+    expect(corpo.itens.map((i) => i.id)).toEqual(esperada.ids);
+  });
+
+  it('página funda (limit=100, offset=4800): as 100 demandas mais antigas depois das 4.800 mais novas, com total 5.000', async () => {
+    const r = await chamarRota(GET_LISTA, { caminho: '/api/demandas?limit=100&offset=4800', cookie });
+    const corpo = (await r.json()) as { itens: Array<{ id: string }>; total: number; limit: number; offset: number };
+    expect(corpo.total).toBe(5000);
+    expect(corpo.limit).toBe(100);
+    expect(corpo.offset).toBe(4800);
+    expect(corpo.itens).toHaveLength(100);
+    expect(corpo.itens[0]!.id).toBe(idDe(200));
+    expect(corpo.itens[99]!.id).toBe(idDe(101));
+  });
+
+  it('detalhe de demanda com ESP v1 e v2, RSK v1 e DEC v1 sem decisão: o DEC aparece desatualizado', async () => {
+    const id = idDe(4212); // 4212 % 12 = 0: ESP v1 e v2, RSK v1, DEC v1 sem decisão; 4212 % 4 = 0: rascunho do orquestrador
+    const d = await detalhe(id);
+    expect(d.id).toBe(id);
+    expect(d.rascunhoAgente).toBe(true);
+    expect(d.responsavel).toEqual({ tipo: 'agente', agente: 'orquestrador' });
+    expect(d.especificacoes.map((e) => [e.id, e.versao])).toEqual([
+      [`ESP-${id}-v2`, 2],
+      [`ESP-${id}-v1`, 1],
+    ]);
+    expect(d.pareceresRisco).toHaveLength(1);
+    expect(d.pareceresRisco[0]).toMatchObject({ id: `RSK-${id}-v1`, versao: 1, autor: { tipo: 'agente', agente: 'risco' }, rascunhoAgente: true });
+    expect(d.pacotesDecisao).toHaveLength(1);
+    expect(d.pacotesDecisao[0]).toMatchObject({ id: `DEC-${id}-v1`, versao: 1, statusDecisao: 'pendente', desatualizado: true });
+    expect(d.agentesEmAndamento).toEqual([]);
+  });
+
+  it('detalhe de demanda com ESP v1, RSK v1, DEC v1 aprovado e execução pendente: DEC atualizado e agente em andamento', async () => {
+    const id = idDe(4230); // 4230 % 12 = 6 (DEC aprovado), % 4 = 2 (só ESP v1), % 10 = 0 (insumo_tecnico pendente)
+    const d = await detalhe(id);
+    expect(d.rascunhoAgente).toBe(false);
+    expect(d.responsavel).toEqual({ tipo: 'pessoa', nome: null });
+    expect(d.especificacoes.map((e) => [e.id, e.versao])).toEqual([[`ESP-${id}-v1`, 1]]);
+    expect(d.pareceresRisco.map((p) => p.id)).toEqual([`RSK-${id}-v1`]);
+    expect(d.pacotesDecisao).toHaveLength(1);
+    expect(d.pacotesDecisao[0]).toMatchObject({ id: `DEC-${id}-v1`, statusDecisao: 'aprovada', desatualizado: false });
+    expect(d.agentesEmAndamento).toEqual([{ agente: 'insumo_tecnico', status: 'pendente' }]);
+  });
+
+  it('detalhe de demanda sem nenhuma versão (n ímpar) devolve as listas vazias', async () => {
+    const id = idDe(4321);
+    const d = await detalhe(id);
+    expect(d.especificacoes).toEqual([]);
+    expect(d.pareceresRisco).toEqual([]);
+    expect(d.pacotesDecisao).toEqual([]);
+    expect(d.agentesEmAndamento).toEqual([]);
+  });
+
+  it('id no formato certo e fora da massa → 404 sobre o volume', async () => {
+    const id = 'DEM-20260101-9999';
+    const r = await chamarRota(GET_DEMANDA, { caminho: `/api/demandas/${id}`, params: { id }, cookie });
+    expect(r.status).toBe(404);
+  });
+});
