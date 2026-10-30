@@ -9,12 +9,14 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import type { Db } from '../src/db';
 import { account, user } from '../src/db/schema';
 import { comTransacao } from '../src/db/transacao';
 import { deZod, ErroDominio } from '../src/lib/erros';
 import { log } from '../src/lib/log';
 import { reduzirErro } from '../src/lib/reduzir-erro';
-import { PAPEIS } from '../src/modules/acesso/ator';
+import type { Relogio } from '../src/lib/relogio';
+import { PAPEIS, type Papel } from '../src/modules/acesso/ator';
 import { registrarEvento } from '../src/modules/historico/registrar';
 import { lerArgumentos } from './lib/argumentos';
 import { rodarScript, type DepsDoScript, type Saida } from './lib/saida';
@@ -35,28 +37,31 @@ const gerarSenha = () => randomBytes(18).toString('base64url');
 const MENSAGEM_JA_EXISTE = 'Já existe uma conta com este e-mail. Nada foi criado.';
 const SISTEMA = { tipo: 'sistema' } as const;
 
+export type NovaConta = { usuarioId: string; nome: string; email: string; papel: Papel; hash: string };
+
+// Grava a conta (user + account de senha, sem 2FA) e o evento `conta_criada`, na transação de quem chama. Única forma de
+// criar conta nos scripts: o criar-usuario (senha gerada) e o seed fictício da T33 (senha conhecida) passam por aqui.
+// O hash é o do Better Auth (`$context.password.hash`), calculado por quem chama.
+export async function gravarConta(tx: Db, c: NovaConta, relogio: Relogio): Promise<void> {
+  // O Better Auth compara o e-mail em minúsculas no login.
+  const email = c.email.toLowerCase();
+  const [existente] = await tx.select({ id: user.id }).from(user).where(eq(user.email, email));
+  if (existente) throw new ErroDominio('conflito', MENSAGEM_JA_EXISTE);
+  await tx.insert(user).values({ id: c.usuarioId, name: c.nome, email, emailVerified: true, papel: c.papel });
+  await tx.insert(account).values({ id: randomUUID(), accountId: c.usuarioId, providerId: 'credential', userId: c.usuarioId, password: c.hash });
+  // Só o papel: nem e-mail, nem nome, nem senha no histórico.
+  await registrarEvento(tx, { ator: SISTEMA, entidade: 'usuario', entidadeId: c.usuarioId, acao: 'conta_criada', depois: { papel: c.papel } }, relogio);
+}
+
 export async function criarUsuario(deps: DepsDoScript, a: ArgumentosCriarUsuario, saida: Saida): Promise<{ usuarioId: string }> {
   const r = argumentosCriarUsuario.safeParse(a);
   if (!r.success) throw deZod(r.error);
-  // O Better Auth compara o e-mail em minúsculas no login.
-  const email = r.data.email.toLowerCase();
   const senha = gerarSenha();
   const hash = await (await deps.auth.$context).password.hash(senha);
   const usuarioId = randomUUID();
 
   try {
-    await comTransacao(deps.pool, async ({ tx }) => {
-      const [existente] = await tx.select({ id: user.id }).from(user).where(eq(user.email, email));
-      if (existente) throw new ErroDominio('conflito', MENSAGEM_JA_EXISTE);
-      await tx.insert(user).values({ id: usuarioId, name: r.data.nome, email, emailVerified: true, papel: r.data.papel });
-      await tx.insert(account).values({ id: randomUUID(), accountId: usuarioId, providerId: 'credential', userId: usuarioId, password: hash });
-      // Só o papel: nem e-mail, nem nome, nem senha no histórico.
-      await registrarEvento(
-        tx,
-        { ator: SISTEMA, entidade: 'usuario', entidadeId: usuarioId, acao: 'conta_criada', depois: { papel: r.data.papel } },
-        deps.relogio,
-      );
-    });
+    await comTransacao(deps.pool, ({ tx }) => gravarConta(tx, { usuarioId, nome: r.data.nome, email: r.data.email, papel: r.data.papel, hash }, deps.relogio));
   } catch (e) {
     // Duas criações do mesmo e-mail ao mesmo tempo: a segunda bate no UNIQUE do banco.
     if (reduzirErro(e).code === '23505') throw new ErroDominio('conflito', MENSAGEM_JA_EXISTE);

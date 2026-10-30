@@ -11,6 +11,7 @@
     "dev": "next dev -p 3101",
     "build": "next build",
     "start": "next start -p ${PORT:-3101}",
+    "start:hml": "tsx scripts/start-hml.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
