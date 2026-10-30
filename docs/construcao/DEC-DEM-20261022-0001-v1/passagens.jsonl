@@ -156,3 +156,4 @@
 {"pedido":"DEC-DEM-20261022-0001-v1","etapa":"PF-T32","de":"fabiano","para":null,"status":"aprovado","volta":0,"inicio":"2026-10-30T19:10:09.000Z","fim":"2026-10-30T20:57:19.277Z","minutos":107,"motivo":null}
 {"pedido":"DEC-DEM-20261022-0001-v1","etapa":"06-T32-construcao","de":"engenheiro-backend","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-10-30T20:57:19.000Z","fim":"2026-10-30T21:08:18.972Z","minutos":11,"motivo":null}
 {"pedido":"DEC-DEM-20261022-0001-v1","etapa":"06-T32-revisao","de":"tech-lead","para":"qa-automacao","status":"pronto","volta":0,"inicio":"2026-10-30T21:08:19.000Z","fim":"2026-10-30T21:14:55.956Z","minutos":7,"motivo":null}
+{"pedido":"DEC-DEM-20261022-0001-v1","etapa":"06-T32-testes","de":"qa-automacao","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-10-30T21:14:56.000Z","fim":"2026-10-30T21:22:19.569Z","minutos":7,"motivo":null}

@@ -4,11 +4,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { novoBanco, type BancoDeTeste } from '../test/banco';
 import { criarDepsDeTeste } from '../test/deps';
 import { SENTINELAS, contemSentinela } from '../test/sentinelas';
-import { getAuth, postAuth } from '../test/sessao';
+import { codigoTotp, getAuth, PoteDeCookies, postAuth } from '../test/sessao';
 import type { Deps } from '../src/lib/deps';
 import { ErroDominio } from '../src/lib/erros';
 import { substituirDestinoDoLog } from '../src/lib/log';
-import { relogioFixo } from '../src/lib/relogio';
+import { relogioDoSistema, relogioFixo } from '../src/lib/relogio';
 import { exigirPessoa } from '../src/modules/acesso/exigir-pessoa';
 import { argumentosCriarUsuario, criarUsuario, TAMANHO_SENHA } from './criar-usuario';
 import { lerArgumentos } from './lib/argumentos';
@@ -70,6 +70,38 @@ describe('argumentos do criar-usuario (C-37)', () => {
     expect(() => lerArgumentos(argumentosCriarUsuario, ['--email', 'a@exemplo.test', '--nome', 'Pessoa Ficticia', '--papel'])).toThrow(ErroDominio);
     expect(() => lerArgumentos(argumentosCriarUsuario, ['--email', 'a@exemplo.test', '--papel', 'cto'])).toThrow(ErroDominio);
     expect(() => lerArgumentos(argumentosCriarUsuario, ['--email', 'nao-e-email', '--nome', 'Pessoa Ficticia', '--papel', 'cto'])).toThrow(ErroDominio);
+  });
+
+  // QA (06-T32-testes): o nome do argumento só aparece no erro quando é um nome comum; o resto vira --*.
+  it('C-37: argumento com nome fora do padrão aparece como --* no erro, sem o nome nem o valor', () => {
+    for (const argv of [
+      [...ARGV_VALIDO, `--${SENTINELAS.email}`, SENTINELAS.senha],
+      [...ARGV_VALIDO, `--${SENTINELAS.email}=${SENTINELAS.senha}`],
+      [...ARGV_VALIDO, `--=${SENTINELAS.senha}`],
+    ]) {
+      let erro: unknown;
+      try {
+        lerArgumentos(argumentosCriarUsuario, argv);
+      } catch (e) {
+        erro = e;
+      }
+      expect(erro).toBeInstanceOf(ErroDominio);
+      expect((erro as ErroDominio).codigo).toBe('entrada_invalida');
+      expect((erro as ErroDominio).mensagem).toContain('--*');
+      expect(contemSentinela(JSON.stringify(erro) + (erro as ErroDominio).mensagem + mensagemDeErro(erro))).toBe(false);
+    }
+  });
+
+  it('C-37: o valor inválido de um argumento conhecido não aparece no erro', () => {
+    let erro: unknown;
+    try {
+      lerArgumentos(argumentosCriarUsuario, ['--email', SENTINELAS.texto, '--nome', 'Pessoa Ficticia', '--papel', 'cto']);
+    } catch (e) {
+      erro = e;
+    }
+    expect(erro).toBeInstanceOf(ErroDominio);
+    expect((erro as ErroDominio).mensagem).toContain('--email');
+    expect(contemSentinela(JSON.stringify(erro) + (erro as ErroDominio).mensagem + mensagemDeErro(erro))).toBe(false);
   });
 
   it('o erro de banco vira só classe e código na saída de erro (C-21)', () => {
@@ -200,6 +232,72 @@ describe('criarUsuario (RF-01, C-08)', () => {
     expect(await rodarScript(executar, { env: { DATABASE_URL: b.urlApp }, argv: ARGV_VALIDO, saida, erro: erroConfig })).toBe(1);
     expect(erroConfig.texto()).toContain('BETTER_AUTH_SECRET');
     expect(erroConfig.texto()).not.toContain(b.urlApp);
+  });
+
+  // QA (06-T32-testes): RF-01 de ponta a ponta com a conta do script. O código TOTP é calculado pelo mesmo `Date` que o
+  // Better Auth usa (como em test/sessao.ts); o resultado não depende de qual hora é.
+  it('RF-01: a conta criada pelo script ativa o 2FA com a senha gerada e passa a valer como pessoa', async () => {
+    const saida = saidaDeTeste();
+    const { usuarioId } = await criarUsuario(deps, { email: 'ponta.a.ponta@exemplo.test', nome: 'Pessoa Ficticia', papel: 'cto' }, saida);
+    const senha = senhaDaSaida(saida.texto());
+    const pote = new PoteDeCookies();
+    const login = await postAuth(deps.auth, '/sign-in/email', { email: 'ponta.a.ponta@exemplo.test', password: senha });
+    expect(login.status).toBe(200);
+    pote.guardar(login);
+    const ativar = await postAuth(deps.auth, '/two-factor/enable', { password: senha }, { cookie: pote.cabecalho() });
+    expect(ativar.status).toBe(200);
+    pote.guardar(ativar);
+    const segredo = new URL(((await ativar.json()) as { totpURI: string }).totpURI).searchParams.get('secret')!;
+    const verificar = await postAuth(deps.auth, '/two-factor/verify-totp', { code: codigoTotp(segredo, relogioDoSistema.agora()) }, { cookie: pote.cabecalho() });
+    expect(verificar.status).toBe(200);
+    pote.guardar(verificar);
+    await expect(exigirPessoa(deps, new Headers({ cookie: pote.cabecalho() }))).resolves.toMatchObject({ tipo: 'pessoa', usuarioId, papel: 'cto' });
+  });
+
+  it('C-08: a sessão sem 2FA da conta do script vale até 15 min, só para configurar o 2FA, e depois deixa de valer', async () => {
+    const saida = saidaDeTeste();
+    await criarUsuario(deps, { email: 'quinze.min@exemplo.test', nome: 'Pessoa Ficticia', papel: 'cto' }, saida);
+    const login = await postAuth(deps.auth, '/sign-in/email', { email: 'quinze.min@exemplo.test', password: senhaDaSaida(saida.texto()) });
+    expect(login.status).toBe(200);
+    const cookie = login.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+    const sessao = (await (await getAuth(deps.auth, '/get-session', { cookie })).json()) as { session: { createdAt: string } };
+    const criadaEm = new Date(sessao.session.createdAt).getTime();
+    const aos = (min: number) => ({ auth: deps.auth, relogio: relogioFixo(new Date(criadaEm + min * 60_000).toISOString()) });
+    await expect(exigirPessoa(aos(14), new Headers({ cookie }))).rejects.toMatchObject({ codigo: 'sem_2fa' });
+    await expect(exigirPessoa(aos(16), new Headers({ cookie }))).rejects.toMatchObject({ codigo: 'nao_autenticado' });
+  });
+
+  it('C-21: e-mail e nome da conta não vão ao log nem à saída; o evento tem a hora do relógio injetado', async () => {
+    const inicio = linhasDoLog.length;
+    const saida = saidaDeTeste();
+    const { usuarioId } = await criarUsuario(deps, { email: SENTINELAS.email, nome: SENTINELAS.nome, papel: 'administradora' }, saida);
+    const senha = senhaDaSaida(saida.texto());
+    const doTeste = linhasDoLog.slice(inicio).join('');
+    expect(doTeste).toContain('conta_criada');
+    expect(contemSentinela(doTeste)).toBe(false);
+    expect(doTeste).not.toContain(senha);
+    expect(contemSentinela(saida.texto())).toBe(false);
+    const u = (await b.poolMigrator.query('select email, name, papel, two_factor_enabled from "user" where id = $1', [usuarioId])).rows[0];
+    expect(u).toEqual({ email: SENTINELAS.email, name: SENTINELAS.nome, papel: 'administradora', two_factor_enabled: false });
+    const ev = (await b.poolMigrator.query("select ocorrido_em from evento where entidade_id = $1 and acao = 'conta_criada'", [usuarioId])).rows;
+    expect(ev).toEqual([{ ocorrido_em: new Date('2026-10-22T12:00:00Z') }]);
+  });
+
+  it('duas criações do mesmo e-mail ao mesmo tempo → uma conta, um evento, e a recusada sem senha na saída', async () => {
+    const saidas = [saidaDeTeste(), saidaDeTeste()];
+    const r = await Promise.allSettled(
+      saidas.map((s, i) => criarUsuario(deps, { email: i === 0 ? 'corrida@exemplo.test' : 'CORRIDA@exemplo.test', nome: 'Pessoa Ficticia', papel: 'cto' }, s)),
+    );
+    const ok = r.filter((x) => x.status === 'fulfilled');
+    const recusadas = r.flatMap((x, i) => (x.status === 'rejected' ? [{ motivo: x.reason as unknown, saida: saidas[i]!.texto() }] : []));
+    expect(ok).toHaveLength(1);
+    expect(recusadas).toHaveLength(1);
+    expect(recusadas[0]!.motivo).toMatchObject({ codigo: 'conflito' });
+    expect(recusadas[0]!.saida).toBe('');
+    const usuarios = (await b.poolMigrator.query("select id from \"user\" where email = 'corrida@exemplo.test'")).rows;
+    expect(usuarios).toHaveLength(1);
+    const eventos = (await b.poolMigrator.query("select count(*)::int as n from evento where entidade_id = $1 and acao = 'conta_criada'", [usuarios[0].id])).rows[0].n;
+    expect(eventos).toBe(1);
   });
 
   it('entrada fora do schema não grava nada (a função valida de novo)', async () => {
