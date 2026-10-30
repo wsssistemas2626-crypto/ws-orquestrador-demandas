@@ -8,6 +8,7 @@
 //    por `autorizar`) e a execução fica `concluida`. Inválido, recusado pela regra do serviço ou erro transitório: nova
 //    tentativa em 30 s e depois em 2 min; na 3ª, `falhou` + `falha_agente` sem conteúdo (CA-16.3). Credencial recusada
 //    ou erro que não é do provedor: `falhou` na hora, com Sentry.
+// No orquestrador (T28), `falhou` e `ignorada` deixam a entrada pendente como `falhou`, para a pessoa preencher à mão.
 // Toda chamada feita ao provedor deixa uma linha de uso, em transação própria, com o resultado já conhecido (CA-17.2).
 // Nada da saída define status, autoria nem ator (C-25): o schema descarta chave desconhecida e o serviço usa o ator.
 // O log leva só agente, ids, tentativa e resultado (C-21); o evento, só o agente, a tentativa e o motivo (C-30).
@@ -20,6 +21,7 @@ import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import { log } from '../../lib/log';
 import { capturarErro } from '../../lib/sentry';
 import type { Agente, AtorAgente, AtorSistema } from '../acesso/ator';
+import { marcarPendenteComoFalha } from '../demandas/entradas-pendentes';
 import { criarEspecificacaoSchema } from '../especificacoes/schemas';
 import { criarEspecificacao } from '../especificacoes/servico';
 import { registrarEvento, type AcaoEvento } from '../historico/registrar';
@@ -33,7 +35,8 @@ import { TENTATIVAS_MAXIMAS } from './espera';
 import { confirmarPosse, encerrar, ExecucaoPerdida, reagendar, reivindicar, type ExecucaoAgente } from './execucoes';
 import { calcularCusto, precoVigente, type PrecoPorMilhao } from './preco';
 import { ErroProvedor, type ProvedorIA, type RespostaDoProvedor } from './provedor';
-import { SCHEMA_DE_SAIDA } from './schemas';
+import { gravarSaidaOrquestrador } from './saida-orquestrador';
+import { SCHEMA_DE_SAIDA, saidaOrquestradorSchema } from './schemas';
 import { situacaoDoTeto } from './teto';
 import { registrarUso } from './uso';
 
@@ -69,8 +72,12 @@ function demandaDa(exec: ExecucaoAgente): string {
   return exec.demandaId;
 }
 
-// O orquestrador entra na T28 (gravarSaidaOrquestrador).
+// O orquestrador cria a demanda a partir da entrada pendente (T28); os outros três gravam ESP, RSK e DEC da demanda.
 export const DESTINOS: Readonly<Partial<Record<Agente, DestinoDoAgente>>> = Object.freeze({
+  orquestrador: {
+    schema: SCHEMA_DE_SAIDA.orquestrador,
+    gravar: (t, deps, ator, exec, saida) => gravarSaidaOrquestrador(t, deps, ator, exec, saidaOrquestradorSchema.parse(saida)),
+  },
   insumo_tecnico: {
     schema: SCHEMA_DE_SAIDA.insumo_tecnico,
     gravar: async (t, deps, ator, exec, saida) =>
@@ -113,10 +120,16 @@ type Contexto = { deps: DepsAgente; exec: ExecucaoAgente };
 
 const camposDeLog = ({ exec }: Contexto) => ({ agente: exec.agente, execucaoId: exec.id, demandaId: exec.demandaId, tentativa: exec.tentativas });
 
+// O orquestrador não vai mais tratar a entrada: a pendente fica `falhou`, para a pessoa preencher à mão (T28, 03 T04).
+async function liberarPendente(tx: Transacao['tx'], exec: ExecucaoAgente): Promise<void> {
+  if (exec.agente === 'orquestrador') await marcarPendenteComoFalha(tx, exec.chaveEntrada);
+}
+
 async function falhar(c: Contexto, motivo: MotivoFalha): Promise<ResultadoExecucao> {
   const { deps, exec } = c;
   await comTransacao(deps.pool, async ({ tx }) => {
     await encerrar(tx, exec, 'falhou', deps.relogio);
+    await liberarPendente(tx, exec);
     await registrarEvento(
       tx,
       {
@@ -138,6 +151,8 @@ async function ignorar(c: Contexto, acao: Extract<AcaoEvento, 'agente_ignorado' 
   const { deps, exec } = c;
   await comTransacao(deps.pool, async ({ tx }) => {
     await encerrar(tx, exec, 'ignorada', deps.relogio);
+    // Ignorada não roda de novo (a execução é única por entrada): a pendente não fica esperando à toa.
+    await liberarPendente(tx, exec);
     await registrarEvento(
       tx,
       { ator: SISTEMA, demandaId: exec.demandaId, entidade: 'execucao_agente', entidadeId: exec.id, acao, depois: { agente: exec.agente, motivo } },

@@ -154,12 +154,14 @@ beforeEach(async () => {
   relogio.avancar(++passo * 2 * HORA);
   await b.poolMigrator.query('truncate uso_ia');
   await b.poolMigrator.query('update configuracao_agente set ligado = false, modelo = null');
+  // A demanda e a ESP nascem com os agentes desligados: desde a T28, a ESP sem dúvida com o risco ligado já criaria a
+  // execução `esp:<id>` pelo gatilho, e cada teste aqui cria a sua com novaExecucao().
+  dem = await novaDemanda();
+  esp = await espDaPessoa(dem.id);
   await ligar('risco');
   await definirTeto(10);
   provedor = new ProvedorFalso();
   deps = { ...base, provedor };
-  dem = await novaDemanda();
-  esp = await espDaPessoa(dem.id);
   vi.mocked(capturarErro).mockClear();
 });
 afterEach(() => substituirDestinoDoLog(null));
@@ -235,7 +237,10 @@ describe('execução perdida (ADR-07): quem ficou para trás não reagenda nem m
   });
 
   it('duas execuções do mesmo agente na mesma demanda ao mesmo tempo (ESP v1 e v2) → dois RSK, v1 e v2, sem colisão de versão', async () => {
+    // A ESP v2 nasce com o risco desligado: desde a T28, o gatilho já criaria a execução `esp:<v2>` que o teste cria abaixo.
+    await desligar('risco');
     const esp2 = await espDaPessoa(dem.id);
+    await ligar('risco');
     provedor.respostas.push(resposta(RSK_VALIDO), resposta(RSK_VALIDO));
     const id1 = (await novaExecucao('risco', `esp:${esp.id}`))!;
     const id2 = (await novaExecucao('risco', `esp:${esp2.id}`))!;

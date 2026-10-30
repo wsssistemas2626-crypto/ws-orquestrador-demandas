@@ -2,15 +2,16 @@
 // app só tem SELECT e INSERT na tabela (C-34). Numa transação: autorizar → trava da demanda (CA-04.3) → limite por ator
 // (C-36) → regra de construção com o tipo atual da demanda → próxima versão → insert com a autoria só do ator (C-11) →
 // evento sem texto livre (C-30) → com dúvida em aberto, a demanda vai a aguardando_informacao pelo ator sistema, sem
-// nenhuma mensagem ao solicitante (CA-15.1, CA-15.2). Aceita a transação de quem chama (G3.8): o worker grava a versão,
+// nenhuma mensagem ao solicitante (CA-15.1, CA-15.2); sem dúvida, dispara o agente de risco (T28). Aceita a transação de quem chama (G3.8): o worker grava a versão,
 // a execução e o job juntos (ADR-02, ADR-06). A entrada já chega validada pelo Zod (rota, Server Action ou job).
 import { especificacaoTecnica } from '../../db/schema';
 import { comTransacao, type Transacao } from '../../db/transacao';
 import { ErroDominio } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
+import { dispararSeLigado } from '../agentes/gatilhos';
 import { registrarEvento } from '../historico/registrar';
-import { autoriaDo, type DepsDemanda } from '../demandas/servico';
+import { autoriaDo, type DepsComFila } from '../demandas/servico';
 import { mudarStatusPeloSistema } from '../demandas/transicoes';
 import { conferirLimite } from '../limites';
 import { idVersao, proximaVersao, travarDemanda } from '../versoes';
@@ -20,7 +21,7 @@ import { validarCamposDeConstrucao, type CriarEspecificacao } from './schemas';
 export const MENSAGEM_CAMPOS_INVALIDOS = 'Corrija os campos abaixo para continuar.';
 
 export async function criarEspecificacao(
-  deps: DepsDemanda,
+  deps: DepsComFila,
   ator: Ator,
   demandaId: string,
   entrada: CriarEspecificacao,
@@ -71,6 +72,8 @@ export async function criarEspecificacao(
       deps.relogio,
     );
     if (entrada.duvidasEmAberto.length > 0) await mudarStatusPeloSistema(tr, deps, demandaId, 'duvida_em_aberto');
+    // T28: ESP sem dúvida dispara o agente de risco, se ligado e sem suspensão, nesta transação (ADR-06).
+    else await dispararSeLigado(tr, deps, 'risco', `esp:${id}`, demandaId);
     return id;
   };
   const id = t ? await corpo(t) : await comTransacao(deps.pool, corpo);

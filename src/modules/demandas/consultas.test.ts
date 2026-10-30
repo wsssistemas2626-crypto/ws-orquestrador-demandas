@@ -183,6 +183,8 @@ describe('obterDemanda', () => {
       especificacoes: [],
       pareceresRisco: [],
       pacotesDecisao: [],
+      // T-03 (T28): execuções pendentes ou em andamento da demanda.
+      agentesEmAndamento: [],
     });
   });
 

@@ -1,14 +1,17 @@
 // Serviço do parecer de risco (RSK, RF-09, RF-11). Cada gravação é uma versão nova e imutável: o papel do app só tem
 // SELECT e INSERT na tabela (C-34). Numa transação: autorizar → trava da demanda (CA-04.3) → limite por ator (C-36) →
 // próxima versão → insert com a autoria só do ator (C-11) → evento sem texto livre (C-30). O RSK não exige ESP (o pacote
-// de decisão é que exige as duas) e não muda o status da demanda. Aceita a transação de quem chama (G3.8): o worker
+// de decisão é que exige as duas) e não muda o status da demanda; com ESP na demanda, dispara a consolidação (T28). Aceita a transação de quem chama (G3.8): o worker
 // grava a versão, a execução e o job juntos (ADR-02, ADR-06). A entrada já chega validada pelo Zod (rota, Server Action
 // ou job).
-import { parecerRisco } from '../../db/schema';
+import { eq } from 'drizzle-orm';
+import type { Db } from '../../db';
+import { especificacaoTecnica, parecerRisco } from '../../db/schema';
 import { comTransacao, type Transacao } from '../../db/transacao';
 import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
-import { autoriaDo, type DepsDemanda } from '../demandas/servico';
+import { dispararSeLigado } from '../agentes/gatilhos';
+import { autoriaDo, type DepsComFila } from '../demandas/servico';
 import { registrarEvento } from '../historico/registrar';
 import { conferirLimite } from '../limites';
 import { idVersao, proximaVersao, travarDemanda } from '../versoes';
@@ -19,8 +22,14 @@ import type { CriarParecerRisco } from './schemas';
 // null como iguais.
 const textoOuNulo = (v: string | undefined): string | null => (v === undefined || v === '' ? null : v);
 
+// A consolidação precisa de ESP e RSK (o DEC exige os dois): sem ESP na demanda, o RSK não a dispara.
+async function temEspecificacao(tx: Db, demandaId: string): Promise<boolean> {
+  const [linha] = await tx.select({ id: especificacaoTecnica.id }).from(especificacaoTecnica).where(eq(especificacaoTecnica.demandaId, demandaId)).limit(1);
+  return linha !== undefined;
+}
+
 export async function criarParecerRisco(
-  deps: DepsDemanda,
+  deps: DepsComFila,
   ator: Ator,
   demandaId: string,
   entrada: CriarParecerRisco,
@@ -30,7 +39,8 @@ export async function criarParecerRisco(
   autorizar(ator, 'criar_parecer_risco');
   const autoria = autoriaDo(ator);
   const rascunhoAgente = autoria.autorTipo === 'agente';
-  const corpo = async ({ tx }: Transacao): Promise<string> => {
+  const corpo = async (tr: Transacao): Promise<string> => {
+    const { tx } = tr;
     await travarDemanda(tx, demandaId);
     await conferirLimite(tx, ator, 'artefato', deps.relogio);
     const versao = await proximaVersao(tx, parecerRisco, demandaId);
@@ -61,6 +71,8 @@ export async function criarParecerRisco(
       { ator, demandaId, entidade: 'parecer_risco', entidadeId: id, acao: 'parecer_risco_criado', depois: { versao, rascunhoAgente } },
       deps.relogio,
     );
+    // T28: com ESP na demanda, o RSK dispara o agente de consolidação, se ligado e sem suspensão, nesta transação (ADR-06).
+    if (await temEspecificacao(tx, demandaId)) await dispararSeLigado(tr, deps, 'consolidacao', `rsk:${id}`, demandaId);
     return id;
   };
   const id = t ? await corpo(t) : await comTransacao(deps.pool, corpo);

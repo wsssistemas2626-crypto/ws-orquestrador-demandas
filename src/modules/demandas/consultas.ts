@@ -1,9 +1,9 @@
 // Leitura de demandas (RF-06). Nenhuma leitura daqui toca `entrada_bruta`: o texto bruto e a origem só saem pela
 // leitura própria de pessoa (T17), nunca na vista da demanda. A autoria aparece como `responsavel` (pessoa pelo nome da
 // conta, agente pelo nome do agente), nunca pelo id interno da conta.
-import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db';
-import { decisao, demanda, especificacaoTecnica, pacoteDecisao, parecerRisco, user } from '../../db/schema';
+import { decisao, demanda, especificacaoTecnica, execucaoAgente, pacoteDecisao, parecerRisco, user } from '../../db/schema';
 import type { Anexo, LinhaServico, PapelSolicitante, Urgencia } from '../../db/schema/demandas';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import { AGENTES, type Agente } from '../acesso/ator';
@@ -16,6 +16,8 @@ export type StatusDecisao = 'pendente' | 'aprovada' | 'devolvida' | 'arquivada';
 
 export type VersaoResumo = { id: string; versao: number; criadaEm: Date; autor: Responsavel; rascunhoAgente: boolean };
 export type PacoteResumo = VersaoResumo & { statusDecisao: StatusDecisao; desatualizado: boolean };
+// T-03: o aviso "agente trabalhando" da T05, lido da execução, sem ler o esquema do pg-boss.
+export type AgenteEmAndamento = { agente: Agente; status: 'pendente' | 'em_andamento' };
 
 export type DemandaVista = {
   id: string;
@@ -39,6 +41,7 @@ export type DemandaVista = {
   especificacoes: VersaoResumo[];
   pareceresRisco: VersaoResumo[];
   pacotesDecisao: PacoteResumo[];
+  agentesEmAndamento: AgenteEmAndamento[];
 };
 
 export type DemandaResumo = {
@@ -120,6 +123,19 @@ async function pacotesDe(db: Db, demandaId: string): Promise<PacoteResumo[]> {
   }));
 }
 
+const EM_ANDAMENTO = ['pendente', 'em_andamento'] as const;
+const estaEmAndamento = (s: string): s is AgenteEmAndamento['status'] => (EM_ANDAMENTO as readonly string[]).includes(s);
+
+// Execuções pendentes ou em andamento da demanda, da mais antiga para a mais nova (índice execucao_agente_demanda_status_idx).
+async function agentesEmAndamentoDe(db: Db, demandaId: string): Promise<AgenteEmAndamento[]> {
+  const linhas = await db
+    .select({ agente: execucaoAgente.agente, status: execucaoAgente.status })
+    .from(execucaoAgente)
+    .where(and(eq(execucaoAgente.demandaId, demandaId), inArray(execucaoAgente.status, [...EM_ANDAMENTO])))
+    .orderBy(asc(execucaoAgente.criadaEm), asc(execucaoAgente.id));
+  return linhas.flatMap((l) => (estaEmAndamento(l.status) ? [{ agente: l.agente, status: l.status }] : []));
+}
+
 export async function obterDemanda(db: Db, id: string): Promise<DemandaVista> {
   const [linha] = await db.select({ d: demanda, nome: user.name }).from(demanda).leftJoin(user, contaDoAutor(demanda)).where(eq(demanda.id, id));
   if (!linha) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
@@ -128,6 +144,7 @@ export async function obterDemanda(db: Db, id: string): Promise<DemandaVista> {
   const especificacoes = await versoesDe(db, especificacaoTecnica, id);
   const pareceresRisco = await versoesDe(db, parecerRisco, id);
   const pacotesDecisao = await pacotesDe(db, id);
+  const agentesEmAndamento = await agentesEmAndamentoDe(db, id);
   return {
     id: d.id,
     titulo: d.titulo,
@@ -150,6 +167,7 @@ export async function obterDemanda(db: Db, id: string): Promise<DemandaVista> {
     especificacoes,
     pareceresRisco,
     pacotesDecisao,
+    agentesEmAndamento,
   };
 }
 

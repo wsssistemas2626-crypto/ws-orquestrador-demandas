@@ -10,6 +10,7 @@ import { ErroDominio } from '../../lib/erros';
 import type { Ator, AtorPessoa } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { MENSAGENS_ACESSO } from '../acesso/mensagens';
+import { dispararSeLigado } from '../agentes/gatilhos';
 import { mudancaDeCampo, registrarEvento } from '../historico/registrar';
 import { conferirLimite } from '../limites';
 import { temPacoteAprovadoAtualizado } from '../pacotes-decisao/desatualizado';
@@ -21,6 +22,10 @@ import { conferirTransicaoManual } from './transicoes';
 
 // O que o serviço usa das dependências: o worker (T27, T28) pode chamar com as dele, sem Better Auth nem fila.
 export type DepsDemanda = Pick<Deps, 'db' | 'pool' | 'relogio'>;
+// Quem grava demanda, ESP ou RSK também dispara o agente seguinte (T28), na mesma transação, e para isso usa a fila.
+// Rota, Server Action e worker sempre a têm. Ela é opcional no tipo porque só faz falta com o agente ligado: sem ela,
+// dispararSeLigado falha alto em vez de deixar de disparar.
+export type DepsComFila = DepsDemanda & Partial<Pick<Deps, 'fila'>>;
 
 export const MENSAGEM_NADA_ALTERADO = 'Nada foi alterado.';
 
@@ -53,7 +58,7 @@ const executar = <T>(deps: DepsDemanda, t: Transacao | undefined, corpo: (t: Tra
   t ? corpo(t) : comTransacao(deps.pool, corpo);
 
 export async function criarDemanda(
-  deps: DepsDemanda,
+  deps: DepsComFila,
   ator: Ator,
   entrada: CriarDemanda,
   t?: Transacao,
@@ -61,7 +66,8 @@ export async function criarDemanda(
 ): Promise<DemandaVista> {
   autorizar(ator, 'criar_demanda');
   const autoria = autoriaDo(ator);
-  const id = await executar(deps, t, async ({ tx }) => {
+  const id = await executar(deps, t, async (tr) => {
+    const { tx } = tr;
     // C-36: limite antes do id. O nextval só roda aqui, depois do Zod (na entrada) e do limite, dentro da transação.
     await conferirLimite(tx, ator, 'demanda', deps.relogio);
     const novoId = await proximoIdDemanda(tx, deps.relogio);
@@ -93,6 +99,8 @@ export async function criarDemanda(
       { ator, demandaId: novoId, entidade: 'demanda', entidadeId: novoId, acao: 'demanda_criada', depois: { status: 'nova', tipo: entrada.tipo } },
       deps.relogio,
     );
+    // T28: com o insumo técnico ligado e sem suspensão, a execução e o job entram nesta transação (ADR-06).
+    await dispararSeLigado(tr, deps, 'insumo_tecnico', `demanda:${novoId}`, novoId);
     return novoId;
   });
   return obterDemanda(t?.tx ?? deps.db, id);

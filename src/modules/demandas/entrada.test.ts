@@ -234,7 +234,7 @@ describe('registrarEntrada (modo manual)', () => {
     expect(await estado()).toEqual(antes);
   });
 
-  it('entradaPendenteId → nao_encontrado até a T28, sem gravar nada', async () => {
+  it('entradaPendenteId que não existe → nao_encontrado, sem gravar nada', async () => {
     const antes = await estado();
     const e = await capturar(registrarEntrada(deps, cto, manual({ texto: TEXTO, entradaPendenteId: UUID_FICTICIO })));
     expect(e).toMatchObject({ codigo: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO });
@@ -359,7 +359,7 @@ describe('POST /api/demandas/entrada', () => {
     expect(await estado()).toEqual(antes);
   });
 
-  it('entradaPendenteId → 404 até a T28, nada gravado', async () => {
+  it('entradaPendenteId que não existe → 404, nada gravado', async () => {
     const antes = await estado();
     const r = await postar({ modo: 'manual', ...CAMPOS, texto: TEXTO, entradaPendenteId: UUID_FICTICIO });
     expect(r.status).toBe(404);

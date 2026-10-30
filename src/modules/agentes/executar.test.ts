@@ -135,12 +135,14 @@ beforeEach(async () => {
   relogio.avancar(++passo * 2 * HORA);
   await b.poolMigrator.query('truncate uso_ia');
   await b.poolMigrator.query('update configuracao_agente set ligado = false, modelo = null');
+  // A demanda e a ESP nascem com os agentes desligados: desde a T28, a ESP sem dúvida com o risco ligado já criaria a
+  // execução `esp:<id>` pelo gatilho, e cada teste aqui cria a sua com novaExecucao().
+  dem = await novaDemanda();
+  esp = await espDaPessoa(dem.id, { descricaoObjetiva: `Descrição com ${SENTINELAS.texto}` });
   await ligar('risco');
   await definirTeto(10);
   provedor = new ProvedorFalso();
   deps = { ...base, provedor };
-  dem = await novaDemanda();
-  esp = await espDaPessoa(dem.id, { descricaoObjetiva: `Descrição com ${SENTINELAS.texto}` });
   vi.mocked(capturarErro).mockClear();
 });
 afterEach(() => substituirDestinoDoLog(null));
@@ -251,19 +253,20 @@ describe('executarAgente: caminho feliz e uso (RF-16, RF-17)', () => {
     expect(conteudo).toContain('<dados>');
   });
 
-  it('insumo_tecnico grava a ESP da demanda; consolidação grava o DEC (os três destinos)', async () => {
-    expect(Object.keys(DESTINOS).sort()).toEqual(['consolidacao', 'insumo_tecnico', 'risco']);
-    for (const a of ['insumo_tecnico', 'risco', 'consolidacao'] as const) expect(DESTINOS[a]!.schema).toBe(SCHEMA_DE_SAIDA[a]);
+  it('insumo_tecnico grava a ESP da demanda; consolidação grava o DEC (os três destinos de artefato; o orquestrador desde a T28)', async () => {
+    expect(Object.keys(DESTINOS).sort()).toEqual(['consolidacao', 'insumo_tecnico', 'orquestrador', 'risco']);
+    for (const a of AGENTES) expect(DESTINOS[a]!.schema).toBe(SCHEMA_DE_SAIDA[a]);
 
-    await ligar('insumo_tecnico');
+    // Demanda e RSK criados antes de ligar o agente: desde a T28, o gatilho já criaria a execução da mesma entrada.
     const outra = await novaDemanda('novo_projeto');
+    await ligar('insumo_tecnico');
     provedor.respostas.push(resposta(PROMPTS.insumo_tecnico.exemploSaida));
     const idEsp = (await novaExecucao('insumo_tecnico', `demanda:${outra.id}`, outra.id))!;
     expect(await executarAgente(deps, idEsp)).toBe('concluida');
     expect(await obterEspecificacao(b.db, idVersao('ESP', outra.id, 1))).toMatchObject({ autor: { tipo: 'agente', agente: 'insumo_tecnico' }, rascunhoAgente: true });
 
-    await ligar('consolidacao');
     const rsk = await criarParecerRisco(base, cto, dem.id, criarParecerRiscoSchema.parse(RSK_VALIDO));
+    await ligar('consolidacao');
     provedor.respostas.push(resposta(PROMPTS.consolidacao.exemploSaida));
     const idDec = (await novaExecucao('consolidacao', `rsk:${rsk.id}`))!;
     expect(await executarAgente(deps, idDec)).toBe('concluida');
@@ -326,8 +329,8 @@ describe('executarAgente: saída fora do schema e novas tentativas (CA-16.2, CA-
   });
 
   it('ESP de agente recusada pela regra de construção (400 no serviço) conta como saída inválida, sem gravar', async () => {
-    await ligar('insumo_tecnico');
     const outra = await novaDemanda('novo_projeto');
+    await ligar('insumo_tecnico');
     const semSistema: Record<string, unknown> = { ...(PROMPTS.insumo_tecnico.exemploSaida as object) };
     delete semSistema.sistemaAlvo;
     provedor.respostas.push(resposta(semSistema));
@@ -510,12 +513,12 @@ describe('executarAgente: falhas do provedor e da entrada', () => {
     expect(await eventosDa(id)).toMatchObject([{ acao: 'falha_agente', depois: { motivo: 'entrada_nao_encontrada' } }]);
   });
 
-  it('agente sem destino nesta versão (orquestrador, até a T28) → falhou sem chamar o provedor', async () => {
+  it('orquestrador com a entrada pendente que não existe (T28) → falhou sem chamar o provedor', async () => {
     await ligar('orquestrador');
     const id = (await novaExecucao('orquestrador', 'entrada:00000000-0000-4000-8000-0000000000aa', null))!;
     expect(await executarAgente(deps, id)).toBe('falhou');
     expect(provedor.chamadas).toHaveLength(0);
-    expect(await eventosDa(id)).toMatchObject([{ acao: 'falha_agente', demanda_id: null, depois: { agente: 'orquestrador', motivo: 'sem_destino' } }]);
+    expect(await eventosDa(id)).toMatchObject([{ acao: 'falha_agente', demanda_id: null, depois: { agente: 'orquestrador', motivo: 'entrada_nao_encontrada' } }]);
   });
 });
 
@@ -535,11 +538,11 @@ describe('executarAgente: log sem texto (C-21)', () => {
     for (const l of linhas) expect(JSON.parse(l)).toMatchObject({ agente: 'risco', execucaoId: id });
   });
 
-  it('cada agente da lista tem prompt e schema; só os três de artefato têm destino', () => {
+  it('cada agente da lista tem prompt, schema e destino (o orquestrador desde a T28)', () => {
     for (const a of AGENTES) {
       expect(PROMPTS[a]).toBeDefined();
       expect(SCHEMA_DE_SAIDA[a]).toBeDefined();
+      expect(DESTINOS[a]).toBeDefined();
     }
-    expect(DESTINOS.orquestrador).toBeUndefined();
   });
 });
