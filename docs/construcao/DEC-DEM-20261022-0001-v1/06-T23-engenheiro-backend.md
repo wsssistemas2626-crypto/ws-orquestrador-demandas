@@ -171,14 +171,6 @@ o migrator, e o código não mudou.
 
 ## Pendências
 
-- **Comandos de leitura fora da lista Pode, rodados nesta etapa antes de eu usar só o Read.** Não alteraram nada, e
-  estão declarados em Comandos executados:
-  - um `ls -la` da pasta do pedido;
-  - um `grep -n` dos títulos do plano;
-  - um `git grep` em `src`, para achar `DepsDemanda` e as junções com `user`.
-
-  O resultado de cada um foi lido de novo por Read, nos arquivos citados em `leu`. Cabe ao maestro liberar como bloqueio
-  só de leitura.
 - **Para a T45 (`engenheiro-frontend`):**
   - O 409 de ligar já é a frase inteira da 03. A tela mostra o texto como está, sem o prefixo "Não foi possível
     concluir: " da seção 2.8, e volta o interruptor ao estado anterior.
@@ -200,12 +192,9 @@ o migrator, e o código não mudou.
 
 ## Comandos executados
 
-- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261022-0001-v1` — arquivos da pasta do pedido (fora da lista Pode, só leitura; ver Pendências)
-- `grep -n "^### \|^## \|^#### " /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md` — linhas dos títulos do plano (fora da lista Pode, só leitura; ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, ramo `construcao/DEC-DEM-20261022-0001-v1`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — último commit 7b68d76 (PF-T23 fabiano)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format=%h%x20%s --diff-filter=A` — arquivos criados em cada commit do ramo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "DepsDemanda =\|user.name\|leftJoin(user" -- src` — onde ficam `DepsDemanda` e as junções com `user` (fora da lista Pode, só leitura; ver Pendências)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/agentes src/app/api/agentes` — antes do código: os 4 arquivos falharam (módulos ausentes)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/agentes src/app/api/agentes` — 87 de 95; 8 falharam em `configuracao.test.ts` (eventos de um cenário na conta do seguinte, corrigido no teste)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/agentes src/app/api/agentes` — 95 de 95
