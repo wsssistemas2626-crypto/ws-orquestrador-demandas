@@ -2,8 +2,9 @@
 // SELECT e INSERT na tabela (C-34). Numa transação: autorizar → trava da demanda (CA-04.3; fecha também a corrida com
 // ESP ou RSK nova) → limite por ator (C-36) → a ESP e o RSK de maior versão, ou 400 com o que falta → próxima versão →
 // insert com a cópia da demanda (RF-22) e a autoria só do ator (C-11) → evento sem texto livre (C-30) → a demanda vai a
-// pronta_para_decisao pelo ator sistema (RF-07). Aceita a transação de quem chama (G3.8): o worker grava a versão, a
-// execução e o job juntos (ADR-02, ADR-06). A entrada já chega validada pelo Zod (rota, Server Action ou job).
+// pronta_para_decisao pelo ator sistema (RF-07) → aviso por e-mail pendente e o job dele (RF-25, T30). Aceita a
+// transação de quem chama (G3.8): o worker grava a versão, a execução e o job juntos (ADR-02, ADR-06). A entrada já
+// chega validada pelo Zod (rota, Server Action ou job).
 import { desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { especificacaoTecnica, pacoteDecisao, parecerRisco } from '../../db/schema';
@@ -12,7 +13,8 @@ import { comTransacao, type Transacao } from '../../db/transacao';
 import { ErroDominio } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
-import { autoriaDo, type DepsDemanda } from '../demandas/servico';
+import { agendarAviso } from '../avisos/aviso-dec';
+import { autoriaDo, type DepsComFila } from '../demandas/servico';
 import { mudarStatusPeloSistema } from '../demandas/transicoes';
 import { registrarEvento } from '../historico/registrar';
 import { conferirLimite } from '../limites';
@@ -57,7 +59,7 @@ async function maisNova(tx: Db, tabela: typeof especificacaoTecnica | typeof par
 }
 
 export async function criarPacoteDecisao(
-  deps: DepsDemanda,
+  deps: DepsComFila,
   ator: Ator,
   demandaId: string,
   entrada: CriarPacoteDecisao,
@@ -117,6 +119,8 @@ export async function criarPacoteDecisao(
       deps.relogio,
     );
     await mudarStatusPeloSistema(tr, deps, demandaId, 'dec_criado');
+    // RF-25: um aviso por DEC, na mesma transação; o rollback leva o aviso e o job junto.
+    await agendarAviso(tr, deps, id);
     return id;
   };
   const id = t ? await corpo(t) : await comTransacao(deps.pool, corpo);
