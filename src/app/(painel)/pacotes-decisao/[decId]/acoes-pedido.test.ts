@@ -3,12 +3,15 @@
 // (C-16); o resultado leva o JSON exato que a rota devolve, para baixar e copiar; as recusas chegam como na API e a tela
 // as mostra por erroDoPedido (dados-do-pedido.ts). C-28: o 422 diz o campo e o tipo, nunca o valor. Relógio fixo
 // (RNF-15), um dia por teste (C-36).
+import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../../../test/banco';
 import { criarDepsDeTeste } from '../../../../../test/deps';
 import { criarPessoa } from '../../../../../test/sessao';
 import { erroDoPedido } from '../../../../components/dados-do-pedido';
+import { evento } from '../../../../db/schema';
 import { definirDepsParaTeste, type Deps } from '../../../../lib/deps';
+import { substituirDestinoDoLog } from '../../../../lib/log';
 import { relogioFixo, type RelogioFixo } from '../../../../lib/relogio';
 import type { AtorPessoa } from '../../../../modules/acesso/ator';
 import { criarDemandaSchema } from '../../../../modules/demandas/schemas';
@@ -17,7 +20,7 @@ import { criarEspecificacaoSchema } from '../../../../modules/especificacoes/sch
 import { criarEspecificacao } from '../../../../modules/especificacoes/servico';
 import { criarPacoteDecisao } from '../../../../modules/pacotes-decisao/criar';
 import { registrarDecisao } from '../../../../modules/pacotes-decisao/decidir';
-import { criarPacoteDecisaoSchema } from '../../../../modules/pacotes-decisao/schemas';
+import { criarPacoteDecisaoSchema, registrarDecisaoSchema } from '../../../../modules/pacotes-decisao/schemas';
 import { criarParecerRiscoSchema } from '../../../../modules/pareceres-risco/schemas';
 import { criarParecerRisco } from '../../../../modules/pareceres-risco/servico';
 import { gerarPedido, MENSAGENS_PEDIDO } from '../../../../modules/pedido-construcao/gerar';
@@ -36,6 +39,7 @@ let relogio: RelogioFixo;
 let cookieCto: string;
 let cookieAdm: string;
 let cto: AtorPessoa;
+let adm: AtorPessoa;
 let dia = 0;
 
 type Tipo = 'novo_projeto' | 'estudo';
@@ -82,6 +86,7 @@ beforeAll(async () => {
   cookieCto = pc.cookie;
   cookieAdm = pa.cookie;
   cto = { tipo: 'pessoa', usuarioId: pc.usuarioId, nome: 'Pessoa Ficticia', papel: 'cto' };
+  adm = { tipo: 'pessoa', usuarioId: pa.usuarioId, nome: 'Pessoa Ficticia', papel: 'administradora' };
 });
 
 afterAll(async () => {
@@ -153,5 +158,126 @@ describe('gerarPedidoNoPainel (T44)', () => {
     const decId = await novoPacote('novo_projeto', espConstruida);
     pedido.cabecalhos = new Headers();
     expect(await gerarPedidoNoPainel({ decId })).toMatchObject({ ok: false, erro: 'nao_autenticado' });
+  });
+});
+
+// 06-T44-testes (qa-automacao): o que a Server Action garante sem a ajuda da tela. A tela só mostra a seção com a decisão
+// aprovada completa (secaoDoPedido), mas quem chama a ação direto pode mandar qualquer DEC: a regra que vale é a do
+// servidor. Aqui, CA-22.4 nos estados que a tela esconde, o evento de cada geração com a pessoa da sessão (RF-21), o 2FA
+// (C-04) e a linha de log (C-21). Cada teste cria os próprios dados, no dia próprio do beforeEach do arquivo.
+describe('gerarPedidoNoPainel: a regra do servidor sem a ajuda da tela (qa-automacao)', () => {
+  const eventosDoPedido = (decId: string) =>
+    b.db
+      .select()
+      .from(evento)
+      .where(and(eq(evento.entidadeId, decId), eq(evento.acao, 'pedido_gerado')))
+      .orderBy(evento.id);
+
+  // Demanda, ESP, RSK e DEC pendente, sem decisão.
+  async function pacotePendente(nivel: 'cto' | 'cto_e_administradora'): Promise<string> {
+    const d = await criarDemanda(deps, cto, criarDemandaSchema.parse({ titulo: 'Demanda do pedido (fictício)', tipo: 'melhoria', solicitanteNome: 'Pessoa Ficticia' }));
+    await criarEspecificacao(deps, cto, d.id, criarEspecificacaoSchema.parse(espConstruida));
+    await criarParecerRisco(deps, cto, d.id, criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' }));
+    const dec = await criarPacoteDecisao(
+      deps,
+      cto,
+      d.id,
+      criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo (fictício)', opcaoA: { descricao: 'A (fictício)' }, opcaoB: { descricao: 'B (fictício)' }, nivelAprovacaoRequerido: nivel }),
+    );
+    return dec.id;
+  }
+
+  it('CA-22.4: devolvido, arquivado e só uma das duas aprovações (do CTO ou da administradora) → 409 nas duas contas, com o texto da tela e sem evento', async () => {
+    const devolvido = await pacotePendente('cto');
+    await registrarDecisao(deps, cto, devolvido, registrarDecisaoSchema.parse({ statusDecisao: 'devolvida' }));
+    const arquivado = await pacotePendente('cto');
+    await registrarDecisao(deps, cto, arquivado, registrarDecisaoSchema.parse({ statusDecisao: 'arquivada' }));
+    const soCto = await pacotePendente('cto_e_administradora');
+    await registrarDecisao(deps, cto, soCto, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }));
+    const soAdm = await pacotePendente('cto_e_administradora');
+    await registrarDecisao(
+      deps,
+      adm,
+      soAdm,
+      registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A', referenciaDocumento: 'DOC-FICTICIO-T44', dataDocumento: '2026-10-22' }),
+    );
+
+    for (const [conta, cookie] of [
+      ['cto', cookieCto],
+      ['administradora', cookieAdm],
+    ] as const) {
+      como(cookie);
+      for (const decId of [devolvido, arquivado, soCto, soAdm]) {
+        const r = await gerarPedidoNoPainel({ decId });
+        expect(r, `${conta} ${decId}`).toEqual({ ok: false, erro: 'conflito', mensagem: MENSAGENS_PEDIDO.naoAprovado });
+        if (r.ok) continue;
+        expect(erroDoPedido(r)).toEqual({ texto: `Não foi possível concluir: ${MENSAGENS_PEDIDO.naoAprovado}`, erros: [], orientacao: null });
+      }
+    }
+    for (const decId of [devolvido, arquivado, soCto, soAdm]) expect(await eventosDoPedido(decId), decId).toEqual([]);
+  });
+
+  it('RF-21: cada geração pela ação grava um pedido_gerado com a pessoa da sessão e sem conteúdo; recusa e conta sem 2FA não gravam', async () => {
+    const decId = await novoPacote('novo_projeto', espConstruida);
+    expect(await eventosDoPedido(decId)).toEqual([]);
+
+    const r1 = await gerarPedidoNoPainel({ decId });
+    como(cookieAdm);
+    const r2 = await gerarPedidoNoPainel({ decId });
+    expect(r1.ok).toBe(true);
+    expect(r2).toEqual(r1);
+    expect((await eventosDoPedido(decId)).map((e) => [e.atorTipo, e.atorId, e.entidade, e.demandaId, e.antes, e.depois])).toEqual([
+      ['pessoa', cto.usuarioId, 'pacote_decisao', decId.slice('DEC-'.length, decId.lastIndexOf('-v')), null, null],
+      ['pessoa', adm.usuarioId, 'pacote_decisao', decId.slice('DEC-'.length, decId.lastIndexOf('-v')), null, null],
+    ]);
+
+    // C-04: com senha certa e sem 2FA a ação não roda, e nada é gravado.
+    const sem2fa = await criarPessoa(deps, { papel: 'cto', com2fa: false });
+    como(sem2fa.cookie);
+    expect(await gerarPedidoNoPainel({ decId })).toMatchObject({ ok: false, erro: 'sem_2fa' });
+    expect(await eventosDoPedido(decId)).toHaveLength(2);
+
+    // Recusa pelo C-28 (422) também não grava.
+    como(cookieCto);
+    const comEmail = await novoPacote('novo_projeto', { ...espConstruida, descricaoObjetiva: `Falar com ${EMAIL_FICTICIO} (fictício)` });
+    expect(await gerarPedidoNoPainel({ decId: comEmail })).toMatchObject({ ok: false, erro: 'nao_processavel' });
+    expect(await eventosDoPedido(comEmail)).toEqual([]);
+  });
+
+  it('C-21: uma linha de log por chamada, só com a ação, o tempo, o tipo de ator e o código; nenhum log leva o id, o JSON nem o e-mail do 422', async () => {
+    const aprovado = await novoPacote('novo_projeto', espConstruida);
+    const comEmail = await novoPacote('novo_projeto', { ...espConstruida, descricaoObjetiva: `Falar com ${EMAIL_FICTICIO} (fictício)` });
+    const linhas: string[] = [];
+    substituirDestinoDoLog({
+      write: (l) => {
+        linhas.push(l);
+      },
+    });
+    let json = '';
+    try {
+      const r = await gerarPedidoNoPainel({ decId: aprovado });
+      if (r.ok) json = r.dados.json;
+      await gerarPedidoNoPainel({ decId: comEmail });
+      pedido.cabecalhos = new Headers();
+      await gerarPedidoNoPainel({ decId: aprovado });
+    } finally {
+      substituirDestinoDoLog(null);
+    }
+    expect(json).not.toBe('');
+
+    const daAcao = linhas.map((l) => JSON.parse(l) as Record<string, unknown>).filter((l) => l.evento === 'acao_painel');
+    expect(daAcao.map((l) => [l.rota, l.atorTipo, l.codigoErro])).toEqual([
+      ['gerar_pedido_construcao', 'pessoa', undefined],
+      ['gerar_pedido_construcao', 'pessoa', 'nao_processavel'],
+      ['gerar_pedido_construcao', 'anonimo', 'nao_autenticado'],
+    ]);
+    for (const l of daAcao) {
+      const campos = Object.keys(l).filter((k) => !['level', 'time', 'msg'].includes(k));
+      expect(campos.filter((k) => !['evento', 'rota', 'ms', 'atorTipo', 'codigoErro'].includes(k))).toEqual([]);
+    }
+    const textoDaAcao = daAcao.map((l) => JSON.stringify(l)).join('\n');
+    for (const id of [aprovado, comEmail]) expect(textoDaAcao, id).not.toContain(id);
+    const tudo = linhas.join('\n');
+    for (const proibido of [EMAIL_FICTICIO, 'sistema-ficticio', 'Portal de acompanhamento', '"pedido":', json.trim()]) expect(tudo, proibido).not.toContain(proibido);
   });
 });
