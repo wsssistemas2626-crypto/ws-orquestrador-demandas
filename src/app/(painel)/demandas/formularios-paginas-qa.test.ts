@@ -296,8 +296,13 @@ describe('T05 ([id]/page.tsx): o destino da T04 e da T06', () => {
     mObter.mockResolvedValue(demanda({ titulo: 'Título <b>fictício</b>', status: 'em_analise', rascunhoAgente: true }));
     const p = await detalhe(ID);
     expect(mExigirNaPagina).toHaveBeenCalledExactlyOnceWith(`/demandas/${ID}`);
-    // ler_demanda é a primeira; a T40 autoriza depois o histórico (ler_historico) para as outras leituras.
+    // ler_demanda é a primeira; a T40 autoriza depois o histórico (ler_historico) para as outras leituras. A lista é a
+    // exata (06-T40-testes): sem ESP, nenhuma outra autorização, como a "única" que a T39 conferia.
     expect(mAutorizar).toHaveBeenNthCalledWith(1, CTO, 'ler_demanda');
+    expect(mAutorizar.mock.calls).toEqual([
+      [CTO, 'ler_demanda'],
+      [CTO, 'ler_historico'],
+    ]);
     expect(p).toContain('<h1>Título &lt;b&gt;fictício&lt;/b&gt;</h1>');
     expect(p).toContain(ROTULO_STATUS.em_analise);
     expect(p).toContain(SELO_RASCUNHO.texto);
