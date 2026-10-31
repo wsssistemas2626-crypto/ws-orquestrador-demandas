@@ -2,9 +2,12 @@
 //   1. Postgres 16 descartável pelo Testcontainers, com o papel do app criado antes da migration (ADR-03);
 //   2. migrations e filas com o migrator (scripts/migrate.ts);
 //   3. seed fictício (scripts/seed-ficticio.ts), com SEED_FICTICIO=1 só aqui dentro, nunca no ambiente do processo;
-//   4. `next dev` na porta 3101, preso em 127.0.0.1, com DATABASE_URL do papel do app e segredo fictício.
-// O app recebe um ambiente montado do zero: só PATH, HOME e as três variáveis dele. Nenhuma chave de provedor de IA ou
-// de e-mail chega ao processo, nem a URL do migrator (C-27, RNF-14). Credenciais e segredo valem só para este banco.
+//   4. `next build` e depois `next start` na porta 3101, preso em 127.0.0.1, com DATABASE_URL do papel do app e segredo
+//      fictício. É o build de produção, como na homologação (08-correcao): o `next dev` do Next 16.4.1 recarregava a
+//      página sozinho no meio do teste, e trocava o Cache-Control da página por cima do no-store do proxy (M-04).
+// O build e o app recebem um ambiente montado do zero: só PATH, HOME e as três variáveis do app. Nenhuma chave de
+// provedor de IA ou de e-mail chega ao processo, nem a URL do migrator (C-27, RNF-14). Credenciais e segredo valem só
+// para este banco.
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -61,8 +64,12 @@ async function semear(urlApp: string): Promise<void> {
   }
 }
 
-function subirNext(urlApp: string): ChildProcess {
-  const binNext = createRequire(import.meta.url).resolve('next/dist/bin/next');
+const binNext = () => createRequire(import.meta.url).resolve('next/dist/bin/next');
+
+// `Record` em vez de `NodeJS.ProcessEnv` pelo mesmo motivo de lerConfigApp (NODE_ENV obrigatório nos tipos do Next);
+// `next build` e `next start` definem o NODE_ENV deles (production). O BETTER_AUTH_URL já vai ao build: a lista de
+// origens das Server Actions (next.config.ts, C-15) é lida nele.
+function ambienteDoApp(urlApp: string): NodeJS.ProcessEnv {
   const env: Record<string, string | undefined> = {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
@@ -71,9 +78,19 @@ function subirNext(urlApp: string): ChildProcess {
     BETTER_AUTH_URL: URL_BASE,
     BETTER_AUTH_SECRET: SEGREDO_FICTICIO,
   };
-  // `Record` em vez de `NodeJS.ProcessEnv` pelo mesmo motivo de lerConfigApp (NODE_ENV obrigatório nos tipos do Next);
-  // o `next dev` define o NODE_ENV dele.
-  return spawn(process.execPath, [binNext, 'dev', '-p', PORTA, '-H', HOST], { stdio: 'inherit', env: env as NodeJS.ProcessEnv });
+  return env as NodeJS.ProcessEnv;
+}
+
+async function construirNext(urlApp: string): Promise<void> {
+  const build = spawn(process.execPath, [binNext(), 'build'], { stdio: 'inherit', env: ambienteDoApp(urlApp) });
+  // Encerrado no meio do build (SIGTERM do Playwright), o build também para.
+  next = build;
+  const codigo = await new Promise<number | null>((resolver) => build.on('exit', resolver));
+  if (codigo !== 0) throw new Error('e2e: o next build falhou');
+}
+
+function subirNext(urlApp: string): ChildProcess {
+  return spawn(process.execPath, [binNext(), 'start', '-p', PORTA, '-H', HOST], { stdio: 'inherit', env: ambienteDoApp(urlApp) });
 }
 
 let banco: StartedPostgreSqlContainer | null = null;
@@ -103,6 +120,7 @@ try {
   await migrar(urlMigrator);
   const urlApp = urlDoApp(urlMigrator);
   await semear(urlApp);
+  await construirNext(urlApp);
   next = subirNext(urlApp);
   next.on('exit', (codigo) => void encerrar(codigo ?? 1));
 } catch (e) {

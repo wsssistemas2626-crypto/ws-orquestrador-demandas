@@ -133,13 +133,15 @@ const DEMANDAS: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
 // Demandas próprias de testes do e2e que aprovam um DEC (08-correcao): com A-02, a demanda só tem um DEC aprovado, então
 // cada um desses testes precisa de uma demanda só dele. Elas vêm do seed, e não da API, para o e2e não gastar o limite
 // de demandas por hora da conta (C-36). Nascem sem ESP, RSK nem DEC; o teste cria os dele. Os títulos são os que
-// e2e/decisao.spec.ts e e2e/pedido-construcao.spec.ts procuram.
+// e2e/decisao.spec.ts, e2e/pedido-construcao.spec.ts e e2e/axe-todas.spec.ts procuram. A `axeSoCto` recebe o DEC de
+// pessoa de nível cto da T11 da axe-todas (o DEC de agente nasce "CTO e administradora", A-04).
 export const TITULOS_DO_E2E = {
   duplaAprovacao: 'Dupla aprovação do pacote (fictício)',
   pedidoGerar: 'Portal do pedido: gerar e baixar (fictício)',
   pedidoCopiar: 'Portal do pedido: copiar o JSON (fictício)',
   pedidoValidacao: 'Portal do pedido: validação do /construir (fictício)',
   pedidoEstudo: 'Estudo do pedido de construção (fictício)',
+  axeSoCto: 'Pacote só do CTO no axe (fictício)',
 } as const;
 
 // Todas com contexto: a `descricao` do Pedido de Construção sai dele, e o validarPedido recusa descrição vazia.
@@ -169,6 +171,14 @@ const DEMANDAS_DO_E2E: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
     linhaServicoProvavel: 'sob_medida',
     contexto: 'A equipe quer comparar formas de atendimento antes de construir.',
   },
+  {
+    titulo: TITULOS_DO_E2E.axeSoCto,
+    tipo: 'melhoria',
+    solicitanteNome: 'Pessoa Ficticia Produto',
+    solicitantePapel: 'produto',
+    linhaServicoProvavel: 'sob_medida',
+    contexto: 'Ajuste pequeno, sem compromisso com o cliente: basta a aprovação do CTO.',
+  },
 ];
 
 // Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e.
@@ -189,9 +199,12 @@ function codigosDeRecuperacao(): string[] {
   });
 }
 
-async function criarContas(t: Transacao, deps: DepsDoSeed): Promise<AtorPessoa> {
+type PessoasDoSeed = { cto: AtorPessoa; sem2fa: AtorPessoa };
+
+async function criarContas(t: Transacao, deps: DepsDoSeed): Promise<PessoasDoSeed> {
   const ctx = await deps.auth.$context;
   let cto: AtorPessoa | null = null;
+  let sem2fa: AtorPessoa | null = null;
   for (const conta of Object.values(CONTAS_FICTICIAS)) {
     const usuarioId = randomUUID();
     const hash = await ctx.password.hash(conta.senha);
@@ -213,13 +226,14 @@ async function criarContas(t: Transacao, deps: DepsDoSeed): Promise<AtorPessoa> 
       );
     }
     if (conta === CONTAS_FICTICIAS.cto) cto = { tipo: 'pessoa', usuarioId, nome: conta.nome, papel: 'cto' };
+    if (conta === CONTAS_FICTICIAS.sem2fa) sem2fa = { tipo: 'pessoa', usuarioId, nome: conta.nome, papel: 'cto' };
   }
-  if (!cto) throw new Error('seed: conta cto não criada');
-  return cto;
+  if (!cto || !sem2fa) throw new Error('seed: conta cto ou sem2fa não criada');
+  return { cto, sem2fa };
 }
 
-async function criarDemandas(t: Transacao, deps: DepsDoSeed, cto: AtorPessoa): Promise<number> {
-  const entradas: CriarDemanda[] = [...DEMANDAS, ...DEMANDAS_DO_E2E].map((d) => criarDemandaSchema.parse(d));
+async function criarDemandas(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: PessoasDoSeed): Promise<number> {
+  const entradas: CriarDemanda[] = DEMANDAS.map((d) => criarDemandaSchema.parse(d));
   const [primeira, ...resto] = entradas;
   if (!primeira) return 0;
   // A demanda da pessoa, e o rascunho dos três agentes pelo mesmo caminho do worker (serviço da API com o ator agente).
@@ -235,7 +249,11 @@ async function criarDemandas(t: Transacao, deps: DepsDoSeed, cto: AtorPessoa): P
     t,
   );
   for (const e of resto) await criarDemanda(deps, cto, e, t);
-  return entradas.length;
+  // As do e2e pela conta fictícia `sem2fa` (papel cto): o seed grava com a hora do sistema, e elas entrariam no limite
+  // de 30 demandas por hora (C-36) da conta autora. A "cto" e a "administradora" já gastam esse limite nas specs; a
+  // `sem2fa` nunca cria demanda no e2e. O limite e a regra de autoria não mudam.
+  for (const d of DEMANDAS_DO_E2E) await criarDemanda(deps, sem2fa, criarDemandaSchema.parse(d), t);
+  return entradas.length + DEMANDAS_DO_E2E.length;
 }
 
 export async function seedFicticio(deps: DepsDoSeed, env: Record<string, string | undefined>): Promise<ResultadoSeed> {
@@ -248,9 +266,9 @@ export async function seedFicticio(deps: DepsDoSeed, env: Record<string, string 
     const [d] = await t.tx.select({ n: count() }).from(demanda);
     const [u] = await t.tx.select({ n: count() }).from(user);
     if ((d?.n ?? 0) > 0 || (u?.n ?? 0) > 0) return { status: 'recusado', demandas: 0 };
-    const cto = await criarContas(t, deps);
+    const pessoas = await criarContas(t, deps);
     await definirPrecoModelo(deps, { modelo: MODELO_FICTICIO, ...PRECO_FICTICIO }, t);
-    return { status: 'semeado', demandas: await criarDemandas(t, deps, cto) };
+    return { status: 'semeado', demandas: await criarDemandas(t, deps, pessoas) };
   });
   log.info({
     evento: 'seed_ficticio',
@@ -262,7 +280,7 @@ export async function seedFicticio(deps: DepsDoSeed, env: Record<string, string 
 }
 
 const MENSAGENS: Record<ResultadoSeed, string> = {
-  semeado: 'Dados fictícios criados: quatro contas @ficticio.test, o preço do modelo fictício e cinco demandas.\n',
+  semeado: `Dados fictícios criados: quatro contas @ficticio.test, o preço do modelo fictício e ${TOTAL_DEMANDAS_DO_SEED} demandas.\n`,
   recusado: 'Seed fictício não rodou: ele exige SEED_FICTICIO=1 e um banco sem nenhuma demanda e sem nenhuma conta. Nada foi alterado.\n',
 };
 

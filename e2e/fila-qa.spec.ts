@@ -71,6 +71,10 @@ test('"Filtrar" sem mudar nada fica no mesmo endereço e leva o foco ao resultad
   await entrarComo(page, 'cto');
   await page.goto('/demandas');
   await expect(page.locator('main caption')).toHaveText(LEGENDA_TODAS);
+  // A Região de aviso só ganha "N demandas encontradas." no navegador, depois que o React assume a página. No build de
+  // produção (`next start`, 08-correcao), o HTML chega antes disso, e um clique cedo vira o GET comum do formulário
+  // (`?status=&tipo=&linhaServicoProvavel=`), que é o caminho sem script, conferido no fim deste arquivo.
+  await expect(page.locator('main').getByRole('status')).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
   await page.getByRole('button', { name: 'Filtrar' }).click();
   await expect(page).toHaveURL(/\/demandas$/);
   await expect(page.getByText(LEGENDA_TODAS)).toBeFocused();

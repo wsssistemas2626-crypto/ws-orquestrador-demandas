@@ -43,6 +43,14 @@ const ESQUEMA = z.object({
   NODE_ENV: z.string().optional(),
 });
 
+// 08-correcao: o cookie Secure segue o protocolo do BETTER_AUTH_URL (auth.ts). Em produção, http só no loopback, que
+// não passa pela rede (o e2e com `next start` em http://127.0.0.1:3101); fora dele, a produção exige https.
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const httpForaDoLoopback = (url: string): boolean => {
+  const u = new URL(url);
+  return u.protocol === 'http:' && !LOOPBACK.has(u.hostname);
+};
+
 export class ErroConfiguracao extends Error {
   constructor(readonly variaveis: string[]) {
     super(`Configuração inválida nas variáveis de ambiente: ${variaveis.join(', ')}`);
@@ -62,6 +70,7 @@ export function lerConfigApp(env: Record<string, string | undefined> = process.e
     throw new ErroConfiguracao(nomes);
   }
   const v = r.data;
+  if (v.NODE_ENV === 'production' && httpForaDoLoopback(v.BETTER_AUTH_URL)) throw new ErroConfiguracao(['BETTER_AUTH_URL']);
   return {
     urlBase: v.BETTER_AUTH_URL,
     segredoAuth: v.BETTER_AUTH_SECRET,

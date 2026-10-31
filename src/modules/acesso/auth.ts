@@ -1,6 +1,7 @@
 // Better Auth fechado (ADR-11): só e-mail e senha, sem cadastro aberto (C-01), com 2FA por TOTP e mais nada (C-03).
 // O papel é campo do servidor, nunca de entrada (C-02). Sessão de 8 h fixa, cookie HttpOnly e SameSite=Lax, com
-// Secure e prefixo __Secure- em produção (C-07). O segredo TOTP e os códigos de recuperação são cifrados pelo plugin
+// Secure e prefixo __Secure- sempre que o BETTER_AUTH_URL é https (C-07; a produção só sobe com https, ou http no
+// loopback, por lerConfigApp). O segredo TOTP e os códigos de recuperação são cifrados pelo plugin
 // com o BETTER_AUTH_SECRET, conferido no boot por lerConfigApp (C-33).
 //
 // Ganchos (T09): a verificação do código nunca "confia neste dispositivo" (C-05) e respeita o bloqueio por conta de
@@ -21,6 +22,10 @@ import { registrarFalhaDeVerificacao, verificacaoBloqueada, zerarFalhasDeVerific
 
 export const EMISSOR_TOTP = 'WS Orquestrador de Demandas';
 export const DURACAO_SESSAO_S = 60 * 60 * 8;
+
+// 08-correcao: Secure pelo protocolo da URL do app, e não pelo NODE_ENV. Cookie Secure só volta por https: com o NODE_ENV,
+// o build de produção em http://127.0.0.1 (o e2e com `next start`) não mantinha sessão. Com https, nada muda.
+export const usarCookiesSeguros = (urlBase: string): boolean => new URL(urlBase).protocol === 'https:';
 
 // Rotas do plugin twoFactor que conferem um código. `verify-otp` (código por e-mail) não está configurada, mas entra na
 // lista para nunca ficar fora do bloqueio nem do `trustDevice` falso.
@@ -116,7 +121,7 @@ export function criarAuth(op: { db: Db; config: ConfigApp; relogio?: Relogio }) 
       disableOriginCheck: false,
       disableCSRFCheck: false,
       ipAddress: { ipAddressHeaders: [config.cabecalhoIp] },
-      useSecureCookies: config.producao,
+      useSecureCookies: usarCookiesSeguros(config.urlBase),
       cookiePrefix: 'wsod',
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
     },

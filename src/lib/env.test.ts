@@ -73,6 +73,19 @@ describe('lerConfigApp', () => {
     expect(lerConfigApp({ ...base, NODE_ENV: 'test' }).producao).toBe(false);
   });
 
+  // 08-correcao: o cookie Secure segue o protocolo do BETTER_AUTH_URL (auth.ts). Para isso não afrouxar a produção, ela
+  // só sobe com https, ou com http no próprio computador (loopback, que não passa pela rede: o e2e com `next start`).
+  it('produção com http fora do loopback não sobe; com https ou com http em 127.0.0.1, localhost ou ::1, sobe', () => {
+    for (const url of ['http://orquestrador.exemplo.test', 'http://10.0.0.5:3101', 'http://192.168.0.10']) {
+      expect(() => lerConfigApp({ ...base, BETTER_AUTH_URL: url, NODE_ENV: 'production' }), url).toThrow(/BETTER_AUTH_URL/);
+    }
+    for (const url of ['https://orquestrador.exemplo.test', 'http://127.0.0.1:3101', 'http://localhost:3101', 'http://[::1]:3101']) {
+      expect(lerConfigApp({ ...base, BETTER_AUTH_URL: url, NODE_ENV: 'production' }).producao, url).toBe(true);
+    }
+    // Fora da produção, http em qualquer host continua aceito (desenvolvimento e teste).
+    expect(lerConfigApp({ ...base, BETTER_AUTH_URL: 'http://orquestrador.exemplo.test' }).urlBase).toBe('http://orquestrador.exemplo.test');
+  });
+
   it('C-06: cabeçalho do IP configurável, em minúsculas, e recusado se não for nome de cabeçalho', () => {
     expect(lerConfigApp({ ...base, CABECALHO_IP_CLIENTE: 'X-Forwarded-Client-IP' }).cabecalhoIp).toBe('x-forwarded-client-ip');
     expect(() => lerConfigApp({ ...base, CABECALHO_IP_CLIENTE: 'x real ip' })).toThrow(/CABECALHO_IP_CLIENTE/);

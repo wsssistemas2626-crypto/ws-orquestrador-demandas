@@ -79,13 +79,11 @@ test('C-19: /demandas/[id] e GET /api/demandas/:id com CSP de nonce, nosniff, no
     expect(h['x-content-type-options'], caminho).toBe('nosniff');
     expect(h['referrer-policy'], caminho).toBe('no-referrer');
     expect(h['x-frame-options'], caminho).toBe('DENY');
-    // O `next dev` do e2e local troca o Cache-Control da página pelo dele, "no-cache, must-revalidate", por cima do
-    // no-store do src/proxy.ts (achado da T46, nas Pendências da entrega). O sinal do modo é o mesmo do proxy.ts: o
-    // 'unsafe-eval' da CSP só existe em desenvolvimento. Fora dele (homologação, BASE_URL), a página exige no-store; a
-    // API exige no-store sempre (rota()).
-    const desenvolvimento = pagina && (h['content-security-policy'] ?? '').includes("'unsafe-eval'");
-    if (desenvolvimento) expect(h['cache-control'], `${caminho} (next dev)`).toBe('no-cache, must-revalidate');
-    else expect(h['cache-control'], caminho).toContain('no-store');
+    // Página e API exigem no-store sempre (08-correcao, M-04): o e2e local roda contra o build de produção (`next start`,
+    // e2e/servidor.ts), como a homologação, e não mais contra o `next dev`, que trocava o Cache-Control da página. Sem
+    // 'unsafe-eval' na CSP: ele só existe em desenvolvimento (src/proxy.ts).
+    if (pagina) expect(h['content-security-policy'], caminho).not.toContain("'unsafe-eval'");
+    expect(h['cache-control'], caminho).toContain('no-store');
     expect(h['x-powered-by'], caminho).toBeUndefined();
   }
 });

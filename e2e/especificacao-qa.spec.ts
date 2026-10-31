@@ -120,6 +120,16 @@ test('duplo clique em "Gravar": um envio só e uma ESP só; a resposta da Server
   page.on('request', (r) => {
     if (ehServerAction(r)) envios.push(r);
   });
+  // O corpo da Server Action é lido pela rota do teste, que busca a resposta, guarda o texto e a entrega igual ao
+  // navegador: no build de produção (`next start`, 08-correcao), a página navega logo depois, e o navegador descarta o
+  // corpo de quem já saiu da página.
+  const corpos: string[] = [];
+  await page.route('**/*', async (rota) => {
+    if (!ehServerAction(rota.request())) return rota.continue();
+    const resposta = await rota.fetch();
+    corpos.push(await resposta.text());
+    await rota.fulfill({ response: resposta });
+  });
 
   await page.getByLabel('Descrição objetiva (obrigatório)').fill(`Descrição ${SENTINELA} (fictício)`);
   await item1(page, 'Escopo inclui').fill(`Escopo ${SENTINELA} (fictício)`);
@@ -133,7 +143,8 @@ test('duplo clique em "Gravar": um envio só e uma ESP só; a resposta da Server
   // O segundo envio, se houvesse, sairia no segundo clique, antes da resposta do primeiro.
   expect(envios).toHaveLength(1);
   expect(envios[0]!.postData() ?? '').toContain(SENTINELA);
-  const corpo = (await (await envios[0]!.response())?.text()) ?? '';
+  expect(corpos).toHaveLength(1);
+  const corpo = corpos[0]!;
   expect(corpo).toContain(`ESP-${d.id}-v1`);
   expect(corpo).not.toContain(SENTINELA);
   expect((await especificacoes(page, d.id)).map((e) => e.id)).toEqual([`ESP-${d.id}-v1`]);

@@ -52,6 +52,16 @@ test('duplo clique em "Salvar demanda": um envio só e uma demanda só; a respos
   page.on('request', (r) => {
     if (ehServerAction(r)) envios.push(r);
   });
+  // O corpo da Server Action é lido pela rota do teste, que busca a resposta, guarda o texto e a entrega igual ao
+  // navegador: no build de produção (`next start`, 08-correcao), a página navega logo depois, e o navegador descarta o
+  // corpo de quem já saiu da página.
+  const corpos: string[] = [];
+  await page.route('**/*', async (rota) => {
+    if (!ehServerAction(rota.request())) return rota.continue();
+    const resposta = await rota.fetch();
+    corpos.push(await resposta.text());
+    await rota.fulfill({ response: resposta });
+  });
 
   await page.getByLabel('Texto do pedido (opcional)').fill(`Texto fictício. ${SENTINELA_TEXTO}`);
   await page.getByLabel('Nome do solicitante (obrigatório)').fill(SENTINELA_NOME);
@@ -62,8 +72,8 @@ test('duplo clique em "Salvar demanda": um envio só e uma demanda só; a respos
   await expect(page.getByText(ALERTA_CRIADA)).toBeVisible();
   // O segundo envio, se houvesse, sairia no segundo clique, antes da resposta do primeiro.
   expect(envios).toHaveLength(1);
-  const resposta = await envios[0]!.response();
-  const corpo = (await resposta?.text()) ?? '';
+  expect(corpos).toHaveLength(1);
+  const corpo = corpos[0]!;
   expect(corpo).not.toContain(SENTINELA_TEXTO);
   expect(corpo).not.toContain(SENTINELA_NOME);
   expect(await total(page)).toBe(antes + 1);

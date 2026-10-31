@@ -2,10 +2,13 @@
 // cada, com as regras de TAGS_AXE (e2e/apoio.ts). As specs de cada tela já rodam o axe nos estados que só aparecem
 // depois de gravar (decidido, gravado, ligado); esta passa por todas de uma vez, nos estados que se alcançam sem gravar.
 //
-// C-36 (06-T43-tech-lead e 06-T44-tech-lead, "C-36"): esta spec não grava nada. Ela usa as cinco demandas do seed
-// fictício (T33), achadas por GET /api/demandas, e o ESP, o RSK e o DEC de rascunho de agente que o seed grava na demanda
-// de tipo bug. Só faz GET, abre telas e envia formulários vazios ou inválidos, que a validação recusa antes de gravar.
-//   - conta "cto": 0 demandas e 0 versões;
+// C-36 (06-T43-tech-lead e 06-T44-tech-lead, "C-36"): esta spec usa as demandas do seed fictício (T33), achadas por GET
+// /api/demandas, e o ESP, o RSK e o DEC de rascunho de agente que o seed grava na demanda de tipo bug. Fora a T11, só faz
+// GET, abre telas e envia formulários vazios ou inválidos, que a validação recusa antes de gravar. A T11 grava uma vez
+// (08-correcao, A-04): o DEC de agente nasce "CTO e administradora", então o estado "só a aprovação do CTO" da conta
+// administradora precisa de um DEC de pessoa de nível cto, criado pela "cto" (ESP, RSK e DEC) na demanda própria do
+// seed (TITULOS_DO_E2E.axeSoCto), como no P1-b da decisao.spec.
+//   - conta "cto": 0 demandas e 3 versões (a ESP, o RSK e o DEC da T11);
 //   - conta "administradora": 0 demandas e 0 versões.
 // Cuidados de ordem: esta spec roda antes da decisao.spec (ordem alfabética, workers: 1), que precisa do DEC de rascunho
 // do seed pendente. Aqui o diálogo da decisão abre e fecha com "Voltar", e o teste confere pela API que o pacote continua
@@ -39,6 +42,32 @@ async function demandaDoSeed(page: Page, tipo: keyof typeof SEED): Promise<strin
   const d = itens.find((x) => x.titulo === SEED[tipo]);
   if (!d) throw new Error(`e2e: o seed não tem a demanda de tipo ${tipo}`);
   return d.id;
+}
+
+// Título de scripts/seed-ficticio.ts (TITULOS_DO_E2E.axeSoCto): a demanda própria do DEC de nível cto da T11.
+const TITULO_SO_CTO = 'Pacote só do CTO no axe (fictício)';
+
+// ESP, RSK e DEC de pessoa de nível cto na demanda própria; devolve o id do DEC.
+async function decDePessoaSoDoCto(page: Page): Promise<string> {
+  const { itens } = await api<ListaDemandas>(page, 'GET', '/api/demandas?tipo=melhoria&limit=100');
+  const d = itens.find((x) => x.titulo === TITULO_SO_CTO);
+  if (!d) throw new Error('e2e: o seed não tem a demanda do DEC só do CTO');
+  await api(page, 'POST', `/api/demandas/${d.id}/especificacoes`, {
+    descricaoObjetiva: 'Conferir a tela de decisão (fictício).',
+    escopoInclui: ['Tela de decisão (fictício)'],
+    sistemaAlvo: 'sistema-ficticio',
+    repositorioDestino: 'wsssistemas2626-crypto/sistema-ficticio',
+    criteriosAceitePreliminares: ['A tela passa no axe (fictício)'],
+    definicaoDePronto: ['Testes verdes (fictício)'],
+  });
+  await api(page, 'POST', `/api/demandas/${d.id}/pareceres-risco`, { riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' });
+  const dec = await api<Pacote>(page, 'POST', `/api/demandas/${d.id}/pacotes-decisao`, {
+    resumoExecutivo: 'Resumo executivo fictício.',
+    opcaoA: { descricao: 'Opção A (fictício)' },
+    opcaoB: { descricao: 'Opção B (fictício)' },
+    nivelAprovacaoRequerido: 'cto',
+  });
+  return dec.id;
 }
 
 // O axe conta como alvo pequeno o controle que, com a página rolada, fica sob o cabeçalho fixo da moldura (ver a
@@ -270,9 +299,27 @@ test('T11 Decisão: pendente com rascunhos, com erro, com o diálogo aberto e na
   await expect(dialogo).toBeHidden();
   expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
 
+  // Só do CTO: DEC de pessoa de nível cto, criado antes de trocar de conta.
+  const soDoCto = await decDePessoaSoDoCto(page);
+
+  // A administradora no DEC de agente do seed, que nasce "CTO e administradora" (A-04): ela vê as duas aprovações
+  // pendentes e o próprio formulário, sem a frase de P1-b, e nada é registrado (o formulário fica intocado, para a
+  // navegação seguinte não pedir confirmação de saída).
   await entrarComo(page, 'administradora');
   await page.goto(`/pacotes-decisao/${decId}`);
+  await expect(page.getByRole('region', { name: 'Revisão antes de decidir' })).toContainText('Nível de aprovação: CTO e administradora');
+  await expect(page.getByText('CTO: pendente.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Administradora: pendente.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Este pacote exige só a aprovação do CTO.', { exact: true })).toHaveCount(0);
+  await expect(page.locator('main form')).toHaveCount(1);
+  await expect(registrar).toBeVisible();
+  await axe(page, 'T11 na conta administradora, em dupla aprovação');
+  expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
+
+  // A administradora no DEC de nível cto: a frase de P1-b e nenhum formulário.
+  await page.goto(`/pacotes-decisao/${soDoCto}`);
   await expect(page.getByText('Este pacote exige só a aprovação do CTO.', { exact: true })).toBeVisible();
+  await expect(page.locator('main form')).toHaveCount(0);
   await axe(page, 'T11 na conta administradora');
 });
 
