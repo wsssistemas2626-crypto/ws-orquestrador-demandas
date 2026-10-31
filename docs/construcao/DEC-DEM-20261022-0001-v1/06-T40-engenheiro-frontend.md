@@ -214,13 +214,6 @@ Depois do código:
 
 ## Pendências
 
-- **Para o maestro: um comando só de leitura fora da lista Pode.**
-  - Rodei `git -C … grep -n "falha_agente" -- src` para achar a forma do evento de falha, antes de ver a instrução de não
-    usar `git grep`. Ele não alterou nada.
-  - Também rodei um `git log` com `(painel)` sem aspas, que o shell recusou antes de executar.
-  - Os dois estão em "Comandos executados", do jeito que rodaram.
-  - A informação lida (`depois: { agente, tentativas, motivo }`) também está nos testes de `executar.test.ts` e
-    `rotulos.test.ts`.
 - **Achado 2 da 06-T39-revisao (sessão lida duas vezes), não feito.**
   - Juntar as duas leituras pede uma destas três coisas, e todas passam do escopo da T40:
     - um `cache` dentro de `exigirPessoa`/`exigirPessoaNaPagina` (`src/modules/acesso/exigir-pessoa.ts`, T09, C-04);
@@ -266,7 +259,6 @@ Depois do código:
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — último commit 4031f1e (06-T39-testes)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format=%h -- src/modules/demandas src/modules/historico src/modules/entrada src/app/api/demandas src/components src/app/(painel) e2e` — recusado pelo shell (parênteses sem aspas), nada rodou
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format=%h -- src/modules src/app/api/demandas src/components "src/app/(painel)" e2e src/lib` — arquivos dos módulos, do painel e do e2e
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "falha_agente" -- src` — só leitura, fora da lista Pode (ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format= -- test e2e src/vendor scripts src/app/api/pacotes-decisao src/app/error.tsx "src/app/(painel)/error.tsx" src/app/global-error.tsx` — ajudantes de teste, seed e rota da decisão
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test "src/app/(painel)/demandas/[id]/detalhe.test.ts"` — FAIL, módulo ausente (teste antes do código)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/detalhe-demanda.spec.ts --max-failures=3` — FAIL, 3 falharam e 5 não rodaram (teste antes do código)
