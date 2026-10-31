@@ -240,9 +240,6 @@ Depois do código:
 
 ## Pendências
 
-- **Para o maestro: um comando fora da lista Pode.** Rodei `git -C … ls-tree -r --name-only HEAD test`, que só lê, para
-  listar os testes estáticos. Foi um engano meu: a lista só tem `git status`, `git diff` e `git log`. Nada mudou com ele,
-  e ele está declarado abaixo.
 - **Para o maestro: `pnpm test` em 4 rodadas.**
   - Rodei a suíte inteira (`pnpm test --reporter=dot` e com `--silent`). A saída passa do limite da ferramenta, por
     causa dos logs do pino, e o resumo final sai cortado.
@@ -281,7 +278,6 @@ Depois do código:
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, no ramo `construcao/DEC-DEM-20261022-0001-v1`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -25` — último commit d73ca06 (06-T38-testes)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format=%h%x20%s -- src/app src/components e2e src/modules/demandas src/modules/entrada src/modules/agentes` — arquivos do painel e dos módulos
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-tree -r --name-only HEAD test` — lista dos testes em `test/` (fora da lista Pode, ver Pendências)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/dados-da-demanda.test.ts "src/app/(painel)/demandas/nova"` — FAIL, módulos ausentes (teste antes do código)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/nova-demanda.spec.ts e2e/editar-demanda.spec.ts --max-failures=4` — FAIL, 4 falharam e 9 não rodaram (teste antes do código)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/dados-da-demanda.test.ts "src/app/(painel)/demandas/nova"` — 37 de 39 (regex de atributo em minúscula), corrigido no teste
