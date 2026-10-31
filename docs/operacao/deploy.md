@@ -7,6 +7,8 @@
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
+| Atualizado em | 31/10/2026 (`documentacao-tecnica`: requisitos de operação na seção 3 e rota `/configuracao/agentes`) |
+| Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
 
@@ -37,7 +39,8 @@ sobrescrito no próximo deploy.
 | `worker` | App, origem "Docker image" | a mesma imagem, comando `pnpm worker` | **1** | sem domínio e sem porta |
 
 - **Uma réplica de cada.** O limite de login é em memória (ADR-11), e a fila dos agentes conta com um worker só para
-  respeitar o teto de gasto (02, seção 8). O painel `/configuracao` avisa quando duas instâncias de worker batem.
+  respeitar o teto de gasto (02, seção 8). O painel `/configuracao/agentes` avisa quando duas instâncias de worker
+  batem.
 - **A porta do app só pelo Traefik (B-03).** Não publicar a 3101 no host (campo "Ports" vazio). O limite por IP lê o
   cabeçalho `x-real-ip`, que o Traefik sobrescreve; com a porta exposta direto, qualquer cliente forja o cabeçalho e
   escapa do limite.
@@ -79,6 +82,18 @@ Rotação:
 - Senhas do banco: `ALTER ROLE ... PASSWORD` no `db` e, em seguida, a variável no Easypanel e o deploy do serviço.
 - Webhooks: regenerar no Easypanel e atualizar o segredo no GitHub.
 - Chaves do Resend e da Anthropic: no painel do provedor, depois a variável do worker.
+
+Requisitos de operação que o código supõe:
+
+- **HTTPS com HSTS.** O Traefik do Easypanel termina o HTTPS do domínio do `app`. Em produção, o próprio app manda
+  `Strict-Transport-Security: max-age=63072000; includeSubDomains` (`next.config.ts`).
+- **SPF e DKIM do remetente.** O domínio de `EMAIL_REMETENTE` precisa estar verificado no Resend, com SPF e DKIM, antes
+  de definir `RESEND_API_KEY` no worker. Sem isso, o aviso de DEC pronto pode cair em spam ou ser recusado.
+- **Backup com retenção de no máximo 30 dias.** O backup guarda o texto bruto das demandas, que é dado pessoal de
+  terceiro. Com o expurgo de 90 dias (`RETENCAO_TEXTO_BRUTO_DIAS`) e o backup de até 30, o texto bruto some de vez em
+  até 120 dias. A rotação (apagar backup e snapshot com mais de 30 dias) é de Fabiano.
+- **Agentes desligados.** Na 0.1.0, `ANTHROPIC_API_KEY` fica ausente e os quatro agentes, desligados. As
+  pré-condições para ligar estão no [manual técnico, cap. 06](../manual-tecnico/06-agentes-de-ia.md#pré-condições-para-ligar-qualquer-agente-em-produção).
 
 ## 4. Primeira publicação (versão 0.1.0)
 
@@ -173,7 +188,7 @@ volta dela **exige restaurar o backup tirado antes da publicação**.
 1. `GET https://<domínio>/api/saude` responde 200 `{"status":"ok"}`. 503 = banco fora ou migration diferente da imagem.
 2. Logs do `app` e do `worker` no Easypanel sem `worker_configuracao_invalida` nem `worker_falha_ao_subir` (as
    mensagens citam só o nome da variável).
-3. Em `/configuracao`, batimento do worker com menos de 5 minutos e uma instância só.
+3. Em `/configuracao/agentes`, batimento do worker com menos de 5 minutos e uma instância só.
 4. Entrar com uma conta real (senha e 2FA) e abrir a fila de demandas.
 
 ## 9. Alertas mínimos
@@ -181,7 +196,7 @@ volta dela **exige restaurar o backup tirado antes da publicação**.
 | Sinal | Limiar | Ação |
 |---|---|---|
 | `/api/saude` diferente de 200 | 3 falhas seguidas em 5 min | Logs do `app` e do `db`; se veio de deploy, seção 6 |
-| Batimento do worker (`/configuracao`) | mais de 5 min sem bater | Logs do `worker`; deploy do serviço; conferir variáveis |
+| Batimento do worker (`/configuracao/agentes`) | mais de 5 min sem bater | Logs do `worker`; deploy do serviço; conferir variáveis |
 | Duas instâncias de worker | qualquer ocorrência | Conferir réplicas = 1 no Easypanel |
 | Erro novo no Sentry (com DSN) | primeira ocorrência de cada tipo | Triagem pelo `tech-lead`; incidente se afetar decisão ou dado |
 
