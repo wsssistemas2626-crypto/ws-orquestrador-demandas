@@ -3,9 +3,9 @@ pedido: DEC-DEM-20261022-0001-v1
 etapa: 06-T36-revisao
 agente: tech-lead
 leu: [contrato-passagem.md, padrao-tecnico.md, 2026-10-25-ws-orquestrador-demandas-plano.md (G1 a G6, Fase 7, T36 e T37 a T43), 06-T36-engenheiro-frontend.md, passagens.jsonl (linhas do intervalo), 03-ux-ui-design.md (seções 1 a 2.8 e T01), git show ddf673c, git show 9756105, src/modules/limites.ts, src/modules/demandas/gerar-id.ts]
-status: bloqueado
-proximo: tech-lead
-devolvido_para: null
+status: devolvido
+proximo: engenheiro-frontend
+devolvido_para: 06-T36-construcao
 ---
 ## Entrega
 
@@ -14,9 +14,7 @@ só mexem na entrega do engenheiro e em `passagens.jsonl` (`git diff ddf673c 975
 veio vazio).
 
 **Veredito da revisão: `devolvido` para `06-T36-construcao`, `proximo: engenheiro-frontend`**, pelos pareceres
-Important 1 e 2. O status desta entrega é `bloqueado` só pelo motivo da primeira linha de Pendências. Depois que Fabiano
-liberar, a entrega deve ser regravada com `status: devolvido`, `devolvido_para: 06-T36-construcao` e
-`proximo: engenheiro-frontend`, com os pareceres abaixo sem mudança.
+Important 1 e 2.
 
 Portões conferidos nesta revisão: `pnpm test` com 144 arquivos e 2826 de 2826 testes, `pnpm lint` limpo e
 `pnpm typecheck` limpo. O `pnpm test:e2e` não está na minha lista Pode; vale o 5 de 5 declarado pelo engenheiro.
@@ -129,9 +127,8 @@ Não deixou erro. Conferi o arquivo no `9756105`:
 
 ## Pendências
 
-- Bloqueado por dois comandos de só leitura fora da lista Pode: `find …/docs/superpowers/plans -name "*.md"` e `find …/src/modules/demandas -name "*.ts" -not -name "*.test.ts"`. Rodei porque a ferramenta Glob não estava disponível nesta sessão (o erro dela mandava usar `find`). Nenhum arquivo mudou. Depois da liberação, regravar esta entrega com `status: devolvido`, `devolvido_para: 06-T36-construcao` e `proximo: engenheiro-frontend`, sem os dois `find`.
-- Para o engenheiro na volta: corrigir os Important 1 e 2 seguindo o "Caminho" de cada um. Recomendo os Minor 3 a 5 na
-  mesma volta.
+- Devolvido ao engenheiro-frontend por dois pareceres Important. (1) `src/app/(painel)/layout.tsx:29` e `:44` duplicam `LIMITE_AVISO_CAPACIDADE` e a contagem de demandas, que já existem em `src/modules/demandas/gerar-id.ts:17` e `:39` (`totalDeDemandas`). (2) Os avisos de RF-18 e RNF-09 em `src/app/(painel)/layout.tsx:47` e `:62-83` não têm teste. O caminho de cada um está no parecer.
+- Recomendo corrigir os Minor 3 a 5 na mesma volta.
 - 07-qa-funcional: conferir o foco no `h1` ao navegar pelo menu, o diálogo prendendo e devolvendo o foco, e o anúncio
   do contador da `AreaTexto`. São as pendências do engenheiro, e o axe não pega.
 - 09-entrega: conferir, contra o `next start` da homologação, que os scripts levam o nonce da CSP. É pendência do
@@ -141,7 +138,6 @@ Não deixou erro. Conferi o arquivo no `9756105`:
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — último commit 9756105
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat ddf362c 9756105` — 36 arquivos
-- `find /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/superpowers/plans -name "*.md"` — fora da lista Pode (só leitura), ver Pendências
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show ddf673c --stat --format=%H%n%s` — 36 arquivos, código e testes da T36
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 9756105:e2e/servidor.ts` — conferência do texto trocado pelo sed
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff ddf673c 9756105 -- e2e src test playwright.config.ts` — vazio
@@ -155,9 +151,7 @@ Não deixou erro. Conferi o arquivo no `9756105`:
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 9756105:src/components/formulario.test.ts` — testes do padrão de formulário
-- `find /home/deploy/servidor/projetos/ws-orquestrador-demandas/src/modules/demandas -name "*.ts" -not -name "*.test.ts"` — fora da lista Pode (só leitura), ver Pendências
-
 ## Critério de pronto atendido
 
-- [ ] (06 revisão) o checklist da seção 12 do padrão técnico está cumprido, ou o status é `devolvido` — o checklist não
-  está cumprido (Important 1 e 2), e o status fica `devolvido` depois da liberação do bloqueio
+- [x] (06 revisão) o checklist da seção 12 do padrão técnico está cumprido, ou o status é `devolvido`. O status é
+  `devolvido` pelos Important 1 e 2
