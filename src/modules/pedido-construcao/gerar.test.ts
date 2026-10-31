@@ -238,12 +238,14 @@ describe('gerarPedido: determinismo (CA-22.2)', () => {
     expect(JSON.parse(b2).demanda).toMatchObject({ titulo: 'Pedidos duplicados', tipo: 'bug' });
   });
 
-  it('ESP e RSK novos depois da aprovação não mudam o pedido do DEC aprovado: vale o que foi citado', async () => {
+  // Até a 08-correcao, o pedido saía com a ESP e o RSK citados mesmo depois de substituídos. A-03: o DEC fica
+  // desatualizado e o pedido é recusado (409), em vez de mandar ao /construir a versão velha.
+  it('ESP e RSK novos depois da aprovação: o DEC fica desatualizado e o pedido é recusado com 409 (A-03)', async () => {
     const { demandaId, decId } = await prepararAprovado();
-    const a = (await gerarPedido(deps, cto, decId)).json;
+    await gerarPedido(deps, cto, decId);
     await criarEspecificacao(deps, cto, demandaId, criarEspecificacaoSchema.parse({ ...ESP_COMPLETA, sistemaAlvo: 'outro-sistema', repositorioDestino: 'fabianojp06/outro-sistema' }));
     await criarParecerRisco(deps, cto, demandaId, criarParecerRiscoSchema.parse({ ...RSK_PADRAO, riscoJuridicoNivel: 'alto' }));
-    expect((await gerarPedido(deps, administradora, decId)).json).toBe(a);
+    await expect(gerarPedido(deps, administradora, decId)).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_PEDIDO.desatualizado });
   });
 
   it('serializarPedido é JSON.stringify com 2 espaços e uma quebra de linha no fim', async () => {

@@ -17,8 +17,8 @@ const APROVADO = new Date('2026-10-22T18:00:00Z');
 const decidida = (opcaoEscolhida: 'A' | null) => ({ opcaoEscolhida, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO });
 const aprovacaoCto = { papel: 'cto' as const, nome: 'Pessoa Ficticia CTO', opcao: 'A' as const, registradaEm: APROVADO, referenciaDocumento: null, dataDocumento: null };
 
-type Base = Pick<PacoteDecisaoVista, 'statusDecisao' | 'decisao' | 'demandaTipo' | 'aprovadores'>;
-const p = (extra: Partial<Base> = {}): Base => ({ statusDecisao: 'pendente', decisao: null, demandaTipo: 'novo_projeto', aprovadores: [], ...extra });
+type Base = Pick<PacoteDecisaoVista, 'statusDecisao' | 'decisao' | 'demandaTipo' | 'aprovadores' | 'desatualizado'>;
+const p = (extra: Partial<Base> = {}): Base => ({ statusDecisao: 'pendente', decisao: null, demandaTipo: 'novo_projeto', aprovadores: [], desatualizado: false, ...extra });
 
 describe('textos (03, T11 "Pedido de Construção"; 04, C-28)', () => {
   it('os da 03, por inteiro, e o aviso de C-28 do plano', () => {
@@ -65,6 +65,11 @@ describe('secaoDoPedido: só com a decisão aprovada completa', () => {
 
   it('aprovada sem a linha da decisão (vista incoerente): sem seção', () => {
     expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: null }))).toBe('nenhuma');
+  });
+
+  it('A-03 (08-correcao): aprovada e desatualizada (ESP ou RSK mais nova depois da aprovação): sem seção nem botão', () => {
+    expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: decidida('A'), desatualizado: true }))).toBe('nenhuma');
+    expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: decidida('A'), demandaTipo: 'estudo', desatualizado: true }))).toBe('nenhuma');
   });
 });
 

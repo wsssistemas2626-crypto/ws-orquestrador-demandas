@@ -1,12 +1,12 @@
 // Prompt do agente de consolidação (RF-10, RF-16). Fonte: o Orquestrador Central da estrutura (CLAUDE.md da
 // estruturaAutonoma): consolidar o que os departamentos entregaram numa resposta coerente e sinalizar o que exige decisão
-// humana. Entrada: a demanda, a ESP mais nova e o RSK, minimizados (T24). Saída: `criarPacoteDecisaoSchema`, o mesmo da
-// rota do DEC; a decisão (A, B, devolver ou arquivar) é só de pessoa (RF-13, C-12).
-import { NIVEIS_APROVACAO } from '../db/schema/decisao';
-import type { CriarPacoteDecisao } from '../modules/pacotes-decisao/schemas';
+// humana. Entrada: a demanda, a ESP mais nova e o RSK, minimizados (T24). Saída: `saidaConsolidacaoSchema`, o da rota do
+// DEC sem o nível de aprovação, que nunca vem do modelo (08-correcao, A-04); a decisão (A, B, devolver ou arquivar) é
+// só de pessoa (RF-13, C-12).
+import type { SaidaConsolidacao } from '../modules/agentes/schemas';
 import { montarPrompt } from './comum';
 
-const exemploSaida: CriarPacoteDecisao = {
+const exemploSaida: SaidaConsolidacao = {
   resumoExecutivo:
     'O cliente tem pedidos do marketplace duplicados no ERP. A ESP propõe conferir o código do pedido antes de criar no ERP e listar os duplicados. O principal risco é operacional: a duplicação segue enquanto a correção não entra.',
   opcaoA: {
@@ -22,7 +22,6 @@ const exemploSaida: CriarPacoteDecisao = {
     quandoEscolher: 'Quando a duplicação ainda estiver afetando o faturamento.',
   },
   recomendacao: 'Opção B: o parecer de risco aponta risco operacional alto enquanto a duplicação continua.',
-  nivelAprovacaoRequerido: 'cto',
 };
 
 export const PROMPT_CONSOLIDACAO = montarPrompt({
@@ -34,7 +33,6 @@ export const PROMPT_CONSOLIDACAO = montarPrompt({
     'opcaoA e opcaoB (as duas obrigatórias): cada uma com descricao (obrigatória), vantagens, desvantagens e quandoEscolher. As duas opções precisam ser caminhos reais e diferentes, como escopo completo ou escopo reduzido, ou construir agora ou depois.',
     'Recusar as duas opções é decisão de quem decide (devolver ou arquivar); não use uma das opções para isso.',
     'recomendacao: qual opção você recomenda e por quê, em poucas frases, com base na ESP e no RSK. A recomendação não é decisão: quem decide é uma pessoa, no painel.',
-    `nivelAprovacaoRequerido (obrigatório), um destes: ${NIVEIS_APROVACAO.join(', ')}. Use cto_e_administradora quando a decisão gerar compromisso contratual ou financeiro relevante, envolver dado pessoal de terceiro, o RSK tiver risco jurídico alto ou o RSK disser que o caso deve ir à administradora. Nos outros casos, cto. Na dúvida, cto_e_administradora.`,
     'Não acrescente fato que não esteja na demanda, na ESP ou no RSK.',
   ],
   exemploSaida,

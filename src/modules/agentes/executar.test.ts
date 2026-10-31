@@ -274,6 +274,15 @@ describe('executarAgente: caminho feliz e uso (RF-16, RF-17)', () => {
     expect(await execucao(idDec)).toMatchObject({ artefato_id: idVersao('DEC', dem.id, 1) });
   });
 
+  it('A-04 (08-correcao): saída de consolidação que tenta rebaixar o nível para cto → DEC gravado com cto_e_administradora', async () => {
+    const rsk = await criarParecerRisco(base, cto, dem.id, criarParecerRiscoSchema.parse(RSK_VALIDO));
+    await ligar('consolidacao');
+    provedor.respostas.push(resposta({ ...(PROMPTS.consolidacao.exemploSaida as object), nivelAprovacaoRequerido: 'cto' }));
+    const idDec = (await novaExecucao('consolidacao', `rsk:${rsk.id}`))!;
+    expect(await executarAgente(deps, idDec)).toBe('concluida');
+    expect(await obterPacoteDecisao(b.db, idVersao('DEC', dem.id, 1))).toMatchObject({ rascunhoAgente: true, nivelAprovacaoRequerido: 'cto_e_administradora' });
+  });
+
   it('JSON dentro de um bloco de código ainda é lido', async () => {
     provedor.respostas.push(resposta('```json\n' + JSON.stringify(RSK_VALIDO) + '\n```'));
     expect(await executarAgente(deps, (await novaExecucao())!)).toBe('concluida');

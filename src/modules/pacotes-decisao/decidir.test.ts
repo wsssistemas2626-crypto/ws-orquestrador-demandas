@@ -352,10 +352,11 @@ describe('registrarDecisao: rascunhos de agente (CA-13.4)', () => {
     await nadaGravado(decId, demandaId, antes);
   });
 
-  it('com revisouRascunhosDeAgente: true → aprovada, e a aprovação guarda que revisou', async () => {
+  // DEC de agente nasce sempre cto_e_administradora (08-correcao, A-04): a aprovação do CTO é a primeira das duas.
+  it('com revisouRascunhosDeAgente: true → aprovação gravada (parcial, no nível da regra do servidor), e ela guarda que revisou', async () => {
     const { decId } = await prepararDec({ decPor: consolidacao });
     const { resultado } = await registrarDecisao(deps, cto, decId, aprovarA({ revisouRascunhosDeAgente: true }));
-    expect(resultado).toBe('aprovada');
+    expect(resultado).toBe('aprovacao_parcial');
     expect((await aprovacoesDo(decId))[0]).toMatchObject({ revisouRascunhos: true });
   });
 

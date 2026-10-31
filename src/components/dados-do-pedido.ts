@@ -35,9 +35,10 @@ export const TEXTOS_PEDIDO = {
 export type SecaoDoPedido = 'nenhuma' | 'estudo' | 'gerar';
 
 // Só com a decisão aprovada completa (03, T11): a aprovação parcial ainda não tem linha em `decisao`. O tipo que conta
-// é o copiado no pacote, o mesmo que gerarPedido usa (CA-22.3).
-export function secaoDoPedido(p: Pick<PacoteDecisaoVista, 'statusDecisao' | 'decisao' | 'demandaTipo'>): SecaoDoPedido {
-  if (p.statusDecisao !== 'aprovada' || !p.decisao) return 'nenhuma';
+// é o copiado no pacote, o mesmo que gerarPedido usa (CA-22.3). DEC desatualizado (ESP ou RSK mais nova depois da
+// aprovação) não mostra a seção: gerarPedido o recusa com 409 (08-correcao, A-03).
+export function secaoDoPedido(p: Pick<PacoteDecisaoVista, 'statusDecisao' | 'decisao' | 'demandaTipo' | 'desatualizado'>): SecaoDoPedido {
+  if (p.statusDecisao !== 'aprovada' || !p.decisao || p.desatualizado) return 'nenhuma';
   return p.demandaTipo === 'estudo' ? 'estudo' : 'gerar';
 }
 

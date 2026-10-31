@@ -59,14 +59,16 @@ describe('package.json', () => {
     });
   });
 
+  // next, zod e better-auth subiram na 08-correcao (S-01): next ≤16.4.0, zod 4.6.5 e better-auth 1.7.6 têm
+  // vulnerabilidade conhecida no `pnpm audit --prod`.
   it('dependências de produção nas versões exatas do padrão técnico (RNF-01)', () => {
     expect(pkg.dependencies).toMatchObject({
-      next: '16.3.8',
+      next: '16.4.1',
       react: '19.2.8',
       'react-dom': '19.2.8',
       'drizzle-orm': '0.45.3',
-      zod: '4.6.5',
-      'better-auth': '1.7.6',
+      zod: '4.6.6',
+      'better-auth': '1.7.7',
       'pg-boss': '12.34.0',
       pino: '10.3.1',
       '@sentry/node': '11.4.0',
@@ -84,7 +86,7 @@ describe('package.json', () => {
       '@testcontainers/postgresql': '12.1.0',
       '@playwright/test': '1.63.0',
       '@axe-core/playwright': '4.13.0',
-      'eslint-config-next': '16.3.8',
+      'eslint-config-next': '16.4.1',
     });
     // next e eslint-config-next andam juntos, na mesma versão exata (padrão técnico, seção 1)
     expect(pkg.devDependencies['eslint-config-next']).toBe(pkg.dependencies.next);

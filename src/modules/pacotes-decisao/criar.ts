@@ -8,7 +8,7 @@
 import { desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { especificacaoTecnica, pacoteDecisao, parecerRisco } from '../../db/schema';
-import type { Opcao } from '../../db/schema/decisao';
+import type { NivelAprovacao, Opcao } from '../../db/schema/decisao';
 import { comTransacao, type Transacao } from '../../db/transacao';
 import { ErroDominio } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
@@ -23,6 +23,11 @@ import { obterPacoteDecisao, type PacoteDecisaoVista } from './consultas';
 import type { CriarPacoteDecisao } from './schemas';
 
 export const MENSAGEM_FALTAM_ITENS = 'Faltam itens para o pacote.';
+
+// 08-correcao, A-04: o nível de aprovação nunca vem do modelo. O DEC de agente (pelo worker ou pela rota com token de
+// agente) nasce sempre no nível mais exigente, com a dupla aprovação e o documento assinado (RF-14); o campo que o
+// agente mandar é ignorado. Rebaixar para cto é decisão de pessoa, criando uma versão nova do DEC pelo painel ou pela API.
+export const NIVEL_DO_DEC_DE_AGENTE: NivelAprovacao = 'cto_e_administradora';
 
 // Texto opcional que, aparado, ficou vazio não é gravado: a versão é imutável, e quem lê não precisa tratar '' e null
 // como iguais (mesma regra do RSK).
@@ -69,6 +74,7 @@ export async function criarPacoteDecisao(
   autorizar(ator, 'criar_pacote_decisao');
   const autoria = autoriaDo(ator);
   const rascunhoAgente = autoria.autorTipo === 'agente';
+  const nivelAprovacaoRequerido = rascunhoAgente ? NIVEL_DO_DEC_DE_AGENTE : entrada.nivelAprovacaoRequerido;
   const corpo = async (tr: Transacao): Promise<string> => {
     const { tx } = tr;
     const d = await travarDemanda(tx, demandaId);
@@ -98,7 +104,7 @@ export async function criarPacoteDecisao(
       opcaoA: opcaoGravada(entrada.opcaoA),
       opcaoB: opcaoGravada(entrada.opcaoB),
       recomendacao: preenchido(entrada.recomendacao) ? entrada.recomendacao : null,
-      nivelAprovacaoRequerido: entrada.nivelAprovacaoRequerido,
+      nivelAprovacaoRequerido,
       ...autoria,
       rascunhoAgente,
       execucaoAgenteId: extras.execucaoAgenteId ?? null,
@@ -114,7 +120,7 @@ export async function criarPacoteDecisao(
         entidade: 'pacote_decisao',
         entidadeId: id,
         acao: 'pacote_decisao_criado',
-        depois: { versao, rascunhoAgente, especificacaoId: esp.id, parecerRiscoId: rsk.id, nivelAprovacaoRequerido: entrada.nivelAprovacaoRequerido },
+        depois: { versao, rascunhoAgente, especificacaoId: esp.id, parecerRiscoId: rsk.id, nivelAprovacaoRequerido },
       },
       deps.relogio,
     );

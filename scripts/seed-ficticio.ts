@@ -29,8 +29,8 @@ import { criarDemanda } from '../src/modules/demandas/servico';
 import { criarEspecificacaoSchema } from '../src/modules/especificacoes/schemas';
 import { criarEspecificacao } from '../src/modules/especificacoes/servico';
 import { registrarEvento } from '../src/modules/historico/registrar';
-import { criarPacoteDecisao } from '../src/modules/pacotes-decisao/criar';
-import { criarPacoteDecisaoSchema } from '../src/modules/pacotes-decisao/schemas';
+import { saidaConsolidacaoSchema } from '../src/modules/agentes/schemas';
+import { criarPacoteDecisao, NIVEL_DO_DEC_DE_AGENTE } from '../src/modules/pacotes-decisao/criar';
 import { criarParecerRiscoSchema } from '../src/modules/pareceres-risco/schemas';
 import { criarParecerRisco } from '../src/modules/pareceres-risco/servico';
 import { gravarConta } from './criar-usuario';
@@ -181,7 +181,14 @@ async function criarDemandas(t: Transacao, deps: DepsDoSeed, cto: AtorPessoa): P
   const dem = await criarDemanda(deps, cto, primeira, t);
   await criarEspecificacao(deps, agente('insumo_tecnico'), dem.id, criarEspecificacaoSchema.parse(PROMPTS.insumo_tecnico.exemploSaida), t);
   await criarParecerRisco(deps, agente('risco'), dem.id, criarParecerRiscoSchema.parse(PROMPTS.risco.exemploSaida), t);
-  await criarPacoteDecisao(deps, agente('consolidacao'), dem.id, criarPacoteDecisaoSchema.parse(PROMPTS.consolidacao.exemploSaida), t);
+  // Como no worker: a saída do agente não tem o nível de aprovação, que é o da regra do servidor (08-correcao, A-04).
+  await criarPacoteDecisao(
+    deps,
+    agente('consolidacao'),
+    dem.id,
+    { ...saidaConsolidacaoSchema.parse(PROMPTS.consolidacao.exemploSaida), nivelAprovacaoRequerido: NIVEL_DO_DEC_DE_AGENTE },
+    t,
+  );
   for (const e of resto) await criarDemanda(deps, cto, e, t);
   return entradas.length;
 }

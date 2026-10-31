@@ -13,7 +13,7 @@ import { TIPOS_DEMANDA } from '../db/schema/demandas';
 import { AGENTES, type Agente } from '../modules/acesso/ator';
 import { delimitarComoDado } from '../modules/agentes/entrada-agente';
 import { MAX_TOKENS_TETO, ProvedorAnthropic } from '../modules/agentes/provedor';
-import { LIMITE_FLAG, LIMITE_FLAGS, SCHEMA_DE_SAIDA, saidaOrquestradorSchema } from '../modules/agentes/schemas';
+import { LIMITE_FLAG, LIMITE_FLAGS, SCHEMA_DE_SAIDA, saidaConsolidacaoSchema, saidaOrquestradorSchema } from '../modules/agentes/schemas';
 import { criarDemandaSchema } from '../modules/demandas/schemas';
 import { criarEspecificacaoSchema, validarCamposDeConstrucao } from '../modules/especificacoes/schemas';
 import { criarPacoteDecisaoSchema, opcaoSchema } from '../modules/pacotes-decisao/schemas';
@@ -26,7 +26,8 @@ const FORMA: Record<Agente, Readonly<Record<string, unknown>>> = {
   orquestrador: saidaOrquestradorSchema.shape,
   insumo_tecnico: criarEspecificacaoSchema.shape,
   risco: criarParecerRiscoSchema.shape,
-  consolidacao: criarPacoteDecisaoSchema.shape,
+  // Sem o nível de aprovação (08-correcao, A-04).
+  consolidacao: saidaConsolidacaoSchema.shape,
 };
 
 const comoObjeto = (v: unknown) => v as Record<string, unknown>;
@@ -258,13 +259,19 @@ describe('regras de cada agente: o exemplo obedece ao próprio prompt', () => {
   });
 
   it('consolidação: as duas opções do exemplo são diferentes e cada uma tem os quatro campos da opção', () => {
-    const e = criarPacoteDecisaoSchema.parse(PROMPTS.consolidacao.exemploSaida);
+    const e = saidaConsolidacaoSchema.parse(PROMPTS.consolidacao.exemploSaida);
     expect(e.opcaoA.descricao).not.toBe(e.opcaoB.descricao);
     for (const o of [e.opcaoA, e.opcaoB]) expect(Object.keys(o).sort()).toEqual(Object.keys(opcaoSchema.shape).sort());
   });
 
-  it('consolidação: na dúvida, o nível de aprovação mais alto', () => {
-    expect(PROMPTS.consolidacao.sistema).toMatch(/Na dúvida, cto_e_administradora/);
+  // Até a 08-correcao o prompt pedia o nível ("na dúvida, cto_e_administradora"). A-04: o modelo não escolhe o nível;
+  // o que ele mandar sai no schema, e o serviço grava o da regra do servidor.
+  it('consolidação: o nível de aprovação mandado pelo modelo sai no schema, qualquer que seja', () => {
+    for (const nivel of ['cto', 'cto_e_administradora', 'nenhum']) {
+      const saida = comoObjeto(SCHEMA_DE_SAIDA.consolidacao.parse({ ...comoObjeto(PROMPTS.consolidacao.exemploSaida), nivelAprovacaoRequerido: nivel }));
+      expect(saida).toEqual(PROMPTS.consolidacao.exemploSaida);
+    }
+    expect(Object.keys(criarPacoteDecisaoSchema.shape)).toContain('nivelAprovacaoRequerido');
   });
 
   it('risco: na dúvida entre dois níveis, o mais alto', () => {

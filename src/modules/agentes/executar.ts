@@ -25,8 +25,7 @@ import { marcarPendenteComoFalha } from '../demandas/entradas-pendentes';
 import { criarEspecificacaoSchema } from '../especificacoes/schemas';
 import { criarEspecificacao } from '../especificacoes/servico';
 import { registrarEvento, type AcaoEvento } from '../historico/registrar';
-import { criarPacoteDecisao } from '../pacotes-decisao/criar';
-import { criarPacoteDecisaoSchema } from '../pacotes-decisao/schemas';
+import { criarPacoteDecisao, NIVEL_DO_DEC_DE_AGENTE } from '../pacotes-decisao/criar';
 import { criarParecerRiscoSchema } from '../pareceres-risco/schemas';
 import { criarParecerRisco } from '../pareceres-risco/servico';
 import { obterConfiguracaoAgente } from './configuracao';
@@ -36,7 +35,7 @@ import { confirmarPosse, encerrar, ExecucaoPerdida, reagendar, reivindicar, type
 import { calcularCusto, precoVigente, type PrecoPorMilhao } from './preco';
 import { ErroProvedor, type ProvedorIA, type RespostaDoProvedor } from './provedor';
 import { gravarSaidaOrquestrador } from './saida-orquestrador';
-import { SCHEMA_DE_SAIDA, saidaOrquestradorSchema } from './schemas';
+import { SCHEMA_DE_SAIDA, saidaConsolidacaoSchema, saidaOrquestradorSchema } from './schemas';
 import { situacaoDoTeto } from './teto';
 import { registrarUso } from './uso';
 
@@ -88,10 +87,20 @@ export const DESTINOS: Readonly<Partial<Record<Agente, DestinoDoAgente>>> = Obje
     gravar: async (t, deps, ator, exec, saida) =>
       (await criarParecerRisco(deps, ator, demandaDa(exec), criarParecerRiscoSchema.parse(saida), t, { execucaoAgenteId: exec.id })).id,
   },
+  // A saída não tem o nível de aprovação (A-04): é o da regra do servidor, que o serviço também impõe a todo ator agente.
   consolidacao: {
     schema: SCHEMA_DE_SAIDA.consolidacao,
     gravar: async (t, deps, ator, exec, saida) =>
-      (await criarPacoteDecisao(deps, ator, demandaDa(exec), criarPacoteDecisaoSchema.parse(saida), t, { execucaoAgenteId: exec.id })).id,
+      (
+        await criarPacoteDecisao(
+          deps,
+          ator,
+          demandaDa(exec),
+          { ...saidaConsolidacaoSchema.parse(saida), nivelAprovacaoRequerido: NIVEL_DO_DEC_DE_AGENTE },
+          t,
+          { execucaoAgenteId: exec.id },
+        )
+      ).id,
   },
 });
 

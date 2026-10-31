@@ -5,7 +5,7 @@ import { NIVEIS_APROVACAO } from '../db/schema/decisao';
 import { LINHAS_SERVICO, TIPOS_DEMANDA, URGENCIAS } from '../db/schema/demandas';
 import { NIVEIS_RISCO } from '../db/schema/versoes';
 import { AGENTES, type Agente } from '../modules/acesso/ator';
-import { SCHEMA_DE_SAIDA, saidaOrquestradorSchema } from '../modules/agentes/schemas';
+import { SCHEMA_DE_SAIDA, saidaConsolidacaoSchema, saidaOrquestradorSchema } from '../modules/agentes/schemas';
 import { encontrarDadosPessoais } from '../modules/dados-pessoais/detectores';
 import { criarDemandaSchema } from '../modules/demandas/schemas';
 import { criarEspecificacaoSchema, validarCamposDeConstrucao } from '../modules/especificacoes/schemas';
@@ -65,14 +65,15 @@ it('PROMPTS e SCHEMA_DE_SAIDA têm exatamente os quatro agentes', () => {
   expect(Object.keys(SCHEMA_DE_SAIDA).sort()).toEqual([...AGENTES].sort());
 });
 
-it('SCHEMA_DE_SAIDA usa os mesmos schemas da API (ADR-09)', () => {
-  const esperado: Record<Exclude<Agente, 'orquestrador'>, unknown> = {
+it('SCHEMA_DE_SAIDA usa os mesmos schemas da API (ADR-09); a consolidação, o do DEC sem o nível de aprovação (A-04)', () => {
+  const esperado: Record<Exclude<Agente, 'orquestrador' | 'consolidacao'>, unknown> = {
     insumo_tecnico: criarEspecificacaoSchema,
     risco: criarParecerRiscoSchema,
-    consolidacao: criarPacoteDecisaoSchema,
   };
   for (const [agente, schema] of Object.entries(esperado)) expect(SCHEMA_DE_SAIDA[agente as Agente]).toBe(schema);
   expect(SCHEMA_DE_SAIDA.orquestrador).toBe(saidaOrquestradorSchema);
+  expect(SCHEMA_DE_SAIDA.consolidacao).toBe(saidaConsolidacaoSchema);
+  expect(Object.keys(saidaConsolidacaoSchema.shape).sort()).toEqual(Object.keys(criarPacoteDecisaoSchema.shape).filter((k) => k !== 'nivelAprovacaoRequerido').sort());
 });
 
 it('a saída do orquestrador não tem os campos do solicitante', () => {
@@ -130,8 +131,10 @@ describe('o prompt diz ao modelo os valores que o schema aceita', () => {
   it('risco: os três níveis', () => {
     for (const v of NIVEIS_RISCO) expect(PROMPTS.risco.sistema).toContain(v);
   });
-  it('consolidação: os dois níveis de aprovação', () => {
-    for (const v of NIVEIS_APROVACAO) expect(PROMPTS.consolidacao.sistema).toContain(v);
+  // A-04 (08-correcao): o nível de aprovação não é pedido ao modelo; vem da regra do servidor ou de pessoa.
+  it('consolidação: não pede nem cita os níveis de aprovação', () => {
+    expect(PROMPTS.consolidacao.sistema).not.toContain('nivelAprovacaoRequerido');
+    for (const v of NIVEIS_APROVACAO) expect(PROMPTS.consolidacao.sistema).not.toMatch(new RegExp(`\\b${v}\\b`));
   });
   it('insumo técnico: as contas aceitas para o repositório destino', () => {
     for (const v of DONOS_REPOSITORIO) expect(PROMPTS.insumo_tecnico.sistema).toContain(v);

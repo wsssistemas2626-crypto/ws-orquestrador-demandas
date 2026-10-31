@@ -3,16 +3,19 @@
 //   1. autorizar;
 //   2. o DEC e a trava da demanda, que põe em fila a decisão e a gravação de ESP ou RSK nova (C-13);
 //   3. já decidido → 409 (CA-11.3);
-//   4. desatualizado, relido sob a trava → 409 só para aprovar (CA-12.2, CA-12.3);
-//   5. rascunho de agente citado sem a confirmação de revisão → 400 (CA-13.4);
-//   6. devolvida ou arquivada: grava a decisão, e a demanda muda pelo ator sistema (RF-07);
-//   7. aprovada: o papel é o da conta (C-11, P1-a); nível cto só por conta cto (P1-b); nível cto_e_administradora com
+//   4. não é o DEC mais novo da demanda → 409, em qualquer decisão (08-correcao, A-01): decidir um DEC antigo encerrava
+//      a demanda por cima do mais novo;
+//   5. aprovar com outro DEC da demanda já aprovado → 409 (A-02): nunca dois Pedidos de Construção opostos;
+//   6. desatualizado, relido sob a trava → 409 só para aprovar (CA-12.2, CA-12.3);
+//   7. rascunho de agente citado sem a confirmação de revisão → 400 (CA-13.4);
+//   8. devolvida ou arquivada: grava a decisão, e a demanda muda pelo ator sistema (RF-07);
+//   9. aprovada: o papel é o da conta (C-11, P1-a); nível cto só por conta cto (P1-b); nível cto_e_administradora com
 //      as duas aprovações, a mesma opção e a referência ao documento assinado da administradora. A aprovação não muda
 //      o status da demanda (P1-d).
 // A autoria (quem, com que nome e em nome de quem) vem só do ator da sessão; o corpo não tem esses campos (C-11). O
 // histórico leva papel, opção e a referência ao documento, nunca o comentário (C-30). Aceita a transação de quem chama
 // (G3.8).
-import { eq } from 'drizzle-orm';
+import { and, eq, max, ne } from 'drizzle-orm';
 import { aprovacao, decisao, pacoteDecisao } from '../../db/schema';
 import type { OpcaoDecisao, PapelAprovacao, StatusDecisaoGravado } from '../../db/schema/decisao';
 import { comTransacao, type Transacao } from '../../db/transacao';
@@ -38,6 +41,8 @@ export type ResultadoDecisao = 'aprovada' | 'aprovacao_parcial' | 'devolvida' | 
 export const MENSAGENS_DECISAO = {
   jaDecidido: 'este pacote já tem decisão registrada.',
   desatualizado: 'o pacote está desatualizado e não pode ser aprovado.',
+  naoEhOMaisNovo: 'a demanda tem um pacote mais novo; só o mais novo pode ser decidido.',
+  outroAprovado: 'outro pacote desta demanda já está aprovado.',
   revisarRascunhos: 'Marque que revisou os rascunhos de agente para registrar a decisão.',
   semReferencia: 'Informe o identificador do documento assinado.',
   semDataDocumento: 'Informe a data da assinatura.',
@@ -74,6 +79,22 @@ export function papelDaAprovacao(
   if (pedido === undefined || pedido === ator.papel) return ator.papel;
   if (modo === 'cto_com_referencia' && ator.papel === 'cto') return pedido;
   throw semPermissao();
+}
+
+// Lidos sob a trava da demanda: nenhum DEC novo nem decisão de outro DEC entra até o fim da transação (C-13).
+async function versaoMaisNova(tx: Transacao['tx'], demandaId: string): Promise<number> {
+  const [linha] = await tx.select({ v: max(pacoteDecisao.versao) }).from(pacoteDecisao).where(eq(pacoteDecisao.demandaId, demandaId));
+  return linha?.v ?? 0;
+}
+
+async function temOutroAprovado(tx: Transacao['tx'], demandaId: string, decId: string): Promise<boolean> {
+  const [linha] = await tx
+    .select({ id: pacoteDecisao.id })
+    .from(pacoteDecisao)
+    .innerJoin(decisao, eq(decisao.pacoteDecisaoId, pacoteDecisao.id))
+    .where(and(eq(pacoteDecisao.demandaId, demandaId), ne(pacoteDecisao.id, decId), eq(decisao.statusDecisao, 'aprovada')))
+    .limit(1);
+  return linha !== undefined;
 }
 
 type Contexto = { tr: Transacao; deps: DepsDemanda; pessoa: AtorPessoa; pacote: PacoteDecisaoVista; entrada: RegistrarDecisao };
@@ -188,6 +209,8 @@ export async function registrarDecisao(
     const c: Contexto = { tr, deps, pessoa, pacote, entrada };
 
     if (pacote.decisao) throw conflito(MENSAGENS_DECISAO.jaDecidido);
+    if (pacote.versao < (await versaoMaisNova(tx, pacote.demandaId))) throw conflito(MENSAGENS_DECISAO.naoEhOMaisNovo);
+    if (entrada.statusDecisao === 'aprovada' && (await temOutroAprovado(tx, pacote.demandaId, pacote.id))) throw conflito(MENSAGENS_DECISAO.outroAprovado);
     if (entrada.statusDecisao === 'aprovada' && pacote.desatualizado) throw conflito(MENSAGENS_DECISAO.desatualizado);
     if (pacote.rascunhosCitados.length > 0 && entrada.revisouRascunhosDeAgente !== true) {
       throw camposInvalidos([{ campo: 'revisouRascunhosDeAgente', mensagem: MENSAGENS_DECISAO.revisarRascunhos }]);

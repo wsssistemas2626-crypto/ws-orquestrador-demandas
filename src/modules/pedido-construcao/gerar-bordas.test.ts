@@ -203,6 +203,24 @@ describe('C-28: caminho do dado pessoal em cada parte do pedido (bordas)', () =>
   });
 });
 
+describe('A-03 (08-correcao): DEC aprovado e depois desatualizado não gera pedido', () => {
+  it('ESP v2 gravada depois da aprovação do DEC v1: 409 com a mensagem de desatualizado, sem evento', async () => {
+    const { demandaId, decId } = await prepararAprovado();
+    await criarEspecificacao(deps, cto, demandaId, criarEspecificacaoSchema.parse({ ...ESP_COMPLETA, descricaoObjetiva: 'Corrigir pedidos duplicados, versão 2' }));
+    const e = await erroDe(gerarPedido(deps, cto, decId));
+    expect(e.codigo).toBe('conflito');
+    expect(e.mensagem).toBe(MENSAGENS_PEDIDO.desatualizado);
+    expect(await eventosDoPedido(decId)).toEqual([]);
+  });
+
+  it('RSK v2 gravado depois da aprovação: também 409', async () => {
+    const { demandaId, decId } = await prepararAprovado();
+    await criarParecerRisco(deps, cto, demandaId, criarParecerRiscoSchema.parse({ ...RSK_PADRAO, riscoTecnicoNivel: 'alto' }));
+    const e = await erroDe(gerarPedido(deps, cto, decId));
+    expect(e).toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_PEDIDO.desatualizado });
+  });
+});
+
 describe('dupla aprovação com a opção B (bordas)', () => {
   it('as duas com B, a que completa às 23:59 de São Paulo: "B: <descrição>" e aprovadoEm do dia de São Paulo', async () => {
     const { decId } = await prepararDec({ nivel: 'cto_e_administradora' });

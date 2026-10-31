@@ -1,4 +1,5 @@
-// Schema de saída de cada agente de IA (ADR-09): é o mesmo schema de entrada da rota que grava o artefato. A resposta do
+// Schema de saída de cada agente de IA (ADR-09): é o mesmo schema de entrada da rota que grava o artefato (na consolidação,
+// sem o nível de aprovação, A-04). A resposta do
 // provedor só vira ESP, RSK ou DEC se passar nele (T27); chave desconhecida é descartada pelo `z.object` do Zod 4
 // (C-11, C-25), então nada da saída define autoria, status nem id.
 //
@@ -24,9 +25,16 @@ export const saidaOrquestradorSchema = criarDemandaSchema
 
 export type SaidaOrquestrador = z.output<typeof saidaOrquestradorSchema>;
 
+// A consolidação devolve o DEC sem `nivelAprovacaoRequerido` (08-correcao, A-04): o nível sai de regra do servidor
+// (NIVEL_DO_DEC_DE_AGENTE, em pacotes-decisao/criar.ts) ou de pessoa, nunca do modelo. A chave que o modelo mandar é
+// descartada pelo `z.object`.
+export const saidaConsolidacaoSchema = criarPacoteDecisaoSchema.omit({ nivelAprovacaoRequerido: true });
+
+export type SaidaConsolidacao = z.output<typeof saidaConsolidacaoSchema>;
+
 export const SCHEMA_DE_SAIDA: Readonly<Record<Agente, z.ZodType>> = Object.freeze({
   orquestrador: saidaOrquestradorSchema,
   insumo_tecnico: criarEspecificacaoSchema,
   risco: criarParecerRiscoSchema,
-  consolidacao: criarPacoteDecisaoSchema,
+  consolidacao: saidaConsolidacaoSchema,
 });

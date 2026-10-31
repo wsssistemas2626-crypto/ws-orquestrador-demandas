@@ -1,6 +1,6 @@
 // Geração do Pedido de Construção (RF-22, C-28, ADR-05). Nesta ordem:
 //   1. autorizar: só pessoa (agente e sistema recebem 403, também chamando a função direto);
-//   2. o DEC (404 se não existe) com decisão `aprovada` completa, ou 409 (CA-22.4);
+//   2. o DEC (404 se não existe) com decisão `aprovada` completa, ou 409 (CA-22.4); desatualizado → 409 (A-03);
 //   3. demanda do tipo estudo, pela cópia gravada no DEC → 422 (CA-22.3);
 //   4. a montagem, só com a ESP e o RSK citados no DEC;
 //   5. e-mail, telefone ou CPF em qualquer campo → 422 com o caminho e o tipo, sem o valor (C-28);
@@ -26,6 +26,7 @@ import { serializarPedido } from './serializar';
 // `erros`, que a tela mostra depois de "Erros:".
 export const MENSAGENS_PEDIDO = {
   naoAprovado: MENSAGEM_PEDIDO_SEM_APROVACAO,
+  desatualizado: 'o pacote está desatualizado: a demanda tem ESP ou RSK mais nova que a citada.',
   estudo: 'demanda do tipo estudo não gera Pedido de Construção',
   naoPassou: 'O pedido não passou na validação do /construir. Nada foi entregue.',
 } as const;
@@ -41,6 +42,8 @@ export async function gerarPedido(deps: DepsDemanda, ator: Ator, decId: string, 
   const corpo = async ({ tx }: Transacao): Promise<string> => {
     const dec = await obterPacoteDecisao(tx, decId);
     if (dec.statusDecisao !== 'aprovada') throw new ErroDominio('conflito', MENSAGENS_PEDIDO.naoAprovado);
+    // A-03 (08-correcao): ESP ou RSK gravada depois da aprovação substitui a citada; o pedido não sai com a versão velha.
+    if (dec.desatualizado) throw new ErroDominio('conflito', MENSAGENS_PEDIDO.desatualizado);
     if (dec.demandaTipo === 'estudo') throw new ErroDominio('nao_processavel', MENSAGENS_PEDIDO.estudo);
 
     // Em sequência: `tx` tem uma conexão só.
