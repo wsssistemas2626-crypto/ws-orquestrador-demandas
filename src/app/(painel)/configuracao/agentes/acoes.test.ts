@@ -174,6 +174,134 @@ describe('alternarAgenteNoPainel (T45; RF-19)', () => {
   });
 });
 
+// qa-automacao (06-T45-testes): bordas e falhas que a tela não mostra, pelas mesmas ações, chamadas direto.
+type EventoCompleto = { acao: string; ator_id: string; ocorrido_em: Date; antes: unknown; depois: unknown };
+const eventosCompletos = async (entidade: string): Promise<EventoCompleto[]> =>
+  (
+    await b.poolMigrator.query<EventoCompleto>('select acao, ator_id, ocorrido_em, antes, depois from evento where entidade = $1 order by id', [entidade])
+  ).rows;
+
+describe('salvarTetoNoPainel: bordas e concorrência (qa-automacao)', () => {
+  it('o maior teto que o schema aceita (10 dígitos e 2 casas) cabe no numeric(12, 2) do banco e não vira erro interno', async () => {
+    expect(await salvarTetoNoPainel({ tetoMensal: '9999999999,99' })).toEqual({ ok: true, dados: { tetoMensal: 9999999999.99 } });
+    expect(await tetoNoBanco()).toEqual({ teto: '9999999999.99', atualizado_por: idCto });
+    // Um dígito a mais é recusado antes do banco, com a mensagem de formato.
+    expect(await salvarTetoNoPainel({ tetoMensal: '12345678901' })).toMatchObject({
+      ok: false,
+      erro: 'entrada_invalida',
+      campos: [{ campo: 'tetoMensal', mensagem: MENSAGENS_TETO.formato }],
+    });
+    expect((await tetoNoBanco()).teto).toBe('9999999999.99');
+  });
+
+  it('espaços nas pontas são aceitos e o valor gravado é o número; número em vez de texto é entrada_invalida, e nada muda', async () => {
+    expect(await salvarTetoNoPainel({ tetoMensal: '  7,25  ' })).toEqual({ ok: true, dados: { tetoMensal: 7.25 } });
+    expect((await tetoNoBanco()).teto).toBe('7.25');
+    for (const entrada of [{ tetoMensal: 10 }, { tetoMensal: null }, {}, null, 'texto']) {
+      expect(await salvarTetoNoPainel(entrada), JSON.stringify(entrada)).toMatchObject({ ok: false, erro: 'entrada_invalida' });
+    }
+    expect((await tetoNoBanco()).teto).toBe('7.25');
+    expect(await eventos('configuracao_ia')).toHaveLength(1);
+  });
+
+  it('baixar o teto a 0 também grava, com o antes e o depois no evento e a hora do relógio injetado', async () => {
+    await salvarTetoNoPainel({ tetoMensal: '10' });
+    relogio.avancar(60_000);
+    expect(await salvarTetoNoPainel({ tetoMensal: '0' })).toEqual({ ok: true, dados: { tetoMensal: 0 } });
+    expect(await tetoNoBanco()).toEqual({ teto: '0.00', atualizado_por: idCto });
+    const ev = await eventosCompletos('configuracao_ia');
+    expect(ev.map((e) => [e.acao, e.ator_id, e.antes, e.depois])).toEqual([
+      ['teto_alterado', idCto, { tetoMensal: 0 }, { tetoMensal: 10 }],
+      ['teto_alterado', idCto, { tetoMensal: 10 }, { tetoMensal: 0 }],
+    ]);
+    expect(ev.map((e) => e.ocorrido_em.toISOString())).toEqual(['2026-10-22T12:00:00.000Z', '2026-10-22T12:01:00.000Z']);
+  });
+
+  it('duas gravações ao mesmo tempo entram uma depois da outra: o "antes" da segunda é o "depois" da primeira', async () => {
+    const [r1, r2] = await Promise.all([salvarTetoNoPainel({ tetoMensal: '7' }), salvarTetoNoPainel({ tetoMensal: '9' })]);
+    expect([r1.ok, r2.ok]).toEqual([true, true]);
+    const ev = await eventosCompletos('configuracao_ia');
+    expect(ev).toHaveLength(2);
+    expect(ev[0]!.antes).toEqual({ tetoMensal: 0 });
+    expect(ev[1]!.antes).toEqual(ev[0]!.depois);
+    expect([ev[0]!.depois, ev[1]!.depois]).toEqual(expect.arrayContaining([{ tetoMensal: 7 }, { tetoMensal: 9 }]));
+    expect(Number((await tetoNoBanco()).teto)).toBe((ev[1]!.depois as { tetoMensal: number }).tetoMensal);
+  });
+});
+
+describe('alternarAgenteNoPainel: bordas e concorrência (qa-automacao)', () => {
+  const MODELO_FUTURO = 'modelo-ficticio-futuro';
+  const VIGENCIA_FUTURA = '2026-11-01T03:00:00.000Z';
+
+  it('CA-19.3 por inteiro: quem ligou e desligou e quando, pelo relógio injetado, com o antes e o depois no evento', async () => {
+    await b.poolMigrator.query(`update configuracao_agente set modelo = $1 where agente = 'risco'`, [MODELO]);
+    await alternarAgenteNoPainel({ agente: 'risco', ligado: true });
+    relogio.avancar(90_000);
+    await alternarAgenteNoPainel({ agente: 'risco', ligado: false });
+    const ev = await eventosCompletos('configuracao_agente');
+    expect(ev.map((e) => [e.acao, e.ator_id, e.ocorrido_em.toISOString(), e.antes, e.depois])).toEqual([
+      ['agente_ligado', idCto, '2026-10-22T12:00:00.000Z', { ligado: false, modelo: MODELO }, { ligado: true, modelo: MODELO }],
+      ['agente_desligado', idCto, '2026-10-22T12:01:30.000Z', { ligado: true, modelo: MODELO }, { ligado: false, modelo: MODELO }],
+    ]);
+    const linha = await agenteNoBanco('risco');
+    expect(linha.atualizado_em?.toISOString()).toBe('2026-10-22T12:01:30.000Z');
+    expect(linha.atualizado_por).toBe(idCto);
+  });
+
+  it('ligar o que já está ligado não grava nem gera evento, e a última mudança continua a primeira', async () => {
+    await b.poolMigrator.query(`update configuracao_agente set modelo = $1 where agente = 'risco'`, [MODELO]);
+    await alternarAgenteNoPainel({ agente: 'risco', ligado: true });
+    relogio.avancar(60_000);
+    expect(await alternarAgenteNoPainel({ agente: 'risco', ligado: true })).toEqual({ ok: true, dados: { agente: 'risco', ligado: true } });
+    expect(await eventos('configuracao_agente')).toHaveLength(1);
+    expect((await agenteNoBanco('risco')).atualizado_em?.toISOString()).toBe('2026-10-22T12:00:00.000Z');
+  });
+
+  it('duas tentativas de ligar ao mesmo tempo: as duas respondem ligado, e o histórico tem um evento só', async () => {
+    await b.poolMigrator.query(`update configuracao_agente set modelo = $1 where agente = 'risco'`, [MODELO]);
+    const rs = await Promise.all([alternarAgenteNoPainel({ agente: 'risco', ligado: true }), alternarAgenteNoPainel({ agente: 'risco', ligado: true })]);
+    for (const r of rs) expect(r).toEqual({ ok: true, dados: { agente: 'risco', ligado: true } });
+    const ev = await eventosCompletos('configuracao_agente');
+    expect(ev.map((e) => [e.acao, e.antes])).toEqual([['agente_ligado', { ligado: false, modelo: MODELO }]]);
+  });
+
+  it('modelo com preço que só vale no futuro: 409 com a frase da 03 até a vigência; no instante da vigência, liga', async () => {
+    await b.poolMigrator.query(
+      `insert into preco_modelo (modelo, preco_entrada_por_milhao, preco_saida_por_milhao, vigente_desde) values ($1, 3, 15, $2) on conflict (modelo, vigente_desde) do nothing`,
+      [MODELO_FUTURO, VIGENCIA_FUTURA],
+    );
+    await b.poolMigrator.query(`update configuracao_agente set modelo = $1 where agente = 'orquestrador'`, [MODELO_FUTURO]);
+    expect(await alternarAgenteNoPainel({ agente: 'orquestrador', ligado: true })).toEqual({
+      ok: false,
+      erro: 'conflito',
+      mensagem: 'Não foi possível ligar o agente orquestrador. Ele continua desligado.',
+    });
+    expect((await agenteNoBanco('orquestrador')).ligado).toBe(false);
+    relogio.definir('2026-11-01T02:59:59.999Z');
+    expect(await alternarAgenteNoPainel({ agente: 'orquestrador', ligado: true })).toMatchObject({ ok: false, erro: 'conflito' });
+    expect(await eventos('configuracao_agente')).toEqual([]);
+    relogio.definir(VIGENCIA_FUTURA);
+    expect(await alternarAgenteNoPainel({ agente: 'orquestrador', ligado: true })).toEqual({ ok: true, dados: { agente: 'orquestrador', ligado: true } });
+    expect(await eventos('configuracao_agente')).toHaveLength(1);
+  });
+
+  it('C-12 e C-26 no outro sentido: a administradora também não desliga um agente ligado, e nada muda', async () => {
+    await b.poolMigrator.query(`update configuracao_agente set ligado = true, modelo = $1 where agente = 'risco'`, [MODELO]);
+    como(cookieAdm);
+    expect(await alternarAgenteNoPainel({ agente: 'risco', ligado: false })).toEqual({ ok: false, erro: 'sem_permissao', mensagem: MENSAGENS_ACESSO.sem_permissao });
+    expect(await agenteNoBanco('risco')).toEqual({ ligado: true, modelo: MODELO, atualizado_em: null, atualizado_por: null });
+    expect(await eventos('configuracao_agente')).toEqual([]);
+  });
+
+  it('sem 2FA: sem_2fa no interruptor, e nada muda', async () => {
+    await b.poolMigrator.query(`update configuracao_agente set modelo = $1 where agente = 'risco'`, [MODELO]);
+    como(cookieSem2fa);
+    expect(await alternarAgenteNoPainel({ agente: 'risco', ligado: true })).toMatchObject({ ok: false, erro: 'sem_2fa' });
+    expect((await agenteNoBanco('risco')).ligado).toBe(false);
+    expect(await eventos('configuracao_agente')).toEqual([]);
+  });
+});
+
 describe('C-21: o log das duas ações', () => {
   it('uma linha por chamada, só com a ação, o tempo, o tipo de ator e o código; nada do valor nem do agente', async () => {
     const linhas: string[] = [];

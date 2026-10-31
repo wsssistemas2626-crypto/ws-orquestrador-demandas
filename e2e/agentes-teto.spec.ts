@@ -205,3 +205,15 @@ test('mostra a data do último expurgo ou "O expurgo ainda não rodou."', async 
   // Sem worker (e2e local), o expurgo não rodou; na homologação, o worker pode já ter rodado.
   await expect(page.getByText(/^(Último expurgo do texto recebido: \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}\.|O expurgo ainda não rodou\.)$/)).toBeVisible();
 });
+
+// qa-automacao (06-T45-testes): o estado global que esta spec deixa para as seguintes. Só lê, pela API e pela tela; não
+// cria demanda nem versão (C-36). Passa sozinho também (é o estado do seed), e acusa o `finally` que deixar de restaurar.
+test('depois desta spec: teto 0 e os quatro agentes desligados, como o seed os deixou', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  expect((await api<{ tetoMensal: number }>(page, 'GET', '/api/configuracao/teto')).tetoMensal).toBe(0);
+  for (const c of await agentesDaApi(page)) expect(c.ligado, c.agente).toBe(false);
+  // Os três que nenhum teste liga com sucesso continuam sem mudança gravada.
+  for (const c of (await agentesDaApi(page)).filter((c) => c.agente !== 'risco')) expect(c.atualizadoEm, c.agente).toBeNull();
+  await page.goto('/demandas/nova');
+  await expect(page.getByText('Agente orquestrador desligado. Preencha os campos abaixo.')).toBeVisible();
+});
