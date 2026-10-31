@@ -89,12 +89,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       # Histórico inteiro do ramo (inclui o que veio da main). --redact: o achado sai no log sem o valor.
-      # Imagem por tag; fixar por digest é pendência (docs/operacao/deploy.md).
+      # Imagem fixada por digest (v8.28.0). Regras padrão inteiras (.gitleaks.toml); exceção só por impressão exata,
+      # com triagem do seguranca-aplicacao (.gitleaksignore).
       - name: gitleaks
         run: >-
           docker run --rm -v "${GITHUB_WORKSPACE}:/repo"
-          ghcr.io/gitleaks/gitleaks:v8.28.0
-          git /repo --redact --no-banner --exit-code 1
+          ghcr.io/gitleaks/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854
+          git /repo --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore
+          --redact --no-banner --exit-code 1
 
   imagem:
     name: docker build (sem publicar)

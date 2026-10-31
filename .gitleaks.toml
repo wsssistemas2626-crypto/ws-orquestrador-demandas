@@ -1,0 +1,7 @@
+# Configuração do gitleaks do ws-orquestrador-demandas: as regras padrão, inteiras.
+# Sem [allowlist] por caminho, regra ou commit. Exceção só por impressão exata, em .gitleaksignore,
+# depois de triagem do seguranca-aplicacao.
+title = "ws-orquestrador-demandas"
+
+[extend]
+useDefault = true

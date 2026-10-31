@@ -1,0 +1,15 @@
+# Exceções do gitleaks por impressão exata (commit:arquivo:regra:linha). Nunca por pasta, regra ou commit inteiro.
+# Triagem do seguranca-aplicacao em 31/10/2026, PR #1 (DEC-DEM-20261022-0001-v1): nenhum é segredo real.
+# Linha nova aqui só entra com triagem registrada.
+# Senha de cadastro recusado (CA-01.4); a conta nunca existe.
+672659ddadd43f468ab317891c8393d2e9c3a22d:e2e/entrar.spec.ts:generic-api-key:158
+# Senha de rota de plugin inexistente (C-03, espera 404).
+de8cdecd00f160ddccfa4dd9a84e763980fd1e59:src/modules/acesso/auth-comportamento.test.ts:generic-api-key:116
+# Senha do teste de sign-up fechado (C-01).
+a643bc1a1d953fe9650a06179bb9b75ad123b004:src/modules/acesso/auth.test.ts:generic-api-key:46
+# Sentinela de log (C-21); não tem o formato de token wsod_ válido.
+6372a4ac5e6a008a0837fc91df8fb475243ac516:test/sentinelas.ts:generic-api-key:7
+# Plano: cópia da sentinela de test/sentinelas.ts.
+5f3c9e8361e24a29013ccd5460d8d4511e0129cb:docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md:generic-api-key:401
+# Plano: cópia da senha fictícia do teste C-01.
+5f3c9e8361e24a29013ccd5460d8d4511e0129cb:docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md:generic-api-key:1242

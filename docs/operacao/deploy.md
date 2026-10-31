@@ -206,7 +206,9 @@ O monitor externo da saúde ainda não existe: até lá, a conferência é a da 
 
 - **Actions por SHA:** `actions/checkout@v5` e `actions/setup-node@v5` estão por versão. Trocar cada uma pelo SHA
   completo do commit da versão, com a versão em comentário (`uses: actions/checkout@<sha> # v5.x.y`).
-- **Imagem do gitleaks por digest:** `ghcr.io/gitleaks/gitleaks:v8.28.0` está por tag; fixar por `@sha256:<digest>`.
+- [x] **Imagem do gitleaks por digest (feita em 31/10/2026):** o CI usa
+  `ghcr.io/gitleaks/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854`, o digest
+  que o próprio CI baixou para a tag. As actions por SHA (item acima) continuam pendentes.
 - **Primeira execução do gitleaks:** o repositório tem senhas fictícias de propósito (homologação, seed, e2e). Se o
   gitleaks acusar alguma, a triagem é do `seguranca-aplicacao`; nada entra em lista de exceção sem essa revisão.
 - **Tamanho da imagem:** cerca de 1,74 GB em disco (426 MB comprimidos), porque o worker, a migration e os scripts rodam
