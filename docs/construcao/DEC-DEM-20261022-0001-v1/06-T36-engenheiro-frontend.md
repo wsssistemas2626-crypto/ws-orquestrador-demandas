@@ -3,16 +3,15 @@ pedido: DEC-DEM-20261022-0001-v1
 etapa: 06-T36-construcao
 agente: engenheiro-frontend
 leu: [contrato-passagem.md, pedido.json, padrao-tecnico.md, 05-tech-lead.md, parada-PF-T36.md, 2026-10-25-ws-orquestrador-demandas-plano.md (G1 a G6, Fase 7 e T36, T37, Rastreabilidade), 03-ux-ui-design.md (seções 1, 2, T01 a T07, T11, T12, 5 e Decisões), package.json, vitest.config.ts, eslint.config.mjs, next.config.ts, tsconfig.json, postcss.config.mjs, .gitignore, src/app/layout.tsx, src/app/layout.test.ts, src/app/page.tsx, src/app/page.test.ts, src/app/api/saude/route.ts, src/proxy.ts, src/proxy.test.ts, src/lib/acao-painel.ts, src/lib/deps.ts, src/lib/env.ts, src/lib/erros.ts, src/lib/fila.ts, src/lib/fuso.ts, src/lib/log.ts, src/lib/relogio.ts, src/modules/acesso/ator.ts, src/modules/acesso/auth.ts, src/modules/acesso/exigir-pessoa.ts, src/modules/acesso/mensagens.ts, src/modules/agentes/teto.ts, src/modules/agentes/executar.ts (eventos), src/modules/demandas/consultas.ts, src/modules/demandas/schemas.ts, src/modules/demandas/servico.ts (eventos), src/modules/historico/consultas.ts, src/modules/historico/registrar.ts, src/modules/limites.ts, src/modules/pacotes-decisao/decidir.ts (eventos), src/modules/pedido-construcao/gerar.ts, src/modules/retencao/expurgar.ts, src/db/schema/demandas.ts, src/db/schema/decisao.ts, src/db/schema/versoes.ts, scripts/migrate.ts, scripts/seed-ficticio.ts, scripts/start-hml.ts, scripts/lib/saida.ts, test/setup-global.ts, test/banco.ts, test/auth.ts, test/sessao.ts, test/estatico/exigir-pessoa.test.ts, test/estatico/projeto.test.ts, test/estatico/variaveis.test.ts, test/estatico/varreduras-qa.test.ts, test/estatico/relogio.test.ts, test/estatico/eslint.test.ts]
-status: bloqueado
-proximo: engenheiro-frontend
+status: pronto
+proximo: tech-lead
 devolvido_para: null
 ---
 ## Entrega
 
 A tarefa T36 está feita: design system, moldura do painel, páginas comuns de erro e a infraestrutura do e2e. Os quatro
 portões estão verdes: `pnpm test` (2826 de 2826), `pnpm test:e2e` (5 de 5, com axe), `pnpm lint` e `pnpm typecheck`
-limpos. O `pnpm build` também passa. O status é `bloqueado` só por um comando fora da lista **Pode** (veja a primeira
-linha de Pendências). O código não precisa de mais nada.
+limpos. O `pnpm build` também passa.
 
 ### Arquivos criados
 
@@ -127,7 +126,7 @@ linha de Pendências). O código não precisa de mais nada.
 - `rotuloAtor` com conta sem nome mostra só o papel, e sem nenhum dos dois, "Não informado". Hoje isso não acontece,
   porque o app não apaga conta, mas a tela não quebra se acontecer.
 - `textoDoEvento` cobre os 23 eventos de `AcaoEvento`, porque o `switch` é exaustivo no tipo. Os textos que não estão
-  na 03 estão na pendência 2.
+  na 03 estão na primeira pendência.
 - `entrarComo` manda um `x-real-ip` fictício (198.18.0.0/15) por login. O limite de 10 logins por minuto por IP (C-06)
   passa a não ligar um teste ao outro quando as telas da T37 à T46 somarem dezenas de logins. Atrás de proxy, o
   cabeçalho é trocado pelo IP real.
@@ -139,13 +138,11 @@ linha de Pendências). O código não precisa de mais nada.
   porque precisa continuar encontrável e explicada (03, T05 e T11).
 - A `Paginacao` indisponível é um `<a role="link" aria-disabled="true">` sem `href`, e não um `span`. Assim o
   controle continua com o papel de link no leitor de tela.
+- Nesta etapa rodou também um comando de troca de texto em `e2e/servidor.ts`, arquivo da tarefa, fora da lista Pode.
+  Fabiano liberou esse comando, e a liberação está registrada em `passagens.jsonl`.
 
 ## Pendências
 
-- **Motivo do bloqueio: rodei um comando fora da lista Pode:** ``sed -i 's/contêiner/banco/g'
-  .../e2e/servidor.ts``. Ele trocou o nome de uma variável com acento por `banco`, num arquivo que a tarefa cria e que
-  está na minha lista de edição. O efeito é o mesmo de um Edit, e nada fora desse arquivo mudou. Fabiano decide se a
-  entrega vale como está. Se valer, basta regravar o status para `pronto`, sem nova execução.
 - Textos que não estão na 03, para o `ux-ui-design` confirmar (o código está em `src/components/rotulos.ts`):
   - motivo de `agente_ignorado`: "agente desligado", "modelo sem preço vigente", "provedor de IA não configurado";
   - artefato na falha de agente: "os campos da demanda" (orquestrador), "a especificação técnica" (insumo técnico),
@@ -177,7 +174,6 @@ linha de Pendências). O código não precisa de mais nada.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat=200 4b825dc642cb6eb9a060e54bf8d69288fbe5e1d4 HEAD -- src test e2e scripts public package.json playwright.config.ts vitest.config.ts eslint.config.mjs next.config.ts tsconfig.json postcss.config.mjs .gitignore` — erro `bad object` (árvore vazia ausente)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --max-parents=0 --stat=200 --format=%h` — commit raiz 2aba8e1
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat=200 --stat-count=1000 2aba8e1 HEAD -- src test e2e scripts public package.json playwright.config.ts vitest.config.ts eslint.config.mjs next.config.ts tsconfig.json postcss.config.mjs .gitignore` — lista de 285 arquivos rastreados
-- `sed -i 's/contêiner/banco/g' /home/deploy/servidor/projetos/ws-orquestrador-demandas/e2e/servidor.ts` — **fora da lista Pode** (primeira linha de Pendências)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components` — FAIL, 3 suítes, módulos ausentes (teste antes do código)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 0 de 5 (teste antes do código)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components` — 45 de 45
