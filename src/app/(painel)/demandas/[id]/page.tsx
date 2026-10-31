@@ -5,7 +5,8 @@
 // em aberto (`ler_especificacao`). A vista da demanda nunca traz o texto bruto (RF-06). Tudo é texto: o React escapa
 // título, campos, anexos, texto recebido e histórico (C-18). Falha de leitura sobe para a tela de erro (03, 2.8).
 //
-// T39: o alerta de chegada da T04 e da T06 sai só dos valores fixos de `?aviso=`.
+// T39: o alerta de chegada da T04 e da T06 sai só dos valores fixos de `?aviso=`. T41: o da T07 também, com a versão e o
+// pacote conferidos contra os desta demanda.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -13,6 +14,7 @@ import type { ReactNode } from 'react';
 import { Alerta } from '../../../../components/Alerta';
 import { classeDoBotao } from '../../../../components/Botao';
 import { AVISO_DEMANDA, TEXTOS_DEMANDA } from '../../../../components/dados-da-demanda';
+import { chegadaDaEspecificacao } from '../../../../components/dados-da-especificacao';
 import {
   COR_DECISAO,
   COR_STATUS,
@@ -63,10 +65,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return metadadosDaDemanda((await params).id, TEXTOS_DETALHE.titulo);
 }
 
-function alertaDeChegada(aviso: unknown, d: DemandaVista): string | null {
-  if (aviso === AVISO_DEMANDA.criada) return TEXTOS_DEMANDA.sucessoCriada(d.id, ROTULO_STATUS[d.status]);
-  if (aviso === AVISO_DEMANDA.alteracoesSalvas) return TEXTOS_DEMANDA.sucessoAlteracoes;
-  return null;
+// T41: a chegada da T07 (ESP gravada ou conflito de versão) só mostra versão e pacote desta demanda (chegadaDaEspecificacao).
+function alertaDeChegada(p: Parametros, d: DemandaVista, esp: { id: string; duvidasEmAberto: readonly string[] } | null): { tipo: 'sucesso' | 'erro'; texto: string } | null {
+  if (p.aviso === AVISO_DEMANDA.criada) return { tipo: 'sucesso', texto: TEXTOS_DEMANDA.sucessoCriada(d.id, ROTULO_STATUS[d.status]) };
+  if (p.aviso === AVISO_DEMANDA.alteracoesSalvas) return { tipo: 'sucesso', texto: TEXTOS_DEMANDA.sucessoAlteracoes };
+  return chegadaDaEspecificacao(p, d, esp);
 }
 
 const CLASSE_LINK = 'text-primaria underline underline-offset-2';
@@ -287,7 +290,7 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
   const retencaoDias = deps.config.retencaoDias;
   const duvidas = duvidasEmAberto(d, esp);
   const alertas = alertasDoTopo(d, historico, duvidas !== null);
-  const chegada = alertaDeChegada((await searchParams).aviso, d);
+  const chegada = alertaDeChegada(await searchParams, d, esp);
   const transicoes = transicoesManuaisDe(d.status);
   const s = TEXTOS_DETALHE.secoes;
   const secoes = [
@@ -331,8 +334,8 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
       </div>
 
       {chegada ? (
-        <Alerta tipo="sucesso" envio>
-          {chegada}
+        <Alerta tipo={chegada.tipo} envio>
+          {chegada.texto}
         </Alerta>
       ) : null}
       {alertas.map((a) => (
