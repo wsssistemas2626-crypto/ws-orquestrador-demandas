@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "alteram_dado": false,
+  "primeira_publicacao": true,
+  "verificacoes": [
+    {
+      "nome": "migracoes_da_main",
+      "ok": true,
+      "detalhe": "nenhuma alterada"
+    },
+    {
+      "nome": "migracoes_novas",
+      "ok": true,
+      "detalhe": "7; nenhuma altera dado existente"
+    },
+    {
+      "nome": "anterior",
+      "ok": true,
+      "detalhe": "a main não tem docker-compose.hml.yml: primeira publicação, sem versão para onde voltar"
+    }
+  ],
+  "sha": "049d2c905ba1fdb4c7843f6520121925d136a432",
+  "em": "2026-10-31T17:06:33.397Z"
+}

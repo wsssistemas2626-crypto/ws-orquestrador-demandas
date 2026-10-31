@@ -1,0 +1,72 @@
+# Homologação local (padrão técnico, seção 9; CA-P7-03 e CA-P7-04; C-35). Sobe o sistema inteiro (db, app e worker)
+# só com valores fictícios escritos aqui, sem .env. Só o app é publicado, e só em 127.0.0.1:${HML_PORTA}. Quem sobe e
+# derruba é o `construir.mjs homologar` e o `construir.mjs ensaiar-rollback`, com `down -v` no fim.
+#
+# Todas as senhas e o segredo abaixo são fictícios e públicos: valem só para este banco descartável. Nada daqui é usado
+# em produção (docs/operacao/deploy.md). SEED_FICTICIO=1 existe só neste arquivo, nunca no serviço de produção (M-07).
+
+x-ambiente-comum: &ambiente-comum
+  NODE_ENV: production
+  # Papel do app (sem DDL), criado por scripts/hml/criar-papeis.sql na primeira subida do banco.
+  DATABASE_URL: postgres://orquestrador_app:app_hml_senha_ficticia@db:5432/orquestrador
+  BETTER_AUTH_SECRET: hml-ficticio-hml-ficticio-hml-ficticio-hml-ficticio
+  # Loopback em http: o env.ts aceita http só no loopback em produção, e o cookie fica sem Secure.
+  BETTER_AUTH_URL: http://127.0.0.1:${HML_PORTA:-3200}
+  RETENCAO_TEXTO_BRUTO_DIAS: "90"
+  LOG_LEVEL: info
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      # POSTGRES_USER é o migrator (dono do banco e do DDL).
+      POSTGRES_USER: migrator
+      POSTGRES_PASSWORD: migrator_hml_senha_ficticia
+      POSTGRES_DB: orquestrador
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./scripts/hml/criar-papeis.sql:/docker-entrypoint-initdb.d/01-criar-papeis.sql:ro
+    healthcheck:
+      # Por TCP: pelo socket o Postgres responde ainda na inicialização.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U migrator -d orquestrador"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  app:
+    build: .
+    # Migrations com o migrator, seed fictício na primeira subida e `pnpm start` sem a URL do migrator (ADR-12).
+    command: ["pnpm", "start:hml"]
+    environment:
+      <<: *ambiente-comum
+      DATABASE_URL_MIGRATOR: postgres://migrator:migrator_hml_senha_ficticia@db:5432/orquestrador
+      SEED_FICTICIO: "1"
+      PORT: "3101"
+    ports:
+      - "127.0.0.1:${HML_PORTA:-3200}:3101"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3101/api/saude').then((r)=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 120s
+
+  worker:
+    build: .
+    command: ["pnpm", "worker"]
+    environment:
+      <<: *ambiente-comum
+    # O esquema do pg-boss nasce na migration do app: o worker só sobe depois da saúde.
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  dbdata:

@@ -1,0 +1,107 @@
+# CI do ws-orquestrador-demandas (padrão técnico, seção 9; C-39 e A-05 da 08-revisao).
+# Roda em todo pull request e é chamado pelo deploy.yml antes de publicar (push na main): nada é publicado sem estas
+# verificações verdes. Este workflow não publica imagem, não usa segredo e não chama webhook.
+#
+# Actions: ainda fixadas por versão, não por SHA. Trocar cada `@vN` pelo SHA completo do commit da versão (com a versão
+# em comentário) é pendência registrada em docs/operacao/deploy.md, seção "Pendências do pipeline".
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  verificar:
+    name: lint, typecheck e test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5 # SHA pendente
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5 # SHA pendente
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: pnpm pelo corepack (versão do packageManager)
+        run: corepack enable
+      - name: Dependências pelo lockfile
+        run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # Vitest com Testcontainers: o Docker do runner sobe o Postgres de cada suíte.
+      - run: pnpm test
+
+  e2e:
+    name: e2e (Playwright contra o build de produção)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5 # SHA pendente
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5 # SHA pendente
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Navegador do Playwright
+        run: pnpm exec playwright install --with-deps chromium
+      # Sem BASE_URL: o e2e/servidor.ts sobe Postgres descartável, migrations, seed fictício, `next build` e `next start`
+      # em 127.0.0.1:3101, com ambiente fictício montado do zero.
+      - run: pnpm test:e2e
+
+  dependencias:
+    name: pnpm audit (alta e crítica bloqueiam)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5 # SHA pendente
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5 # SHA pendente
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - run: corepack enable
+      # O audit lê o lockfile (com o override do zod do pnpm-workspace.yaml); não precisa instalar.
+      - run: pnpm audit --prod --audit-level high
+
+  segredos:
+    name: gitleaks no histórico
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5 # SHA pendente
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Histórico inteiro do ramo (inclui o que veio da main). --redact: o achado sai no log sem o valor.
+      # Imagem por tag; fixar por digest é pendência (docs/operacao/deploy.md).
+      - name: gitleaks
+        run: >-
+          docker run --rm -v "${GITHUB_WORKSPACE}:/repo"
+          ghcr.io/gitleaks/gitleaks:v8.28.0
+          git /repo --redact --no-banner --exit-code 1
+
+  imagem:
+    name: docker build (sem publicar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5 # SHA pendente
+        with:
+          persist-credentials: false
+      - run: docker build -t ws-orquestrador-demandas:ci .

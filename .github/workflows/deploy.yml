@@ -1,0 +1,137 @@
+# Entrega na main (padrão técnico, seção 9): CI inteiro → imagem no GHCR → só as 2 versões mais recentes → webhooks do
+# Easypanel. Dispara só em push na main; nunca em outro ramo nem em pull request.
+#
+# Migration nova no push: a imagem é publicada, mas os webhooks NÃO são chamados. A produção pede backup → migrate →
+# deploy, nessa ordem e por Fabiano (ADR-12, CA-P7-06; docs/operacao/deploy.md, seção 5).
+#
+# Segredos (só os nomes; os valores ficam no GitHub, em Settings → Secrets and variables → Actions):
+#   EASYPANEL_WEBHOOK_APP     URL do webhook de deploy do serviço app no Easypanel
+#   EASYPANEL_WEBHOOK_WORKER  URL do webhook de deploy do serviço worker no Easypanel
+#   GITHUB_TOKEN              automático; publica no GHCR e apaga versões antigas
+#
+# Actions ainda por versão, não por SHA: pendência em docs/operacao/deploy.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  publicar:
+    name: publicar no GHCR e disparar o Easypanel
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5 # SHA pendente
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Nome e versão da imagem
+        id: imagem
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          versao="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          echo "nome=ghcr.io/${repo}" >> "$GITHUB_OUTPUT"
+          echo "versao=${versao}" >> "$GITHUB_OUTPUT"
+
+      - name: Entrar no GHCR
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # Um manifesto por versão (sem attestation nem SBOM): a limpeza de versões antigas não apaga parte da atual.
+      - name: Construir
+        env:
+          IMAGEM: ${{ steps.imagem.outputs.nome }}
+          VERSAO: ${{ steps.imagem.outputs.versao }}
+        run: >-
+          docker build --provenance=false --sbom=false
+          --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}"
+          --label "org.opencontainers.image.revision=${GITHUB_SHA}"
+          --label "org.opencontainers.image.version=${VERSAO}"
+          -t "${IMAGEM}:${GITHUB_SHA}" -t "${IMAGEM}:v${VERSAO}" -t "${IMAGEM}:latest" .
+
+      - name: Publicar
+        env:
+          IMAGEM: ${{ steps.imagem.outputs.nome }}
+        run: docker push --all-tags "$IMAGEM"
+
+      - name: Sair do GHCR
+        if: always()
+        run: docker logout ghcr.io
+
+      # Push sem `before` conhecido conta como "tem migration": na dúvida, não dispara.
+      - name: Migration nova neste push?
+        id: migracao
+        env:
+          ANTES: ${{ github.event.before }}
+        run: |
+          if [ -z "$ANTES" ] || [ "$ANTES" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${ANTES}^{commit}" 2>/dev/null; then
+            echo "nova=sim" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$ANTES" "$GITHUB_SHA" -- drizzle; then
+            echo "nova=nao" >> "$GITHUB_OUTPUT"
+          else
+            echo "nova=sim" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Disparar o Easypanel (worker e app)
+        if: steps.migracao.outputs.nova == 'nao'
+        env:
+          WEBHOOK_APP: ${{ secrets.EASYPANEL_WEBHOOK_APP }}
+          WEBHOOK_WORKER: ${{ secrets.EASYPANEL_WEBHOOK_WORKER }}
+        run: |
+          if [ -z "$WEBHOOK_APP" ] || [ -z "$WEBHOOK_WORKER" ]; then
+            echo "::error::Faltam os segredos EASYPANEL_WEBHOOK_APP e EASYPANEL_WEBHOOK_WORKER. A imagem foi publicada; o deploy não."
+            exit 1
+          fi
+          curl -fsS -X POST -o /dev/null --max-time 30 "$WEBHOOK_WORKER"
+          curl -fsS -X POST -o /dev/null --max-time 30 "$WEBHOOK_APP"
+
+      - name: Aviso de migration pendente
+        if: steps.migracao.outputs.nova == 'sim'
+        env:
+          IMAGEM: ${{ steps.imagem.outputs.nome }}
+        run: |
+          echo "::warning::Migration nova: imagem ${IMAGEM}:${GITHUB_SHA} publicada, webhooks não chamados. Siga backup, migrate e deploy em docs/operacao/deploy.md."
+          {
+            echo "### Deploy parado antes da produção"
+            echo ""
+            echo "Este push traz migration nova (ou não há commit anterior para comparar)."
+            echo "A imagem \`${IMAGEM}:${GITHUB_SHA}\` foi publicada; o Easypanel não foi disparado."
+            echo "Próximo passo (Fabiano): backup do banco, \`pnpm db:migrate\` com o migrator e deploy no Easypanel,"
+            echo "como em docs/operacao/deploy.md, seção 5."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Mantém só as 2 versões mais recentes do pacote: a publicada agora e a anterior (alvo do rollback).
+      - name: Apagar versões antigas da imagem
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dono="${GITHUB_REPOSITORY_OWNER}"
+          pacote="${GITHUB_REPOSITORY#*/}"
+          if [ "$(gh api "users/${dono}" --jq .type)" = "Organization" ]; then base="orgs/${dono}"; else base="users/${dono}"; fi
+          gh api --paginate "${base}/packages/container/${pacote}/versions?per_page=100" \
+            --jq '.[] | "\(.created_at) \(.id)"' \
+            | sort -r | tail -n +3 | cut -d' ' -f2 \
+            | while read -r id; do
+                gh api -X DELETE "${base}/packages/container/${pacote}/versions/${id}"
+                echo "versão ${id} apagada"
+              done
