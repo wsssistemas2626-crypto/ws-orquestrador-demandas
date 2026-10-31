@@ -10,6 +10,15 @@
 // conta, e a "administradora" já não tem folga na suíte inteira: com as 4 demandas daqui por ela, os 3 últimos testes
 // do parecer-risco.spec.ts (que roda depois deste) falharam, e o de 320 px só cria uma demanda. Nenhum teste depende de
 // outro ter rodado antes.
+//
+// 06-T46-testes: o teste do `?base=` e da chegada na T05 fazia 16 navegações do `next dev` num teste só e estourou os
+// 30 s numa execução inteira (36,3 s, page.goto net::ERR_ABORTED no laço da T05). Ele virou os cinco testes do
+// describe abaixo, com as mesmas conferências e os mesmos valores, cada um com 2 a 4 navegações. Os dados (2 demandas e 7 versões) são
+// criados uma vez só, no beforeAll do describe, e não por teste: a conta "cto" está em 30 de 30 demandas na suíte
+// inteira (C-36). O modo serial faz o Playwright pular o resto do describe se um teste falhar, em vez de reiniciar o
+// processo e rodar o beforeAll de novo, o que criaria mais 2 demandas e daria 429 nas specs seguintes. Os cinco só
+// leem (GET e telas): nenhum muda o dado que o outro confere, e cada um passa sozinho (--grep), com o beforeAll.
+// Uso por conta deste arquivo, igual ao de antes: "cto" 4 demandas e 9 versões; "administradora" 0 e 0.
 import { expect, test, type Page, type Request } from '@playwright/test';
 import { api, entrarComo, semViolacoes } from './apoio';
 
@@ -39,52 +48,97 @@ const grupo = (page: Page, nome: string) => page.getByRole('group', { name: nome
 const item = (page: Page, lista: string, n: number) => grupo(page, lista).getByRole('textbox', { name: `Item ${n}`, exact: true });
 const nivel = (page: Page, risco: string, rotulo: 'Baixo' | 'Médio' | 'Alto') => grupo(page, `Nível do ${risco} (obrigatório)`).getByRole('radio', { name: rotulo, exact: true });
 
-test('?base= de outra demanda, de versão que não existe, de ESP ou fora do formato: a T08 parte do RSK mais novo da própria demanda; a chegada na T05 não confia na URL', async ({ page }) => {
-  await entrarComo(page, 'cto');
-  const a = await criar(page);
-  await espPelaApi(page, a.id);
-  const rskA = await rskPelaApi(page, a.id, { resumo: 'Resumo da outra demanda (fictício)' });
-  const decA = await api<Versao>(page, 'POST', `/api/demandas/${a.id}/pacotes-decisao`, decValido);
-  await rskPelaApi(page, a.id); // o DEC da outra demanda fica pendente e desatualizado
-  const d = await criar(page);
-  const espD = await espPelaApi(page, d.id);
-  const rskD = await rskPelaApi(page, d.id, { resumo: 'Resumo desta demanda (fictício)', riscoTecnicoNivel: 'baixo' });
-  const decD = await api<Versao>(page, 'POST', `/api/demandas/${d.id}/pacotes-decisao`, decValido); // em dia
+test.describe('?base= forjado na T08 e chegada da T08 na T05 com a URL forjada', () => {
+  test.describe.configure({ mode: 'serial' });
 
-  for (const base of [rskA.id, `RSK-${d.id}-v9`, espD.id, decD.id, 'qualquer-coisa', '%3Cscript%3Ealert(1)%3C%2Fscript%3E']) {
-    const r = await page.goto(`/demandas/${d.id}/pareceres-risco/novo?base=${base}`);
+  // "a" é a outra demanda: o DEC dela fica pendente e desatualizado. "d" é a demanda das telas: o DEC dela está em dia.
+  let ids: { rskA: string; decA: string; d: string; espD: string; rskD: string; decD: string };
+
+  test.beforeAll(async ({ browser }) => {
+    const pagina = await browser.newPage({ baseURL: test.info().project.use.baseURL });
+    try {
+      await entrarComo(pagina, 'cto');
+      const a = await criar(pagina);
+      await espPelaApi(pagina, a.id);
+      const rskA = await rskPelaApi(pagina, a.id, { resumo: 'Resumo da outra demanda (fictício)' });
+      const decA = await api<Versao>(pagina, 'POST', `/api/demandas/${a.id}/pacotes-decisao`, decValido);
+      await rskPelaApi(pagina, a.id); // o DEC da outra demanda fica pendente e desatualizado
+      const d = await criar(pagina);
+      const espD = await espPelaApi(pagina, d.id);
+      const rskD = await rskPelaApi(pagina, d.id, { resumo: 'Resumo desta demanda (fictício)', riscoTecnicoNivel: 'baixo' });
+      const decD = await api<Versao>(pagina, 'POST', `/api/demandas/${d.id}/pacotes-decisao`, decValido); // em dia
+      ids = { rskA: rskA.id, decA: decA.id, d: d.id, espD: espD.id, rskD: rskD.id, decD: decD.id };
+    } finally {
+      await pagina.close();
+    }
+  });
+
+  const chegada = (page: Page) => page.locator('main').getByRole('alert').filter({ hasText: /gravad[oa]\.|Outra versão|desatualizado\. Crie/ });
+
+  // A T08 com `?base=<base>` mostra o RSK mais novo de "d", e nada de "a".
+  async function t08ParteDoRskMaisNovo(page: Page, base: string): Promise<void> {
+    const { d, espD } = ids;
+    const r = await page.goto(`/demandas/${d}/pareceres-risco/novo?base=${base}`);
     expect(r?.status(), base).toBe(200);
-    await expect(page.getByText(`Este será o RSK-${d.id}-v2. A especificação mais nova desta demanda é a ${espD.id}.`)).toBeVisible();
+    await expect(page.getByText(`Este será o RSK-${d}-v2. A especificação mais nova desta demanda é a ${espD}.`)).toBeVisible();
     await expect(page.getByLabel('Resumo', { exact: true })).toHaveValue('Resumo desta demanda (fictício)');
     await expect(nivel(page, 'risco técnico', 'Baixo')).toBeChecked();
     await expect(page.locator('main')).not.toContainText('Resumo da outra demanda');
     await expect(page.locator('main')).not.toContainText('script');
   }
-  // Duas bases na URL (lista): nenhuma vale, e a página parte da mais nova.
-  await page.goto(`/demandas/${d.id}/pareceres-risco/novo?base=${rskA.id}&base=${rskD.id}`);
-  await expect(page.getByLabel('Resumo', { exact: true })).toHaveValue('Resumo desta demanda (fictício)');
 
-  const chegada = () => page.locator('main').getByRole('alert').filter({ hasText: /gravad[oa]\.|Outra versão|desatualizado\. Crie/ });
-  for (const busca of [
-    `aviso=parecer-gravado&versao=${rskA.id}`,
-    `aviso=parecer-conflito&versao=${rskA.id}`,
-    `aviso=parecer-gravado&versao=RSK-${d.id}-v9`,
-    `aviso=parecer-gravado-x&versao=${rskD.id}`,
-    `aviso=parecer-gravado&versao=${espD.id}`,
-    `aviso=especificacao-gravada&versao=${rskD.id}`,
-    `aviso=parecer-gravado&versao=%3Cscript%3Ealert(1)%3C%2Fscript%3E`,
-  ]) {
-    await page.goto(`/demandas/${d.id}?${busca}`);
+  test('?base= de outra demanda, de versão que não existe ou de ESP: a T08 parte do RSK mais novo da própria demanda', async ({ page }) => {
+    const { d, espD, rskA } = ids;
+    await entrarComo(page, 'cto');
+    for (const base of [rskA, `RSK-${d}-v9`, espD]) await t08ParteDoRskMaisNovo(page, base);
+  });
+
+  test('?base= de DEC, fora do formato ou repetido: a T08 parte do RSK mais novo da própria demanda', async ({ page }) => {
+    const { d, rskA, rskD, decD } = ids;
+    await entrarComo(page, 'cto');
+    for (const base of [decD, 'qualquer-coisa', '%3Cscript%3Ealert(1)%3C%2Fscript%3E']) await t08ParteDoRskMaisNovo(page, base);
+    // Duas bases na URL (lista): nenhuma vale, e a página parte da mais nova.
+    await page.goto(`/demandas/${d}/pareceres-risco/novo?base=${rskA}&base=${rskD}`);
+    await expect(page.getByLabel('Resumo', { exact: true })).toHaveValue('Resumo desta demanda (fictício)');
+  });
+
+  // A T05 de "d" com `?<busca>` não mostra alerta de chegada nem a marcação da URL.
+  async function semChegada(page: Page, busca: string): Promise<void> {
+    await page.goto(`/demandas/${ids.d}?${busca}`);
     await expect(page.getByRole('heading', { level: 1, name: TITULO })).toBeVisible();
-    await expect(chegada(), busca).toHaveCount(0);
+    await expect(chegada(page), busca).toHaveCount(0);
     await expect(page.locator('main')).not.toContainText('script');
   }
-  // A versão é desta demanda, mas o DEC da URL é de outra, ou é desta e está em dia: só a frase da versão.
-  for (const dec of [decA.id, decD.id]) {
-    await page.goto(`/demandas/${d.id}?aviso=parecer-gravado&versao=${rskD.id}&dec=${dec}`);
-    await expect(chegada(), dec).toHaveText(`${rskD.id} gravado.`);
-  }
-  await semViolacoes(page, 'T05 com a chegada da T08');
+
+  test('a chegada na T05 não confia na URL: versão de outra demanda ou que não existe', async ({ page }) => {
+    const { d, rskA } = ids;
+    await entrarComo(page, 'cto');
+    for (const busca of [`aviso=parecer-gravado&versao=${rskA}`, `aviso=parecer-conflito&versao=${rskA}`, `aviso=parecer-gravado&versao=RSK-${d}-v9`])
+      await semChegada(page, busca);
+  });
+
+  test('a chegada na T05 não confia na URL: aviso fora da lista, versão de ESP com o aviso do RSK (e o contrário), marcação', async ({ page }) => {
+    const { espD, rskD } = ids;
+    await entrarComo(page, 'cto');
+    for (const busca of [
+      `aviso=parecer-gravado-x&versao=${rskD}`,
+      `aviso=parecer-gravado&versao=${espD}`,
+      `aviso=especificacao-gravada&versao=${rskD}`,
+      `aviso=parecer-gravado&versao=%3Cscript%3Ealert(1)%3C%2Fscript%3E`,
+    ])
+      await semChegada(page, busca);
+  });
+
+  test('a chegada na T05 com o DEC de outra demanda ou com o DEC desta em dia: só a frase da versão; axe', async ({ page }) => {
+    const { d, rskD, decA, decD } = ids;
+    await entrarComo(page, 'cto');
+    // A versão é desta demanda, mas o DEC da URL é de outra, ou é desta e está em dia: só a frase da versão.
+    for (const dec of [decA, decD]) {
+      await page.goto(`/demandas/${d}?aviso=parecer-gravado&versao=${rskD}&dec=${dec}`);
+      await expect(chegada(page), dec).toHaveText(`${rskD} gravado.`);
+    }
+    await semViolacoes(page, 'T05 com a chegada da T08');
+  });
 });
 
 test('duplo clique em "Gravar": um envio só e um RSK só; a resposta da Server Action não traz o que foi digitado', async ({ page }) => {
