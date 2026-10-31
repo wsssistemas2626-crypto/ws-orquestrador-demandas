@@ -123,6 +123,11 @@ As corridas 7 e 8 foram seguidas, com o mesmo código e sem nada entre elas. As 
 - Editei as specs `parecer-risco-qa`, `demanda-formularios-qa`, `especificacao-qa` e `fila-qa`, que não estavam
   nomeadas uma a uma na liberação. Li a liberação de edição em `e2e/` como válida para adaptar a e2e ao build de
   produção que ela mesma pediu. Nenhuma asserção saiu nem ficou mais fraca, e três ganharam conferência.
+- A suíte e2e foi rodada várias vezes contra o build de produção (next build e next start), inteira, por arquivo e só
+  com os testes que tinham falhado (os resultados estão na tabela da Entrega). As duas últimas corridas da suíte inteira
+  foram seguidas e ficaram verdes: código de saída 0 e test-results/.last-run.json com status passed e nenhuma falha.
+  Os comandos da e2e ficaram fora de Comandos executados porque não estão na minha lista Pode; a liberação deles para
+  esta etapa está no passagens.jsonl.
 
 ## Pendências
 
@@ -144,42 +149,24 @@ As corridas 7 e 8 foram seguidas, com o mesmo código e sem nada entre elas. As 
 
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts` — vermelho: 2 falharam (sem a `axeSoCto`)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts` — 33 de 33
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/seguranca.spec.ts` — 0 de 4 (login 401 no build de produção)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/lib/env.test.ts src/modules/acesso/cookies-seguros.test.ts` — vermelho: 3 falharam
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/lib/env.test.ts src/modules/acesso/cookies-seguros.test.ts` — 15 de 15
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/seguranca.spec.ts` — 4 de 4
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 3.697 de 3.697
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — corrida inteira 1: código 1
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e --last-failed` — 9 de 10
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts` — vermelho: 1 falhou (autoria pela cto)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/` — 80 de 80
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/parecer-risco-qa.spec.ts` — 7 de 7
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — corrida inteira 2: código 1
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e --last-failed` — 6 de 6
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts` — vermelho: 1 falhou (autoria pela administradora)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/` — 80 de 80
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 3.697 de 3.697
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — corrida inteira 3: código 1
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e --last-failed` — 1 de 2
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — corrida inteira 4: código 1
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e --last-failed` — 1 de 3
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/demanda-formularios-qa.spec.ts e2e/especificacao-qa.spec.ts e2e/parecer-risco-qa.spec.ts` — 15 de 15
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — corrida inteira 5: código 0, `passed`
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — corrida inteira 6: código 1
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e --last-failed` — 1 de 1
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/fila-qa.spec.ts` — 5 de 5
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — corrida inteira 7 (final 1): código 0, `passed`, 0 falhas
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — corrida inteira 8 (final 2): código 0, `passed`, 0 falhas
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short`
 
 ## Critério de pronto atendido
