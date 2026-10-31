@@ -72,6 +72,10 @@ Antes da primeira publicação, siga o `docs/operacao/deploy.md`: backup, migrat
 - Os 99 critérios de aceite do `01-analista-requisitos.md` têm teste automatizado (07). Só o CA-21.1, o histórico do
   fluxo inteiro, ficou coberto por partes, como candidato a automação A-01.
 - `pnpm audit --prod --audit-level high`: código 0, com 5 moderadas e nenhuma alta nem crítica.
+- gitleaks no histórico: na 1ª execução do CI apareceram 6 achados (`generic-api-key`). Pela triagem do
+  `seguranca-aplicacao`, nenhum é segredo real: são senhas fictícias de teste, uma sentinela de log e duas cópias no
+  plano. Ficaram ignorados por impressão exata em `.gitleaksignore`. O `.gitleaks.toml` mantém as regras padrão sem
+  allowlist, e a imagem foi fixada por digest. No teste local, deu 0 achados, e o achado volta se a linha sai.
 
 ## Achados da revisão (08)
 
@@ -85,7 +89,7 @@ Revisões: skill `code-review` em nível alto e agente `seguranca-aplicacao`, po
 | A-02 Dois DEC aprovados na mesma demanda | Alto | **Fechado**: nunca dois aprovados |
 | A-03 Pedido de DEC desatualizado | Alto | **Fechado**: `gerarPedido` e a tela recusam |
 | A-04 Nível de aprovação escolhido pelo agente | Alto | **Fechado**: o nível saiu do schema do agente |
-| A-05 Sem CI (C-39) | Alto | **Parcial**: `ci.yml` criado, mas as actions estão fixadas por versão (`@v5`), não por SHA |
+| A-05 Sem CI (C-39) | Alto | **Parcial**: `ci.yml` com lint, typecheck, test, e2e, docker build, audit e gitleaks (por digest); as actions `checkout` e `setup-node` ainda estão fixadas por versão (`@v5`), não por SHA |
 | M-01 a M-07 | Médio | Abertos, para Fabiano decidir (abaixo); a M-04 ficou resolvida no e2e |
 | Médio novo do reteste (A-02 com A-03) | Médio | Aberto, para Fabiano decidir (abaixo) |
 | B-01 a B-07 e a baixa do `gerarPedido` | Baixo | Backlog |
@@ -103,8 +107,8 @@ Desvios aceitos no reteste:
    RSK nova. As duas saídas possíveis estão no `08-seguranca-aplicacao.md`.
 3. **Ler o QR da 2FA** com Google e Microsoft Authenticator (cenário U-01 do `07-qa-funcional.md`). O gerador é
    próprio (`src/lib/qr.ts`). Se um dos dois não ler, a T37 volta.
-4. **SHAs das actions** (fecha a A-05): `actions/checkout@v5`, `actions/setup-node@v5` e o digest de
-   `ghcr.io/gitleaks/gitleaks:v8.28.0`.
+4. **SHAs das actions** (fecha a A-05): `actions/checkout@v5` e `actions/setup-node@v5`. O gitleaks já está fixado
+   por digest.
 5. **Configuração** (seção 2 do `deploy.md`):
    - os segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER` no GitHub;
    - a credencial `read:packages` do GHCR no Easypanel;
@@ -114,8 +118,9 @@ Desvios aceitos no reteste:
    se a regra do `padrao-tecnico.md` muda.
 7. **Docs com a versão antiga**, para atualizar: RNF-01 na spec (linha 61), no `01-analista-requisitos.md` (linha
    439), no plano (linhas 18 e 19) e no `padrao-tecnico.md` da estruturaAutonoma.
-8. **gitleaks**: a primeira execução pode acusar as senhas fictícias do seed, da homologação e do e2e. A triagem é do
-   `seguranca-aplicacao`.
+8. **Forma do merge**: use "Create a merge commit". O `.gitleaksignore` usa o hash de cada commit. Com "Squash" ou
+   "Rebase", os 6 achados voltam a aparecer no CI da `main` e o deploy trava. Nada vaza, mas seria preciso uma nova
+   triagem.
 9. **Backlog**:
    - imagem de 1,74 GB, porque leva as `devDependencies`;
    - comentários que ainda citam "Better Auth 1.7.6";
