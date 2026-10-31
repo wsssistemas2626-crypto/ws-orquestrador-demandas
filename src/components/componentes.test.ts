@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { Alerta } from './Alerta';
 import { AreaTexto } from './AreaTexto';
+import { AvisosDaMoldura } from './AvisosDaMoldura';
 import { BlocoJson } from './BlocoJson';
 import { Botao } from './Botao';
 import { CabecalhoPainel, ehPaginaAtual } from './CabecalhoPainel';
@@ -12,7 +13,7 @@ import { CaixaSelecao } from './CaixaSelecao';
 import { CampoTexto } from './CampoTexto';
 import { DialogoConfirmacao } from './DialogoConfirmacao';
 import { Esqueleto } from './Esqueleto';
-import { GrupoOpcoes } from './GrupoOpcoes';
+import { GrupoOpcoes, opcaoMarcavel } from './GrupoOpcoes';
 import { Interruptor } from './Interruptor';
 import { Paginacao } from './Paginacao';
 import { RegiaoAviso } from './RegiaoAviso';
@@ -116,6 +117,50 @@ describe('GrupoOpcoes (03, 2.3 e T05)', () => {
     expect(s).toMatch(/id="status-aprovada"[^>]*aria-disabled="true"|aria-disabled="true"[^>]*id="status-aprovada"/);
     expect(s).toContain('aria-describedby="status-aprovada-dica"');
     expect(s).toContain('id="status-aprovada-dica"');
+  });
+  it('a opção indisponível não chega ao onMudar, nem pelo teclado', () => {
+    const opcoes = [
+      { valor: 'em_analise', rotulo: 'Em análise' },
+      { valor: 'aprovada', rotulo: 'Aprovada', desabilitada: true },
+    ];
+    expect(opcaoMarcavel(opcoes, 'em_analise')).toBe(true);
+    expect(opcaoMarcavel(opcoes, 'aprovada')).toBe(false);
+    expect(opcaoMarcavel(opcoes, 'inexistente')).toBe(false);
+  });
+});
+
+describe('AvisosDaMoldura (03, 2.7: RF-18 e RNF-09)', () => {
+  const SUSPENSAO =
+    'Agentes de IA suspensos: o gasto do mês atingiu o teto. Nenhum agente chama o provedor até o teto subir ou o mês virar. Preencha os campos à mão.';
+  const capacidade = (n: string) =>
+    `Atenção: já existem ${n} demandas. O formato do id comporta até 9.999. Avise o time técnico para planejar a mudança.`;
+
+  it('teto 0 (não definido) e suspenso: nenhum aviso', () => {
+    expect(html(h(AvisosDaMoldura, { tetoMensal: 0, suspenso: true, totalDemandas: 10 }))).toBe('');
+  });
+  it('teto 10, não suspenso, com 9.000 demandas: nenhum aviso', () => {
+    expect(html(h(AvisosDaMoldura, { tetoMensal: 10, suspenso: false, totalDemandas: 9000 }))).toBe('');
+  });
+  it('teto 10 e suspenso: o texto da 03, 2.7, e o link "Ver agentes e teto"', () => {
+    const s = html(h(AvisosDaMoldura, { tetoMensal: 10, suspenso: true, totalDemandas: 10 }));
+    expect(s).toContain(SUSPENSAO);
+    expect(s).toMatch(/<a[^>]*href="\/configuracao\/agentes"[^>]*>Ver agentes e teto<\/a>/);
+    expect(s).not.toContain('Atenção: já existem');
+  });
+  it('9.001 demandas: o aviso de capacidade, sem o de suspensão', () => {
+    const s = html(h(AvisosDaMoldura, { tetoMensal: 10, suspenso: false, totalDemandas: 9001 }));
+    expect(s).toContain(capacidade('9.001'));
+    expect(s).not.toContain('Agentes de IA suspensos');
+  });
+  it('9.012 demandas: o número sai como "9.012"', () => {
+    expect(html(h(AvisosDaMoldura, { tetoMensal: 0, suspenso: false, totalDemandas: 9012 }))).toContain(capacidade('9.012'));
+  });
+  it('os dois avisos juntos, na ordem suspensão e depois capacidade', () => {
+    const s = html(h(AvisosDaMoldura, { tetoMensal: 10, suspenso: true, totalDemandas: 9001 }));
+    const i = s.indexOf(SUSPENSAO);
+    const j = s.indexOf(capacidade('9.001'));
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(j).toBeGreaterThan(i);
   });
 });
 

@@ -45,12 +45,34 @@ function alertaDe(r: Extract<ResultadoAcao<unknown>, { ok: false }>): string {
   }
 }
 
-export function errosDoResultado(r: ResultadoAcao<unknown>, rotulos: Readonly<Record<string, string>> = {}): ErrosDoFormulario {
-  if (r.ok) return SEM_ERRO;
+function calcular(r: Extract<ResultadoAcao<unknown>, { ok: false }>, rotulos: Readonly<Record<string, string>>): ErrosDoFormulario {
   const detalhes = r.erros ?? [];
   if (r.erro === 'entrada_invalida' && r.campos && r.campos.length > 0) {
     const campos = r.campos.map((c) => ({ campo: c.campo, idCampo: idDoCampo(c.campo), rotulo: rotuloDe(c.campo, rotulos), mensagem: c.mensagem }));
     return { campos, porCampo: Object.fromEntries(campos.map((c) => [c.campo, c.mensagem])), alerta: null, detalhes };
   }
   return { campos: [], porCampo: {}, alerta: alertaDe(r), detalhes };
+}
+
+const SEM_ROTULOS: Readonly<Record<string, string>> = {};
+
+// O mesmo resultado (e os mesmos rótulos) devolve o mesmo objeto. O Resumo de erros leva o foco quando `erros` muda:
+// com um array novo a cada renderização, o foco sairia do campo em que a pessoa digita (03, 2.5). Cada envio do
+// useActionState é um resultado novo, e aí o foco vai ao resumo de novo. Os rótulos devem ser uma constante do módulo
+// da tela, e não um objeto montado na renderização.
+const memoria = new WeakMap<object, WeakMap<object, ErrosDoFormulario>>();
+
+export function errosDoResultado(r: ResultadoAcao<unknown>, rotulos: Readonly<Record<string, string>> = SEM_ROTULOS): ErrosDoFormulario {
+  if (r.ok) return SEM_ERRO;
+  let porRotulos = memoria.get(r);
+  if (!porRotulos) {
+    porRotulos = new WeakMap();
+    memoria.set(r, porRotulos);
+  }
+  let erros = porRotulos.get(rotulos);
+  if (!erros) {
+    erros = calcular(r, rotulos);
+    porRotulos.set(rotulos, erros);
+  }
+  return erros;
 }

@@ -24,8 +24,17 @@ const idDaOpcao = (nome: string, valor: string) => `${nome}-${valor === '' ? 'va
 
 const impedir = (e: MouseEvent<HTMLInputElement>) => e.preventDefault();
 
+// Só uma opção do grupo e disponível pode chegar ao onMudar. O clique já é bloqueado; isto cobre a troca pelo teclado
+// (setas) e qualquer outro caminho até o `change`. A regra que vale continua no servidor.
+export function opcaoMarcavel(opcoes: readonly OpcaoDoGrupo[], valor: string): boolean {
+  const opcao = opcoes.find((o) => o.valor === valor);
+  return opcao !== undefined && !opcao.desabilitada;
+}
+
 export function GrupoOpcoes({ nome, legenda, opcoes, dica, erro, valor, valorPadrao, onMudar, className }: Props) {
-  const aoMudar = (e: ChangeEvent<HTMLInputElement>) => onMudar?.(e.target.value);
+  const aoMudar = (e: ChangeEvent<HTMLInputElement>) => {
+    if (opcaoMarcavel(opcoes, e.target.value)) onMudar?.(e.target.value);
+  };
   const descricaoDoGrupo = [dica ? `${nome}-dica` : null, erro ? `${nome}-erro` : null].filter(Boolean).join(' ') || undefined;
   return (
     <fieldset aria-describedby={descricaoDoGrupo} className={className ? `flex flex-col gap-1 ${className}` : 'flex flex-col gap-1'}>

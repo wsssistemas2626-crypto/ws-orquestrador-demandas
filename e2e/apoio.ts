@@ -16,12 +16,13 @@ function origem(): string {
   return new URL(base).origin;
 }
 
-// IP fictício da faixa de documentação 198.18.0.0/15 (testes de rede), um por chamada de login: o limite por IP do
-// Better Auth (10 por minuto, C-06) não liga um teste ao outro. Atrás do proxy da homologação, o cabeçalho é trocado
-// pelo IP real.
+// IP fictício da faixa 198.18.0.0/15, reservada a testes de desempenho de rede (RFC 2544), um por chamada de login: o
+// limite por IP do Better Auth (10 por minuto, C-06) não liga um teste ao outro. Com `n` abaixo de 64.000, o terceiro
+// octeto vai de 0 a 255 e o quarto de 1 a 250. Se a rota passar por um proxy que regrava `x-real-ip`, o limite volta a
+// valer pelo IP real.
 let contadorIp = 0;
 function ipFicticio(): string {
-  const n = contadorIp++ % 65_000;
+  const n = contadorIp++ % 64_000;
   return `198.18.${Math.floor(n / 250)}.${(n % 250) + 1}`;
 }
 

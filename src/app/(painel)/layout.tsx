@@ -5,17 +5,15 @@
 // lê a pessoa para mostrar o nome: sem sessão válida, não mostra nada além do conteúdo, e a página redireciona.
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Alerta } from '../../components/Alerta';
+import { AvisosDaMoldura } from '../../components/AvisosDaMoldura';
 import { CabecalhoPainel } from '../../components/CabecalhoPainel';
 import { obterDeps } from '../../lib/deps';
 import { ErroDominio } from '../../lib/erros';
 import type { AtorPessoa } from '../../modules/acesso/ator';
 import { exigirPessoa } from '../../modules/acesso/exigir-pessoa';
 import { situacaoDoTeto } from '../../modules/agentes/teto';
-import { listarDemandas } from '../../modules/demandas/consultas';
-import { filtroDemandasSchema } from '../../modules/demandas/schemas';
+import { totalDeDemandas } from '../../modules/demandas/gerar-id';
 
 export const metadata: Metadata = {
   title: { template: '%s — WS Orquestrador de Demandas', default: 'WS Orquestrador de Demandas' },
@@ -25,10 +23,7 @@ export const metadata: Metadata = {
 // (C-33: a configuração só é lida na primeira requisição).
 export const dynamic = 'force-dynamic';
 
-// RNF-09: o id comporta 9.999 demandas; o aviso aparece acima de 9.000.
-const LIMITE_AVISO_CAPACIDADE = 9_000;
-
-type Moldura = { pessoa: AtorPessoa; agentesSuspensos: boolean; totalDemandas: number };
+type Moldura = { pessoa: AtorPessoa; tetoMensal: number; suspenso: boolean; totalDemandas: number };
 
 async function lerMoldura(): Promise<Moldura | null> {
   const cabecalhos = await headers();
@@ -41,10 +36,8 @@ async function lerMoldura(): Promise<Moldura | null> {
     throw e;
   }
   const teto = await situacaoDoTeto(deps.db, deps.relogio);
-  const { total } = await listarDemandas(deps.db, filtroDemandasSchema.parse({ limit: 1 }));
-  // Teto 0 (o de fábrica) é "teto não definido", tratado na tela de agentes e teto (03, T12); o aviso da moldura é o da
-  // suspensão por gasto, com um teto definido.
-  return { pessoa, agentesSuspensos: teto.tetoMensal > 0 && teto.suspenso, totalDemandas: total };
+  const totalDemandas = await totalDeDemandas(deps.db);
+  return { pessoa, tetoMensal: teto.tetoMensal, suspenso: teto.suspenso, totalDemandas };
 }
 
 export default async function LayoutPainel({ children }: Readonly<{ children: ReactNode }>) {
@@ -59,28 +52,7 @@ export default async function LayoutPainel({ children }: Readonly<{ children: Re
         Pular para o conteúdo
       </a>
       <CabecalhoPainel nome={moldura.pessoa.nome} papel={moldura.pessoa.papel} />
-      {moldura.agentesSuspensos || moldura.totalDemandas > LIMITE_AVISO_CAPACIDADE ? (
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 pt-4">
-          {moldura.agentesSuspensos ? (
-            <Alerta tipo="atencao">
-              <p>
-                Agentes de IA suspensos: o gasto do mês atingiu o teto. Nenhum agente chama o provedor até o teto subir ou o mês virar.
-                Preencha os campos à mão.
-              </p>
-              <Link href="/configuracao/agentes" className="text-atencao-texto">
-                Ver agentes e teto
-              </Link>
-            </Alerta>
-          ) : null}
-          {moldura.totalDemandas > LIMITE_AVISO_CAPACIDADE ? (
-            <Alerta tipo="atencao">
-              <p>
-                {`Atenção: já existem ${moldura.totalDemandas.toLocaleString('pt-BR')} demandas. O formato do id comporta até 9.999. Avise o time técnico para planejar a mudança.`}
-              </p>
-            </Alerta>
-          ) : null}
-        </div>
-      ) : null}
+      <AvisosDaMoldura tetoMensal={moldura.tetoMensal} suspenso={moldura.suspenso} totalDemandas={moldura.totalDemandas} />
       <main id="conteudo" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-6">
         {children}
       </main>

@@ -74,6 +74,20 @@ describe('formulario', () => {
     expect(errosDoResultado({ ok: false, erro: 'erro_interno', mensagem: 'SENTINELA-detalhe-interno' }).alerta).toBe(MENSAGEM_ERRO_INTERNO);
   });
 
+  it('o mesmo resultado devolve o mesmo objeto; um envio novo, um objeto novo (foco do Resumo de erros, 2.5)', () => {
+    const rotulos = { titulo: 'Título (obrigatório)' };
+    const envio = { ok: false as const, erro: 'entrada_invalida', mensagem: 'x', campos: [{ campo: 'titulo', mensagem: 'Informe o título.' }] };
+    const primeiro = errosDoResultado(envio, rotulos);
+    expect(errosDoResultado(envio, rotulos)).toBe(primeiro);
+    expect(errosDoResultado(envio, rotulos).campos).toBe(primeiro.campos);
+    const semRotulos = errosDoResultado(envio);
+    expect(errosDoResultado(envio)).toBe(semRotulos);
+    // Outro envio com os mesmos erros é outro resultado do useActionState: o resumo recebe o foco de novo.
+    const outroEnvio = { ...envio };
+    expect(errosDoResultado(outroEnvio, rotulos)).not.toBe(primeiro);
+    expect(errosDoResultado(outroEnvio, rotulos)).toEqual(primeiro);
+  });
+
   it('422 com a lista de erros da validação devolve os detalhes', () => {
     const r = errosDoResultado({
       ok: false,

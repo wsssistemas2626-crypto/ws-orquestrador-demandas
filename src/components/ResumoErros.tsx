@@ -1,7 +1,9 @@
 'use client';
 
 // Resumo de erros (03, 2.5): no topo do formulário, com "Corrija os campos abaixo para continuar." e um link por campo.
-// Recebe o foco quando aparece ou muda; o link leva o foco ao campo (no caso de lista, ao primeiro item).
+// Recebe o foco quando aparece ou muda; o link leva o foco ao campo (no caso de lista, ao primeiro item). "Muda" é a
+// identidade de `erros`: use os `campos` de errosDoResultado, que é o mesmo array enquanto o resultado do envio for o
+// mesmo, e não um array montado a cada renderização.
 import { useEffect, useId, useRef, type MouseEvent } from 'react';
 import { TITULO_RESUMO_ERROS, type ErroDeCampo } from './formulario';
 
