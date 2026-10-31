@@ -31,7 +31,7 @@ import {
 } from '../../../../../../components/dados-da-especificacao';
 import { DialogoConfirmacao } from '../../../../../../components/DialogoConfirmacao';
 import { idDoCampo, type ErrosDoFormulario } from '../../../../../../components/formulario';
-import type { ItemDaLista } from '../../../../../../components/lista-textos';
+import { errosDepoisDeRemover, type ItemDaLista } from '../../../../../../components/lista-textos';
 import { ListaTextos } from '../../../../../../components/ListaTextos';
 import { ResumoErros } from '../../../../../../components/ResumoErros';
 import { Selecao } from '../../../../../../components/Selecao';
@@ -100,6 +100,7 @@ export function FormularioEspecificacao({ demandaId, tipo, versaoEsperada, idNov
       itens={valores[c]}
       mudar={(f: (itens: ItemDaLista[]) => ItemDaLista[]) => setValores((v) => ({ ...v, [c]: f(v[c]) }))}
       erros={erros.porCampo}
+      aoRemover={(removido, restantes) => setErros((e) => errosDepoisDeRemover(e, { campo: c, nome, removido, restantes }))}
     />
   );
 

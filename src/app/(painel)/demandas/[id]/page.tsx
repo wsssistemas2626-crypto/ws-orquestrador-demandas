@@ -15,6 +15,7 @@ import { Alerta } from '../../../../components/Alerta';
 import { classeDoBotao } from '../../../../components/Botao';
 import { AVISO_DEMANDA, TEXTOS_DEMANDA } from '../../../../components/dados-da-demanda';
 import { chegadaDaEspecificacao } from '../../../../components/dados-da-especificacao';
+import { chegadaDoParecer } from '../../../../components/dados-do-parecer';
 import {
   COR_DECISAO,
   COR_STATUS,
@@ -66,10 +67,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // T41: a chegada da T07 (ESP gravada ou conflito de versão) só mostra versão e pacote desta demanda (chegadaDaEspecificacao).
+// T42: a da T08 (RSK gravado ou conflito), pela mesma regra (chegadaDoParecer).
 function alertaDeChegada(p: Parametros, d: DemandaVista, esp: { id: string; duvidasEmAberto: readonly string[] } | null): { tipo: 'sucesso' | 'erro'; texto: string } | null {
   if (p.aviso === AVISO_DEMANDA.criada) return { tipo: 'sucesso', texto: TEXTOS_DEMANDA.sucessoCriada(d.id, ROTULO_STATUS[d.status]) };
   if (p.aviso === AVISO_DEMANDA.alteracoesSalvas) return { tipo: 'sucesso', texto: TEXTOS_DEMANDA.sucessoAlteracoes };
-  return chegadaDaEspecificacao(p, d, esp);
+  return chegadaDaEspecificacao(p, d, esp) ?? chegadaDoParecer(p, d);
 }
 
 const CLASSE_LINK = 'text-primaria underline underline-offset-2';

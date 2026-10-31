@@ -22,12 +22,15 @@ type Props = {
   mudar: (f: (itens: ItemDaLista[]) => ItemDaLista[]) => void;
   // Mensagem por caminho: `campo` (a lista) e `campo.N` (o item da linha N da tela).
   erros: Readonly<Record<string, string>>;
+  // Avisa a tela dona dos erros que a linha `indice` saiu, para o erro dos itens de baixo subir junto
+  // (errosDepoisDeRemover, T42).
+  aoRemover?: (indice: number, restantes: number) => void;
 };
 
 let contadorDeItens = 0;
 const novoItem = (): ItemDaLista => ({ chave: `novo-${++contadorDeItens}`, valor: '' });
 
-export function ListaTextos({ campo, legenda, nome, dica, itens, mudar, erros }: Props) {
+export function ListaTextos({ campo, legenda, nome, dica, itens, mudar, erros, aoRemover }: Props) {
   // O id do elemento que recebe o foco depois de adicionar ou remover, já com a lista nova na tela.
   const focoPendente = useRef<string | null>(null);
   useEffect(() => {
@@ -51,6 +54,7 @@ export function ListaTextos({ campo, legenda, nome, dica, itens, mudar, erros }:
     focoPendente.current = i > 0 ? idDoItem(campo, i - 1) : idAdicionar;
     const chave = itens[i]?.chave;
     mudar((v) => v.filter((item) => item.chave !== chave));
+    aoRemover?.(i, itens.length - 1);
   }
 
   const mudarItem = (chave: string, valor: string) => mudar((v) => v.map((item) => (item.chave === chave ? { ...item, valor } : item)));

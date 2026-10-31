@@ -5,8 +5,9 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { LIMITE_ITENS } from '../modules/demandas/schemas';
-import { idDoCampo } from './formulario';
+import { idDoCampo, type ErroDeCampo, type ErrosDoFormulario } from './formulario';
 import {
+  errosDepoisDeRemover,
   idDoAdicionar,
   idDoAlvoDaLista,
   idDoItem,
@@ -75,6 +76,56 @@ describe('lista-textos: regra sem tela', () => {
     expect(TEXTOS_LISTA.removerNome(2, 'Escopo inclui')).toBe('Remover item 2 de Escopo inclui');
     expect(TEXTOS_LISTA.remover).toBe('Remover');
     expect(TEXTOS_LISTA.adicionar).toBe('Adicionar item');
+  });
+});
+
+// T42, achado 1 da 06-T41-revisao: o erro de item é guardado pela linha da tela (`campo.N`). Ao remover uma linha, o
+// erro dela sai e os das linhas de baixo sobem junto com o item, com o id do alvo e o rótulo "Item N de …" refeitos.
+describe('errosDepoisDeRemover (erro na linha certa depois de remover)', () => {
+  const erroDe = (campo: string, mensagem: string, rotulo: string | null, idCampo = idDoCampo(campo)): ErroDeCampo => ({ campo, idCampo, rotulo, mensagem });
+  const errosCom = (campos: ErroDeCampo[]): ErrosDoFormulario => ({ campos, porCampo: Object.fromEntries(campos.map((c) => [c.campo, c.mensagem])), alerta: null, detalhes: [] });
+  const LONGO = 'Este campo aceita até 10.000 caracteres.';
+  const lista = { campo: 'preCondicoes', nome: 'Pré-condições' };
+
+  it('remover a linha 1 com erro na linha 2: o erro sobe para a linha 1, com id e rótulo novos; os de outros campos ficam', () => {
+    const antes = errosCom([
+      erroDe('resumo', LONGO, 'Resumo'),
+      erroDe('preCondicoes.1', LONGO, 'Item 2 de Pré-condições', idDoItem('preCondicoes', 1)),
+      erroDe('preCondicoes.3', LONGO, 'Item 4 de Pré-condições', idDoItem('preCondicoes', 3)),
+    ]);
+    const depois = errosDepoisDeRemover(antes, { ...lista, removido: 0, restantes: 3 });
+    expect(depois.campos).toEqual([
+      erroDe('resumo', LONGO, 'Resumo'),
+      erroDe('preCondicoes.0', LONGO, 'Item 1 de Pré-condições', idDoItem('preCondicoes', 0)),
+      erroDe('preCondicoes.2', LONGO, 'Item 3 de Pré-condições', idDoItem('preCondicoes', 2)),
+    ]);
+    expect(depois.porCampo).toEqual({ resumo: LONGO, 'preCondicoes.0': LONGO, 'preCondicoes.2': LONGO });
+  });
+
+  it('remover a linha com erro: o erro sai; as de cima não mudam', () => {
+    const antes = errosCom([
+      erroDe('preCondicoes.0', LONGO, 'Item 1 de Pré-condições', idDoItem('preCondicoes', 0)),
+      erroDe('preCondicoes.2', LONGO, 'Item 3 de Pré-condições', idDoItem('preCondicoes', 2)),
+    ]);
+    const depois = errosDepoisDeRemover(antes, { ...lista, removido: 2, restantes: 2 });
+    expect(depois.campos).toEqual([erroDe('preCondicoes.0', LONGO, 'Item 1 de Pré-condições', idDoItem('preCondicoes', 0))]);
+    expect(depois.porCampo).toEqual({ 'preCondicoes.0': LONGO });
+  });
+
+  it('erro da lista: sem item na tela, o link passa a levar ao "Adicionar item"', () => {
+    const antes = errosCom([erroDe('preCondicoes', 'Informe ao menos um item.', 'Pré-condições', idDoItem('preCondicoes', 0))]);
+    expect(errosDepoisDeRemover(antes, { ...lista, removido: 0, restantes: 0 }).campos[0]!.idCampo).toBe(idDoAdicionar('preCondicoes'));
+    expect(errosDepoisDeRemover(antes, { ...lista, removido: 1, restantes: 1 })).toBe(antes);
+  });
+
+  it('sem erro na lista (ou só alerta): devolve o mesmo objeto, e o Resumo de erros não leva o foco de novo', () => {
+    const outros = errosCom([erroDe('resumo', LONGO, 'Resumo'), erroDe('recomendacoesMitigacao.1', LONGO, 'Item 2 de Recomendações de mitigação', idDoItem('recomendacoesMitigacao', 1))]);
+    expect(errosDepoisDeRemover(outros, { ...lista, removido: 0, restantes: 1 })).toBe(outros);
+    const alerta: ErrosDoFormulario = { campos: [], porCampo: {}, alerta: 'Não foi possível concluir agora.', detalhes: [] };
+    expect(errosDepoisDeRemover(alerta, { ...lista, removido: 0, restantes: 0 })).toBe(alerta);
+    // Prefixo parecido não é a mesma lista.
+    const parecido = errosCom([erroDe('preCondicoesExtra.1', LONGO, null)]);
+    expect(errosDepoisDeRemover(parecido, { ...lista, removido: 0, restantes: 1 })).toBe(parecido);
   });
 });
 
