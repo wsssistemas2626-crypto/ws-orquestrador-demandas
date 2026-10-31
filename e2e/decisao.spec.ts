@@ -3,9 +3,11 @@
 // na primeira vez que um teste precisa). Uma demanda por teste estourava o limite por ator da suíte inteira (C-36: 30
 // demandas por hora por conta). A ordem do arquivo é a do fluxo: aprovar e a dupla aprovação deixam a demanda em Pronta
 // para decisão; devolver a leva a Em análise; arquivar, a Encerrada, por último. Cada teste roda também sozinho. O
-// pacote de rascunho de agente é o do seed fictício (T33), de nível "Só o CTO", e nenhum teste daqui registra decisão
-// nele. A dupla aprovação troca a sessão da página da "cto" para a "administradora". O axe roda pendente,
-// desatualizado, com erro e decidido.
+// pacote de rascunho de agente é o do seed fictício (T33), que nasce "CTO e administradora" (08-correcao, A-04: o nível
+// do DEC de agente é da regra do servidor), e nenhum teste daqui registra decisão nele. O P1-b usa um DEC de pessoa de
+// nível "Só o CTO", criado pela "cto". Com A-02 (só um DEC aprovado por demanda), a dupla aprovação usa uma demanda
+// própria, que vem do seed (TITULOS_DO_E2E.duplaAprovacao) e não da API, pelo mesmo limite C-36; ela troca a sessão da
+// página da "cto" para a "administradora". O axe roda pendente, desatualizado, com erro e decidido.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { api, entrarComo, semViolacoes } from './apoio';
 
@@ -35,16 +37,32 @@ async function demanda(page: Page): Promise<string> {
   return d.id;
 }
 
-async function prepararPacote(page: Page, nivel: 'cto' | 'cto_e_administradora'): Promise<{ demandaId: string; decId: string }> {
-  const id = await demanda(page);
-  const d = { id };
-  const dec = await api<Versao>(page, 'POST', `/api/demandas/${d.id}/pacotes-decisao`, {
+// Título de scripts/seed-ficticio.ts (TITULOS_DO_E2E.duplaAprovacao): a demanda própria da dupla aprovação.
+const TITULO_DUPLA = 'Dupla aprovação do pacote (fictício)';
+
+// A demanda da dupla aprovação, do seed (nasce sem versão nenhuma), com a ESP e o RSK que o DEC vai citar.
+async function demandaDaDupla(page: Page): Promise<string> {
+  const { itens } = await api<{ itens: (Demanda & { titulo: string })[] }>(page, 'GET', '/api/demandas?tipo=melhoria&limit=100');
+  const d = itens.find((x) => x.titulo === TITULO_DUPLA);
+  if (!d) throw new Error('e2e: o seed não tem a demanda da dupla aprovação');
+  await api<Versao>(page, 'POST', `/api/demandas/${d.id}/especificacoes`, espValida);
+  await api<Versao>(page, 'POST', `/api/demandas/${d.id}/pareceres-risco`, rskValido);
+  return d.id;
+}
+
+async function novoPacote(page: Page, demandaId: string, nivel: 'cto' | 'cto_e_administradora'): Promise<string> {
+  const dec = await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/pacotes-decisao`, {
     resumoExecutivo: 'Resumo executivo fictício.',
     opcaoA: { descricao: 'Construir tudo numa entrega (fictício)', vantagens: 'Resolve a causa (fictício)' },
     opcaoB: { descricao: 'Construir em duas entregas (fictício)' },
     nivelAprovacaoRequerido: nivel,
   });
-  return { demandaId: d.id, decId: dec.id };
+  return dec.id;
+}
+
+async function prepararPacote(page: Page, nivel: 'cto' | 'cto_e_administradora'): Promise<{ demandaId: string; decId: string }> {
+  const demandaId = await demanda(page);
+  return { demandaId, decId: await novoPacote(page, demandaId, nivel) };
 }
 
 async function idDoDecDeRascunhoDoSeed(page: Page): Promise<string> {
@@ -119,8 +137,10 @@ test('C-14: revisão visível antes de decidir e repetida no diálogo, num DEC d
 });
 
 test('P1-b: administradora em DEC de nível cto vê "Este pacote exige só a aprovação do CTO." e nenhum formulário', async ({ page }) => {
+  // DEC de pessoa de nível cto: o de agente do seed nasce "CTO e administradora" (A-04).
+  await entrarComo(page, 'cto');
+  const { decId } = await prepararPacote(page, 'cto');
   await entrarComo(page, 'administradora');
-  const decId = await idDoDecDeRascunhoDoSeed(page);
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('Este pacote exige só a aprovação do CTO.', { exact: true })).toBeVisible();
   await expect(page.locator('main form')).toHaveCount(0);
@@ -159,7 +179,8 @@ test('nível cto: aprovar A → "Decisão registrada: Aprovada, opção A." e o 
 
 test('dupla aprovação: CTO aprova; administradora entra, vê a opção fixada, informa documento e data; "O pacote está aprovado."', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const { decId } = await prepararPacote(page, 'cto_e_administradora');
+  // Demanda própria (A-02): o teste anterior já deixou um DEC aprovado na demanda da spec.
+  const decId = await novoPacote(page, await demandaDaDupla(page), 'cto_e_administradora');
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('CTO: pendente.', { exact: true })).toBeVisible();
   await expect(page.getByText('Administradora: pendente.', { exact: true })).toBeVisible();

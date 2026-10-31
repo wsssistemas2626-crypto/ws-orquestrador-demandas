@@ -3,13 +3,14 @@
 // mostra o campo e o tipo, nunca o valor; Estudo não tem botão. O axe roda aprovado antes de gerar, gerado, com erro 422
 // e no Estudo.
 //
-// C-36 (06-T43-tech-lead, "C-36 no e2e"): esta spec não cria nenhuma demanda. Ela usa duas demandas do seed fictício
-// (T33), achadas por GET /api/demandas: a de tipo novo_projeto e a de tipo estudo. Cada teste cria, pela API e com a
+// C-36 (06-T43-tech-lead, "C-36 no e2e"): esta spec não cria nenhuma demanda. Com A-02 (08-correcao: só um DEC aprovado
+// por demanda), cada teste usa uma demanda própria do seed fictício (T33; scripts/seed-ficticio.ts, TITULOS_DO_E2E),
+// achada por GET /api/demandas: três de tipo novo_projeto e uma de tipo estudo. Cada teste cria, pela API e com a
 // sessão da conta "cto", a própria ESP, o próprio RSK e um DEC de nível "Só o CTO", e aprova o DEC pela API.
 //   - conta "cto": 0 demandas e 12 versões (4 testes × ESP, RSK e DEC);
 //   - conta "administradora": 0 demandas e 0 versões.
-// Cada DEC cita a ESP e o RSK mais novos da demanda, criados no próprio teste: um teste não depende do outro e cada um
-// roda sozinho. O caso de C-28 é só uma versão nova da ESP, com um e-mail fictício, na mesma demanda do seed.
+// Cada DEC cita a ESP e o RSK da própria demanda, criados no próprio teste: um teste não depende do outro e cada um
+// roda sozinho. O caso de C-28 é uma ESP com um e-mail fictício, na demanda própria dele.
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { api, entrarComo, semViolacoes } from './apoio';
@@ -17,10 +18,12 @@ import { api, entrarComo, semViolacoes } from './apoio';
 type Versao = { id: string };
 type ListaDemandas = { itens: { id: string; titulo: string }[] };
 
-// Títulos de duas das cinco demandas do seed (scripts/seed-ficticio.ts, DEMANDAS).
+// As demandas próprias de cada teste no seed (scripts/seed-ficticio.ts, TITULOS_DO_E2E), com o tipo de cada uma.
 const SEED = {
-  novo_projeto: 'Portal de acompanhamento de pedidos (fictício)',
-  estudo: 'Estudo de atendimento com IA e revisão humana (fictício)',
+  gerar: { tipo: 'novo_projeto', titulo: 'Portal do pedido: gerar e baixar (fictício)' },
+  copiar: { tipo: 'novo_projeto', titulo: 'Portal do pedido: copiar o JSON (fictício)' },
+  validacao: { tipo: 'novo_projeto', titulo: 'Portal do pedido: validação do /construir (fictício)' },
+  estudo: { tipo: 'estudo', titulo: 'Estudo do pedido de construção (fictício)' },
 } as const;
 
 const EMAIL_FICTICIO = 'pessoa.ficticia@cliente.test';
@@ -42,16 +45,17 @@ const decValido = {
   nivelAprovacaoRequerido: 'cto',
 };
 
-async function demandaDoSeed(page: Page, tipo: keyof typeof SEED): Promise<string> {
+async function demandaDoSeed(page: Page, chave: keyof typeof SEED): Promise<string> {
+  const { tipo, titulo } = SEED[chave];
   const { itens } = await api<ListaDemandas>(page, 'GET', `/api/demandas?tipo=${tipo}&limit=100`);
-  const d = itens.find((x) => x.titulo === SEED[tipo]);
-  if (!d) throw new Error(`e2e: o seed não tem a demanda de tipo ${tipo}`);
+  const d = itens.find((x) => x.titulo === titulo);
+  if (!d) throw new Error(`e2e: o seed não tem a demanda própria do teste "${chave}"`);
   return d.id;
 }
 
-// ESP, RSK e DEC novos na demanda do seed; o DEC cita os dois, que são os mais novos.
-async function prepararDec(page: Page, tipo: keyof typeof SEED, esp: Record<string, unknown>): Promise<string> {
-  const demandaId = await demandaDoSeed(page, tipo);
+// ESP, RSK e DEC novos na demanda própria do teste; o DEC cita os dois, que são os mais novos.
+async function prepararDec(page: Page, chave: keyof typeof SEED, esp: Record<string, unknown>): Promise<string> {
+  const demandaId = await demandaDoSeed(page, chave);
   await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/especificacoes`, esp);
   await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/pareceres-risco`, rskValido);
   return (await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/pacotes-decisao`, decValido)).id;
@@ -59,8 +63,8 @@ async function prepararDec(page: Page, tipo: keyof typeof SEED, esp: Record<stri
 
 const aprovar = (page: Page, decId: string) => api(page, 'PATCH', `/api/pacotes-decisao/${decId}/decisao`, { statusDecisao: 'aprovada', opcaoEscolhida: 'A' });
 
-async function prepararDecAprovado(page: Page, tipo: keyof typeof SEED, esp: Record<string, unknown>): Promise<string> {
-  const decId = await prepararDec(page, tipo, esp);
+async function prepararDecAprovado(page: Page, chave: keyof typeof SEED, esp: Record<string, unknown>): Promise<string> {
+  const decId = await prepararDec(page, chave, esp);
   await aprovar(page, decId);
   return decId;
 }
@@ -79,7 +83,7 @@ const gerar = (page: Page) => page.getByRole('button', { name: 'Gerar Pedido de 
 
 test('CA-26.3: só depois de aprovado; gerar por ação; baixar devolve <DEC-id>.json igual à resposta da API', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const decId = await prepararDec(page, 'novo_projeto', espConstruida);
+  const decId = await prepararDec(page, 'gerar', espConstruida);
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('Decisão pendente', { exact: true })).toBeVisible();
   await expect(secao(page)).toHaveCount(0);
@@ -129,7 +133,7 @@ test('CA-26.3: só depois de aprovado; gerar por ação; baixar devolve <DEC-id>
 test('Copiar JSON: "JSON copiado para a área de transferência." em role=status; a cópia que falha orienta copiar à mão', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await entrarComo(page, 'cto');
-  const decId = await prepararDecAprovado(page, 'novo_projeto', espConstruida);
+  const decId = await prepararDecAprovado(page, 'copiar', espConstruida);
   await page.goto(`/pacotes-decisao/${decId}`);
   await gerar(page).click();
   await expect(page.getByRole('status')).toHaveText('Pedido de Construção gerado.');
@@ -151,7 +155,7 @@ test('Copiar JSON: "JSON copiado para a área de transferência." em role=status
 
 test('C-28: ESP com e-mail fictício → "O pedido não passou na validação do /construir. Nada foi entregue." com o campo e o tipo, sem o valor', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const decId = await prepararDecAprovado(page, 'novo_projeto', { ...espConstruida, descricaoObjetiva: `Falar com ${EMAIL_FICTICIO} sobre o portal (fictício).` });
+  const decId = await prepararDecAprovado(page, 'validacao', { ...espConstruida, descricaoObjetiva: `Falar com ${EMAIL_FICTICIO} sobre o portal (fictício).` });
   await page.goto(`/pacotes-decisao/${decId}`);
   await gerar(page).click();
   const alerta = page.getByRole('alert').filter({ hasText: 'O pedido não passou na validação do /construir.' });

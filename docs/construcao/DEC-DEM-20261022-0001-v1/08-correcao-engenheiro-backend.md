@@ -2,199 +2,146 @@
 pedido: DEC-DEM-20261022-0001-v1
 etapa: 08-correcao
 agente: engenheiro-backend
-leu: [pedido.json, contrato-passagem.md, 08-maestro.md, package.json, decidir.ts, decidir-bordas.test.ts, decidir.test.ts, consultas.ts (pacotes-decisao), desatualizado.ts, criar.ts (pacotes-decisao), schemas.ts (pacotes-decisao), gerar.ts, gerar.test.ts, gerar-bordas.test.ts, dados-do-pedido.ts, dados-do-pedido.test.ts, page.tsx (pacotes-decisao/[decId]), FormularioDecisao.tsx, schemas.ts (agentes), executar.ts, executar.test.ts, consolidacao.ts, comum.ts, prompts.test.ts, prompts.bordas.test.ts, bloqueio-verificacao.ts, decisao.ts (db/schema), route.ts (demandas/[id]/pacotes-decisao), log.ts, seed-ficticio.ts, projeto.test.ts, playwright.config.ts, e2e/servidor.ts, e2e/decisao.spec.ts, e2e/pedido-construcao.spec.ts]
+leu: [pedido.json, contrato-passagem.md, 08-maestro.md, liberação do maestro (mensagem desta volta), package.json, pnpm-lock.yaml, decidir.ts, decidir-bordas.test.ts, decidir.test.ts, consultas.ts (pacotes-decisao), desatualizado.ts, criar.ts (pacotes-decisao), schemas.ts (pacotes-decisao), gerar.ts, gerar.test.ts, gerar-bordas.test.ts, dados-do-pedido.ts, dados-do-pedido.test.ts, dados-da-decisao.ts, page.tsx (pacotes-decisao/[decId]), FormularioDecisao.tsx, schemas.ts (agentes), executar.ts, executar.test.ts, consolidacao.ts, comum.ts, prompts.test.ts, prompts.bordas.test.ts, bloqueio-verificacao.ts, limites.ts, decisao.ts (db/schema), route.ts (demandas/[id]/pacotes-decisao), log.ts, proxy.ts, proxy.test.ts, next.config.ts, seed-ficticio.ts, scripts.test.ts, projeto.test.ts, playwright.config.ts, e2e/servidor.ts, e2e/decisao.spec.ts, e2e/pedido-construcao.spec.ts, e2e/fila.spec.ts, e2e/fila-qa.spec.ts, e2e/axe-todas.spec.ts, test-results/*/error-context.md (gerados pelas corridas desta etapa)]
 status: bloqueado
 proximo: engenheiro-backend
 devolvido_para: null
 ---
 ## Entrega
 
-As correções de S-01 e de A-01 a A-04 estão no código, cada uma com teste que vi falhar antes. `pnpm test` passou
-inteiro: 3.693 de 3.693, rodado em cinco partes que cobrem todos os arquivos de teste. `pnpm lint`, `pnpm typecheck`
-e `pnpm build` (Next 16.4.1) passaram limpos. **O `pnpm test:e2e` falhou.** As regras novas A-02 e A-04 quebram duas
-specs que esperam o comportamento antigo, e as duas ficam em `e2e/`, que está fora da minha lista **Pode** (ver
-Pendências).
+Esta é a segunda volta da 08-correcao. A primeira parte (S-01 e A-01 a A-04) já está commitada. Nesta volta adaptei
+`e2e/decisao.spec.ts` e `e2e/pedido-construcao.spec.ts` a A-02 e A-04, como a liberação pediu, e acrescentei ao seed as
+demandas próprias desses testes.
 
-### S-01: versões das dependências (`package.json`)
+Resultado: `pnpm test` passou com 3.694 de 3.694, e `pnpm lint` e `pnpm typecheck` passaram limpos. **A suíte
+`pnpm test:e2e` não ficou verde**, por dois motivos, descritos em Pendências:
 
-- `next` 16.3.8 → 16.4.1, `eslint-config-next` 16.3.8 → 16.4.1, `better-auth` 1.7.6 → 1.7.7, `zod` 4.6.5 → 4.6.6.
-  Mudou só a versão de dependências que já existiam. O `pnpm install` atualizou o `pnpm-lock.yaml` e passou na
-  política de cadeia de suprimentos do lockfile.
-- O teste é o `test/estatico/projeto.test.ts` (RNF-01), com as versões novas fixadas. Ele falhou antes da troca, com 2
-  testes vermelhos, e passou depois.
-- Os testes do plugin twoFactor (`verificacao.test.ts`, `verificacao-qa.test.ts` e `sonda-mutacao-qa.test.ts`, de
-  `src/modules/acesso`) passaram com o better-auth 1.7.7.
+1. `e2e/axe-todas.spec.ts:275` também espera o DEC de agente do seed como "Só o CTO" (A-04), e esse arquivo não está
+   na liberação.
+2. Com o Next 16.4.1 da S-01, o `next dev` do e2e às vezes recarrega a página sozinho no meio do teste. Na comparação
+   direta com o 16.3.8, a mesma spec passou no 16.3.8 e falhou no 16.4.1.
 
-### A-01 e A-02: só o DEC mais novo é decidido, e nunca dois aprovados (`decidir.ts`)
+### O que mudou nesta volta
 
-- Depois da trava da demanda, e logo após o "já decidido":
-  - DEC que não é o de maior versão da demanda → 409 `naoEhOMaisNovo`, em qualquer decisão (aprovar, devolver ou
-    arquivar);
-  - aprovar quando outro DEC da demanda já tem decisão `aprovada` → 409 `outroAprovado`. Isso vale também para a
-    primeira aprovação (parcial) da dupla aprovação.
-- Mensagens novas, em minúscula como as outras de 409:
-  - "a demanda tem um pacote mais novo; só o mais novo pode ser decidido."
-  - "outro pacote desta demanda já está aprovado."
-- Teste novo: `src/modules/pacotes-decisao/decidir-versoes.test.ts`, com 8 testes, 5 deles vermelhos antes. Ele cobre:
-  - o cenário do achado: v2 aprovado e depois o v1 arquivado. A resposta é 409, a demanda segue em
-    `pronta_para_decisao` e o v2 ainda leva a demanda a `aprovada`;
-  - devolver, arquivar ou aprovar o v1 com o v2 pendente;
-  - a dupla aprovação começada no v1 que não termina depois do v2;
-  - aprovar o v2 com B com o v1 aprovado com A, também na aprovação parcial;
-  - os casos que continuam valendo: decidir o mais novo, a mensagem "já decidido" num DEC antigo e o v1 devolvido.
+- `scripts/seed-ficticio.ts`: o seed passa a criar mais cinco demandas fictícias, as `TITULOS_DO_E2E`. Uma é da dupla
+  aprovação da `decisao.spec` e quatro são da `pedido-construcao.spec`: três de tipo `novo_projeto` e uma de tipo
+  `estudo`.
+  - Todas nascem com contexto, sem ESP, RSK nem DEC, em Nova e pela conta cto.
+  - `TOTAL_DEMANDAS_DO_SEED` passa a ser 10.
+  - `conferirLimite` não mudou, e não há variável nem exceção por conta de teste (regra da `06-T43-revisao`).
+- `scripts/scripts.test.ts`:
+  - as contagens de "5 demandas" passaram a `TOTAL_DEMANDAS_DO_SEED`, e o teste dos tipos virou `distinct`;
+  - teste novo das demandas do e2e: um título por demanda, sem versão, em Nova, pela conta cto, com tipo `estudo` só
+    na do Estudo e contexto preenchido.
+- `e2e/decisao.spec.ts` (nenhuma asserção removida nem afrouxada):
+  - P1-b: a conta cto cria um DEC de pessoa de nível `cto`, e a administradora abre esse DEC;
+  - dupla aprovação: usa a demanda própria do seed, com ESP, RSK e DEC criados pela API;
+  - o cabeçalho explica a mudança.
+- `e2e/pedido-construcao.spec.ts`: cada um dos quatro testes acha a sua demanda pelo título. As asserções não mudaram
+  e o cabeçalho C-36 foi atualizado: continua 0 demanda e 12 versões na conta cto.
+- `pnpm-lock.yaml` mudou em relação ao commit, por causa da comparação com o Next 16.3.8, que reinstalou as
+  dependências. O lockfile commitado ainda deixava o better-auth 1.7.7 e o `eslint-plugin-react-hooks` usando o
+  **zod 4.6.5** (a versão vulnerável da S-01) como dependência transitiva. O novo resolve tudo para o zod 4.6.6. Mantive
+  o novo; o `package.json` está igual ao commitado.
 
-### A-03: Pedido de Construção de DEC desatualizado (`gerar.ts`, `dados-do-pedido.ts`)
+### Testes vistos falhando antes do código
 
-- `gerarPedido` recusa com 409 o DEC aprovado que ficou desatualizado. A mensagem é `MENSAGENS_PEDIDO.desatualizado`.
-  Nenhum evento `pedido_gerado` é gravado.
-- `secaoDoPedido` devolve `nenhuma` quando `desatualizado` é verdadeiro, então a tela não mostra a seção nem o botão.
-- Testes:
-  - em `gerar-bordas.test.ts`, dois testes novos: ESP v2 e RSK v2 gravados depois da aprovação. Os dois estavam
-    vermelhos antes;
-  - em `dados-do-pedido.test.ts`, um teste novo, vermelho antes.
+- O teste novo das demandas do e2e em `scripts/scripts.test.ts` falhou com "Dupla aprovação do pacote (fictício):
+  expected '' not to be ''" antes de o contexto entrar no seed. Depois passou com 33 de 33.
+- A primeira versão das demandas do seed, sem contexto, fez o `pedido-construcao.spec` falhar no validarPedido com
+  "demanda.descricao vazio". Foi esse erro que levou ao teste acima.
 
-### A-04: o nível de aprovação não vem do modelo
+### e2e: o que rodou e o resultado
 
-- `src/modules/agentes/schemas.ts`: `saidaConsolidacaoSchema` é `criarPacoteDecisaoSchema` sem
-  `nivelAprovacaoRequerido`, e é ele o `SCHEMA_DE_SAIDA.consolidacao`. A chave que o modelo mandar é descartada.
-- `src/modules/pacotes-decisao/criar.ts`: `NIVEL_DO_DEC_DE_AGENTE = 'cto_e_administradora'`. Todo DEC de ator agente
-  nasce nesse nível, venha pelo worker ou pela rota com token de agente. O campo que vier é ignorado, e o evento
-  `pacote_decisao_criado` registra o nível gravado. O DEC de pessoa continua com o nível que a pessoa escolhe.
-- `src/modules/agentes/executar.ts` e `scripts/seed-ficticio.ts` gravam o DEC de agente com a saída sem o nível, mais a
-  constante.
-- `src/agents/consolidacao.ts`: o prompt não pede mais o nível (a regra saiu), e o exemplo de saída não tem o campo.
-- Testes:
-  - `src/modules/agentes/nivel-aprovacao.test.ts`, novo, com 7 testes, 5 deles vermelhos antes. Cobre o schema, o
-    prompt, a rota de pessoa que continua exigindo o nível, o serviço com o ator agente mandando `cto` (gravado
-    `cto_e_administradora`, no banco e no evento) e o de pessoa;
-  - em `executar.test.ts`, um teste novo de ponta a ponta: o provedor falso devolve `nivelAprovacaoRequerido: 'cto'` e
-    o DEC é gravado `cto_e_administradora`. Estava vermelho antes.
+A suíte inteira sempre vai para segundo plano depois de 180 s, mesmo com `timeout` de 600000, e a saída fica em
+`/tmp`, que não li. Por isso rodei em grupos, um de cada vez:
 
-### Testes antigos ajustados à regra nova (com a razão no próprio teste)
-
-- `gerar.test.ts`: "ESP e RSK novos depois da aprovação não mudam o pedido" virou "o pedido é recusado com 409". É a
-  regra da A-03.
-- `decidir.test.ts`: na aprovação do CTO num DEC de agente, o resultado passou de `aprovada` para
-  `aprovacao_parcial`, porque o DEC de agente agora é de dupla aprovação (A-04).
-- `prompts.test.ts` e `prompts.bordas.test.ts`: o schema da consolidação passou a ser o `saidaConsolidacaoSchema`. O
-  prompt não cita mais os níveis, e o teste "na dúvida, cto_e_administradora" virou "o nível mandado pelo modelo sai
-  no schema".
-
-### Arquivos alterados
-
-- Configuração: `package.json` e `pnpm-lock.yaml`.
-- Código: `scripts/seed-ficticio.ts`, `src/agents/consolidacao.ts`, `src/components/dados-do-pedido.ts`,
-  `src/modules/agentes/executar.ts`, `src/modules/agentes/schemas.ts`, `src/modules/pacotes-decisao/criar.ts`,
-  `src/modules/pacotes-decisao/decidir.ts` e `src/modules/pedido-construcao/gerar.ts`.
-- Testes alterados: `test/estatico/projeto.test.ts`, `src/agents/prompts.test.ts`, `src/agents/prompts.bordas.test.ts`,
-  `src/components/dados-do-pedido.test.ts`, `src/modules/agentes/executar.test.ts`,
-  `src/modules/pacotes-decisao/decidir.test.ts`, `src/modules/pedido-construcao/gerar.test.ts` e
-  `src/modules/pedido-construcao/gerar-bordas.test.ts`.
-- Testes novos: `src/modules/pacotes-decisao/decidir-versoes.test.ts` e `src/modules/agentes/nivel-aprovacao.test.ts`.
-
-### Teste antes do código (vermelho)
-
-Comando: `pnpm -C <repo> exec vitest run` com os seis arquivos de teste da correção, antes de qualquer mudança no
-código. Trecho da saída:
-
-```
-❯ test/estatico/projeto.test.ts (11 tests | 2 failed)
-❯ src/components/dados-do-pedido.test.ts (11 tests | 1 failed)
-❯ src/modules/agentes/nivel-aprovacao.test.ts (7 tests | 5 failed)
-❯ src/modules/pacotes-decisao/decidir-versoes.test.ts (8 tests | 5 failed)
-❯ src/modules/pedido-construcao/gerar-bordas.test.ts (11 tests | 2 failed)
-FAIL executar.test.ts > A-04 (08-correcao): saída de consolidação que tenta rebaixar o nível para cto …
--   "nivelAprovacaoRequerido": "cto_e_administradora",
-+   "nivelAprovacaoRequerido": "cto",
-```
-
-Foram 16 vermelhos. Depois da correção, o mesmo comando deu 87 de 87.
-
-### Suíte inteira (verde)
-
-O `pnpm test` sem filtro rodou inteiro, mas o log do pino passou do limite de saída do terminal e cortou o resumo.
-Por isso rodei a suíte em cinco partes, que cobrem todos os arquivos de teste (`src/`, `test/` e `scripts/`):
-
-| Parte | Arquivos | Testes |
+| Corrida | Next | Resultado |
 |---|---|---|
-| agentes, jobs e worker | 19 | 373 de 373 |
-| demais módulos | 50 | 1.019 de 1.019 |
-| app, componentes, prompts, proxy e vendor | 65 | 1.205 de 1.205 |
-| `test/`, `src/lib/` e `src/db/` | 52 | 1.017 de 1.017 |
-| `scripts/` | 5 | 79 de 79 |
-| **Total** | **191** | **3.693 de 3.693** |
+| suíte inteira | 16.4.1 | código 1, em segundo plano; os testes 1 a 5 de `agentes-teto` falharam ainda na parte visível |
+| `agentes-teto` | 16.4.1 | 2 de 7; os outros 5 falharam com recarga da página ("Execution context was destroyed" e "4 × navigated") |
+| `agentes-teto` | **16.3.8** | **7 de 7** |
+| `agentes-teto` | 16.4.1, com o proxy fora de `/_next/webpack-hmr` | 7 de 7 |
+| `decisao` + `pedido-construcao` | 16.4.1 | `decisao` 6 de 6; `pedido-construcao` 2 de 4 ("demanda.descricao vazio", corrigido no seed) |
+| `pedido-construcao` | 16.4.1 | 0 de 4, com recarga da página |
+| `pedido-construcao` (de novo) | 16.4.1 | **4 de 4** |
+| `agentes-teto` + `autenticacao-qa` + `configurar-2fa` | 16.4.1 | **13 de 13** |
+| `axe-todas` | 16.4.1 | 11 de 12; o T11 falhou por A-04 (Pendências) |
+| `decisao` + `demanda-formularios-qa` + `detalhe-demanda` | 16.4.1 | `decisao` 0 de 6, com recarga da página; foi para segundo plano e saiu com código 1 |
 
-O total bate com os 3.674 da 06 mais os 19 testes novos desta correção.
+Não rodaram nesta volta, depois das mudanças: `editar-demanda`, `entrar`, `especificacao`, `especificacao-qa`, `fila`,
+`fila-qa`, `moldura`, `nova-demanda`, `pacote-decisao`, `parecer-risco`, `parecer-risco-qa`, `seguranca` e
+`seguranca-qa`. Também não terminaram à vista `demanda-formularios-qa` e `detalhe-demanda`.
 
 ## Decisões tomadas
 
-- O nível do DEC de agente é fixo no mais exigente (`cto_e_administradora`). É a única regra de servidor que nenhuma
-  saída de modelo influencia. Se o nível viesse do RSK, um RSK de agente também poderia rebaixá-lo. Para rebaixar a
-  `cto`, a pessoa cria uma versão nova do DEC, e com a A-01 ela passa a ser a mais nova.
-- A regra também vale no serviço, e não só no schema do agente. Assim, o token de agente que chama
-  `POST /api/demandas/:id/pacotes-decisao` com `cto` também não rebaixa o nível. O schema da rota segue exigindo o
-  campo, para não mudar o contrato da pessoa.
-- A ordem das recusas é: "já decidido", "não é o mais novo", "outro aprovado" e por último "desatualizado". Assim, o
-  DEC antigo que já foi decidido continua respondendo com a mensagem que já existia.
-- A tela de decisão não esconde o formulário do DEC antigo, porque o achado só pede a recusa no servidor (409). O
-  esconder fica como sugestão para a `ux-ui-design` (ver Pendências).
-- No `gerarPedido`, a conferência de desatualizado vem logo depois de "não aprovado" e antes de Estudo. Um DEC
-  substituído não gera pedido em caso nenhum.
-- Rodei duas vezes `pnpm -C <repo> exec vitest run <arquivos>`, que é o mesmo `vitest run` do script `test`, só com os
-  arquivos da correção, para ver o vermelho e o verde. A forma com `exec` não está escrita na lista **Pode**. Se o
-  `conferir` a recusar, a forma equivalente é `pnpm -C <repo> test <arquivos>`.
+- As demandas próprias vêm do seed, como a liberação pede (C-36). Elas não gastam o limite de demanda do e2e.
+- Na dupla aprovação, a ESP e o RSK são criados pela API (2 versões a mais na conta cto), e não no seed. Assim o DEC
+  não cita rascunho de agente nem exige a confirmação de revisão, que mudaria o fluxo que o teste confere. O P1-b soma
+  1 versão.
+- Testei a hipótese de o proxy (`src/proxy.ts`) atrapalhar a conexão de recarga do `next dev` no 16.4.1. Tirei
+  `/_next/webpack-hmr` do matcher, com teste, e o `agentes-teto` passou. Mas duas corridas depois a recarga voltou em
+  `pedido-construcao` e `decisao`. Como não resolveu, **desfiz a mudança e o teste dela**: o `proxy.ts` e o
+  `proxy.test.ts` estão iguais ao commit, e o C-19 ficou sem alteração.
+- Voltei o Next para 16.3.8 só para comparar, com `pnpm install`, e voltei para 16.4.1 em seguida. O `package.json`
+  final é o commitado.
+- Para ver o resumo do `pnpm test` (o log do pino passa do limite do terminal), li o arquivo de saída que a ferramenta
+  gravou em `~/.claude/projects/…/tool-results/`, que não fica em `/tmp`. Para ver por que o e2e falhou, li o
+  `error-context.md` de `test-results/`, que as próprias corridas desta etapa criaram.
 
 ## Pendências
 
-- Bloqueado: `pnpm test:e2e` falha porque `e2e/decisao.spec.ts` e `e2e/pedido-construcao.spec.ts` esperam o comportamento que A-02 e A-04 tiraram, e `e2e/` está fora da minha lista **Pode** (só `src/`, `test/`, `scripts/` e a configuração da raiz). Preciso que Fabiano libere a edição desses dois arquivos para o `engenheiro-backend`, ou que o maestro passe o ajuste ao `qa-automacao`.
-  - `e2e/decisao.spec.ts`:
-    - o teste P1-b usa o DEC de agente do seed como "Só o CTO", e agora ele nasce `cto_e_administradora`. A
-      administradora passa a ver o formulário. É preciso trocar a expectativa ou usar um DEC de pessoa de nível `cto`;
-    - os testes usam uma demanda só para a spec inteira. O teste "nível cto: aprovar A" aprova o v1, e depois o de
-      "dupla aprovação" cria o v2 na mesma demanda e tenta aprovar. Isso dá 409 `outroAprovado` (A-02). É preciso uma
-      demanda própria para a dupla aprovação. Atenção ao limite C-36 descrito no cabeçalho da spec.
-  - `e2e/pedido-construcao.spec.ts`: os quatro testes criam ESP, RSK e DEC na mesma demanda do seed e aprovam cada um.
-    Do segundo em diante, o DEC dá 409 `outroAprovado` (A-02). É preciso uma demanda por teste: não dá para liberar
-    a demanda devolvendo o DEC aprovado anterior, porque ele já está decidido. O cabeçalho da spec explica por que ela não cria
-    demanda (C-36), então a solução passa pelo limite por conta.
-  - Rodando cada spec sozinha, o primeiro teste de cada execução falhou com "Execution context was destroyed, most
-    likely because of a navigation" no axe. Aconteceu em `decisao.spec.ts` e também em `pacote-decisao.spec.ts`, que
-    as correções não tocam. Parece ser o `next dev` compilando a rota no primeiro acesso, e não sei se vem do Next
-    16.4.1 ou se já acontecia rodando uma spec isolada. A suíte inteira rodou uma vez e saiu com código 1. O
-    resultado foi para um arquivo em `/tmp`, porque passou de 180 s, e esse arquivo eu não li. Por isso não tenho a
-    lista completa das falhas da suíte inteira: só a de `decisao.spec.ts` (6 de 6 falharam) e a de
-    `pacote-decisao.spec.ts` (1 de 3). É preciso rodar `pnpm test:e2e` de novo depois do ajuste das duas specs.
-- Para o reteste (08-reteste): conferir `pnpm audit --prod --audit-level high` com as versões novas. Ele não está na
-  minha lista **Pode**.
-- Fora da minha lista **Pode** (docs): atualizar no RNF-01 e no registro do pedido a versão do Next, de 16.3.8 para
-  16.4.1, como pede a S-01. O mesmo vale para o padrão técnico, se ele fixar 16.3.8, e para as versões do better-auth
-  (1.7.7) e do Zod (4.6.6). O comentário de `bloqueio-verificacao.ts:5` ainda cita "Better Auth 1.7.6". Não o
-  troquei, porque o comportamento do plugin foi testado e o texto descreve a origem do bloqueio.
-- Para a `ux-ui-design`: o texto das duas mensagens novas de 409 da decisão e da mensagem de desatualizado do pedido.
-  E, se for o caso, esconder o formulário de decisão do DEC que não é o mais novo.
+- Bloqueado: o `pnpm test:e2e` não fica verde por dois motivos fora da minha liberação. (1) `e2e/axe-todas.spec.ts:275` espera "Este pacote exige só a aprovação do CTO." no DEC de agente do seed, que pela A-04 nasce "CTO e administradora". (2) Com o Next 16.4.1, o `next dev` do e2e recarrega a página sozinho de forma intermitente, e com o 16.3.8 a mesma spec passou. Preciso de liberação para `e2e/axe-todas.spec.ts` e de uma decisão do `tech-lead` ou do `devops-sre` sobre o servidor do e2e.
+  - **(1) `e2e/axe-todas.spec.ts`, teste T11, linhas 273 a 276.** A spec não grava nada (C-36), então a administradora
+    abre o DEC de agente do seed, que agora é de dupla aprovação, e vê o formulário dela. A troca que proponho mantém o
+    axe na conta administradora: conferir o que ela vê nesse nível, ou seja, o botão "Registrar decisão" e o nível "CTO
+    e administradora" na revisão, no lugar da frase "só a aprovação do CTO". Essa frase já é conferida no P1-b da
+    `decisao.spec`. O cabeçalho da spec também cita o DEC de agente do seed.
+  - **(2) Recarga intermitente no Next 16.4.1.** A evidência está na tabela da Entrega: a mesma spec passou 7 de 7 no
+    16.3.8 e 2 de 7 no 16.4.1, sem nenhuma outra mudança. A falha aparece e some entre corridas iguais, em qualquer
+    spec. É o `next dev` mandando a página recarregar (o Playwright registra "N × navigated to" a mesma URL), e não as
+    regras desta correção.
+  - Caminhos possíveis, e nenhum está na minha lista **Pode**:
+    - subir o e2e com `next build` e `next start` em vez de `next dev`, em `e2e/servidor.ts`, o que também fica mais
+      perto da homologação;
+    - testar outra versão 16.4.x ≥16.4.1 que não tenha o problema;
+    - aceitar o e2e só em `next start` no CI da 09.
+  - Voltar para 16.3.8 não serve, porque reabre a S-01.
+  - Depois da decisão, rodar a suíte inteira até o fim.
+- Para o reteste (08-reteste): `pnpm audit --prod --audit-level high` com o lockfile novo. O commitado ainda tinha o zod
+  4.6.5 transitivo, ver a Entrega.
+- Docs, fora da minha lista **Pode**:
+  - RNF-01 e registro do pedido: atualizar a versão do Next, de 16.3.8 para 16.4.1;
+  - padrão técnico: atualizar, se ele fixar o 16.3.8, e também as versões do better-auth (1.7.7) e do Zod (4.6.6);
+  - `bloqueio-verificacao.ts:5`: o comentário ainda cita "Better Auth 1.7.6".
+- Para a `ux-ui-design`: o texto das duas mensagens novas de 409 da decisão e da mensagem de desatualizado do pedido. E,
+  se for o caso, esconder o formulário de decisão do DEC que não é o mais novo.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff main...HEAD --name-only -- src test e2e`
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas exec vitest run test/estatico/projeto.test.ts src/modules/pacotes-decisao/decidir-versoes.test.ts src/modules/pedido-construcao/gerar-bordas.test.ts src/components/dados-do-pedido.test.ts src/modules/agentes/nivel-aprovacao.test.ts src/modules/agentes/executar.test.ts` — vermelho: 16 falharam
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas install` — next 16.4.1, better-auth 1.7.7, zod 4.6.6, eslint-config-next 16.4.1
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas exec vitest run test/estatico/projeto.test.ts src/modules/pacotes-decisao/decidir-versoes.test.ts src/modules/pedido-construcao/gerar-bordas.test.ts src/components/dados-do-pedido.test.ts src/modules/agentes/nivel-aprovacao.test.ts src/modules/agentes/executar.test.ts` — verde: 87 de 87
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — suíte inteira; resumo cortado pelo limite de saída do terminal
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/agentes src/jobs src/worker` — 373 de 373
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/acesso src/modules/avisos src/modules/dados-pessoais src/modules/demandas src/modules/especificacoes src/modules/historico src/modules/limites src/modules/pacotes-decisao src/modules/pareceres-risco src/modules/pedido-construcao src/modules/retencao src/modules/versoes` — 1ª vez: 2 falharam (testes antigos da regra anterior); 2ª vez: 1.019 de 1.019
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app src/components src/agents src/proxy src/instrumentation src/vendor` — 1ª vez: 5 falharam (testes de prompt da regra anterior); 2ª vez: 1.205 de 1.205
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test src/lib src/db` — o filtro `test` casou com a suíte inteira; resumo cortado
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/ src/lib/ src/db/` — 1.017 de 1.017 (rodado duas vezes, a 2ª depois da mudança no seed)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff main...HEAD --name-only -- scripts vitest.config.ts`
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/` — 1ª vez: 8 falharam (seed com o schema antigo); 2ª vez: 79 de 79
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/` — 80 de 80, com as 5 demandas novas no seed
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 3.694 de 3.694 (191 arquivos)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas build` — limpo, Next.js 16.4.1
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — código 1; foi para segundo plano depois de 180 s, e a saída ficou em arquivo em `/tmp`, que não li
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status`
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/decisao.spec.ts` — 6 de 6 falharam
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short`
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/pacote-decisao.spec.ts` — 2 de 3; o primeiro falhou no axe ("Execution context was destroyed")
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — código 1; foi para segundo plano depois de 180 s; saída em `/tmp`, não lida
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/agentes-teto.spec.ts` — 2 de 7 (Next 16.4.1)
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas install` — Next 16.3.8, só para a comparação
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/agentes-teto.spec.ts` — 7 de 7 (Next 16.3.8)
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/proxy.test.ts` — o pnpm reinstalou o Next 16.4.1; 1 falhou (teste novo do matcher, vermelho antes da mudança, depois desfeita)
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/agentes-teto.spec.ts` — 7 de 7 (Next 16.4.1, com o matcher alterado, depois desfeito)
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/decisao.spec.ts e2e/pedido-construcao.spec.ts` — 8 de 10
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts` — vermelho: 1 falhou (contexto vazio)
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts` — verde: 33 de 33
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/pedido-construcao.spec.ts` — 0 de 4 (recarga da página)
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/pedido-construcao.spec.ts` — 4 de 4
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/agentes-teto.spec.ts e2e/autenticacao-qa.spec.ts e2e/configurar-2fa.spec.ts` — 13 de 13
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/axe-todas.spec.ts` — 11 de 12
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/decisao.spec.ts e2e/demanda-formularios-qa.spec.ts e2e/detalhe-demanda.spec.ts` — `decisao` 0 de 6 (recarga da página); foi para segundo plano e saiu com código 1
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff pnpm-lock.yaml`
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 3.694 de 3.694, depois de desfazer o matcher
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 
 ## Critério de pronto atendido
 
@@ -202,5 +149,5 @@ O total bate com os 3.674 da 06 mais os 19 testes novos desta correção.
 - [x] `pnpm test` passa
 - [x] `pnpm lint` e `pnpm typecheck` passam limpos
 - [x] código, teste e log não têm segredo, token, valor de `.env` nem dado pessoal real
-- [ ] só mudaram os arquivos da tarefa (as mudanças estão todas dentro da tarefa, mas faltam as duas specs de `e2e/`, que estão fora da minha lista **Pode**)
+- [ ] só mudaram os arquivos da tarefa (os desta volta estão na liberação, mas a e2e ainda precisa de `e2e/axe-todas.spec.ts`, que está fora dela)
 - [x] toda entrada de rota, Server Action e job é validada com Zod, e o erro devolvido não vaza detalhe interno

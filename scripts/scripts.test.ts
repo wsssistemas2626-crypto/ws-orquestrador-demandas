@@ -25,7 +25,7 @@ import { argumentosDefinirPreco, definirPrecoModelo, executarDefinirPreco } from
 import { lerArgumentos } from './lib/argumentos';
 import { mensagemDeErro } from './lib/saida';
 import { argumentosRevogarToken, executarRevogarToken, revogarTokenPorScript } from './revogar-token-servico';
-import { CONTAS_FICTICIAS, executarSeed, seedFicticio } from './seed-ficticio';
+import { CONTAS_FICTICIAS, executarSeed, seedFicticio, TITULOS_DO_E2E, TOTAL_DEMANDAS_DO_SEED } from './seed-ficticio';
 import { iniciarHomologacao } from './start-hml';
 
 // Saída padrão de mentira: guarda tudo o que o script escreveu.
@@ -307,9 +307,12 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     expect(await precoVigente(b.db, 'modelo-ficticio', new Date('2026-10-22T12:00:00Z'))).toEqual({ entradaPorMilhao: 3, saidaPorMilhao: 15 });
     expect(await contar(b, 'select count(*)::int as n from configuracao_agente where ligado')).toBe(0);
 
-    // Uma demanda de cada tipo; uma delas com ESP, RSK e DEC gravados como rascunho de agente (para a T43).
-    const tipos = (await b.poolMigrator.query('select tipo from demanda order by tipo')).rows.map((r) => r.tipo);
+    // Uma demanda de cada tipo, mais as cinco próprias do e2e (08-correcao); uma delas com ESP, RSK e DEC gravados como
+    // rascunho de agente (para a T43).
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(10);
+    const tipos = (await b.poolMigrator.query('select distinct tipo from demanda order by tipo')).rows.map((r) => r.tipo);
     expect(tipos).toEqual(['bug', 'estudo', 'melhoria', 'novo_projeto', 'produto_proprio']);
+    expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
     const comPacote = (await b.poolMigrator.query('select demanda_id, autor_tipo, autor_id, rascunho_agente, versao from pacote_decisao')).rows;
     expect(comPacote).toEqual([{ demanda_id: expect.stringMatching(/^DEM-20261022-\d{4}$/), autor_tipo: 'agente', autor_id: 'consolidacao', rascunho_agente: true, versao: 1 }]);
     const demId = comPacote[0].demanda_id as string;
@@ -330,8 +333,37 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
 
     // Segunda subida: o banco já tem demanda, nada muda.
     expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('recusado');
-    expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(5);
+    expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
     expect(await contar(b, 'select count(*)::int as n from "user"')).toBe(4);
+  });
+
+  // 08-correcao (A-02, C-36): cada teste do e2e que aprova um DEC tem uma demanda própria, criada pelo seed com o título
+  // que a spec procura, sem ESP, RSK nem DEC, em Nova e pela conta cto.
+  it('as demandas próprias do e2e: uma por título, de títulos diferentes, sem versão nenhuma, em Nova e pela conta cto', async () => {
+    const titulos = Object.values(TITULOS_DO_E2E);
+    expect(new Set(titulos).size).toBe(titulos.length);
+    const linhas = (
+      await b.poolMigrator.query(
+        `select d.titulo, d.tipo, d.status, d.autor_tipo, u.email, d.contexto,
+           (select count(*)::int from especificacao_tecnica e where e.demanda_id = d.id) as esp,
+           (select count(*)::int from parecer_risco r where r.demanda_id = d.id) as rsk,
+           (select count(*)::int from pacote_decisao p where p.demanda_id = d.id) as dec
+         from demanda d left join "user" u on u.id = d.autor_id
+         where d.titulo = any($1) order by d.titulo`,
+        [titulos],
+      )
+    ).rows;
+    expect(linhas.map((l) => l.titulo)).toEqual([...titulos].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)));
+    for (const l of linhas) {
+      expect(l, l.titulo).toMatchObject({ status: 'nova', autor_tipo: 'pessoa', email: CONTAS_FICTICIAS.cto.email, esp: 0, rsk: 0, dec: 0 });
+      // A `descricao` do Pedido de Construção sai do contexto: vazia, o validarPedido recusa o pedido.
+      expect(String(l.contexto ?? '').trim(), l.titulo).not.toBe('');
+    }
+    const tipoDe = (t: string) => linhas.find((l) => l.titulo === t)?.tipo;
+    expect(tipoDe(TITULOS_DO_E2E.pedidoEstudo)).toBe('estudo');
+    for (const t of [TITULOS_DO_E2E.pedidoGerar, TITULOS_DO_E2E.pedidoCopiar, TITULOS_DO_E2E.pedidoValidacao, TITULOS_DO_E2E.duplaAprovacao]) {
+      expect(tipoDe(t), t).not.toBe('estudo');
+    }
   });
 
   it('as contas com 2FA entram com a senha e o código do segredo de CONTAS_FICTICIAS', async () => {
@@ -423,7 +455,7 @@ describe('start:hml (ADR-12)', () => {
     });
     expect({ codigo, erro: erro.texto() }).toEqual({ codigo: 0, erro: '' });
     expect(ordem).toEqual(['migrar', 'app']);
-    expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(5);
+    expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
     expect(ambientes[0]).not.toHaveProperty('DATABASE_URL_MIGRATOR');
     expect(ambientes[0]).toMatchObject({ DATABASE_URL: b.urlApp, BETTER_AUTH_URL: CONFIG_TESTE.urlBase });
     expect(saida.texto()).not.toContain(b.urlMigrator);
@@ -437,7 +469,7 @@ describe('start:hml (ADR-12)', () => {
       passos: { migrar: async () => undefined, iniciarApp: async () => 0 },
     });
     expect(codigo2).toBe(0);
-    expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(5);
+    expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
   });
 
   it('com a migração de verdade, o banco fica pronto e o código de saída do app volta', async () => {
@@ -606,7 +638,7 @@ describe('qa-automacao T33: borda, falha e concorrência', () => {
       const resultados = await Promise.all([seedFicticio(deps, { SEED_FICTICIO: '1' }), seedFicticio(deps, { SEED_FICTICIO: '1' })]);
       expect([...resultados].sort()).toEqual(['recusado', 'semeado']);
       expect(await contar(b, 'select count(*)::int as n from "user"')).toBe(4);
-      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(5);
+      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
       expect(await contar(b, 'select count(*)::int as n from preco_modelo')).toBe(1);
       expect(await contar(b, "select count(*)::int as n from evento where acao = 'conta_criada'")).toBe(4);
 
@@ -661,7 +693,7 @@ describe('qa-automacao T33: borda, falha e concorrência', () => {
       expect(s3.texto()).toContain('Dados fictícios criados');
       // A saída não mostra senha nem segredo das contas fictícias.
       for (const c of Object.values(CONTAS_FICTICIAS)) expect(s3.texto()).not.toContain(c.senha);
-      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(5);
+      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
     } finally {
       await deps.fila.parar();
       await b.fechar();

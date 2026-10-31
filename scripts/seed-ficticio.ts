@@ -10,7 +10,8 @@
 //
 // O que cria: as quatro contas de CONTAS_FICTICIAS (cto e administradora com 2FA ativo; sem2fa e configurar2fa, papel
 // cto, sem 2FA, para o e2e da T37), o preço de 'modelo-ficticio' (os agentes continuam desligados), uma demanda de cada
-// tipo e, numa delas, ESP, RSK e DEC gravados como rascunho de agente (para a T43), com os exemplos de saída dos prompts.
+// tipo e, numa delas, ESP, RSK e DEC gravados como rascunho de agente (para a T43), com os exemplos de saída dos prompts;
+// e as demandas próprias dos testes do e2e que aprovam um DEC (TITULOS_DO_E2E).
 //
 // As senhas e os segredos TOTP abaixo são fictícios e públicos, escritos aqui de propósito: só servem a um banco
 // semeado por este script, e nenhum deles tem o formato do token de serviço.
@@ -129,6 +130,50 @@ const DEMANDAS: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
   },
 ];
 
+// Demandas próprias de testes do e2e que aprovam um DEC (08-correcao): com A-02, a demanda só tem um DEC aprovado, então
+// cada um desses testes precisa de uma demanda só dele. Elas vêm do seed, e não da API, para o e2e não gastar o limite
+// de demandas por hora da conta (C-36). Nascem sem ESP, RSK nem DEC; o teste cria os dele. Os títulos são os que
+// e2e/decisao.spec.ts e e2e/pedido-construcao.spec.ts procuram.
+export const TITULOS_DO_E2E = {
+  duplaAprovacao: 'Dupla aprovação do pacote (fictício)',
+  pedidoGerar: 'Portal do pedido: gerar e baixar (fictício)',
+  pedidoCopiar: 'Portal do pedido: copiar o JSON (fictício)',
+  pedidoValidacao: 'Portal do pedido: validação do /construir (fictício)',
+  pedidoEstudo: 'Estudo do pedido de construção (fictício)',
+} as const;
+
+// Todas com contexto: a `descricao` do Pedido de Construção sai dele, e o validarPedido recusa descrição vazia.
+const DO_PORTAL = {
+  solicitanteNome: 'Pessoa Ficticia Financeiro',
+  solicitantePapel: 'financeiro',
+  linhaServicoProvavel: 'sob_medida',
+  contexto: 'Hoje o cliente pergunta a situação do pedido por mensagem.',
+} as const;
+const DEMANDAS_DO_E2E: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
+  {
+    titulo: TITULOS_DO_E2E.duplaAprovacao,
+    tipo: 'melhoria',
+    solicitanteNome: 'Pessoa Ficticia Produto',
+    solicitantePapel: 'produto',
+    linhaServicoProvavel: 'sob_medida',
+    contexto: 'A mudança gera compromisso com o cliente e precisa das duas aprovações.',
+  },
+  { titulo: TITULOS_DO_E2E.pedidoGerar, tipo: 'novo_projeto', ...DO_PORTAL },
+  { titulo: TITULOS_DO_E2E.pedidoCopiar, tipo: 'novo_projeto', ...DO_PORTAL },
+  { titulo: TITULOS_DO_E2E.pedidoValidacao, tipo: 'novo_projeto', ...DO_PORTAL },
+  {
+    titulo: TITULOS_DO_E2E.pedidoEstudo,
+    tipo: 'estudo',
+    solicitanteNome: 'Pessoa Ficticia Outro',
+    solicitantePapel: 'outro',
+    linhaServicoProvavel: 'sob_medida',
+    contexto: 'A equipe quer comparar formas de atendimento antes de construir.',
+  },
+];
+
+// Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e.
+export const TOTAL_DEMANDAS_DO_SEED = DEMANDAS.length + DEMANDAS_DO_E2E.length;
+
 const SISTEMA = { tipo: 'sistema' } as const;
 const agente = (a: AtorAgente['agente']): AtorAgente => ({ tipo: 'agente', agente: a, prefixoToken: null });
 
@@ -174,7 +219,7 @@ async function criarContas(t: Transacao, deps: DepsDoSeed): Promise<AtorPessoa> 
 }
 
 async function criarDemandas(t: Transacao, deps: DepsDoSeed, cto: AtorPessoa): Promise<number> {
-  const entradas: CriarDemanda[] = DEMANDAS.map((d) => criarDemandaSchema.parse(d));
+  const entradas: CriarDemanda[] = [...DEMANDAS, ...DEMANDAS_DO_E2E].map((d) => criarDemandaSchema.parse(d));
   const [primeira, ...resto] = entradas;
   if (!primeira) return 0;
   // A demanda da pessoa, e o rascunho dos três agentes pelo mesmo caminho do worker (serviço da API com o ator agente).
