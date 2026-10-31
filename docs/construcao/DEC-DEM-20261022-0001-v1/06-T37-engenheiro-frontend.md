@@ -212,8 +212,6 @@ de e2e ("passo 2 vencido"), já com o código pronto. Ele confere o nome do cód
 
 ## Pendências
 
-- **Comando fora da lista Pode.** Rodei `wc -l` no plano pelo Bash, uma vez, só para saber o tamanho do arquivo antes
-  de lê-lo com o Read. É só leitura e não alterou nada. Está declarado em Comandos executados.
 - **07-qa-funcional: ler o QR code com um aplicativo autenticador de verdade**, na homologação. Pode ser o Google
   Authenticator ou o Microsoft Authenticator. O teste lê o símbolo por um caminho próprio, mas nenhum leitor
   independente conferiu. Se não ler, a chave em texto continua valendo como alternativa.
@@ -231,7 +229,6 @@ de e2e ("passo 2 vencido"), já com o código pronto. Ele confere o nome do cód
 
 ## Comandos executados
 
-- `wc -l /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md` — 4044 linhas (fora da lista Pode; ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, no ramo `construcao/DEC-DEM-20261022-0001-v1`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — último commit 9472f19 (06-T36-testes)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format=%h -3 -- test/estatico` — arquivos dos estáticos
