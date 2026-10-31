@@ -5,11 +5,13 @@
 //
 // T37: ao concluir a T02, a fila mostra "Verificação em duas etapas ativada." (03, T02, Sucesso), pelo parâmetro fixo
 // `aviso=2fa-ativado`. Só esse valor mostra o alerta; o texto é fixo e nada da URL vai para a tela.
+// T39: do mesmo jeito, `aviso=entrada-enviada` mostra o sucesso do modo agente da T04 (03, T04, Sucesso).
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { Alerta } from '../../../components/Alerta';
 import { classeDoBotao } from '../../../components/Botao';
+import { AVISO_DEMANDA, TEXTOS_DEMANDA } from '../../../components/dados-da-demanda';
 import { MENSAGENS_2FA } from '../../../lib/auth-cliente';
 import { obterDeps } from '../../../lib/deps';
 import { log } from '../../../lib/log';
@@ -68,6 +70,11 @@ export default async function PaginaDemandas({ searchParams }: { searchParams: P
       {parametros.aviso === '2fa-ativado' ? (
         <Alerta tipo="sucesso" envio>
           {MENSAGENS_2FA.ativada}
+        </Alerta>
+      ) : null}
+      {parametros.aviso === AVISO_DEMANDA.enviada ? (
+        <Alerta tipo="sucesso" envio>
+          {TEXTOS_DEMANDA.sucessoEnviada}
         </Alerta>
       ) : null}
       {invalido ? <Alerta tipo="atencao">{TEXTOS_FILA.filtroInvalido}</Alerta> : null}
