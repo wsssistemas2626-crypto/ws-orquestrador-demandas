@@ -22,6 +22,7 @@ import {
   TEXTOS_DEC,
   validarPacote,
   valoresDoPacote,
+  type CampoTextoDec,
   type ValoresDoPacote,
 } from './dados-do-pacote';
 import { idDoCampo } from './formulario';
@@ -182,6 +183,51 @@ describe('erros da API', () => {
   it('409, 403 e erro do servidor: o alerta da 2.8', () => {
     expect(errosDaApiDec({ ok: false, erro: 'conflito', mensagem: 'motivo fictício.' }).alerta).toBe('Não foi possível concluir: motivo fictício.');
     expect(errosDaApiDec({ ok: false, erro: 'erro_interno', mensagem: 'pilha' }).alerta).toBe('Não foi possível concluir agora. Nada foi alterado. Tente de novo em instantes.');
+  });
+});
+
+// 06-T43-testes (qa-automacao): bordas e o contrato entre a validação da tela e o schema da API.
+describe('contrato da tela com criarPacoteDecisaoSchema (qa-automacao)', () => {
+  const com = (v: ValoresDoPacote, campo: CampoTextoDec, valor: string): ValoresDoPacote => ({ ...v, [campo]: valor }) as ValoresDoPacote;
+  it('cada campo de texto no limite da RNF-04: 10.000 aceitos pela tela e pelo schema (espaço nas pontas não conta); 10.001 recusados pelos dois', () => {
+    for (const campo of CAMPOS_TEXTO_DEC) {
+      const noLimite = com(preenchido(), campo, `  ${'x'.repeat(LIMITE_CAMPO_DEC)}  `);
+      expect(validarPacote(noLimite), campo).toEqual([]);
+      expect(criarPacoteDecisaoSchema.safeParse(entradaDoPacote(noLimite)).success, campo).toBe(true);
+      const acima = com(preenchido(), campo, 'x'.repeat(LIMITE_CAMPO_DEC + 1));
+      expect(
+        validarPacote(acima).map((e) => [e.campo, e.mensagem]),
+        campo,
+      ).toEqual([[campo, 'Este campo aceita até 10.000 caracteres.']]);
+      expect(criarPacoteDecisaoSchema.safeParse(entradaDoPacote(acima)).success, campo).toBe(false);
+    }
+  });
+
+  it('o que a tela aceita, o schema da API aceita, com qualquer combinação de campos opcionais e de nível', () => {
+    const opcionais = CAMPOS_TEXTO_DEC.filter((c) => c !== 'resumoExecutivo' && !c.endsWith('.descricao'));
+    expect(opcionais).toHaveLength(7);
+    let aceitos = 0;
+    for (let mascara = 0; mascara < 1 << opcionais.length; mascara++) {
+      for (const nivel of NIVEIS_DO_PACOTE) {
+        const v = opcionais.reduce((acc, c, i) => com(acc, c, mascara & (1 << i) ? ` ${c} (fictício) ` : '   '), preenchido({ nivelAprovacaoRequerido: nivel }));
+        expect(validarPacote(v)).toEqual([]);
+        const r = criarPacoteDecisaoSchema.safeParse(entradaDoPacote(v));
+        expect(r.success, JSON.stringify(v)).toBe(true);
+        aceitos++;
+      }
+    }
+    expect(aceitos).toBe(256);
+  });
+
+  it('pacoteSujo: só marcar o nível já é conteúdo a perder', () => {
+    expect(pacoteSujo(valoresDoPacote(), { ...valoresDoPacote(), nivelAprovacaoRequerido: 'cto' })).toBe(true);
+  });
+
+  it('400 com `faltando` só de itens desconhecidos: o alerta é o do servidor, nunca "Faltam itens para o pacote: ."', () => {
+    const r: Falha = { ok: false, erro: 'entrada_invalida', mensagem: MENSAGEM_FALTAM_ITENS, faltando: ['outra-coisa'] };
+    const e = errosDaApiDec(r);
+    expect(e.alerta).toBe(MENSAGEM_FALTAM_ITENS);
+    expect(e.campos).toEqual([]);
   });
 });
 

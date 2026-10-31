@@ -11,6 +11,7 @@ import {
   alertaDeDesatualizado,
   AVISO_DECISAO,
   chegadaNaDecisao,
+  decisaoSuja,
   entradaDaDecisao,
   errosDaApiDecisao,
   formularioDaConta,
@@ -29,6 +30,7 @@ import {
   type ContextoDoFormulario,
   type ValoresDaDecisao,
 } from './dados-da-decisao';
+import { LIMITE_CAMPO_DEC } from './dados-do-pacote';
 import { idDoCampo } from './formulario';
 
 const ID = 'DEM-20261022-0042';
@@ -420,5 +422,149 @@ describe('chegada depois de decidir (só valores fixos de ?aviso=; o texto vem d
 
   it('outro valor, lista ou ausência: nada', () => {
     for (const aviso of [undefined, 'qualquer', ['decisao-registrada'], '<script>']) expect(chegadaNaDecisao({ aviso }, pacote({ statusDecisao: 'arquivada' }))).toBeNull();
+  });
+});
+
+// 06-T43-testes (qa-automacao): bordas e o contrato entre a validação da tela e o schema da API.
+describe('contrato da tela com registrarDecisaoSchema (qa-automacao)', () => {
+  const STATUS = ['aprovada', 'devolvida', 'arquivada'] as const;
+  const FIXADAS = [null, { papel: 'cto' as const, opcao: 'A' as const }, { papel: 'administradora' as const, opcao: 'B' as const }];
+  const SIM_NAO = [false, true] as const;
+
+  it('o que a tela aceita, o schema da API aceita; sem documento fora da conta da administradora; a opção fixada é a que vai (CA-14.4)', () => {
+    let aceitos = 0;
+    for (const statusDecisao of STATUS)
+      for (const opcaoFixada of FIXADAS)
+        for (const pedeDocumento of SIM_NAO)
+          for (const exigeRevisao of SIM_NAO)
+            for (const opcaoEscolhida of ['', 'A', 'B'] as const)
+              for (const referenciaDocumento of ['', ' DOC-FICTICIO-1 '])
+                for (const dataDocumento of ['', '2026-10-23'])
+                  for (const comentarios of ['', '  Comentário (fictício)  '])
+                    for (const revisouRascunhosDeAgente of SIM_NAO) {
+                      const c = ctx({ opcaoFixada, pedeDocumento, exigeRevisao });
+                      const vv = valores({ statusDecisao, opcaoEscolhida, referenciaDocumento, dataDocumento, comentarios, revisouRascunhosDeAgente });
+                      if (validarDecisao(vv, c).length > 0) continue;
+                      aceitos++;
+                      const e = entradaDaDecisao(vv, c);
+                      const rotulo = JSON.stringify({ vv, c });
+                      expect(registrarDecisaoSchema.safeParse(e).success, rotulo).toBe(true);
+                      if (exigeRevisao) expect(e.revisouRascunhosDeAgente, rotulo).toBe(true);
+                      if (!pedeDocumento) {
+                        expect(e, rotulo).not.toHaveProperty('referenciaDocumento');
+                        expect(e, rotulo).not.toHaveProperty('dataDocumento');
+                      }
+                      if (statusDecisao !== 'aprovada') expect(e, rotulo).not.toHaveProperty('opcaoEscolhida');
+                      else expect(e.opcaoEscolhida, rotulo).toBe(opcaoFixada?.opcao ?? opcaoEscolhida);
+                      expect(e, rotulo).not.toHaveProperty('registrarComo');
+                    }
+    // A malha não pode ficar vazia por engano (asserção que nunca roda).
+    expect(aceitos).toBeGreaterThan(100);
+  });
+
+  it('comentário no limite da RNF-04: 10.000 aceitos pela tela e pelo schema (espaço nas pontas não conta); 10.001 recusados pelos dois', () => {
+    for (const comentarios of [` ${'x'.repeat(LIMITE_CAMPO_DEC)} `, 'ç'.repeat(LIMITE_CAMPO_DEC)]) {
+      const vv = valores({ statusDecisao: 'arquivada', comentarios });
+      expect(validarDecisao(vv, ctx())).toEqual([]);
+      expect(registrarDecisaoSchema.safeParse(entradaDaDecisao(vv, ctx())).success).toBe(true);
+    }
+    for (const comentarios of ['x'.repeat(LIMITE_CAMPO_DEC + 1), 'ç'.repeat(LIMITE_CAMPO_DEC + 1)]) {
+      const vv = valores({ statusDecisao: 'arquivada', comentarios });
+      expect(validarDecisao(vv, ctx()).map((e) => [e.campo, e.mensagem])).toEqual([['comentarios', 'Este campo aceita até 10.000 caracteres.']]);
+      expect(registrarDecisaoSchema.safeParse({ statusDecisao: 'arquivada', comentarios }).success).toBe(false);
+    }
+    // Fora do plano básico (emoji), a tela conta por unidade de UTF-16 e o Zod por letra: a tela pode recusar o que o
+    // servidor aceitaria, nunca o contrário (Pendências da 06-T43-qa-automacao). Aqui só o sentido seguro fica preso.
+    const emoji = valores({ statusDecisao: 'arquivada', comentarios: '😀'.repeat(LIMITE_CAMPO_DEC / 2) });
+    expect(validarDecisao(emoji, ctx())).toEqual([]);
+    expect(registrarDecisaoSchema.safeParse(entradaDaDecisao(emoji, ctx())).success).toBe(true);
+  });
+
+  it('referência ao documento no limite: 200 aceitos pela tela e pelo schema; 201 recusados pelos dois; só espaço é vazio', () => {
+    const adm = ctx({ pedeDocumento: true });
+    const aprovar = (referenciaDocumento: string) => valores({ statusDecisao: 'aprovada', opcaoEscolhida: 'A', referenciaDocumento, dataDocumento: '2026-10-23' });
+    const noLimite = aprovar(`  ${'D'.repeat(LIMITE_REFERENCIA)}  `);
+    expect(validarDecisao(noLimite, adm)).toEqual([]);
+    expect(registrarDecisaoSchema.safeParse(entradaDaDecisao(noLimite, adm)).success).toBe(true);
+    const acima = aprovar('D'.repeat(LIMITE_REFERENCIA + 1));
+    expect(validarDecisao(acima, adm).map((e) => e.mensagem)).toEqual(['Este campo aceita até 200 caracteres.']);
+    expect(registrarDecisaoSchema.safeParse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A', referenciaDocumento: 'D'.repeat(LIMITE_REFERENCIA + 1) }).success).toBe(false);
+    expect(validarDecisao(aprovar('   '), adm).map((e) => e.mensagem)).toEqual(['Informe o identificador do documento assinado.']);
+    expect(entradaDaDecisao(aprovar('   '), adm)).not.toHaveProperty('referenciaDocumento');
+  });
+});
+
+describe('bordas da tela de decisão (qa-automacao)', () => {
+  it('"Opção A — …": 80 letras inteiras sem reticências, a 81ª corta; conta por letra, não por unidade de UTF-16', () => {
+    const [a80] = opcoesDaEscolha(pacote({ opcaoA: { descricao: 'a'.repeat(80) } }));
+    expect(a80!.rotulo).toBe(`Opção A — ${'a'.repeat(80)}`);
+    const [a81] = opcoesDaEscolha(pacote({ opcaoA: { descricao: 'a'.repeat(81) } }));
+    expect(a81!.rotulo).toBe(`Opção A — ${'a'.repeat(80)}…`);
+    const [emoji] = opcoesDaEscolha(pacote({ opcaoA: { descricao: '😀'.repeat(80) } }));
+    expect(emoji!.rotulo).toBe(`Opção A — ${'😀'.repeat(80)}`);
+    const [emoji81] = opcoesDaEscolha(pacote({ opcaoA: { descricao: '😀'.repeat(81) } }));
+    expect(emoji81!.rotulo).toBe(`Opção A — ${'😀'.repeat(80)}…`);
+  });
+
+  it('decisaoSuja: limpa no início; qualquer campo mudado pede confirmação ao sair', () => {
+    expect(decisaoSuja(valoresDaDecisao())).toBe(false);
+    const mudancas: Partial<ValoresDaDecisao>[] = [
+      { statusDecisao: 'devolvida' },
+      { opcaoEscolhida: 'B' },
+      { referenciaDocumento: 'D' },
+      { dataDocumento: '2026-10-23' },
+      { comentarios: 'x' },
+      { revisouRascunhosDeAgente: true },
+    ];
+    for (const m of mudancas) expect(decisaoSuja(valores(m)), JSON.stringify(m)).toBe(true);
+  });
+
+  it('erros da API: o campo raiz "decisao" vai ao grupo de decisão, e o mesmo campo aparece uma vez só no resumo', () => {
+    const r: Falha = {
+      ok: false,
+      erro: 'entrada_invalida',
+      mensagem: 'Corrija os campos abaixo para continuar.',
+      campos: [
+        { campo: 'decisao', mensagem: 'Valor inválido.' },
+        { campo: 'decisao.statusDecisao', mensagem: 'Valor inválido.' },
+        { campo: 'decisao.referenciaDocumento', mensagem: 'Este campo aceita até 200 caracteres.' },
+      ],
+    };
+    const e = errosDaApiDecisao(r, ctx({ aprovarIndisponivel: true }));
+    expect(e.campos.map((c) => [c.campo, c.mensagem, c.idCampo])).toEqual([
+      ['statusDecisao', 'Escolha a decisão.', `${idDoCampo('statusDecisao')}-devolvida`],
+      ['referenciaDocumento', 'Este campo aceita até 200 caracteres.', idDoCampo('referenciaDocumento')],
+    ]);
+    expect(e.porCampo).toEqual({ statusDecisao: 'Escolha a decisão.', referenciaDocumento: 'Este campo aceita até 200 caracteres.' });
+    expect(e.alerta).toBeNull();
+  });
+
+  it('chegada: "criado" some depois de qualquer decisão; aprovada sem opção gravada ou pendente com duas aprovações não inventam texto', () => {
+    const devolvida = pacote({ statusDecisao: 'devolvida', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO } });
+    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, devolvida)).toBeNull();
+    const aviso = { aviso: AVISO_DECISAO.decisaoRegistrada };
+    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: null, decididaEm: APROVADO } }))).toBeNull();
+    expect(chegadaNaDecisao(aviso, pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto, aprovacaoAdm] }))).toBeNull();
+    expect(textoDaDecisaoRegistrada(pacote({ statusDecisao: 'pendente', decisao: { opcaoEscolhida: 'A', comentarios: null, decididaPor: 'x', decididaEm: APROVADO } }))).toBeNull();
+  });
+
+  it('desatualizado sem versão mais nova visível na demanda: o alerta não some e cita a ESP do próprio pacote', () => {
+    const igual = { id: ID, especificacoes: [{ id: ESP }], pareceresRisco: [{ id: RSK }] };
+    expect(alertaDeDesatualizado(pacote({ desatualizado: true }), igual)?.texto).toBe(TEXTOS_DECISAO.desatualizadoEsp(ESP));
+    expect(alertaDeDesatualizado(pacote({ desatualizado: true }), { id: ID, especificacoes: [], pareceresRisco: [] })?.texto).toBe(TEXTOS_DECISAO.desatualizadoEsp(ESP));
+  });
+
+  it('aprovação da administradora sem documento ou com data fora do formato: "Não informado", nunca o valor cru', () => {
+    const p = pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [{ ...aprovacaoAdm, referenciaDocumento: null, dataDocumento: '23/10/2026' }] });
+    expect(linhasDeAprovacao(p)).toEqual([
+      'CTO: pendente.',
+      'Administradora: Pessoa Ficticia Administradora aprovou a opção A em 23/10/2026 às 09:30, com o documento Não informado assinado em Não informado.',
+    ]);
+  });
+
+  it('dupla aprovação com as duas registradas e sem decisão gravada: nenhuma conta ganha formulário para aprovar de novo', () => {
+    const p = pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto, aprovacaoAdm] });
+    expect(formularioDaConta(p, CTO).tipo).toBe('sem_formulario');
+    expect(formularioDaConta(p, ADM).tipo).toBe('sem_formulario');
   });
 });

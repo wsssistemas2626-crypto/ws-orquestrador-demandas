@@ -293,6 +293,32 @@ describe('T11: quem vê o formulário (P1-a, P1-b)', () => {
     expect(s).not.toContain('A demanda continua em Pronta para decisão');
   });
 
+  // 06-T43-testes (qa-automacao).
+  it('P1-d (qa-automacao): o lembrete só aparece com o pacote aprovado; aprovação parcial, devolvido ou arquivado, não', async () => {
+    const aprovacaoCto = { papel: 'cto' as const, nome: 'Pessoa Ficticia CTO', opcao: 'A' as const, registradaEm: APROVADO, referenciaDocumento: null, dataDocumento: null };
+    const decidida = (statusDecisao: 'devolvida' | 'arquivada') =>
+      pacote({ statusDecisao, decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO } });
+    for (const p of [pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto] }), decidida('devolvida'), decidida('arquivada')]) {
+      mPacote.mockResolvedValue(p);
+      const s = await pagina();
+      expect(s, p.statusDecisao).not.toContain('A demanda continua em Pronta para decisão');
+      expect(s, p.statusDecisao).not.toContain('>Ir para a demanda</a>');
+    }
+  });
+
+  it('decidido (qa-automacao): pacote devolvido não mostra formulário nem a opção, e o selo diz o resultado', async () => {
+    mPacote.mockResolvedValue(pacote({ statusDecisao: 'devolvida', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO } }));
+    for (const conta of [CTO, ADM]) {
+      mExigir.mockResolvedValue(conta);
+      const s = await pagina();
+      expect(s, conta.papel).not.toContain('<form');
+      expect(s, conta.papel).toContain('>Devolvida para nova análise</span>');
+      expect(s, conta.papel).not.toContain('>Decisão pendente</span>');
+      expect(s, conta.papel).toContain('Decisão registrada: Devolvida, por Pessoa Ficticia CTO em 22/10/2026 às 15:00.');
+      expect(s, conta.papel).not.toContain('Comentários</dt>');
+    }
+  });
+
   it('chegada: só valores fixos de ?aviso=, com o texto tirado do pacote', async () => {
     let s = await pagina(DEC, { aviso: 'pacote-criado' });
     expect(s).toContain(`${DEC} criado. A demanda está pronta para decisão e o aviso por e-mail entrou na fila de envio.`);

@@ -137,6 +137,44 @@ describe('gravarPacoteNoPainel (T09)', () => {
     expect(await gravar('DEM-20261022-9999', preenchido())).toEqual({ ok: false, erro: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO });
   });
 
+  // 06-T43-testes (qa-automacao).
+  it('CA-10.1 (qa-automacao): sem ESP e sem RSK, "Faltam itens para o pacote: especificação técnica e parecer de risco." e a demanda não muda', async () => {
+    const id = await novaDemanda({});
+    const r = await gravar(id, preenchido());
+    expect(r).toMatchObject({ ok: false, erro: 'entrada_invalida', faltando: ['especificacao', 'parecer_risco'] });
+    if (r.ok) return;
+    expect(errosDaApiDec(r).alerta).toBe('Faltam itens para o pacote: especificação técnica e parecer de risco.');
+    expect(await listarPacotesDaDemanda(deps.db, id)).toEqual([]);
+    expect((await obterDemanda(deps.db, id)).status).toBe('nova');
+  });
+
+  it('CA-10.3 (qa-automacao): com ESP v1 e v2 e RSK v1, o pacote cita a ESP v2; o seguinte é a v2 e também nasce pendente', async () => {
+    const id = await novaDemanda();
+    await criarEspecificacao(
+      deps,
+      ator,
+      id,
+      criarEspecificacaoSchema.parse({
+        descricaoObjetiva: 'ESP v2 pela API (fictício)',
+        escopoInclui: [],
+        sistemaAlvo: 'sistema-ficticio',
+        repositorioDestino: 'wsssistemas2626-crypto/sistema-ficticio',
+        criteriosAceitePreliminares: ['Critério (fictício)'],
+        definicaoDePronto: ['Pronto (fictício)'],
+      }),
+    );
+    expect(await gravar(id, preenchido())).toEqual({ ok: true, dados: { id: `DEC-${id}-v1`, demandaId: id } });
+    expect(await gravar(id, preenchido({ nivelAprovacaoRequerido: 'cto' }))).toEqual({ ok: true, dados: { id: `DEC-${id}-v2`, demandaId: id } });
+    const pacotes = await listarPacotesDaDemanda(deps.db, id);
+    expect(pacotes.map((p) => [p.id, p.especificacaoId, p.parecerRiscoId, p.statusDecisao, p.nivelAprovacaoRequerido])).toEqual(
+      expect.arrayContaining([
+        [`DEC-${id}-v1`, `ESP-${id}-v2`, `RSK-${id}-v1`, 'pendente', 'cto_e_administradora'],
+        [`DEC-${id}-v2`, `ESP-${id}-v2`, `RSK-${id}-v1`, 'pendente', 'cto'],
+      ]),
+    );
+    expect(pacotes).toHaveLength(2);
+  });
+
   it('sem sessão: nada grava', async () => {
     const id = await novaDemanda();
     pedido.cabecalhos = new Headers();
