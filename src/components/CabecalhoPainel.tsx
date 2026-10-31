@@ -7,6 +7,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { authClient } from '../lib/auth-cliente';
 import type { Papel } from '../modules/acesso/ator';
 import { Botao } from './Botao';
 import { ROTULO_PAPEL } from './rotulos';
@@ -46,10 +47,11 @@ export function CabecalhoPainel({ nome, papel }: Props) {
     h1.focus();
   }, [caminho]);
 
+  // "Sair" pelo cliente do Better Auth (T37): a sessão acaba no servidor, e entrar de novo pede o código (C-05).
   async function sair() {
     setSaindo(true);
     try {
-      await fetch('/api/auth/sign-out', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      await authClient().signOut();
     } finally {
       router.replace('/entrar');
       router.refresh();

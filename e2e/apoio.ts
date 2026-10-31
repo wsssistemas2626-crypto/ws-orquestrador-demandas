@@ -19,9 +19,9 @@ function origem(): string {
 // IP fictício da faixa 198.18.0.0/15, reservada a testes de desempenho de rede (RFC 2544), um por chamada de login: o
 // limite por IP do Better Auth (10 por minuto, C-06) não liga um teste ao outro. Com `n` abaixo de 64.000, o terceiro
 // octeto vai de 0 a 255 e o quarto de 1 a 250. Se a rota passar por um proxy que regrava `x-real-ip`, o limite volta a
-// valer pelo IP real.
+// valer pelo IP real. Exportado para os testes de tela de login (T37), que o põem em `setExtraHTTPHeaders`.
 let contadorIp = 0;
-function ipFicticio(): string {
+export function ipFicticio(): string {
   const n = contadorIp++ % 64_000;
   return `198.18.${Math.floor(n / 250)}.${(n % 250) + 1}`;
 }
@@ -36,6 +36,16 @@ export async function entrarComo(page: Page, conta: 'cto' | 'administradora'): P
   const codigo = codigoTotp(c.segredoTotp, relogioDoSistema.agora());
   const verificar = await page.request.post('/api/auth/two-factor/verify-totp', { headers: cabecalhos, data: { code: codigo } });
   expect(verificar.status(), `código TOTP da conta ${conta}`).toBe(200);
+}
+
+// Só a senha, pela API: as contas sem 2FA do seed (T37) ficam com a sessão curta que só abre /configurar-2fa (C-08).
+export async function entrarSoComSenha(page: Page, conta: 'sem2fa' | 'configurar2fa'): Promise<void> {
+  const c = CONTAS_FICTICIAS[conta];
+  const login = await page.request.post('/api/auth/sign-in/email', {
+    headers: { origin: origem(), 'x-real-ip': ipFicticio() },
+    data: { email: c.email, password: c.senha },
+  });
+  expect(login.status(), `login da conta ${conta}`).toBe(200);
 }
 
 // Nenhuma violação do axe nas regras de TAGS_AXE. A mensagem do erro lista regra, impacto e alvo, sem o HTML da página.
