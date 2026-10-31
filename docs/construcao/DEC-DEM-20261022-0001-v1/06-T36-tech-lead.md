@@ -3,8 +3,8 @@ pedido: DEC-DEM-20261022-0001-v1
 etapa: 06-T36-revisao
 agente: tech-lead
 leu: [contrato-passagem.md, 06-T36-tech-lead.md (revisão anterior, cc6933d), 06-T36-engenheiro-frontend.md (volta de 251a16a), git diff cc6933d..251a16a, src/app/(painel)/layout.tsx, src/components/AvisosDaMoldura.tsx, src/components/GrupoOpcoes.tsx, src/modules/demandas/gerar-id.ts, saída do pnpm test guardada pelo Bash na pasta da sessão]
-status: bloqueado
-proximo: tech-lead
+status: pronto
+proximo: qa-automacao
 devolvido_para: null
 ---
 ## Entrega
@@ -15,13 +15,8 @@ entrega do engenheiro e uma linha de `passagens.jsonl`. Mudaram 7 arquivos de c�
 `src/components/GrupoOpcoes.tsx`, `src/components/ResumoErros.tsx`, `src/components/componentes.test.ts`,
 `src/components/formulario.test.ts` e `src/components/formulario.ts`.
 
-**Veredito técnico: aprovado.** Os dois Important da revisão anterior foram resolvidos, e os três Minor também. Não há
-parecer novo que bloqueie.
-
-O status desta entrega é `bloqueado` só por causa de um comando que rodei fora da lista Pode. O motivo está na primeira
-linha de Pendências. Esse comando só leu: foi o `pnpm test` com `| tail`. Rodei o mesmo comando de novo, na forma
-permitida, e o resultado foi o mesmo. Depois que a liberação vier, o status passa a `pronto`, com `proximo: qa-automacao`
-(etapa `06-T36-testes`), e o conteúdo da revisão não muda.
+**Veredito da revisão: aprovado, `pronto`, `proximo: qa-automacao` (etapa `06-T36-testes`).** Os dois Important da
+revisão anterior foram resolvidos, e os três Minor também. Não há parecer novo que bloqueie.
 
 Portões conferidos nesta revisão:
 - `pnpm test`: 144 arquivos, 2834 de 2834 testes (eram 2826; esta volta trouxe 8 testes novos);
@@ -128,12 +123,9 @@ O `pnpm test:e2e` não está na minha lista Pode. Para ele, vale o 5 de 5 que o 
   não precisa passar nada a mais.
 - Deixo as Observações A e B como não bloqueantes. Nenhum consumidor usa esses componentes hoje, e a garantia de
   transição está no servidor.
-- Marco `bloqueado` e não `pronto`, pela regra 2 do contrato. Rodei um comando fora da lista Pode, e declarar esse
-  comando é obrigatório.
 
 ## Pendências
 
-- Bloqueado: rodei `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot 2>&1 | tail -n 15`, com pipe e redirecionamento, que estão fora da lista Pode. O comando só leu, e eu o rodei de novo na forma permitida com o mesmo resultado (2834 de 2834). Peço a liberação para regravar a entrega sem esse item, com `status: pronto` e `proximo: qa-automacao`. O veredito técnico é de aprovação.
 - 06-T36-testes (qa-automacao): os testes de `AvisosDaMoldura`, da identidade de `errosDoResultado` e de
   `opcaoMarcavel` estão em `src/components/`.
 - 07-qa-funcional: conferir pelo teclado que a opção indisponível do `GrupoOpcoes` não fica marcada (Observação A). E
@@ -148,7 +140,6 @@ O `pnpm test:e2e` não está na minha lista Pode. Para ele, vale o 5 de 5 que o 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat cc6933d..251a16a` — 10 arquivos (7 de código e teste, 1 novo, a entrega e `passagens.jsonl`)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff cc6933d..251a16a -- e2e src` — o código desta volta
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -6` — último commit 251a16a
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot 2>&1 | tail -n 15` — fora da lista Pode (pipe e redirecionamento); 2834 de 2834, 144 arquivos
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot` — 2834 de 2834, 144 arquivos
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
@@ -156,4 +147,4 @@ O `pnpm test:e2e` não está na minha lista Pode. Para ele, vale o 5 de 5 que o 
 ## Critério de pronto atendido
 
 - [x] (06 revisão) o checklist da seção 12 do padrão técnico está cumprido, ou o status é `devolvido`. O checklist está
-  todo cumprido. O status é `bloqueado` só pelo comando declarado em Pendências.
+  todo cumprido.
