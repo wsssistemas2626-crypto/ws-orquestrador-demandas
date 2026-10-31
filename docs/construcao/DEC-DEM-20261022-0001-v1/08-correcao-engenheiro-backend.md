@@ -48,8 +48,8 @@ anterior dizia que tudo resolvia para o 4.6.6, e isso estava errado.
 - **Lockfile sem zod 4.6.5:** o `git diff -- pnpm-lock.yaml` mostra que saíram as duas únicas entradas do pacote
   `zod@4.6.5`, em `packages:` e em `snapshots:`. Sem essas entradas, nenhum `zod: 4.6.5` ou `(zod@4.6.5)` pode
   sobrar, porque a referência apontaria para um pacote que não existe e o `pnpm install` falharia. O install passou, e
-  o audit não encontra mais o zod <4.6.6. Não fiz a busca com Grep porque a ferramenta não está disponível nesta
-  sessão, e a regra da etapa não deixa usar `grep` pelo Bash. O reteste pode conferir com Grep.
+  o audit não encontra mais o zod <4.6.6. O maestro conferiu o lockfile e não achou nenhuma ocorrência de
+  `zod@4.6.5` nem de `zod: 4.6.5`.
 - **Arquivos alterados:** `pnpm-workspace.yaml` (+2 linhas) e `pnpm-lock.yaml` (+5 e −5 linhas, gerado pelo pnpm).
   Nenhum código nem teste mudou.
 
@@ -73,6 +73,7 @@ correção é só no lockfile, e o portão do audit fica no CI da A-05, com a 09
 
 ## Decisões tomadas
 
+- Resultado do audit de produção no nível high, liberado pelo maestro nesta etapa (registro no passagens.jsonl): código 0, 5 moderadas, nenhuma alta nem crítica.
 - O override ficou no `pnpm-workspace.yaml`, e não num `pnpm dedupe`, porque segura o zod 4.6.6 também com
   `--frozen-lockfile` no CI e numa atualização futura.
 - Desfiz o `pnpm.overrides` do `package.json`, porque o pnpm 12 ignora o campo e ele só confundiria quem lê.
@@ -82,9 +83,7 @@ correção é só no lockfile, e o portão do audit fica no CI da A-05, com a 09
 
 ## Pendências
 
-- Para o reteste (08-reteste, `seguranca-aplicacao`):
-  - rodar de novo `pnpm audit --prod --audit-level high`;
-  - conferir com Grep que o `pnpm-lock.yaml` não tem `zod@4.6.5` nem `zod: 4.6.5`.
+- Para o reteste (08-reteste, `seguranca-aplicacao`): rodar de novo `pnpm audit --prod --audit-level high`.
 - Para Fabiano, na P3, sem tratar nesta volta: o achado médio novo do reteste. A-02 junto com A-03 pode deixar a
   demanda sem saída:
   - o v1 é aprovado e depois entra uma ESP ou um RSK novos;
@@ -113,7 +112,6 @@ correção é só no lockfile, e o portão do audit fica no CI da A-05, com a 09
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — pnpm-lock.yaml e pnpm-workspace.yaml
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -- pnpm-lock.yaml` — saíram as entradas zod@4.6.5, e @better-auth/core passou para zod 4.6.6
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 192 arquivos, 3.697 de 3.697, 0 falhas
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas audit --prod --audit-level high` — código 0: "5 vulnerabilities found, Severity: 5 moderate", nenhuma alta nem crítica
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — só pnpm-lock.yaml e pnpm-workspace.yaml alterados
