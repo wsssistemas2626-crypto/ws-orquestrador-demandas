@@ -3,7 +3,8 @@
 // (C-17); depois `ler_demanda`, para as versões mais novas (alerta de desatualizado) e o status (lembrete de P1-d). Id
 // fora do formato ou que não existe: 404 (03, 2.8). O conteúdo é o copiado no pacote; a revisão de C-14 vem antes do
 // formulário; quem vê o formulário segue a 03 (formularioDaConta), e a regra que vale é a do servidor. Tudo é texto: o
-// React escapa título, opções e comentários (C-18). A seção do Pedido de Construção é da T44.
+// React escapa título, opções e comentários (C-18). A seção do Pedido de Construção (T44) vem depois de "Registrar
+// decisão", só com a decisão aprovada completa (secaoDoPedido); Estudo mostra só a frase da 03, sem botão.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -23,6 +24,7 @@ import {
   TEXTOS_DECISAO,
 } from '../../../../components/dados-da-decisao';
 import { RE_ID_DEC } from '../../../../components/dados-do-pacote';
+import { secaoDoPedido, TEXTOS_PEDIDO } from '../../../../components/dados-do-pedido';
 import { COR_DECISAO, ROTULO_DECISAO, ROTULO_NIVEL_APROVACAO, SELO_DESATUALIZADO, SELO_RASCUNHO } from '../../../../components/rotulos';
 import { Selo } from '../../../../components/Selo';
 import { formatarDataHora } from '../../../../lib/fuso';
@@ -33,6 +35,7 @@ import { caminhos, rotuloResponsavel } from '../../demandas/[id]/detalhe';
 import { AlertaDeResultado, FormularioDecisao } from './FormularioDecisao';
 import { lerPacoteDaPagina, metadadosDoPacote } from './pacote-da-pagina';
 import { RevisaoDoPacote } from './RevisaoDoPacote';
+import { SecaoPedido } from './SecaoPedido';
 
 type Parametros = Record<string, string | string[] | undefined>;
 type Props = { params: Promise<{ decId: string }>; searchParams: Promise<Parametros> };
@@ -71,6 +74,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
   const formulario = formularioDaConta(p, pessoa);
   const decidida = textoDaDecisaoRegistrada(p);
   const lembrete = p.statusDecisao === 'aprovada' && d.status === 'pronta_para_decisao';
+  const pedido = secaoDoPedido(p);
 
   return (
     <div className="flex flex-col gap-8">
@@ -206,6 +210,12 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
           </div>
         )}
       </Secao>
+
+      {pedido !== 'nenhuma' ? (
+        <Secao id="pedido-construcao" titulo={TEXTOS_PEDIDO.titulo}>
+          {pedido === 'estudo' ? <p>{TEXTOS_PEDIDO.estudo}</p> : <SecaoPedido decId={p.id} />}
+        </Secao>
+      ) : null}
     </div>
   );
 }

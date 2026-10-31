@@ -35,6 +35,7 @@ vi.mock('../../../../modules/pacotes-decisao/consultas', async (original) => {
   return { ...real, obterPacoteDecisao: vi.fn() };
 });
 vi.mock('./acoes', () => ({ registrarDecisaoNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
+vi.mock('./acoes-pedido', () => ({ gerarPedidoNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
 
 const mExigir = vi.mocked(exigirPessoaNaPagina);
 const mAutorizar = vi.mocked(autorizar);
@@ -326,5 +327,66 @@ describe('T11: quem vê o formulário (P1-a, P1-b)', () => {
     s = await pagina(DEC, { aviso: '<b>x</b>' });
     expect(s).not.toContain('criado.');
     expect(s).not.toContain('<b>x</b>');
+  });
+});
+
+// T44: a seção "Pedido de Construção" (03, T11; RF-22; 04, C-16 e C-28). Gerar, baixar e copiar ficam no e2e
+// (e2e/pedido-construcao.spec.ts); aqui, quando a seção aparece e o que ela traz antes de gerar.
+describe('T11: Pedido de Construção (T44)', () => {
+  const aprovacaoCto = { papel: 'cto' as const, nome: 'Pessoa Ficticia CTO', opcao: 'A' as const, registradaEm: APROVADO, referenciaDocumento: null, dataDocumento: null };
+  const aprovado = (extra: Partial<PacoteDecisaoVista> = {}) =>
+    pacote({
+      statusDecisao: 'aprovada',
+      decisao: { opcaoEscolhida: 'A', comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO },
+      aprovadores: [aprovacaoCto],
+      ...extra,
+    });
+  const TITULO_DA_SECAO = /<h2 id="pedido-construcao"[^>]*>Pedido de Construção<\/h2>/;
+
+  it('pendente, aprovação parcial, devolvido e arquivado: sem a seção', async () => {
+    const decidida = (statusDecisao: 'devolvida' | 'arquivada') =>
+      pacote({ statusDecisao, decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO } });
+    for (const p of [pacote(), pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto] }), decidida('devolvida'), decidida('arquivada')]) {
+      mPacote.mockResolvedValue(p);
+      const s = await pagina();
+      expect(s, p.statusDecisao).not.toMatch(TITULO_DA_SECAO);
+      expect(s, p.statusDecisao).not.toContain('Gerar Pedido de Construção');
+      expect(s, p.statusDecisao).not.toContain('Demanda do tipo Estudo');
+    }
+  });
+
+  it('aprovado: a seção vem depois de "Registrar decisão", com o texto da 03, o aviso de C-28 e o botão; nada gerado ainda', async () => {
+    mPacote.mockResolvedValue(aprovado());
+    const s = await pagina();
+    expect(s).toMatch(/<section aria-labelledby="pedido-construcao"[^>]*><h2 id="pedido-construcao"[^>]*>Pedido de Construção<\/h2>/);
+    expect(s.search(TITULO_DA_SECAO)).toBeGreaterThan(s.search(/<h2[^>]*>Registrar decisão<\/h2>/));
+    const secao = s.slice(s.search(TITULO_DA_SECAO));
+    expect(secao).toContain('Gere o pedido, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma. O envio ao /construir é manual nesta versão.');
+    expect(secao).toContain('O pedido vai para o repositório git da estruturaAutonoma. Não deixe nome, e-mail ou telefone de cliente na ESP nem no parecer de risco.');
+    expect(secao).toMatch(/<button type="button"[^>]*>Gerar Pedido de Construção<\/button>/);
+    // C-16: nada é gerado ao abrir a página; sem link de baixar, sem bloco e sem formulário (o botão chama a ação).
+    expect(secao).not.toContain('Baixar ');
+    expect(secao).not.toContain('Conteúdo do Pedido de Construção');
+    expect(secao).not.toContain('data:application/json');
+    expect(s).not.toContain('<form');
+    // A região de aviso fica montada desde o início, vazia (03, 2.3).
+    expect(secao).toContain('<div role="status" class="text-texto"></div>');
+  });
+
+  it('aprovado de Estudo (tipo copiado no pacote): só "Demanda do tipo Estudo não gera Pedido de Construção.", sem botão', async () => {
+    mPacote.mockResolvedValue(aprovado({ demandaTipo: 'estudo' }));
+    mDemanda.mockResolvedValue(demanda({ tipo: 'melhoria' }));
+    const s = await pagina();
+    expect(s).toMatch(TITULO_DA_SECAO);
+    const secao = s.slice(s.search(TITULO_DA_SECAO));
+    expect(secao).toContain('<p>Demanda do tipo Estudo não gera Pedido de Construção.</p>');
+    expect(secao).not.toContain('<button');
+    expect(secao).not.toContain('Gere o pedido');
+  });
+
+  it('a administradora também vê a seção num pacote aprovado de nível cto', async () => {
+    mPacote.mockResolvedValue(aprovado());
+    mExigir.mockResolvedValue(ADM);
+    expect(await pagina()).toContain('>Gerar Pedido de Construção</button>');
   });
 });

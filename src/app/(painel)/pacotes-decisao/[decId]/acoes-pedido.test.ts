@@ -1,0 +1,157 @@
+// T44: a Server Action "Gerar Pedido de Construção" da T11 contra o banco e o Better Auth reais (Testcontainers). A regra
+// é a de POST /api/pacotes-decisao/:decId/pedido-construcao (gerarPedido, T22): a geração é por ação, e não por GET
+// (C-16); o resultado leva o JSON exato que a rota devolve, para baixar e copiar; as recusas chegam como na API e a tela
+// as mostra por erroDoPedido (dados-do-pedido.ts). C-28: o 422 diz o campo e o tipo, nunca o valor. Relógio fixo
+// (RNF-15), um dia por teste (C-36).
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { novoBanco, type BancoDeTeste } from '../../../../../test/banco';
+import { criarDepsDeTeste } from '../../../../../test/deps';
+import { criarPessoa } from '../../../../../test/sessao';
+import { erroDoPedido } from '../../../../components/dados-do-pedido';
+import { definirDepsParaTeste, type Deps } from '../../../../lib/deps';
+import { relogioFixo, type RelogioFixo } from '../../../../lib/relogio';
+import type { AtorPessoa } from '../../../../modules/acesso/ator';
+import { criarDemandaSchema } from '../../../../modules/demandas/schemas';
+import { criarDemanda } from '../../../../modules/demandas/servico';
+import { criarEspecificacaoSchema } from '../../../../modules/especificacoes/schemas';
+import { criarEspecificacao } from '../../../../modules/especificacoes/servico';
+import { criarPacoteDecisao } from '../../../../modules/pacotes-decisao/criar';
+import { registrarDecisao } from '../../../../modules/pacotes-decisao/decidir';
+import { criarPacoteDecisaoSchema } from '../../../../modules/pacotes-decisao/schemas';
+import { criarParecerRiscoSchema } from '../../../../modules/pareceres-risco/schemas';
+import { criarParecerRisco } from '../../../../modules/pareceres-risco/servico';
+import { gerarPedido, MENSAGENS_PEDIDO } from '../../../../modules/pedido-construcao/gerar';
+import { gerarPedidoNoPainel } from './acoes-pedido';
+
+const pedido = vi.hoisted(() => ({ cabecalhos: new Headers() }));
+vi.mock('next/headers', () => ({ headers: async () => pedido.cabecalhos }));
+vi.mock('../../../../lib/sentry', () => ({ capturarErro: () => undefined }));
+
+const DIA_MS = 86_400_000;
+const EMAIL_FICTICIO = 'pessoa.ficticia@cliente.test';
+
+let b: BancoDeTeste;
+let deps: Deps;
+let relogio: RelogioFixo;
+let cookieCto: string;
+let cookieAdm: string;
+let cto: AtorPessoa;
+let dia = 0;
+
+type Tipo = 'novo_projeto' | 'estudo';
+
+const espConstruida = {
+  descricaoObjetiva: 'Portal de acompanhamento (fictício)',
+  escopoInclui: ['Consulta do pedido (fictício)'],
+  sistemaAlvo: 'sistema-ficticio',
+  repositorioDestino: 'wsssistemas2626-crypto/sistema-ficticio',
+  criteriosAceitePreliminares: ['O cliente vê a situação do pedido (fictício)'],
+  definicaoDePronto: ['Testes verdes (fictício)'],
+};
+
+// Demanda, ESP, RSK e DEC de nível cto; `aprovar` registra a decisão pela conta cto.
+async function novoPacote(tipo: Tipo, esp: Record<string, unknown>, aprovar = true): Promise<string> {
+  const d = await criarDemanda(
+    deps,
+    cto,
+    criarDemandaSchema.parse({ titulo: 'Demanda do pedido (fictício)', tipo, solicitanteNome: 'Pessoa Ficticia', contexto: 'Contexto fictício.' }),
+  );
+  await criarEspecificacao(deps, cto, d.id, criarEspecificacaoSchema.parse(esp));
+  await criarParecerRisco(deps, cto, d.id, criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'medio', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' }));
+  const dec = await criarPacoteDecisao(
+    deps,
+    cto,
+    d.id,
+    criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo (fictício)', opcaoA: { descricao: 'A (fictício)' }, opcaoB: { descricao: 'B (fictício)' }, nivelAprovacaoRequerido: 'cto' }),
+  );
+  if (aprovar) await registrarDecisao(deps, cto, dec.id, { statusDecisao: 'aprovada', opcaoEscolhida: 'A' });
+  return dec.id;
+}
+
+const como = (cookie: string) => {
+  pedido.cabecalhos = new Headers({ cookie });
+};
+
+beforeAll(async () => {
+  b = await novoBanco();
+  relogio = relogioFixo('2026-10-22T12:00:00Z');
+  deps = await criarDepsDeTeste(b, { relogio });
+  definirDepsParaTeste(deps);
+  const pc = await criarPessoa(deps, { papel: 'cto' });
+  const pa = await criarPessoa(deps, { papel: 'administradora' });
+  cookieCto = pc.cookie;
+  cookieAdm = pa.cookie;
+  cto = { tipo: 'pessoa', usuarioId: pc.usuarioId, nome: 'Pessoa Ficticia', papel: 'cto' };
+});
+
+afterAll(async () => {
+  definirDepsParaTeste(null);
+  await deps.fila.parar();
+  await b.fechar();
+});
+
+beforeEach(() => {
+  relogio.definir('2026-10-22T12:00:00Z');
+  relogio.avancar(++dia * DIA_MS);
+  como(cookieCto);
+});
+
+describe('gerarPedidoNoPainel (T44)', () => {
+  it('aprovado: o JSON e o nome do arquivo de gerarPedido, byte a byte; gerar de novo devolve o mesmo (CA-22.2)', async () => {
+    const decId = await novoPacote('novo_projeto', espConstruida);
+    const r = await gerarPedidoNoPainel({ decId });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(Object.keys(r.dados).sort()).toEqual(['json', 'nomeArquivo']);
+    expect(r.dados.nomeArquivo).toBe(`${decId}.json`);
+    expect(r.dados).toEqual(await gerarPedido(deps, cto, decId));
+    expect(JSON.parse(r.dados.json)).toMatchObject({ pedido: decId, sistema_alvo: 'sistema-ficticio', repositorio_destino: 'wsssistemas2626-crypto/sistema-ficticio' });
+    relogio.avancar(DIA_MS);
+    expect(await gerarPedidoNoPainel({ decId })).toEqual(r);
+  });
+
+  it('a administradora também gera (gerar_pedido_construcao é de pessoa)', async () => {
+    const decId = await novoPacote('novo_projeto', espConstruida);
+    como(cookieAdm);
+    expect(await gerarPedidoNoPainel({ decId })).toMatchObject({ ok: true, dados: { nomeArquivo: `${decId}.json` } });
+  });
+
+  it('pacote pendente: 409, e a tela mostra "Não foi possível concluir: …"', async () => {
+    const decId = await novoPacote('novo_projeto', espConstruida, false);
+    const r = await gerarPedidoNoPainel({ decId });
+    expect(r).toMatchObject({ ok: false, erro: 'conflito', mensagem: MENSAGENS_PEDIDO.naoAprovado });
+    if (r.ok) return;
+    expect(erroDoPedido(r).texto).toBe(`Não foi possível concluir: ${MENSAGENS_PEDIDO.naoAprovado}`);
+  });
+
+  it('Estudo: 422, e a tela mostra "Demanda do tipo Estudo não gera Pedido de Construção."', async () => {
+    const decId = await novoPacote('estudo', { descricaoObjetiva: 'Estudo (fictício)', escopoInclui: ['Comparar opções (fictício)'] });
+    const r = await gerarPedidoNoPainel({ decId });
+    expect(r).toMatchObject({ ok: false, erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.estudo });
+    if (r.ok) return;
+    expect(erroDoPedido(r)).toEqual({ texto: 'Demanda do tipo Estudo não gera Pedido de Construção.', erros: [], orientacao: null });
+  });
+
+  it('C-28: e-mail fictício na ESP → 422 com o campo e o tipo; o valor não aparece em parte nenhuma do resultado', async () => {
+    const decId = await novoPacote('novo_projeto', { ...espConstruida, descricaoObjetiva: `Falar com ${EMAIL_FICTICIO} (fictício)` });
+    const r = await gerarPedidoNoPainel({ decId });
+    expect(r).toMatchObject({ ok: false, erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.naoPassou, erros: ['especificacao.conteudo: e-mail'] });
+    expect(JSON.stringify(r)).not.toContain(EMAIL_FICTICIO);
+    if (r.ok) return;
+    expect(erroDoPedido(r)).toEqual({
+      texto: 'O pedido não passou na validação do /construir. Nada foi entregue. Erros:',
+      erros: ['especificacao.conteudo: e-mail'],
+      orientacao: 'Corrija criando uma versão nova da ESP e um pacote novo.',
+    });
+  });
+
+  it('C-17: id fora do formato ou de outra versão é recusado antes do banco; DEC que não existe dá 404; sem sessão, 401', async () => {
+    for (const decId of ['DEC-1', 'ESP-DEM-20261022-0001-v1', 'DEM-20261022-0001', "DEC-DEM-20261022-0001-v1'"])
+      expect(await gerarPedidoNoPainel({ decId }), decId).toMatchObject({ ok: false, erro: 'entrada_invalida' });
+    expect(await gerarPedidoNoPainel({})).toMatchObject({ ok: false, erro: 'entrada_invalida' });
+    expect(await gerarPedidoNoPainel({ decId: 'DEC-DEM-20991231-9999-v1' })).toMatchObject({ ok: false, erro: 'nao_encontrado' });
+    const decId = await novoPacote('novo_projeto', espConstruida);
+    pedido.cabecalhos = new Headers();
+    expect(await gerarPedidoNoPainel({ decId })).toMatchObject({ ok: false, erro: 'nao_autenticado' });
+  });
+});
