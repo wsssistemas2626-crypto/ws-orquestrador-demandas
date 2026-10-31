@@ -35,7 +35,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: () => undefined, refresh: () => undefined, push: () => undefined }),
 }));
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
-vi.mock('../../../lib/deps', () => ({ obterDeps: async () => ({ db: { dubleDoBanco: true }, relogio: { dubleDoRelogio: true } }) }));
+vi.mock('../../../lib/deps', () => ({
+  obterDeps: async () => ({ db: { dubleDoBanco: true }, relogio: { dubleDoRelogio: true }, config: { retencaoDias: 90 } }),
+}));
 vi.mock('../../../modules/acesso/exigir-pessoa', () => ({ exigirPessoaNaPagina: vi.fn(), exigirPessoa: vi.fn() }));
 vi.mock('../../../modules/acesso/matriz', async (original) => {
   const real = await original<typeof import('../../../modules/acesso/matriz')>();
@@ -53,9 +55,19 @@ vi.mock('../../../modules/demandas/consultas', async (original) => {
   const real = await original<typeof import('../../../modules/demandas/consultas')>();
   return { ...real, obterDemanda: vi.fn() };
 });
+// T40: o detalhe completo também lê o histórico e o texto recebido (o resto dele está em [id]/detalhe.test.ts).
+vi.mock('../../../modules/historico/consultas', async (original) => {
+  const real = await original<typeof import('../../../modules/historico/consultas')>();
+  return { ...real, listarHistorico: vi.fn(async () => []) };
+});
+vi.mock('../../../modules/demandas/texto-recebido', async (original) => {
+  const real = await original<typeof import('../../../modules/demandas/texto-recebido')>();
+  return { ...real, obterTextoRecebido: vi.fn(async () => ({ situacao: 'sem_texto' })) };
+});
 // As Server Actions não rodam aqui (estão no formularios-acoes-qa.test.ts, com o banco real).
 vi.mock('./nova/acoes', () => ({ registrarEntradaNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
 vi.mock('./[id]/editar/acoes', () => ({ alterarDadosNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
+vi.mock('./[id]/acoes', () => ({ mudarStatusNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
 
 const mExigirNaPagina = vi.mocked(exigirPessoaNaPagina);
 const mExigir = vi.mocked(exigirPessoa);
@@ -95,6 +107,10 @@ const demanda = (extra: Partial<DemandaVista> = {}): DemandaVista =>
     responsavel: { tipo: 'pessoa', nome: 'Pessoa Ficticia' },
     criadaEm: new Date('2026-10-22T15:00:00Z'),
     atualizadaEm: new Date('2026-10-22T15:00:00Z'),
+    especificacoes: [],
+    pareceresRisco: [],
+    pacotesDecisao: [],
+    agentesEmAndamento: [],
     ...extra,
   }) as DemandaVista;
 
@@ -274,12 +290,14 @@ describe('título da aba (generateMetadata de [id] e de [id]/editar)', () => {
   });
 });
 
-describe('T05 provisória ([id]/page.tsx): o destino da T04 e da T06', () => {
+// T40: a página deixou de ser provisória; o cabeçalho e o alerta de chegada continuam o destino da T04 e da T06.
+describe('T05 ([id]/page.tsx): o destino da T04 e da T06', () => {
   it('pede a pessoa com /demandas/<id>, autoriza "ler_demanda"; título escapado em h1, selo de status e "Editar dados"', async () => {
     mObter.mockResolvedValue(demanda({ titulo: 'Título <b>fictício</b>', status: 'em_analise', rascunhoAgente: true }));
     const p = await detalhe(ID);
     expect(mExigirNaPagina).toHaveBeenCalledExactlyOnceWith(`/demandas/${ID}`);
-    expect(mAutorizar).toHaveBeenCalledExactlyOnceWith(CTO, 'ler_demanda');
+    // ler_demanda é a primeira; a T40 autoriza depois o histórico (ler_historico) para as outras leituras.
+    expect(mAutorizar).toHaveBeenNthCalledWith(1, CTO, 'ler_demanda');
     expect(p).toContain('<h1>Título &lt;b&gt;fictício&lt;/b&gt;</h1>');
     expect(p).toContain(ROTULO_STATUS.em_analise);
     expect(p).toContain(SELO_RASCUNHO.texto);

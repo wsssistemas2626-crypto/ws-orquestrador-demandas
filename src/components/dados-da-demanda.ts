@@ -5,6 +5,7 @@
 import type { ResultadoAcao } from '../lib/acao-painel';
 import type { DemandaVista } from '../modules/demandas/consultas';
 import { errosDoResultado, idDoCampo, type ErroDeCampo, type ErrosDoFormulario } from './formulario';
+import { ROTULO_CAMPO_DEMANDA } from './rotulos';
 
 // RNF-04 e C-18, iguais a LIMITE_TEXTO_BRUTO, LIMITE_TEXTO, LIMITE_NOME, LIMITE_REFERENCIA_ORIGEM, LIMITE_REFERENCIA e
 // LIMITE_ITENS do servidor.
@@ -126,22 +127,14 @@ export function valoresDaDemanda(d: CamposEditaveis): ValoresDaDemanda {
   };
 }
 
-// Rótulos do Resumo de erros (03, T04), sem o "(obrigatório)" do campo.
+// Rótulos do Resumo de erros (03, T04), sem o "(obrigatório)" do campo. Os campos da demanda vêm de rotulos.ts, a mesma
+// fonte do histórico (T05); aqui só os do texto recebido e o título da seção de anexos.
 export const ROTULOS_DOS_CAMPOS: Readonly<Record<string, string>> = {
+  ...ROTULO_CAMPO_DEMANDA,
   texto: 'Texto do pedido',
   entradaPendenteId: 'Texto do pedido',
   'origem.canal': 'Canal de origem',
   'origem.referencia': 'Referência da origem',
-  solicitanteNome: 'Nome do solicitante',
-  solicitantePapel: 'Papel do solicitante',
-  titulo: 'Título',
-  tipo: 'Tipo',
-  linhaServicoProvavel: 'Linha de serviço provável',
-  urgencia: 'Urgência',
-  justificativaUrgencia: 'Justificativa da urgência',
-  contexto: 'Contexto',
-  descricaoProblema: 'Descrição do problema',
-  impactoPercebido: 'Impacto percebido',
   anexos: 'Anexos (referências)',
 };
 

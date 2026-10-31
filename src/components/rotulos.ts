@@ -2,7 +2,7 @@
 // texto que cada valor gravado mostra na tela (G3.11). Só tipos são importados dos módulos: este arquivo também vai ao
 // navegador, nos componentes de cliente.
 import type { NivelAprovacao } from '../db/schema/decisao';
-import type { LinhaServico, PapelSolicitante, StatusDemanda, TipoDemanda, Urgencia } from '../db/schema/demandas';
+import type { Anexo, LinhaServico, Origem, PapelSolicitante, StatusDemanda, TipoDemanda, Urgencia } from '../db/schema/demandas';
 import type { NivelRisco } from '../db/schema/versoes';
 import type { Agente, Papel } from '../modules/acesso/ator';
 import type { StatusDecisao } from '../modules/demandas/consultas';
@@ -80,6 +80,15 @@ export const ROTULO_LINHA: Readonly<Record<LinhaServico, string>> = {
 };
 
 export const ROTULO_URGENCIA: Readonly<Record<Urgencia, string>> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+
+// Canal de origem e tipo de anexo (03, T04): os mesmos textos das opções de T04, para o detalhe (T05).
+export const ROTULO_CANAL_ORIGEM: Readonly<Record<NonNullable<Origem['canal']>, string>> = {
+  email: 'E-mail',
+  mensagem: 'Mensagem',
+  formulario: 'Formulário',
+  outro: 'Outro',
+};
+export const ROTULO_TIPO_ANEXO: Readonly<Record<Anexo['tipo'], string>> = { url: 'Link', arquivo: 'Arquivo' };
 
 export const ROTULO_NIVEL_APROVACAO: Readonly<Record<NivelAprovacao, string>> = {
   cto: 'Só o CTO',
