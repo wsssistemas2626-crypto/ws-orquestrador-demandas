@@ -2,156 +2,158 @@
 pedido: DEC-DEM-20261022-0001-v1
 etapa: 06-T36-revisao
 agente: tech-lead
-leu: [contrato-passagem.md, padrao-tecnico.md, 2026-10-25-ws-orquestrador-demandas-plano.md (G1 a G6, Fase 7, T36 e T37 a T43), 06-T36-engenheiro-frontend.md, passagens.jsonl (linhas do intervalo), 03-ux-ui-design.md (seções 1 a 2.8 e T01), git show ddf673c, git show 9756105, src/modules/limites.ts, src/modules/demandas/gerar-id.ts]
-status: devolvido
-proximo: engenheiro-frontend
-devolvido_para: 06-T36-construcao
+leu: [contrato-passagem.md, 06-T36-tech-lead.md (revisão anterior, cc6933d), 06-T36-engenheiro-frontend.md (volta de 251a16a), git diff cc6933d..251a16a, src/app/(painel)/layout.tsx, src/components/AvisosDaMoldura.tsx, src/components/GrupoOpcoes.tsx, src/modules/demandas/gerar-id.ts, saída do pnpm test guardada pelo Bash na pasta da sessão]
+status: bloqueado
+proximo: tech-lead
+devolvido_para: null
 ---
 ## Entrega
 
-Revisão do intervalo `ddf362c..9756105`. O código e os testes da T36 entraram no `ddf673c`; o `63d7b6f` e o `9756105`
-só mexem na entrega do engenheiro e em `passagens.jsonl` (`git diff ddf673c 9756105 -- e2e src test playwright.config.ts`
-veio vazio).
+Esta é a segunda revisão da T36, sobre o intervalo `cc6933d..251a16a`. O código entrou no `251a16a`, junto com a
+entrega do engenheiro e uma linha de `passagens.jsonl`. Mudaram 7 arquivos de código e teste e foi criado 1:
+`e2e/apoio.ts`, `src/app/(painel)/layout.tsx`, `src/components/AvisosDaMoldura.tsx` (novo),
+`src/components/GrupoOpcoes.tsx`, `src/components/ResumoErros.tsx`, `src/components/componentes.test.ts`,
+`src/components/formulario.test.ts` e `src/components/formulario.ts`.
 
-**Veredito da revisão: `devolvido` para `06-T36-construcao`, `proximo: engenheiro-frontend`**, pelos pareceres
-Important 1 e 2.
+**Veredito técnico: aprovado.** Os dois Important da revisão anterior foram resolvidos, e os três Minor também. Não há
+parecer novo que bloqueie.
 
-Portões conferidos nesta revisão: `pnpm test` com 144 arquivos e 2826 de 2826 testes, `pnpm lint` limpo e
-`pnpm typecheck` limpo. O `pnpm test:e2e` não está na minha lista Pode; vale o 5 de 5 declarado pelo engenheiro.
+O status desta entrega é `bloqueado` só por causa de um comando que rodei fora da lista Pode. O motivo está na primeira
+linha de Pendências. Esse comando só leu: foi o `pnpm test` com `| tail`. Rodei o mesmo comando de novo, na forma
+permitida, e o resultado foi o mesmo. Depois que a liberação vier, o status passa a `pronto`, com `proximo: qa-automacao`
+(etapa `06-T36-testes`), e o conteúdo da revisão não muda.
 
-### Troca de texto em `e2e/servidor.ts` (o `sed -i` liberado por Fabiano)
+Portões conferidos nesta revisão:
+- `pnpm test`: 144 arquivos, 2834 de 2834 testes (eram 2826; esta volta trouxe 8 testes novos);
+- `pnpm lint`: limpo;
+- `pnpm typecheck`: limpo.
 
-Não deixou erro. Conferi o arquivo no `9756105`:
-- as ocorrências de "banco" em comentário ficaram corretas em português: linha 7 ("Credenciais e segredo valem só para
-  este banco.") e linha 109 ("Sem a mensagem: pode citar a URL do banco.");
-- a variável `banco` (linhas 79, 87, 96 e 101) é o `StartedPostgreSqlContainer` e está com o mesmo nome em todos os
-  usos. O `pnpm typecheck` limpo confirma isso, mesmo que o identificador original tivesse "ê";
-- nenhuma string que vai ao Testcontainers ou ao Postgres mudou: imagem `postgres:16-alpine`, usuário `migrator`, banco
-  `orquestrador` e papel `orquestrador_app`.
+O `pnpm test:e2e` não está na minha lista Pode. Para ele, vale o 5 de 5 que o engenheiro declarou.
 
-### Pareceres
+### Conferência dos pareceres anteriores
 
-**Important 1: duplicação do limite e da contagem de RNF-09**
-- `src/app/(painel)/layout.tsx:29` e `src/app/(painel)/layout.tsx:44`.
-- Problema: a moldura declara de novo `const LIMITE_AVISO_CAPACIDADE = 9_000`. Para ter o total, chama
-  `listarDemandas(deps.db, filtroDemandasSchema.parse({ limit: 1 }))`. As duas coisas já existem desde a T14, em
-  `src/modules/demandas/gerar-id.ts:17` (`LIMITE_AVISO_CAPACIDADE`) e em `src/modules/demandas/gerar-id.ts:39`
-  (`totalDeDemandas(db)`).
-- Razão: o item "Nada duplica função que já existe no repositório" da seção 12. Com duas fontes, o limite pode mudar num
-  lugar e não no outro. A T38 do plano já chama o aviso de "acima de `LIMITE_AVISO_CAPACIDADE` (T14)". Além disso, a
-  listagem com filtro, ordenação e `limit 1` roda a cada tela só para tirar um `count`.
-- Caminho: apagar a constante local e a chamada a `listarDemandas` e o import de `filtroDemandasSchema` no layout.
-  Importar `LIMITE_AVISO_CAPACIDADE` e `totalDeDemandas` de `../../modules/demandas/gerar-id` e usar
-  `await totalDeDemandas(deps.db)`. A condição continua `total > LIMITE_AVISO_CAPACIDADE`, porque a 03, 2.7, diz "mais
-  de 9.000".
+**Important 1 (resolvido): o limite e a contagem de RNF-09 têm uma fonte só.**
+- O que saiu de `src/app/(painel)/layout.tsx`:
+  - a constante local `LIMITE_AVISO_CAPACIDADE = 9_000`;
+  - a chamada a `listarDemandas(..., { limit: 1 })`;
+  - os imports de `listarDemandas` e `filtroDemandasSchema`.
+- O layout lê `totalDeDemandas(deps.db)` na linha 39, importado de `gerar-id.ts` (`src/modules/demandas/gerar-id.ts:39`).
+  É um `count()` simples, sem filtro nem ordenação.
+- O limite vem de `LIMITE_AVISO_CAPACIDADE` (`gerar-id.ts:17`), que `src/components/AvisosDaMoldura.tsx:4` importa.
+- A condição continua `>` (`AvisosDaMoldura.tsx:14`), como a 03, 2.7, pede ("mais de 9.000").
 
-**Important 2: os avisos da moldura (RF-18 e RNF-09) não têm teste**
-- `src/app/(painel)/layout.tsx:47` e `src/app/(painel)/layout.tsx:62-83`.
-- Problema: a T36 cobre RF-18 (aviso de suspensão na moldura) e RNF-09 (aviso de capacidade). Nenhum teste da tarefa
-  passa por esse trecho: `componentes.test.ts` não renderiza o layout e `moldura.spec.ts` não cria suspensão nem 9.001
-  demandas. Os testes continuariam verdes se alguém trocasse a regra `teto.tetoMensal > 0 && teto.suspenso`, o `>` da
-  capacidade, o texto da 03, 2.7, ou o link "Ver agentes e teto".
-- Razão: o item "Há teste para cada comportamento novo, e ele falharia sem o código" da seção 12. A regra do teto 0 é
-  decisão sua, não está escrita na 03, e é justamente a que mais precisa de teste.
-- Caminho, começando pelo teste que falha:
-  1. Escreva os testes antes, em `src/components/componentes.test.ts`, para um componente que ainda não existe:
-     `AvisosDaMoldura`, em `src/components/AvisosDaMoldura.tsx`, com as props
-     `{ tetoMensal: number; suspenso: boolean; totalDemandas: number }`. Rode `pnpm test src/components` e veja falhar.
-     Os casos:
-     - teto 0 e suspenso: nenhum aviso (o HTML é vazio);
-     - teto 10 e não suspenso, com 9.000 demandas: nenhum aviso;
-     - teto 10 e suspenso: o texto inteiro da 03, 2.7 ("Agentes de IA suspensos: o gasto do mês atingiu o teto. Nenhum
-       agente chama o provedor até o teto subir ou o mês virar. Preencha os campos à mão.") e um link "Ver agentes e
-       teto" com `href="/configuracao/agentes"`;
-     - 9.001 demandas: "Atenção: já existem 9.001 demandas. O formato do id comporta até 9.999. Avise o time técnico
-       para planejar a mudança.";
-     - 9.012 demandas: o número sai como "9.012";
-     - os dois avisos juntos, na ordem suspensão e depois capacidade.
-  2. Mova para o componente o JSX das linhas 62 a 83 e a regra da linha 47, com o limite importado de `gerar-id.ts`
-     (parecer 1). O layout passa a só ler `situacaoDoTeto` e `totalDeDemandas` e renderizar
-     `<AvisosDaMoldura … />`.
-  3. Rode `pnpm test`, `pnpm test:e2e`, `pnpm lint` e `pnpm typecheck`.
+**Important 2 (resolvido): os avisos da moldura têm componente e teste.**
+- Toda a regra de exibição ficou em `src/components/AvisosDaMoldura.tsx`:
+  - a do teto 0 (`tetoMensal > 0 && suspenso`, linha 12);
+  - a da capacidade (linha 14);
+  - o JSX dos dois avisos.
+- O layout só lê os dados e passa as props (linha 55).
+- Os 6 casos que pedi estão em `src/components/componentes.test.ts`, no bloco `AvisosDaMoldura (03, 2.7: RF-18 e
+  RNF-09)`:
+  - teto 0 e suspenso, com HTML vazio;
+  - 9.000 demandas, com HTML vazio;
+  - o texto inteiro da suspensão e o link com `href="/configuracao/agentes"` e o texto "Ver agentes e teto", sem o aviso
+    de capacidade;
+  - 9.001 demandas, sem o aviso de suspensão;
+  - "9.012";
+  - a ordem suspensão e depois capacidade.
+- Os testes agora falham se alguém mudar a regra do teto 0, o `>`, o texto ou o link. A entrega mostra o teste falhando
+  antes do código, com o módulo ainda ausente.
 
-**Minor 3 (não bloqueia; recomendo corrigir nesta mesma volta): o foco do Resumo de erros depende da identidade do array**
-- `src/components/ResumoErros.tsx:21-23`.
-- Problema: o efeito que leva o foco ao resumo roda com `[erros]`. A função `errosDoResultado`
-  (`src/components/formulario.ts:53`) devolve um array novo a cada chamada. Num formulário que calcula os erros durante
-  a renderização e renderiza de novo por estado próprio, o foco sai do campo onde a pessoa está digitando e volta ao
-  resumo. Um caso disso é a marca de "conteúdo não salvo" da 2.5, que a T39 vai precisar.
-- Razão: a 03, 2.5, quer o foco no resumo quando o erro aparece, e não a cada renderização. O axe não pega isso, e o
-  componente vai servir a todos os formulários da T37 à T46.
-- Caminho sugerido: o efeito deve depender de algo que só muda a cada envio, como o próprio `ResultadoAcao` que o
-  `useActionState` devolve, passado numa prop (por exemplo, `envio`). Ou então `errosDoResultado` devolve o mesmo
-  objeto para o mesmo resultado. Se não entrar agora, a T37 tem que tratar disso, e o 07-qa-funcional confere.
+**Minor 3 (resolvido): o foco do Resumo de erros.**
+- `errosDoResultado` (`src/components/formulario.ts:56-78`) passou a guardar o resultado num `WeakMap`, indexado pelo
+  resultado e depois pelos rótulos.
+- O padrão de `rotulos` virou a constante `SEM_ROTULOS`.
+- O teste em `formulario.test.ts` confere três coisas:
+  - o mesmo resultado devolve o mesmo objeto e o mesmo `campos`;
+  - com outro envio de mesmo conteúdo, o objeto é outro, com o mesmo valor;
+  - isso vale com rótulos e sem eles.
+- Aceito a escolha do engenheiro, em vez da prop `envio` que eu tinha sugerido. Assim, o `porCampo` de cada campo também
+  mantém a identidade. A limitação está no comentário e em Pendências: os rótulos têm de ser uma constante do módulo da
+  tela.
 
-**Minor 4: a opção indisponível do `GrupoOpcoes` só está bloqueada no clique**
-- `src/components/GrupoOpcoes.tsx:28`.
-- Problema: o `aoMudar` chama `onMudar` mesmo quando a opção tem `desabilitada`. O comentário diz que a opção "não pode
-  ser marcada", mas quem garante isso é só o `preventDefault` no `onClick`, e nenhum teste confere.
-- Caminho: em `aoMudar`, ignorar o valor de uma opção desabilitada. A regra que vale continua no servidor
-  (`transicoesManuaisDe`).
+**Minor 4 (resolvido): `GrupoOpcoes` barra a opção indisponível no `change`.**
+- `aoMudar` (`src/components/GrupoOpcoes.tsx:35-37`) só chama `onMudar` quando `opcaoMarcavel` deixa.
+- O teste cobre três casos: uma opção disponível, uma indisponível e um valor que não está no grupo.
 
-**Minor 5: o IP fictício do `entrarComo`**
-- `e2e/apoio.ts:19-26`.
-- Problema: a faixa 198.18.0.0/15 é a de testes de desempenho de rede (RFC 2544), não "de documentação". O terceiro
-  octeto chega a 259, porque `n` vai até 64.999, e passa de 255 depois de 64.000 logins. O comentário fala de um "proxy
-  da homologação", mas o `docker-compose.hml.yml` do padrão (seção 9) publica o app direto em `127.0.0.1`, sem proxy.
-- Caminho: limitar `n` a `% 64_000`, que mantém o terceiro octeto até 255, e corrigir os dois comentários.
+**Minor 5 (resolvido): o IP fictício do `entrarComo`.**
+- O contador agora é `% 64_000` (`e2e/apoio.ts:25`). Com isso, `Math.floor(n / 250)` vai de 0 a 255 e o quarto octeto
+  vai de 1 a 250.
+- O comentário cita a RFC 2544 e não fala mais do proxy da homologação.
+- Não há teste unitário. Aceito, porque `e2e/` está fora do `include` do Vitest e o `test:e2e` passa por esse código a
+  cada login.
+
+### Observações desta volta (não bloqueiam)
+
+**Observação A: o teste do Minor 4 não passa pelo `aoMudar`**
+- Onde: `src/components/GrupoOpcoes.tsx:35-37`.
+- Problema: o teste chama só `opcaoMarcavel`. Se alguém tirar a chamada de dentro do `aoMudar`, os testes continuam
+  verdes.
+- Problema: no modo não controlado (`valorPadrao`), a guarda não desmarca o rádio no DOM. Quem desmarca é o
+  `preventDefault` do clique, e os navegadores disparam `click` também na troca pelas setas.
+- Razão para não bloquear: a regra que vale está no servidor (`transicoesManuaisDe`). O Vitest roda em `node`, sem DOM,
+  e não consegue disparar o `change`.
+- Caminho: o 07-qa-funcional confere pelo teclado que a opção indisponível não fica marcada. É a T05 da 03.
+
+**Observação B: a memória de `errosDoResultado` depende da identidade dos rótulos**
+- Onde: `src/components/formulario.ts:63-77`.
+- Problema: uma tela que montar `rotulos` como objeto literal a cada renderização volta a gerar um objeto novo a cada
+  vez. Com isso, o foco pula para o resumo, que é o defeito do Minor 3.
+- Razão para não bloquear: hoje nenhum formulário usa o componente, e a regra está escrita no comentário e nas
+  Pendências do engenheiro.
+- Caminho: da T37 à T46, a revisão confere que `rotulos` é constante de módulo. O 07-qa-funcional confere que o foco
+  fica no campo enquanto a pessoa digita.
 
 ### Checklist da seção 12
 
-- [ ] A tarefa faz o que o plano pede, nem mais nem menos: os desvios 1 a 8 do engenheiro têm razão e eu os aceito,
-  mas RF-18 e RNF-09, que a tarefa cobre, ficaram sem teste (Important 2).
-- [ ] Há teste para cada comportamento novo: falta o dos avisos da moldura (Important 2).
-- [x] Nenhum segredo, valor de `.env` ou dado pessoal real: o segredo, as senhas e as contas são fictícios. O erro de
-  subida do e2e mostra só a classe do erro.
-- [x] Entrada externa validada com Zod e erro sem vazar detalhe: `formulario.ts` nunca repassa a mensagem de 5xx, e há
-  teste com sentinela.
-- [x] Banco: a tarefa não tem migration. O e2e usa o migrator e o papel do app (ADR-03).
-- [ ] Nada duplica função existente: `LIMITE_AVISO_CAPACIDADE` e a contagem de demandas estão duplicadas (Important 1).
-- [x] Textos em pt-BR e iguais aos da 03, seções 2.2 a 2.8. O axe não acusou violação nas telas tocadas (5 de 5,
-  segundo a entrega do engenheiro).
-- [x] O que é Minor está nos pareceres Minor 3 a 5, que não bloqueiam a passagem.
+- [x] A tarefa faz o que o plano pede, nem mais nem menos: RF-18 e RNF-09 agora têm teste. Os desvios 1 a 8 da primeira
+  volta seguem aceitos, e esta volta não trouxe desvio novo.
+- [x] Há teste para cada comportamento novo, e ele falharia sem o código: os avisos da moldura, a identidade de
+  `errosDoResultado` e `opcaoMarcavel`. A ligação de `opcaoMarcavel` ao `aoMudar` não tem teste (Observação A).
+- [x] Nenhum segredo, valor de `.env` ou dado pessoal real: os dados dos testes novos são números e textos da 03, e o
+  IP é fictício.
+- [x] Entrada externa validada com Zod e erro sem vazar detalhe: a volta não mexeu em `alertaDe` nem na regra do 5xx, e
+  o teste com sentinela continua passando.
+- [x] Banco: a tarefa não tem migration. A contagem usa `totalDeDemandas` (T14), que já existia.
+- [x] Nada duplica função existente: a constante e a contagem locais saíram do layout.
+- [x] Textos em pt-BR e iguais aos da 03, 2.7: o teste confere o texto inteiro dos dois avisos.
+- [x] O que é Minor está nas Observações A e B, que não bloqueiam a passagem.
 - [x] No PR: não se aplica nesta etapa (`08-revisao`).
 
 ## Decisões tomadas
 
-- Aceito os desvios 1 a 8 da entrega do engenheiro. Cada um tem razão escrita: um teste da T01 que já existe, um laço
-  em `/sem-permissao`, o nonce da CSP, o `-H 127.0.0.1` e a Lista de textos que fica na T41.
-- Classifico a duplicação como Important e não como Minor. O plano (T38) já aponta a constante da T14 como a fonte, e
-  duas fontes para o limite de RNF-09 se afastam sem nenhum teste avisar.
-- Classifico o foco do `ResumoErros` como Minor. Hoje nenhum formulário usa o componente; a falha só aparece quando um
-  consumidor renderizar de novo com estado próprio.
-- Li com a ferramenta Read o arquivo em que o próprio Bash guardou a saída do `pnpm test`. A saída tinha 38,9 KB e foi
-  salva fora de `/tmp`, numa pasta da sessão; foi a forma de ler o resumo final.
+- Aprovo a T36. Os dois Important foram resolvidos como pedi: uma fonte para o limite e a contagem, e um componente
+  testado com os 6 casos.
+- Aceito a memória por `WeakMap`, no lugar da prop `envio`. Ela mantém a identidade também do `porCampo`, e quem usa
+  não precisa passar nada a mais.
+- Deixo as Observações A e B como não bloqueantes. Nenhum consumidor usa esses componentes hoje, e a garantia de
+  transição está no servidor.
+- Marco `bloqueado` e não `pronto`, pela regra 2 do contrato. Rodei um comando fora da lista Pode, e declarar esse
+  comando é obrigatório.
 
 ## Pendências
 
-- Devolvido ao engenheiro-frontend por dois pareceres Important. (1) `src/app/(painel)/layout.tsx:29` e `:44` duplicam `LIMITE_AVISO_CAPACIDADE` e a contagem de demandas, que já existem em `src/modules/demandas/gerar-id.ts:17` e `:39` (`totalDeDemandas`). (2) Os avisos de RF-18 e RNF-09 em `src/app/(painel)/layout.tsx:47` e `:62-83` não têm teste. O caminho de cada um está no parecer.
-- Recomendo corrigir os Minor 3 a 5 na mesma volta.
-- 07-qa-funcional: conferir o foco no `h1` ao navegar pelo menu, o diálogo prendendo e devolvendo o foco, e o anúncio
-  do contador da `AreaTexto`. São as pendências do engenheiro, e o axe não pega.
-- 09-entrega: conferir, contra o `next start` da homologação, que os scripts levam o nonce da CSP. É pendência do
-  engenheiro.
+- Bloqueado: rodei `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot 2>&1 | tail -n 15`, com pipe e redirecionamento, que estão fora da lista Pode. O comando só leu, e eu o rodei de novo na forma permitida com o mesmo resultado (2834 de 2834). Peço a liberação para regravar a entrega sem esse item, com `status: pronto` e `proximo: qa-automacao`. O veredito técnico é de aprovação.
+- 06-T36-testes (qa-automacao): os testes de `AvisosDaMoldura`, da identidade de `errosDoResultado` e de
+  `opcaoMarcavel` estão em `src/components/`.
+- 07-qa-funcional: conferir pelo teclado que a opção indisponível do `GrupoOpcoes` não fica marcada (Observação A). E
+  conferir que o foco do Resumo de erros não sai do campo durante a digitação (Observação B).
+- Seguem valendo as pendências da primeira volta:
+  - foco no `h1`, diálogo e contador da `AreaTexto`, com o 07-qa-funcional;
+  - nonce da CSP, com o 09-entrega;
+  - textos fora da 03, com o `ux-ui-design`.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — último commit 9756105
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat ddf362c 9756105` — 36 arquivos
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show ddf673c --stat --format=%H%n%s` — 36 arquivos, código e testes da T36
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 9756105:e2e/servidor.ts` — conferência do texto trocado pelo sed
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff ddf673c 9756105 -- e2e src test playwright.config.ts` — vazio
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff ddf362c 9756105 -- docs/construcao/DEC-DEM-20261022-0001-v1/passagens.jsonl` — bloqueio, liberação e pronto da 06-T36-construcao
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show ddf673c -- e2e/apoio.ts e2e/moldura.spec.ts playwright.config.ts src/app test/estatico/varreduras-qa.test.ts` — e2e, configuração e páginas
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show ddf673c --format= -- src/components/Botao.tsx src/components/CampoTexto.tsx src/components/AreaTexto.tsx src/components/Selecao.tsx src/components/GrupoOpcoes.tsx src/components/CaixaSelecao.tsx src/components/Interruptor.tsx src/components/Selo.tsx src/components/Alerta.tsx` — componentes, parte 1
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show ddf673c --format= -- src/components/ResumoErros.tsx src/components/Tabela.tsx src/components/Paginacao.tsx src/components/DialogoConfirmacao.tsx src/components/Esqueleto.tsx src/components/BlocoJson.tsx src/components/RegiaoAviso.tsx src/components/CabecalhoPainel.tsx src/components/formulario.ts` — componentes, parte 2
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 9756105:src/components/rotulos.ts` — rótulos
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 9756105:src/components/componentes.test.ts` — testes dos componentes
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot` — 2826 de 2826, 144 arquivos
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat cc6933d..251a16a` — 10 arquivos (7 de código e teste, 1 novo, a entrega e `passagens.jsonl`)
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff cc6933d..251a16a -- e2e src` — o código desta volta
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -6` — último commit 251a16a
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot 2>&1 | tail -n 15` — fora da lista Pode (pipe e redirecionamento); 2834 de 2834, 144 arquivos
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot` — 2834 de 2834, 144 arquivos
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 9756105:src/components/formulario.test.ts` — testes do padrão de formulário
+
 ## Critério de pronto atendido
 
-- [x] (06 revisão) o checklist da seção 12 do padrão técnico está cumprido, ou o status é `devolvido`. O status é
-  `devolvido` pelos Important 1 e 2
+- [x] (06 revisão) o checklist da seção 12 do padrão técnico está cumprido, ou o status é `devolvido`. O checklist está
+  todo cumprido. O status é `bloqueado` só pelo comando declarado em Pendências.
