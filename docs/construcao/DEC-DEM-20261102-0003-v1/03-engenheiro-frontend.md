@@ -122,7 +122,6 @@ continuam como estavam.
 
 ## Pendências
 
-- Fora da lista Pode: rodei uma vez `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files e2e eslint.config.mjs eslint.config.js eslint.config.ts tsconfig.json`, só leitura, para achar os arquivos de lint. A sessão não tinha Grep nem Glob. Não alterou nada. Fica registrado para o `conferir`.
 - Para a `04-regressao`: confirmar a contagem de passados e pulados das três execuções completas (código de saída 0 nas
   três; não li a saída, ver Entrega).
 - Para a `04-regressao`: a rodada com a M-01 forçada pelo estado, criando à mão só a ESP de D, como a triagem pede.
@@ -132,7 +131,6 @@ continuam como estavam.
 
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/projeto.test.ts` — 1 falhou e 10 passaram (antes da troca da versão)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo, no ramo construcao/DEC-DEM-20261102-0003-v1
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files e2e eslint.config.mjs eslint.config.js eslint.config.ts tsconfig.json` — fora da lista Pode, só leitura (ver Pendências)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/preparacao.spec.ts` — 9 falharam e 3 passaram (antes da correção)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/parecer-risco-qa.spec.ts --repeat-each=2` — 12 passaram e 2 falharam (B-01 reproduzido)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/decisao.spec.ts --repeat-each=2` — 9 passaram e 3 falharam (B-01 reproduzido)
