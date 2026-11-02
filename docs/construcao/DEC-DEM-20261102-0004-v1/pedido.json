@@ -1,0 +1,38 @@
+{
+  "pedido": "DEC-DEM-20261102-0004-v1",
+  "demanda": {
+    "id": "DEM-20261102-0004",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.3: teste \"Arquivar\" prova a mudança de status também fora do CI",
+    "descricao": "Na 04-revisao do pedido DEC-DEM-20261102-0003-v1 (docs/construcao/DEC-DEM-20261102-0003-v1/04-maestro.md, B-01, apontado pelo seguranca-aplicacao) ficou um achado baixo: em execução repetida contra o mesmo banco, o teste \"Arquivar\" de e2e/decisao.spec.ts (linhas 348 e 354) aceita como partida a demanda que já está 'encerrada'; aí o expect(...).toBe('encerrada') passa de qualquer jeito e não prova que o arquivamento levou a demanda a Encerrada. No CI (banco novo) a demanda parte de 'em_analise', porque o CA-12.4 roda antes, e a mudança fica provada. Base: main (b8a8c44, versão 0.1.2)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261102-0004-v1",
+    "conteudo": "O teste \"Arquivar\" só conta como prova da mudança de status quando parte de um status de ORIGENS_DO_FLUXO. Com CI definido, a partida fora de ORIGENS_DO_FLUXO reprova (exigeBancoRecemSemeado com a condição ORIGENS_DO_FLUXO.includes(status)), sem aceitar 'encerrada'. Fora do CI, se a demanda já estiver 'encerrada', o teste é pulado com a mensagem 'exige banco recém-semeado: …' em vez de passar sem provar nada; ou, se houver forma de o teste usar uma demanda própria do seed que ainda não foi arquivada, ele a usa. Em todo caso, o teste confere o status antes (de ORIGENS_DO_FLUXO) e depois ('encerrada'). Nenhum comportamento do sistema muda; nenhum controle é afrouxado (axe, C-36, A-02). Só e2e/decisao.spec.ts (e scripts/seed-ficticio.ts com scripts/scripts.test.ts, se o caminho da demanda própria for o escolhido), package.json (versão) e o CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261102-0004-v1",
+    "nivel": "baixo",
+    "conteudo": "Só teste e dados fictícios. O risco é o teste ficar mais tolerante: passar sem conferir a mudança de status ou pular sem mensagem. Os dois casos são recusados na revisão. Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261102-0004-v1",
+    "opcaoEscolhida": "Fazer o teste \"Arquivar\" provar a mudança de status também em execução repetida, num pedido de correção (cadeia curta) sobre a main",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-02"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Com CI definido, o \"Arquivar\" reprova se a demanda não partir de um status de ORIGENS_DO_FLUXO",
+    "Fora do CI, com a demanda já encerrada, o teste é pulado com a mensagem 'exige banco recém-semeado: …' ou usa uma demanda própria ainda não arquivada; nunca passa sem provar a mudança",
+    "O teste confere o status antes e depois do arquivamento",
+    "A suíte e2e passa três vezes seguidas, e rodada repetida no mesmo banco não tem falha nem teste pulado sem mensagem"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.3",
+    "PR com CI verde"
+  ]
+}
