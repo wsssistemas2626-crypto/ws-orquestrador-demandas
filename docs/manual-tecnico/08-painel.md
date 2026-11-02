@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 31/10/2026 |
+| Atualizado em | 02/11/2026 |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-26; RNF-11, RNF-16 |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/components/`, `src/proxy.ts`, `e2e/` |
@@ -35,6 +35,12 @@ como texto (`react/no-danger`). As páginas saem com `no-store` e CSP com nonce.
 
 Cada tela tem verificação do axe sem violação no Playwright (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`),
 em mais de um estado. Foco, teclado e anúncios que o axe não pega foram conferidos pelo `qa-funcional` na etapa 07.
+
+A verificação fica em `semViolacoes` (`e2e/apoio.ts`) e exige zero violação. Antes do axe, ela espera a página ter
+`<title>` não vazio, por até 5 s. Depois de uma Server Action, o Next 16 re-renderiza a página, e o título chega por
+streaming depois do corpo. Se o título não chegar, o axe roda assim mesmo e reprova pela regra `document-title`.
+Nenhuma regra é desligada nem filtrada. O `e2e/sem-violacoes.spec.ts` confere os dois casos: título atrasado passa,
+tela sem título reprova.
 
 ## Pendências de interface conhecidas
 

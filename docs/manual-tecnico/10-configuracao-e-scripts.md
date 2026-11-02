@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 31/10/2026 |
+| Atualizado em | 02/11/2026 |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RNF-13, RNF-14 |
 | Fontes no código | `src/lib/env.ts`, `src/lib/env-worker.ts`, `.env.example`, `scripts/` |
@@ -47,7 +47,7 @@ serviço `app` no Easypanel). Aceitam só `--nome valor` ou `--nome=valor`; argu
 | `criar-token-servico.ts` | `--agente orquestrador\|insumo_tecnico\|risco\|consolidacao` | cria um token `wsod_` e escreve uma vez o token e o prefixo. O banco guarda só o hash |
 | `revogar-token-servico.ts` | `--prefixo <8 caracteres depois de wsod_>` | revoga o token; código de saída 1 se não havia token ativo com o prefixo |
 | `definir-preco-modelo.ts` | `--modelo <id> --entradaPorMilhao <US$> --saidaPorMilhao <US$>` | grava uma vigência nova de preço (até 6 casas). A anterior fica, porque o custo já registrado saiu dela. É o único jeito de gravar preço |
-| `seed-ficticio.ts` | `SEED_FICTICIO=1` no ambiente | cria contas, preço e demandas fictícias. Recusa banco que já tem demanda ou conta |
+| `seed-ficticio.ts` | `SEED_FICTICIO=1` no ambiente | cria as quatro contas de `CONTAS_FICTICIAS`, o preço do modelo fictício e 14 demandas fictícias: 5 da conta `cto` e 9 próprias do e2e (`TITULOS_DO_E2E`), da conta `sem2fa`, para o e2e não gastar o limite de demandas por hora. Recusa banco que já tem demanda ou conta |
 | `migrate.ts` | `pnpm db:migrate` | migrations e filas do pg-boss com `DATABASE_URL_MIGRATOR` |
 | `start-hml.ts` | `pnpm start:hml` | homologação: migrate, seed e `pnpm start` sem `DATABASE_URL_MIGRATOR` |
 
