@@ -3,7 +3,7 @@ pedido: DEC-DEM-20261102-0002-v1
 etapa: 02-triagem
 agente: tech-lead
 leu: [pedido.json, 01-qa-funcional.md, contrato-passagem.md, e2e/apoio.ts, e2e/parecer-risco-qa.spec.ts, e2e/decisao.spec.ts, scripts/seed-ficticio.ts, scripts/scripts.test.ts, playwright.config.ts, package.json, CHANGELOG.md, DEC-DEM-20261022-0001-v1/06-T43-tech-lead.md, .claude/agents/engenheiro-frontend.md, .claude/agents/engenheiro-backend.md, .claude/agents/documentacao-tecnica.md, .claude/agents/devops-sre.md, .claude/commands/construir.md]
-status: bloqueado
+status: pronto
 proximo: engenheiro-frontend
 devolvido_para: null
 ---
@@ -30,7 +30,9 @@ Concordo com a reprodução da 01. São duas causas, e a segunda é agravada pel
 
 ### Quem corrige
 
-**`engenheiro-frontend`, numa `03-correcao` só, se Fabiano liberar `scripts/` para ele** (primeira linha de Pendências).
+**`engenheiro-frontend`, numa `03-correcao` só, com a liberação registrada no `passagens.jsonl`.** Nesta correção ele
+pode editar `scripts/seed-ficticio.ts` e `scripts/scripts.test.ts`, só para as demandas fictícias do seed para o e2e e
+sem mexer no C-36. Pode também trocar o campo `version` do `package.json` de 0.1.0 para 0.1.1.
 
 - O grosso da correção está em `e2e/`, e a verificação exige `pnpm test:e2e`. Os dois estão na lista **Pode** do
   frontend e fora da do backend. No pedido anterior, o backend precisou de liberação para os dois.
@@ -105,7 +107,9 @@ muda.
 versão maior que a da `main` e a seção dela no `CHANGELOG.md`. O `CHANGELOG.md` é da `06-documentacao`.
 
 **Comandos da 03-correcao:** `pnpm test` (inclui `scripts/scripts.test.ts`), `pnpm lint`, `pnpm typecheck` e
-`pnpm test:e2e` inteiro, pelo menos uma vez, com o resultado na entrega. Todos estão na lista **Pode** do frontend.
+`pnpm test:e2e` inteiro, pelo menos uma vez, com o resultado na entrega. Todos estão na lista **Pode** do frontend. A
+edição de `scripts/seed-ficticio.ts` e `scripts/scripts.test.ts` vale pela liberação desta correção, e só para o que
+os passos 1 e 3 pedem.
 
 ### Proibido, e recusado na revisão como alto
 
@@ -145,6 +149,7 @@ sai igual.
 
 ## Decisões tomadas
 
+- Liberação dada pelo maestro, por delegação de Fabiano, e registrada no `passagens.jsonl`: na 03-correcao, o `engenheiro-frontend` pode editar `scripts/seed-ficticio.ts` e `scripts/scripts.test.ts` (demandas fictícias do seed para o e2e, sem mexer no C-36) e trocar a versão do `package.json` de 0.1.0 para 0.1.1.
 - Engenheiro-frontend, e não backend: a parte maior (`e2e/` e `pnpm test:e2e`) já está na lista Pode dele, e a liberação que falta, `scripts/seed-ficticio.ts` e `scripts/scripts.test.ts`, é a menor.
 - A `decisao.spec.ts` também passa para uma demanda do seed, pelo item (c) da ESP: é dela o +1 que causou o 429, e sem estado de módulo o worker novo não cria demanda.
 - O duplo clique da `parecer-risco-qa.spec.ts` também sai da API: está no mesmo arquivo, segue o mesmo molde e leva a folga da "cto" de 2 para 3.
@@ -154,8 +159,6 @@ sai igual.
 
 ## Pendências
 
-- Liberação de Fabiano: o `engenheiro-frontend` precisa editar `scripts/seed-ficticio.ts` e `scripts/scripts.test.ts` na `03-correcao` (passo 1), e os dois estão fora da lista Pode dele. A alternativa é o `engenheiro-backend` com `e2e/` e `pnpm test:e2e` liberados. Recomendo a primeira. Liberado, esta entrega volta como `pronto`, com `proximo: engenheiro-frontend`, e registra a liberação aqui para o engenheiro ler.
-- Também para Fabiano, na mesma resposta: o campo `version` do `package.json` (0.1.0 para 0.1.1) está fora da lista de arquivos da ESP. Ele está na lista Pode do frontend e é exigido pelo `verificar` da Parada 3.
 - Minor, para depois: `demandaDaDupla` (`decisao.spec.ts:44-51`) e os buscadores de demanda do seed nas outras specs podem passar a usar o `demandaDoSeed` de `apoio.ts`.
 - Fora do escopo, como manda a ESP: os médios M-01 a M-07 e o médio do reteste do pedido anterior seguem para decisão de Fabiano.
 - Não conferi o log completo da execução 41249512830 (worker novo depois de `decisao.spec.ts:151`). A conta de demandas da 01 fecha com a causa, e a correção do passo 3 vale com ou sem essa confirmação.
