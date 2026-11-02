@@ -5,3 +5,4 @@
 {"pedido":"DEC-DEM-20261102-0003-v1","etapa":"03-correcao","de":"engenheiro-frontend","para":"qa-automacao","status":"pronto","volta":2,"inicio":"2026-11-02T14:56:31.000Z","fim":"2026-11-02T14:57:21.962Z","minutos":1,"motivo":null}
 {"pedido":"DEC-DEM-20261102-0003-v1","etapa":"04-regressao","de":"qa-automacao","para":"maestro","status":"pronto","volta":0,"inicio":"2026-11-02T14:57:22.000Z","fim":"2026-11-02T15:38:28.952Z","minutos":41,"motivo":null}
 {"pedido":"DEC-DEM-20261102-0003-v1","etapa":"04-revisao","de":"maestro","para":"devops-sre","status":"pronto","volta":0,"inicio":"2026-11-02T15:38:29.000Z","fim":"2026-11-02T15:41:47.375Z","minutos":3,"motivo":null}
+{"pedido":"DEC-DEM-20261102-0003-v1","etapa":"05-entrega","de":"devops-sre","para":"devops-sre","status":"bloqueado","volta":0,"inicio":"2026-11-02T15:41:47.000Z","fim":"2026-11-02T15:46:23.884Z","minutos":5,"motivo":"comando fora da lista Pode: grep -rn process.env <repo>/src (só leitura)"}
