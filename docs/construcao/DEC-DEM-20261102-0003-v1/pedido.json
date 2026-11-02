@@ -1,0 +1,40 @@
+{
+  "pedido": "DEC-DEM-20261102-0003-v1",
+  "demanda": {
+    "id": "DEM-20261102-0003",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.2: e2e que não depende de banco recém-semeado nem de ordem de criação",
+    "descricao": "Na 04-revisao do pedido DEC-DEM-20261102-0002-v1 (docs/construcao/DEC-DEM-20261102-0002-v1/04-maestro.md) ficaram dois achados de teste. M-01 (médio): e2e/decisao.spec.ts:39 decide se prepara a demanda olhando só se ela já tem ESP (itens.length === 0) e então cria a ESP e o RSK juntos. Se a criação do RSK falhar depois da ESP (429 ou tempo esgotado), o próximo worker vê a ESP e pula o RSK: a demanda fica sem parecer de risco e os testes de aprovar e decidir falham até o banco ser semeado de novo. B-01 (baixo): o duplo clique e a T07 de e2e/parecer-risco-qa.spec.ts (linhas 177-188 e 225) esperam RSK-<id>-v1 e ESP-<id>-v1, e a decisao.spec.ts aprova sobre uma demanda que fica no banco; os três só passam com banco recém-semeado (vale no CI, com Testcontainers, e no homologar, que apaga os volumes), e falham se a suíte rodar duas vezes contra a mesma homologação. Também B-02: o comentário de playwright.config.ts:4 diz que os dados de cada teste são criados pela API, o que já não vale para as demandas do seed. Base: main (30b71b5, versão 0.1.1)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261102-0003-v1",
+    "conteudo": "M-01: a preparação da demanda da decisao.spec confere a ESP e o RSK separadamente (GET /especificacoes e GET /pareceres-risco) e cria só o que falta, de forma idempotente: rodar a preparação de novo depois de uma falha parcial completa a demanda, sem criar versão a mais. B-01: os testes do duplo clique e da T07 não supõem o número da versão (v1): leem o id devolvido ou procuram a versão mais nova antes e depois, e conferem que surgiu exatamente uma versão nova. Os testes da decisao.spec que aprovam DEC conferem o estado de que precisam antes de agir e, se a demanda do seed já tiver DEC aprovado de uma execução anterior, usam o caminho que o sistema permite (a regra A-02 continua: nunca dois DEC aprovados) ou marcam claramente que exigem banco recém-semeado, com teste.skip condicionado e mensagem, nunca passando em silêncio. B-02: o comentário de playwright.config.ts:4 descreve as duas fontes de dado do e2e (API e seed fictício). Nenhum comportamento do sistema muda; nenhum controle é afrouxado (axe, C-36, A-02). Só e2e/, playwright.config.ts (comentário), scripts/seed-ficticio.ts e scripts/scripts.test.ts se for preciso, e o CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261102-0003-v1",
+    "nivel": "baixo",
+    "conteudo": "Só testes e dados fictícios. O risco é o teste ficar mais tolerante do que deve: aceitar mais de uma versão nova, ignorar falha da preparação ou pular teste sem avisar. Esses casos são recusados na revisão. A regra A-02 (um DEC aprovado por demanda) e o C-36 não podem ganhar exceção para o teste. Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261102-0003-v1",
+    "opcaoEscolhida": "Tornar o e2e independente de banco recém-semeado e da ordem de criação, num pedido de correção (cadeia curta) sobre a main",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-02"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Com a ESP criada e o RSK faltando, a preparação da decisao.spec cria só o RSK e os testes seguintes passam",
+    "Rodar a preparação duas vezes não cria versão a mais",
+    "O duplo clique e a T07 conferem exatamente uma versão nova, sem supor o número v1",
+    "Rodar a suíte e2e duas vezes seguidas contra o mesmo banco (sem semear de novo) passa, ou os testes que exigem banco recém-semeado são pulados com mensagem explícita",
+    "A regra A-02 e o C-36 continuam intactos e testados",
+    "O comentário de playwright.config.ts:4 descreve as duas fontes de dado do e2e"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.2",
+    "PR com CI verde"
+  ]
+}

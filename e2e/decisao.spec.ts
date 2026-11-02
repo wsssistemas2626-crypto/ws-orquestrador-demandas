@@ -10,14 +10,44 @@
 // página da "cto" para a "administradora". O axe roda pendente, desatualizado, com erro e decidido.
 //
 // DEC-DEM-20261102-0002-v1: a demanda da spec também vem do seed (TITULOS_DO_E2E.decisao), achada por demandaDoSeed.
+//
+// DEC-DEM-20261102-0003-v1: as demandas do seed ficam no banco e acumulam versões e decisões entre execuções contra o
+// mesmo banco (homologação reaproveitada, --repeat-each). Cada teste confere pela API o estado de que precisa antes de
+// qualquer POST, e não supõe o número da versão (proximoId):
+//   - exigem banco recém-semeado: "nível cto: aprovar A" e "dupla aprovação" (a demanda não pode ter DEC aprovado: A-02
+//     recusa o segundo) e "CA-12.4" (a demanda tem de estar num status de onde a devolução a leva a Em análise; depois
+//     do "Arquivar" ela fica Encerrada, que é final). Fora do CI, eles são pulados com a mensagem "exige banco
+//     recém-semeado: ..."; no CI, o banco é sempre novo (Testcontainers), e a mesma pré-condição falsa reprova o teste;
+//   - rodam em qualquer banco: C-14, M-01, P1-b, A-02 (o segundo DEC aprovado recebe o 409, e a demanda fica com um só
+//     DEC aprovado) e "Arquivar".
 // Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
 import { api, demandaDoSeed, entrarComo, semViolacoes } from './apoio';
+import { prepararEspERsk, procurarEmPaginas, proximoId, TAMANHO_DA_PAGINA } from './preparacao';
 
-type Demanda = { id: string };
 type Versao = { id: string };
 type Pacote = { id: string; rascunhoAgente: boolean; statusDecisao: string };
+
+// Os status de onde um DEC novo leva a demanda a Pronta para decisão e a devolução a leva a Em análise
+// (src/modules/demandas/transicoes.ts, AUTOMATICAS: dec_criado e decisao_devolvida). Fora deles, a transição automática
+// não faz nada.
+const ORIGENS_DO_FLUXO: readonly string[] = ['nova', 'em_analise', 'aguardando_informacao', 'pronta_para_decisao'];
+
+// Pré-condição de banco recém-semeado, conferida antes de qualquer POST: o teste pulado não gasta versão do C-36 nem
+// muda o banco. No CI (banco novo pelo Testcontainers), a pré-condição falsa é defeito e reprova; fora dele, pula com
+// a mensagem.
+function exigeBancoRecemSemeado(condicao: boolean, motivo: string): void {
+  const mensagem = `exige banco recém-semeado: ${motivo}`;
+  if (process.env.CI) expect(condicao, mensagem).toBe(true);
+  else test.skip(!condicao, mensagem);
+}
+
+const especificacoes = async (page: Page, id: string) => (await api<{ itens: Versao[] }>(page, 'GET', `/api/demandas/${id}/especificacoes`)).itens;
+const pareceres = async (page: Page, id: string) => (await api<{ itens: Versao[] }>(page, 'GET', `/api/demandas/${id}/pareceres-risco`)).itens;
+const pacotes = async (page: Page, id: string) => (await api<{ itens: Pacote[] }>(page, 'GET', `/api/demandas/${id}/pacotes-decisao`)).itens;
+const statusDa = async (page: Page, id: string) => (await api<{ status: string }>(page, 'GET', `/api/demandas/${id}`)).status;
+const temDecAprovado = async (page: Page, id: string) => (await pacotes(page, id)).some((p) => p.statusDecisao === 'aprovada');
 
 const espValida = {
   descricaoObjetiva: 'Evitar pedidos duplicados (fictício).',
@@ -32,30 +62,20 @@ const TITULO = TITULOS_DO_E2E.decisao;
 
 // A demanda da spec vem do seed (DEC-DEM-20261102-0002-v1), e não de uma variável do módulo: quando um teste falhava, o
 // worker novo do Playwright perdia a variável e criava outra demanda pela "cto", e o fim da suíte recebia 429 (C-36). O
-// estado fica no banco: a ESP e o RSK só são criados se a demanda ainda não tem ESP, então o worker novo acha a mesma
-// demanda com as mesmas versões e não cria nada, como numa execução sem falha.
-async function demanda(page: Page): Promise<string> {
-  const id = await demandaDoSeed(page, TITULO);
-  const { itens } = await api<{ itens: Versao[] }>(page, 'GET', `/api/demandas/${id}/especificacoes`);
-  if (itens.length === 0) {
-    await api<Versao>(page, 'POST', `/api/demandas/${id}/especificacoes`, espValida);
-    await api<Versao>(page, 'POST', `/api/demandas/${id}/pareceres-risco`, rskValido);
-  }
+// estado fica no banco. DEC-DEM-20261102-0003-v1 (M-01): a preparação confere a lista de ESP e a de RSK separadamente e
+// cria só o que falta (prepararEspERsk). Se a ESP gravou e o RSK falhou (429 ou tempo esgotado), o teste reprova, e o
+// worker novo cria só o RSK, sem versão a mais; sem falha, ele acha as mesmas versões e não cria nada.
+async function completarEspERsk(page: Page, id: string): Promise<string> {
+  await prepararEspERsk({
+    listarEsp: () => especificacoes(page, id),
+    listarRsk: () => pareceres(page, id),
+    criarEsp: () => api<Versao>(page, 'POST', `/api/demandas/${id}/especificacoes`, espValida),
+    criarRsk: () => api<Versao>(page, 'POST', `/api/demandas/${id}/pareceres-risco`, rskValido),
+  });
   return id;
 }
 
-// Título de scripts/seed-ficticio.ts (TITULOS_DO_E2E.duplaAprovacao): a demanda própria da dupla aprovação.
-const TITULO_DUPLA = 'Dupla aprovação do pacote (fictício)';
-
-// A demanda da dupla aprovação, do seed (nasce sem versão nenhuma), com a ESP e o RSK que o DEC vai citar.
-async function demandaDaDupla(page: Page): Promise<string> {
-  const { itens } = await api<{ itens: (Demanda & { titulo: string })[] }>(page, 'GET', '/api/demandas?tipo=melhoria&limit=100');
-  const d = itens.find((x) => x.titulo === TITULO_DUPLA);
-  if (!d) throw new Error('e2e: o seed não tem a demanda da dupla aprovação');
-  await api<Versao>(page, 'POST', `/api/demandas/${d.id}/especificacoes`, espValida);
-  await api<Versao>(page, 'POST', `/api/demandas/${d.id}/pareceres-risco`, rskValido);
-  return d.id;
-}
+const demanda = async (page: Page): Promise<string> => completarEspERsk(page, await demandaDoSeed(page, TITULO));
 
 async function novoPacote(page: Page, demandaId: string, nivel: 'cto' | 'cto_e_administradora'): Promise<string> {
   const dec = await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/pacotes-decisao`, {
@@ -72,9 +92,12 @@ async function prepararPacote(page: Page, nivel: 'cto' | 'cto_e_administradora')
   return { demandaId, decId: await novoPacote(page, demandaId, nivel) };
 }
 
+// N-03: percorre as páginas da fila de pendentes, que cresce a cada execução contra o mesmo banco.
 async function idDoDecDeRascunhoDoSeed(page: Page): Promise<string> {
-  const { itens } = await api<{ itens: Pacote[] }>(page, 'GET', '/api/pacotes-decisao?statusDecisao=pendente&limit=100');
-  const dec = itens.find((p) => p.rascunhoAgente);
+  const dec = await procurarEmPaginas(
+    (offset) => api<{ itens: Pacote[]; total: number }>(page, 'GET', `/api/pacotes-decisao?statusDecisao=pendente&limit=${TAMANHO_DA_PAGINA}&offset=${offset}`),
+    (p) => p.rascunhoAgente,
+  );
   if (!dec) throw new Error('e2e: o seed não tem DEC de rascunho de agente pendente');
   return dec.id;
 }
@@ -91,6 +114,16 @@ async function confirmar(page: Page): Promise<void> {
   await expect(dialogo(page)).toBeVisible();
   await dialogo(page).getByRole('button', { name: 'Confirmar e registrar' }).click();
 }
+
+// Aprovar a opção A pela tela, com comentário, no DEC de nível cto aberto na página ("nível cto: aprovar A" e A-02).
+async function aprovarOpcaoA(page: Page): Promise<void> {
+  await decisao(page, 'Aprovar').check();
+  await page.getByRole('radio', { name: 'Opção A — Construir tudo numa entrega (fictício)' }).check();
+  await page.getByLabel('Comentários (opcional)').fill('Pode seguir (fictício).');
+  await confirmar(page);
+}
+
+const alertaAprovada = (page: Page) => page.getByRole('alert').filter({ hasText: 'Decisão registrada: Aprovada, opção A.' });
 
 test('C-14: revisão visível antes de decidir e repetida no diálogo, num DEC de agente (seed); sem marcar a revisão, o erro', async ({ page }) => {
   await entrarComo(page, 'cto');
@@ -143,6 +176,21 @@ test('C-14: revisão visível antes de decidir e repetida no diálogo, num DEC d
   expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
 });
 
+test('M-01: a preparação da demanda da spec completa o que falta e não cria versão a mais', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const id = await demandaDoSeed(page, TITULO);
+  const espAntes = (await especificacoes(page, id)).map((v) => v.id);
+  const rskAntes = (await pareceres(page, id)).map((v) => v.id);
+  // Duas vezes seguidas: a segunda não cria nada.
+  expect(await demanda(page)).toBe(id);
+  expect(await demanda(page)).toBe(id);
+  const espDepois = (await especificacoes(page, id)).map((v) => v.id);
+  const rskDepois = (await pareceres(page, id)).map((v) => v.id);
+  // Lista vazia ganha exatamente a v1; lista com versão fica igual. As duas terminam com pelo menos um item.
+  expect(espDepois, 'ESP da demanda').toEqual(espAntes.length === 0 ? [proximoId('ESP', id, [])] : espAntes);
+  expect(rskDepois, 'RSK da demanda').toEqual(rskAntes.length === 0 ? [proximoId('RSK', id, [])] : rskAntes);
+});
+
 test('P1-b: administradora em DEC de nível cto vê "Este pacote exige só a aprovação do CTO." e nenhum formulário', async ({ page }) => {
   // DEC de pessoa de nível cto: o de agente do seed nasce "CTO e administradora" (A-04).
   await entrarComo(page, 'cto');
@@ -157,7 +205,11 @@ test('P1-b: administradora em DEC de nível cto vê "Este pacote exige só a apr
 
 test('nível cto: aprovar A → "Decisão registrada: Aprovada, opção A." e o lembrete de status manual (P1-d)', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const { demandaId, decId } = await prepararPacote(page, 'cto');
+  const demandaId = await demandaDoSeed(page, TITULO);
+  const status = await statusDa(page, demandaId);
+  const aprovado = await temDecAprovado(page, demandaId);
+  exigeBancoRecemSemeado(!aprovado && ORIGENS_DO_FLUXO.includes(status), `a demanda ${demandaId} já tem DEC aprovado (A-02) ou está ${status}`);
+  const decId = await novoPacote(page, await completarEspERsk(page, demandaId), 'cto');
   await page.goto(`/demandas/${demandaId}`);
   await page.getByRole('link', { name: `Abrir decisão ${decId}` }).click();
   await expect(page).toHaveURL(new RegExp(`/pacotes-decisao/${decId}$`));
@@ -166,11 +218,8 @@ test('nível cto: aprovar A → "Decisão registrada: Aprovada, opção A." e o 
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   await semViolacoes(page, 'T11 pendente');
 
-  await decisao(page, 'Aprovar').check();
-  await page.getByRole('radio', { name: 'Opção A — Construir tudo numa entrega (fictício)' }).check();
-  await page.getByLabel('Comentários (opcional)').fill('Pode seguir (fictício).');
-  await confirmar(page);
-  const resultado = page.getByRole('alert').filter({ hasText: 'Decisão registrada: Aprovada, opção A.' });
+  await aprovarOpcaoA(page);
+  const resultado = alertaAprovada(page);
   await expect(resultado).toHaveText('Decisão registrada: Aprovada, opção A.');
   // O foco vai ao alerta de resultado (03, T11, Foco), no invólucro focável dele.
   await expect(resultado.locator('xpath=..')).toBeFocused();
@@ -181,13 +230,42 @@ test('nível cto: aprovar A → "Decisão registrada: Aprovada, opção A." e o 
   await expect(page.locator('main form')).toHaveCount(0);
   await semViolacoes(page, 'T11 decidido');
   expect(await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).toMatchObject({ statusDecisao: 'aprovada' });
-  expect((await api<{ status: string }>(page, 'GET', `/api/demandas/${demandaId}`)).status).toBe('pronta_para_decisao');
+  expect(await statusDa(page, demandaId)).toBe('pronta_para_decisao');
+});
+
+test('A-02: com um DEC aprovado na demanda, aprovar outro mostra o conflito e o pacote continua pendente', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const demandaId = await demanda(page);
+  // Sozinho (--grep) num banco recém-semeado, a demanda ainda não tem DEC aprovado: o teste aprova um pela tela.
+  if (!(await temDecAprovado(page, demandaId))) {
+    const primeiro = await novoPacote(page, demandaId, 'cto');
+    await page.goto(`/pacotes-decisao/${primeiro}`);
+    await aprovarOpcaoA(page);
+    await expect(alertaAprovada(page)).toHaveText('Decisão registrada: Aprovada, opção A.');
+  }
+  const aprovadosAntes = (await pacotes(page, demandaId)).filter((p) => p.statusDecisao === 'aprovada').map((p) => p.id);
+  expect(aprovadosAntes, 'DEC aprovados da demanda antes').toHaveLength(1);
+
+  const decId = await novoPacote(page, demandaId, 'cto');
+  await page.goto(`/pacotes-decisao/${decId}`);
+  await expect(page.getByText('Decisão pendente', { exact: true })).toBeVisible();
+  await aprovarOpcaoA(page);
+  await expect(page.getByRole('alert').filter({ hasText: 'Não foi possível concluir' })).toHaveText(
+    'Não foi possível concluir: outro pacote desta demanda já está aprovado.',
+  );
+  await semViolacoes(page, 'T11 com o conflito da A-02');
+  expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
+  const aprovadosDepois = (await pacotes(page, demandaId)).filter((p) => p.statusDecisao === 'aprovada').map((p) => p.id);
+  expect(aprovadosDepois, 'DEC aprovados da demanda depois: exatamente um, o mesmo').toEqual(aprovadosAntes);
 });
 
 test('dupla aprovação: CTO aprova; administradora entra, vê a opção fixada, informa documento e data; "O pacote está aprovado."', async ({ page }) => {
   await entrarComo(page, 'cto');
   // Demanda própria (A-02): o teste anterior já deixou um DEC aprovado na demanda da spec.
-  const decId = await novoPacote(page, await demandaDaDupla(page), 'cto_e_administradora');
+  const dd = await demandaDoSeed(page, TITULOS_DO_E2E.duplaAprovacao);
+  // Um DEC só com a aprovação do CTO não tem decisão e não conta.
+  exigeBancoRecemSemeado(!(await temDecAprovado(page, dd)), `a demanda ${dd} já tem DEC aprovado (A-02)`);
+  const decId = await novoPacote(page, await completarEspERsk(page, dd), 'cto_e_administradora');
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('CTO: pendente.', { exact: true })).toBeVisible();
   await expect(page.getByText('Administradora: pendente.', { exact: true })).toBeVisible();
@@ -231,7 +309,10 @@ test('dupla aprovação: CTO aprova; administradora entra, vê a opção fixada,
 
 test('CA-12.4: desatualizado: aviso, Aprovar indisponível e explicado; Devolver → "A demanda voltou para Em análise."', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const { demandaId, decId } = await prepararPacote(page, 'cto');
+  const demandaId = await demandaDoSeed(page, TITULO);
+  const status = await statusDa(page, demandaId);
+  exigeBancoRecemSemeado(ORIGENS_DO_FLUXO.includes(status), `a demanda ${demandaId} está ${status}, e a devolução não a leva a Em análise`);
+  const decId = await novoPacote(page, await completarEspERsk(page, demandaId), 'cto');
   const esp = await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/especificacoes`, espValida);
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('Desatualizado', { exact: true })).toBeVisible();
@@ -255,20 +336,26 @@ test('CA-12.4: desatualizado: aviso, Aprovar indisponível e explicado; Devolver
   await dialogo(page).getByRole('button', { name: 'Confirmar e registrar' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Pacote devolvido' })).toHaveText('Pacote devolvido para nova análise. A demanda voltou para Em análise.');
   await expect(page.getByText(/^Decisão registrada: Devolvida, por Pessoa Ficticia CTO em /)).toBeVisible();
-  expect((await api<{ status: string }>(page, 'GET', `/api/demandas/${demandaId}`)).status).toBe('em_analise');
+  expect(await statusDa(page, demandaId)).toBe('em_analise');
   await semViolacoes(page, 'T11 devolvido');
 });
 
 test('Arquivar → "Pacote arquivado. A demanda foi para Encerrada."; 404 e sem sessão', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const { demandaId, decId } = await prepararPacote(page, 'cto');
+  const demandaId = await demandaDoSeed(page, TITULO);
+  const status = await statusDa(page, demandaId);
+  // Encerrada já é o destino: numa execução repetida, o arquivamento grava e a demanda continua Encerrada.
+  exigeBancoRecemSemeado([...ORIGENS_DO_FLUXO, 'encerrada'].includes(status), `a demanda ${demandaId} está ${status}, e o arquivamento não a leva a Encerrada`);
+  const decId = await novoPacote(page, await completarEspERsk(page, demandaId), 'cto');
   await page.goto(`/pacotes-decisao/${decId}`);
   await decisao(page, 'Arquivar').check();
   await confirmar(page);
   await expect(page.getByRole('alert').filter({ hasText: 'Pacote arquivado' })).toHaveText('Pacote arquivado. A demanda foi para Encerrada.');
-  expect((await api<{ status: string }>(page, 'GET', `/api/demandas/${demandaId}`)).status).toBe('encerrada');
+  expect(await statusDa(page, demandaId)).toBe('encerrada');
 
-  for (const caminho of [`/pacotes-decisao/DEC-${demandaId}-v9`, `/pacotes-decisao/ESP-${demandaId}-v1`, '/pacotes-decisao/qualquer-coisa']) {
+  // N-01: a versão que não existe é a seguinte à mais nova, lida agora; nada é criado entre a leitura e o goto.
+  const decInexistente = proximoId('DEC', demandaId, (await pacotes(page, demandaId)).map((p) => p.id));
+  for (const caminho of [`/pacotes-decisao/${decInexistente}`, `/pacotes-decisao/ESP-${demandaId}-v1`, '/pacotes-decisao/qualquer-coisa']) {
     const r = await page.goto(caminho);
     expect(r?.status(), caminho).toBe(404);
     await expect(page.getByRole('heading', { level: 1, name: 'Página não encontrada' })).toBeVisible();

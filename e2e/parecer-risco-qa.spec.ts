@@ -24,16 +24,21 @@
 // demandaDoSeed), que nasce sem versão nenhuma. A T07 era a última criação da "cto" na suíte, sem folga, e recebeu 429
 // no CI quando um worker novo da decisao.spec criou mais uma demanda. O teste da T07 confere pela API que o total de
 // demandas fica igual antes e depois dele. Só o beforeAll do describe cria demandas (2).
+//
+// DEC-DEM-20261102-0003-v1 (B-01): as demandas do seed do duplo clique e da T07 acumulam versões entre execuções contra
+// o mesmo banco. Os dois testes leem a lista antes, gravam a versão seguinte à mais nova (proximoId), sem supor a v1, e
+// conferem que surgiu exatamente uma versão nova, na frente das de antes.
 // Uso por conta deste arquivo: "cto" 2 demandas e 9 versões; "administradora" 0 e 0.
+import { randomUUID } from 'node:crypto';
 import { expect, test, type Page, type Request } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
 import { api, demandaDoSeed, entrarComo, semViolacoes } from './apoio';
+import { proximoId } from './preparacao';
 
 type Demanda = { id: string };
 type Versao = { id: string };
 
 const TITULO = 'Demanda do parecer de risco QA (fictício)';
-const SENTINELA = 'SENTINELA-RSK-E2E-7d1e';
 
 const espValida = {
   descricaoObjetiva: 'Evitar pedidos duplicados (fictício).',
@@ -51,6 +56,8 @@ const espPelaApi = (page: Page, id: string, extra: Record<string, unknown> = {})
 const rskPelaApi = (page: Page, id: string, extra: Record<string, unknown> = {}) => api<Versao>(page, 'POST', `/api/demandas/${id}/pareceres-risco`, { ...rskValido, ...extra });
 const totalDeDemandas = async (page: Page) => (await api<{ total: number }>(page, 'GET', '/api/demandas?limit=1')).total;
 const pareceres = async (page: Page, id: string) => (await api<{ itens: Versao[] }>(page, 'GET', `/api/demandas/${id}/pareceres-risco`)).itens;
+const especificacoes = async (page: Page, id: string) =>
+  (await api<{ itens: (Versao & { escopoInclui: string[] })[] }>(page, 'GET', `/api/demandas/${id}/especificacoes`)).itens;
 const ehServerAction = (r: Request) => r.method() === 'POST' && r.headers()['next-action'] !== undefined;
 const grupo = (page: Page, nome: string) => page.getByRole('group', { name: nome, exact: true });
 const item = (page: Page, lista: string, n: number) => grupo(page, lista).getByRole('textbox', { name: `Item ${n}`, exact: true });
@@ -152,6 +159,9 @@ test.describe('?base= forjado na T08 e chegada da T08 na T05 com a URL forjada',
 test('duplo clique em "Gravar": um envio só e um RSK só; a resposta da Server Action não traz o que foi digitado', async ({ page }) => {
   await entrarComo(page, 'cto');
   const d = { id: await demandaDoSeed(page, TITULOS_DO_E2E.rskDuploClique) };
+  // DEC-DEM-20261102-0003-v1 (B-01): a versão gravada é a seguinte à mais nova, e não a v1 de um banco recém-semeado.
+  const antes = (await pareceres(page, d.id)).map((r) => r.id);
+  const esperado = proximoId('RSK', d.id, antes);
   await page.goto(`/demandas/${d.id}/pareceres-risco/novo`);
   await expect(page.getByRole('heading', { level: 1, name: 'Novo parecer de risco' })).toBeVisible();
   const envios: Request[] = [];
@@ -169,29 +179,37 @@ test('duplo clique em "Gravar": um envio só e um RSK só; a resposta da Server 
     await rota.fulfill({ response: resposta });
   });
 
+  // A T08 parte do RSK mais novo: o campo já pode vir preenchido de uma execução anterior, e o fill o substitui. O
+  // sentinela é único por execução do teste: a versão de partida pode ter o de uma execução anterior, e a conferência é
+  // sobre o que esta digitou.
+  const SENTINELA = `SENTINELA-RSK-E2E-${randomUUID().slice(0, 8)}`;
   await page.getByLabel('Resumo', { exact: true }).fill(`Resumo ${SENTINELA} (fictício)`);
   await nivel(page, 'risco técnico', 'Alto').check();
   await nivel(page, 'risco operacional', 'Médio').check();
   await nivel(page, 'risco jurídico', 'Baixo').check();
   await item(page, 'Pré-condições', 1).fill(`Pré-condição ${SENTINELA} (fictício)`);
-  await page.getByRole('button', { name: `Gravar RSK-${d.id}-v1` }).dblclick();
+  await page.getByRole('button', { name: `Gravar ${esperado}`, exact: true }).dblclick();
 
-  await expect(page).toHaveURL(new RegExp(`/demandas/${d.id}\\?aviso=parecer-gravado&versao=RSK-${d.id}-v1$`));
-  await expect(page.getByRole('alert').filter({ hasText: 'gravado.' })).toHaveText(`RSK-${d.id}-v1 gravado.`);
+  await expect(page).toHaveURL(new RegExp(`/demandas/${d.id}\\?aviso=parecer-gravado&versao=${esperado}$`));
+  await expect(page.getByRole('alert').filter({ hasText: 'gravado.' })).toHaveText(`${esperado} gravado.`);
   // O segundo envio, se houvesse, sairia no segundo clique, antes da resposta do primeiro.
   expect(envios).toHaveLength(1);
   expect(envios[0]!.postData() ?? '').toContain(SENTINELA);
   expect(corpos).toHaveLength(1);
   const corpo = corpos[0]!;
-  expect(corpo).toContain(`RSK-${d.id}-v1`);
+  expect(corpo).toContain(esperado);
   expect(corpo).not.toContain(SENTINELA);
-  expect((await pareceres(page, d.id)).map((r) => r.id)).toEqual([`RSK-${d.id}-v1`]);
+  // Exatamente uma versão nova, na frente, e as de antes iguais e na mesma ordem.
+  expect((await pareceres(page, d.id)).map((r) => r.id)).toEqual([esperado, ...antes]);
 });
 
 test('T07 da ESP com a correção da Lista de textos: erro no item 2 de "Escopo inclui"; remover o item 1 leva o erro e o link do resumo para o novo item 1', async ({ page }) => {
   await entrarComo(page, 'cto');
   const totalAntes = await totalDeDemandas(page);
   const d = { id: await demandaDoSeed(page, TITULOS_DO_E2E.espListaDeTextos) };
+  // DEC-DEM-20261102-0003-v1 (B-01): a versão gravada é a seguinte à mais nova, e não a v1 de um banco recém-semeado.
+  const antes = (await especificacoes(page, d.id)).map((e) => e.id);
+  const esperado = proximoId('ESP', d.id, antes);
   await page.goto(`/demandas/${d.id}/especificacoes/nova`);
   await expect(page.getByRole('heading', { level: 1, name: 'Nova versão da especificação técnica' })).toBeVisible();
 
@@ -203,7 +221,7 @@ test('T07 da ESP com a correção da Lista de textos: erro no item 2 de "Escopo 
   await page.getByLabel('Sistema alvo (obrigatório)').fill('sistema-ficticio');
   await item(page, 'Critérios de aceite preliminares (obrigatório)', 1).fill('Critério (fictício)');
   await item(page, 'Definição de pronto (obrigatório)', 1).fill('Pronto (fictício)');
-  await page.getByRole('button', { name: `Gravar ESP-${d.id}-v1` }).click();
+  await page.getByRole('button', { name: `Gravar ${esperado}`, exact: true }).click();
 
   const resumo = page.getByRole('alert').filter({ hasText: 'Corrija os campos abaixo para continuar.' });
   await expect(resumo).toBeFocused();
@@ -221,10 +239,12 @@ test('T07 da ESP com a correção da Lista de textos: erro no item 2 de "Escopo 
 
   // Corrigido o item, o envio grava: o erro movido não prende a tela.
   await item(page, 'Escopo inclui', 1).fill('Escopo corrigido (fictício)');
-  await page.getByRole('button', { name: `Gravar ESP-${d.id}-v1` }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'gravada.' })).toHaveText(`ESP-${d.id}-v1 gravada.`);
-  const [esp] = (await api<{ itens: Array<{ escopoInclui: string[] }> }>(page, 'GET', `/api/demandas/${d.id}/especificacoes`)).itens;
-  expect(esp!.escopoInclui).toEqual(['Escopo corrigido (fictício)']);
+  await page.getByRole('button', { name: `Gravar ${esperado}`, exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'gravada.' })).toHaveText(`${esperado} gravada.`);
+  const depois = await especificacoes(page, d.id);
+  // Exatamente uma versão nova, na frente, e as de antes iguais e na mesma ordem; o escopo é lido da versão nova pelo id.
+  expect(depois.map((e) => e.id)).toEqual([esperado, ...antes]);
+  expect(depois.find((e) => e.id === esperado)?.escopoInclui).toEqual(['Escopo corrigido (fictício)']);
   // DEC-DEM-20261102-0002-v1 (critério 3): o teste usa a demanda do seed e não cria demanda nenhuma.
   expect(await totalDeDemandas(page), 'total de demandas antes e depois do teste').toBe(totalAntes);
 });
