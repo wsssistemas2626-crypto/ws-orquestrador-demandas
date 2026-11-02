@@ -1,0 +1,228 @@
+// Decisão do pacote (RF-13) e dupla aprovação (RF-14). Só pessoa decide: agente e sistema recebem 403 de `autorizar`,
+// também quando o worker chama a função direto (C-12). Numa transação, nesta ordem:
+//   1. autorizar;
+//   2. o DEC e a trava da demanda, que põe em fila a decisão e a gravação de ESP ou RSK nova (C-13);
+//   3. já decidido → 409 (CA-11.3);
+//   4. não é o DEC mais novo da demanda → 409, em qualquer decisão (08-correcao, A-01): decidir um DEC antigo encerrava
+//      a demanda por cima do mais novo;
+//   5. aprovar com outro DEC da demanda já aprovado → 409 (A-02): nunca dois Pedidos de Construção opostos;
+//   6. desatualizado, relido sob a trava → 409 só para aprovar (CA-12.2, CA-12.3);
+//   7. rascunho de agente citado sem a confirmação de revisão → 400 (CA-13.4);
+//   8. devolvida ou arquivada: grava a decisão, e a demanda muda pelo ator sistema (RF-07);
+//   9. aprovada: o papel é o da conta (C-11, P1-a); nível cto só por conta cto (P1-b); nível cto_e_administradora com
+//      as duas aprovações, a mesma opção e a referência ao documento assinado da administradora. A aprovação não muda
+//      o status da demanda (P1-d).
+// A autoria (quem, com que nome e em nome de quem) vem só do ator da sessão; o corpo não tem esses campos (C-11). O
+// histórico leva papel, opção e a referência ao documento, nunca o comentário (C-30). Aceita a transação de quem chama
+// (G3.8).
+import { and, eq, max, ne } from 'drizzle-orm';
+import { aprovacao, decisao, pacoteDecisao } from '../../db/schema';
+import type { OpcaoDecisao, PapelAprovacao, StatusDecisaoGravado } from '../../db/schema/decisao';
+import { comTransacao, type Transacao } from '../../db/transacao';
+import { ErroDominio, MENSAGEM_NAO_ENCONTRADO, type CampoInvalido } from '../../lib/erros';
+import type { Ator, AtorPessoa } from '../acesso/ator';
+import { autorizar } from '../acesso/matriz';
+import { MENSAGENS_ACESSO } from '../acesso/mensagens';
+import type { DepsDemanda } from '../demandas/servico';
+import { mudarStatusPeloSistema } from '../demandas/transicoes';
+import { registrarEvento } from '../historico/registrar';
+import { travarDemanda } from '../versoes';
+import { obterPacoteDecisao, type PacoteDecisaoVista } from './consultas';
+import type { RegistrarDecisao } from './schemas';
+
+// P1-a: só a própria administradora, com conta e 2FA, registra a aprovação de papel `administradora`. Trocar para
+// 'cto_com_referencia' deixa o CTO registrar em nome dela, com a referência ao documento assinado.
+export type ModoAprovacaoAdministradora = 'somente_propria' | 'cto_com_referencia';
+export const MODO_APROVACAO_ADMINISTRADORA: ModoAprovacaoAdministradora = 'somente_propria';
+
+export type ResultadoDecisao = 'aprovada' | 'aprovacao_parcial' | 'devolvida' | 'arquivada';
+
+// Textos da 03 (T11). Os de 409 começam em minúscula: a tela acrescenta "Não foi possível concluir: ".
+export const MENSAGENS_DECISAO = {
+  jaDecidido: 'este pacote já tem decisão registrada.',
+  desatualizado: 'o pacote está desatualizado e não pode ser aprovado.',
+  naoEhOMaisNovo: 'a demanda tem um pacote mais novo; só o mais novo pode ser decidido.',
+  outroAprovado: 'outro pacote desta demanda já está aprovado.',
+  revisarRascunhos: 'Marque que revisou os rascunhos de agente para registrar a decisão.',
+  semReferencia: 'Informe o identificador do documento assinado.',
+  semDataDocumento: 'Informe a data da assinatura.',
+  // Cita o papel que aprovou primeiro (CA-14.4).
+  opcaoDiferente: {
+    cto: 'a opção precisa ser a mesma aprovada pelo CTO.',
+    administradora: 'a opção precisa ser a mesma aprovada pela administradora.',
+  },
+  aprovacaoJaRegistrada: {
+    cto: 'a aprovação do CTO já está registrada.',
+    administradora: 'a aprovação da administradora já está registrada.',
+  },
+} as const;
+
+export const MENSAGEM_CORRIJA_OS_CAMPOS = 'Corrija os campos abaixo para continuar.';
+
+const semPermissao = () => new ErroDominio('sem_permissao', MENSAGENS_ACESSO.sem_permissao);
+const conflito = (mensagem: string) => new ErroDominio('conflito', mensagem);
+const camposInvalidos = (campos: CampoInvalido[]) => new ErroDominio('entrada_invalida', MENSAGEM_CORRIJA_OS_CAMPOS, { campos });
+
+// Texto opcional que, aparado pelo Zod, ficou vazio não é gravado.
+const textoOuNulo = (v: string | undefined): string | null => (v !== undefined && v !== '' ? v : null);
+
+type Aprovar = Extract<RegistrarDecisao, { statusDecisao: 'aprovada' }>;
+
+// Em nome de quem a aprovação é registrada (C-11, C-12, P1-a). Sem `registrarComo`, ou com o próprio papel, é o papel
+// da conta. Pedir outro papel só passa no modo `cto_com_referencia`, e só para a conta cto.
+export function papelDaAprovacao(
+  ator: AtorPessoa,
+  entrada: RegistrarDecisao,
+  modo: ModoAprovacaoAdministradora = MODO_APROVACAO_ADMINISTRADORA,
+): PapelAprovacao {
+  const pedido = entrada.statusDecisao === 'aprovada' ? entrada.registrarComo : undefined;
+  if (pedido === undefined || pedido === ator.papel) return ator.papel;
+  if (modo === 'cto_com_referencia' && ator.papel === 'cto') return pedido;
+  throw semPermissao();
+}
+
+// Lidos sob a trava da demanda: nenhum DEC novo nem decisão de outro DEC entra até o fim da transação (C-13).
+async function versaoMaisNova(tx: Transacao['tx'], demandaId: string): Promise<number> {
+  const [linha] = await tx.select({ v: max(pacoteDecisao.versao) }).from(pacoteDecisao).where(eq(pacoteDecisao.demandaId, demandaId));
+  return linha?.v ?? 0;
+}
+
+async function temOutroAprovado(tx: Transacao['tx'], demandaId: string, decId: string): Promise<boolean> {
+  const [linha] = await tx
+    .select({ id: pacoteDecisao.id })
+    .from(pacoteDecisao)
+    .innerJoin(decisao, eq(decisao.pacoteDecisaoId, pacoteDecisao.id))
+    .where(and(eq(pacoteDecisao.demandaId, demandaId), ne(pacoteDecisao.id, decId), eq(decisao.statusDecisao, 'aprovada')))
+    .limit(1);
+  return linha !== undefined;
+}
+
+type Contexto = { tr: Transacao; deps: DepsDemanda; pessoa: AtorPessoa; pacote: PacoteDecisaoVista; entrada: RegistrarDecisao };
+
+async function gravarDecisao(c: Contexto, statusDecisao: StatusDecisaoGravado, opcao: OpcaoDecisao | null, comentarios: string | null): Promise<void> {
+  const { tx } = c.tr;
+  await tx.insert(decisao).values({
+    pacoteDecisaoId: c.pacote.id,
+    statusDecisao,
+    opcaoEscolhida: opcao,
+    comentarios,
+    decididaPor: c.pessoa.usuarioId,
+    // = dataAprovacao quando aprovada.
+    decididaEm: c.deps.relogio.agora(),
+  });
+  await registrarEvento(
+    tx,
+    {
+      ator: c.pessoa,
+      demandaId: c.pacote.demandaId,
+      entidade: 'pacote_decisao',
+      entidadeId: c.pacote.id,
+      acao: 'decisao_registrada',
+      depois: { statusDecisao, ...(opcao ? { opcaoEscolhida: opcao } : {}) },
+    },
+    c.deps.relogio,
+  );
+}
+
+async function gravarAprovacao(c: Contexto, entrada: Aprovar, papel: PapelAprovacao): Promise<void> {
+  const { tx } = c.tr;
+  // A referência ao documento só vale na aprovação da administradora; na do CTO, é descartada.
+  const documento =
+    papel === 'administradora' ? { referenciaDocumento: entrada.referenciaDocumento ?? null, dataDocumento: entrada.dataDocumento ?? null } : null;
+  // Campo a campo, e não `...entrada`: nome, conta e papel vêm do ator (C-11).
+  await tx.insert(aprovacao).values({
+    pacoteDecisaoId: c.pacote.id,
+    papelAprovacao: papel,
+    nomeAprovador: c.pessoa.nome,
+    registradaPor: c.pessoa.usuarioId,
+    opcao: entrada.opcaoEscolhida,
+    comentario: textoOuNulo(entrada.comentarios),
+    referenciaDocumento: documento?.referenciaDocumento ?? null,
+    dataDocumento: documento?.dataDocumento ?? null,
+    revisouRascunhos: entrada.revisouRascunhosDeAgente === true,
+    registradaEm: c.deps.relogio.agora(),
+  });
+  await registrarEvento(
+    tx,
+    {
+      ator: c.pessoa,
+      demandaId: c.pacote.demandaId,
+      entidade: 'pacote_decisao',
+      entidadeId: c.pacote.id,
+      acao: 'aprovacao_registrada',
+      depois: { papel, opcao: entrada.opcaoEscolhida, ...(documento ?? {}) },
+    },
+    c.deps.relogio,
+  );
+}
+
+async function aprovar(c: Contexto, entrada: Aprovar): Promise<ResultadoDecisao> {
+  const papel = papelDaAprovacao(c.pessoa, entrada);
+  const comentarios = textoOuNulo(entrada.comentarios);
+
+  if (c.pacote.nivelAprovacaoRequerido === 'cto') {
+    // P1-b: DEC de nível cto só é aprovado pela conta cto.
+    if (papel !== 'cto') throw semPermissao();
+    await gravarAprovacao(c, entrada, papel);
+    await gravarDecisao(c, 'aprovada', entrada.opcaoEscolhida, comentarios);
+    return 'aprovada';
+  }
+
+  // cto_e_administradora (RF-14).
+  if (papel === 'administradora') {
+    const faltando: CampoInvalido[] = [
+      ...(entrada.referenciaDocumento === undefined ? [{ campo: 'referenciaDocumento', mensagem: MENSAGENS_DECISAO.semReferencia }] : []),
+      ...(entrada.dataDocumento === undefined ? [{ campo: 'dataDocumento', mensagem: MENSAGENS_DECISAO.semDataDocumento }] : []),
+    ];
+    if (faltando.length > 0) throw camposInvalidos(faltando);
+  }
+  if (c.pacote.aprovadores.some((a) => a.papel === papel)) throw conflito(MENSAGENS_DECISAO.aprovacaoJaRegistrada[papel]);
+  const anterior = c.pacote.aprovadores.find((a) => a.papel !== papel);
+  if (anterior && anterior.opcao !== entrada.opcaoEscolhida) throw conflito(MENSAGENS_DECISAO.opcaoDiferente[anterior.papel]);
+
+  await gravarAprovacao(c, entrada, papel);
+  if (!anterior) return 'aprovacao_parcial';
+  await gravarDecisao(c, 'aprovada', entrada.opcaoEscolhida, comentarios);
+  return 'aprovada';
+}
+
+export async function registrarDecisao(
+  deps: DepsDemanda,
+  ator: Ator,
+  decId: string,
+  entrada: RegistrarDecisao,
+  t?: Transacao,
+): Promise<{ pacote: PacoteDecisaoVista; resultado: ResultadoDecisao }> {
+  autorizar(ator, 'registrar_decisao');
+  // autorizar já negou agente e sistema; isto só estreita o tipo.
+  if (ator.tipo !== 'pessoa') throw semPermissao();
+  const pessoa = ator;
+
+  const corpo = async (tr: Transacao): Promise<ResultadoDecisao> => {
+    const { tx } = tr;
+    const [alvo] = await tx.select({ demandaId: pacoteDecisao.demandaId }).from(pacoteDecisao).where(eq(pacoteDecisao.id, decId));
+    if (!alvo) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
+    await travarDemanda(tx, alvo.demandaId);
+    // Lido depois da trava: enxerga a ESP ou o RSK que outra transação tenha gravado antes dela, e as aprovações e a
+    // decisão de quem decidiu ao mesmo tempo (C-13, CA-11.3).
+    const pacote = await obterPacoteDecisao(tx, decId);
+    const c: Contexto = { tr, deps, pessoa, pacote, entrada };
+
+    if (pacote.decisao) throw conflito(MENSAGENS_DECISAO.jaDecidido);
+    if (pacote.versao < (await versaoMaisNova(tx, pacote.demandaId))) throw conflito(MENSAGENS_DECISAO.naoEhOMaisNovo);
+    if (entrada.statusDecisao === 'aprovada' && (await temOutroAprovado(tx, pacote.demandaId, pacote.id))) throw conflito(MENSAGENS_DECISAO.outroAprovado);
+    if (entrada.statusDecisao === 'aprovada' && pacote.desatualizado) throw conflito(MENSAGENS_DECISAO.desatualizado);
+    if (pacote.rascunhosCitados.length > 0 && entrada.revisouRascunhosDeAgente !== true) {
+      throw camposInvalidos([{ campo: 'revisouRascunhosDeAgente', mensagem: MENSAGENS_DECISAO.revisarRascunhos }]);
+    }
+
+    if (entrada.statusDecisao === 'aprovada') return aprovar(c, entrada);
+
+    await gravarDecisao(c, entrada.statusDecisao, null, textoOuNulo(entrada.comentarios));
+    await mudarStatusPeloSistema(tr, deps, pacote.demandaId, entrada.statusDecisao === 'devolvida' ? 'decisao_devolvida' : 'decisao_arquivada');
+    return entrada.statusDecisao;
+  };
+
+  const resultado = t ? await corpo(t) : await comTransacao(deps.pool, corpo);
+  return { pacote: await obterPacoteDecisao(t?.tx ?? deps.db, decId), resultado };
+}

@@ -1,0 +1,58 @@
+{
+  "name": "ws-orquestrador-demandas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev -p 3101",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3101}",
+    "start:hml": "tsx scripts/start-hml.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=.env.local scripts/migrate.ts",
+    "worker": "tsx src/worker/index.ts",
+    "audit:prod": "pnpm audit --prod --audit-level high"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
+    "@sentry/node": "11.4.0",
+    "better-auth": "1.7.7",
+    "drizzle-orm": "0.45.3",
+    "next": "16.4.1",
+    "pg": "^8.23.1",
+    "pg-boss": "12.34.0",
+    "pino": "10.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "resend": "6.30.0",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@testcontainers/postgresql": "12.1.0",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "drizzle-kit": "0.31.11",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.4.1",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4.3.3",
+    "testcontainers": "12.1.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "5.0.2"
+  }
+}

@@ -1,0 +1,17 @@
+# Fora do contexto do build: segredo, artefato local, histórico e documentação.
+.env
+.env.*
+!.env.example
+.git
+.github
+node_modules
+.next
+coverage
+playwright-report
+test-results
+*.tsbuildinfo
+next-env.d.ts
+docs
+Dockerfile
+.dockerignore
+docker-compose*.yml

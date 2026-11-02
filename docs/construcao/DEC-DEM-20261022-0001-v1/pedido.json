@@ -1,0 +1,50 @@
+{
+  "pedido": "DEC-DEM-20261022-0001-v1",
+  "demanda": {
+    "id": "DEM-20261022-0001",
+    "tipo": "novo_projeto",
+    "titulo": "WS Orquestrador de Demandas",
+    "descricao": "Plataforma interna da WS Sistemas que leva uma demanda técnica (bug, melhoria, novo projeto, estudo ou produto próprio) da entrada até o Pacote de Decisão, com agentes de IA e decisão humana, e gera o Pedido de Construção que alimenta o /construir. Primeiro pedido real do /construir (D5 da spec do /construir; CA-E-07, decidida em 22/10/2026). Insumos, na estruturaAutonoma: pedidos/insumos/2026-10-15_orquestrador-demandas_spec-original.md (modelo de dados, API, contratos de entrada e saída dos agentes, fluxo) e pedidos/insumos/2026-10-15_orquestrador-demandas_ajustes.md (stack, ligação com o /construir, regras de decisão e de dados). Onde os dois divergem, valem os ajustes e o padrão técnico (docs/construcao/padrao-tecnico.md)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261022-0001-v1",
+    "conteudo": "1. Fundação: Next.js 16 (App Router), com a API em route handlers e o painel no mesmo app; Drizzle com papel migrator (DDL) e papel da aplicação (sem DDL); pg-boss com processo worker separado (pnpm worker); Better Auth com 2FA obrigatório para pessoas e token de serviço para agentes; pino sem senha, token nem dado pessoal; porta de desenvolvimento a partir de 3101, nunca 3000. Layout src/modules/<domínio>, src/app/api, src/worker, src/db. 2. Domínio e banco: demanda, especificação técnica (ESP), parecer de risco (RSK) e pacote de decisão (DEC), com os campos da seção 3 da spec original; escopo (inclui e exclui), dúvidas em aberto, pré-condições e riscos como listas JSONB validadas por Zod. IDs DEM-AAAAMMDD-NNNN com a sequência global (o comentário de 'sequencial diário' da spec original sai) e ESP, RSK e DEC-<demanda>-vN. Versões imutáveis: mudança gera nova versão; ESP ou RSK nova depois do DEC deixa o DEC desatualizado, e DEC desatualizado não pode ser aprovado. Histórico de eventos: quem mudou o quê e quando (status, versão, decisão), com a pessoa ou o agente identificado. 3. API REST da seção 5 da spec original, com Zod em toda entrada e erro sem detalhe interno, mais o filtro GET /pacotes-decisao?statusDecisao=aprovada e os campos sistema_alvo, repositorio_destino, criterios_aceite_preliminares e definicao_de_pronto. 4. Os quatro agentes de IA (Orquestrador, Insumo Técnico, Risco e Consolidação, seção 7 da spec original) como jobs do pg-boss: prompts em src/agents/ derivados dos agentes da estrutura (operacional-desenvolvimento-sistemas; gestao-riscos com apoio de juridico-contratos; Orquestrador Central), saída validada pelo mesmo schema Zod da API, nova tentativa automática, sem execução duplicada, e tabela de uso por chamada (modelo, tokens e custo) com teto de gasto mensal configurável que suspende os agentes ao ser atingido. Cada agente liga e desliga sozinho; desligado, a pessoa preenche os mesmos campos pelo painel. Os agentes nascem desligados, porque a chave da API no CNPJ (CA-E-03) ainda não existe; os testes usam um provedor falso, sem chamada externa. 5. Decisão: PATCH /pacotes-decisao/:id/decisao só por pessoa autenticada com 2FA; agente nunca aprova. opcaoEscolhida aceita só A ou B (recusar as duas é devolvida ou arquivada). nivelAprovacaoRequerido cto_e_administradora exige as duas aprovações registradas; a assinatura da administradora é guardada como referência a documento externo, sem substituí-la. Dúvida em aberto leva a demanda a aguardando_informacao, e nenhuma pergunta sai para o solicitante sem a aprovação de Fabiano. 6. Painel em pt-BR: fila de demandas com filtros (status, tipo, linha de serviço), detalhe da demanda com as versões de ESP, RSK e DEC e o histórico, entrada de demanda colando o texto, e tela de decisão. 7. Saída para o /construir: o DEC aprovado gera o Pedido de Construção no formato da seção 3.1 da spec do /construir (pedido, demanda, especificacao, risco, decisao, sistema_alvo, repositorio_destino, criterios_aceite_preliminares, definicao_de_pronto), validado pelas mesmas regras do validarPedido, para baixar e copiar para pedidos/ da estruturaAutonoma; gerar de novo o mesmo DEC devolve o mesmo pedido. A demanda ganha os status aprovada, em_construcao, entregue e devolvida, mudados à mão no painel nesta versão. Tipo estudo não gera pedido. 8. LGPD: o texto bruto de e-mail e os anexos de cliente são dado pessoal de terceiro; só o necessário vai ao provedor de IA; o texto bruto fica 90 dias (prazo configurável, a conferir com juridico-contratos na Parada 1) e um job do worker faz o expurgo, registrado no histórico. 9. Aviso por e-mail (Resend) a Fabiano quando um pacote fica pronto para decisão; nos testes, sem envio real. Fora do escopo: entrada automática por e-mail ou chat (a entrada é pelo painel ou pela API), envio automático do pedido ao /construir e retorno de andamento (CA-F-01), deploy e configuração no Easypanel (ações de Fabiano)."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261022-0001-v1",
+    "nivel": "alto",
+    "conteudo": "Dado pessoal de terceiro: o texto bruto de e-mail e os anexos de cliente identificam pessoas; minimização no que vai ao provedor de IA, retenção com expurgo, nada disso em log. Decisão com efeito externo: só pessoa autenticada com 2FA decide; agente nunca aprova nem envia nada para fora; dupla aprovação quando exigida. Injeção de instrução no texto do cliente enviado ao modelo: a saída de todo agente passa pelo schema Zod, e o agente só grava rascunho (ESP, RSK, DEC v0) que uma pessoa revisa. Custo de IA: teto mensal com suspensão automática e uso registrado por chamada. Segredos (chave da API, tokens de serviço, Resend, banco) só por variável de ambiente, citados pelo nome. Autorização: rotas de pessoa e de agente separadas, com teste de acesso negado. Construção só com dado fictício (JUR-2026-002, 7.4); nenhuma chamada real ao provedor de IA nem ao Resend durante a construção; nada vai para produção pelo /construir."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261022-0001-v1",
+    "opcaoEscolhida": "Construir o Orquestrador de Demandas como primeiro pedido real do /construir, na stack do padrão técnico, com os agentes de IA desligados até a chave da API (CA-E-03) e a entrega do pedido ao /construir por cópia manual",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-10-22"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Uma pessoa autenticada com 2FA cria uma demanda pelo painel e pela API e recebe um id DEM-AAAAMMDD-NNNN",
+    "ESP, RSK e DEC são criados em versões (v1, v2…) e nenhuma versão gravada muda depois",
+    "DEC criado sem ESP ou sem RSK responde 400 com a lista do que falta",
+    "DEC com ESP ou RSK mais nova que ele aparece como desatualizado e não pode ser aprovado",
+    "Só pessoa autenticada com 2FA registra decisão; token de agente recebe 403 na rota de decisão",
+    "Decisão aceita só a opção A ou B; com nível cto_e_administradora, a aprovação só vale com as duas aprovações registradas",
+    "Cada agente, ligado, roda como job, tem a saída validada pelo schema Zod da API e registra tokens e custo; saída fora do schema não grava nada e vai para nova tentativa",
+    "Com o teto de gasto atingido ou o agente desligado, nenhuma chamada ao provedor acontece e a pessoa preenche os campos pelo painel",
+    "Dúvida em aberto leva a demanda a aguardando_informacao, sem mensagem ao solicitante",
+    "Toda mudança de status, versão ou decisão aparece no histórico com a pessoa ou o agente",
+    "DEC aprovado gera um Pedido de Construção que passa no validarPedido do /construir; o mesmo DEC gera sempre o mesmo pedido",
+    "O texto bruto com mais de 90 dias é expurgado pelo worker, e o expurgo fica no histórico",
+    "Nenhum log contém texto bruto de demanda, e-mail, token ou senha",
+    "As telas do painel passam no axe sem violação"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test (com Testcontainers), pnpm lint, pnpm typecheck e pnpm test:e2e verdes",
+    "docker build local passa",
+    "CI no GitHub Actions com lint, typecheck, test e e2e",
+    "Nenhum achado crítico ou alto de segurança aberto",
+    "README, manual técnico, docs/operacao/deploy.md (variáveis só pelo nome, serviços do Easypanel e rollback) e CHANGELOG da versão 0.1.0",
+    "package.json na versão 0.1.0"
+  ]
+}

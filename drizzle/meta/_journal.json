@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792967877818,
+      "tag": "0000_amusing_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792967886529,
+      "tag": "0001_rls_privilegios_acesso",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792969488322,
+      "tag": "0002_brown_jackal",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792969495905,
+      "tag": "0003_rls_privilegios_dominio",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792971032249,
+      "tag": "0004_busy_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792971040045,
+      "tag": "0005_rls_privilegios_agentes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793020280561,
+      "tag": "0006_familiar_crusher_hogan",
+      "breakpoints": true
+    }
+  ]
+}

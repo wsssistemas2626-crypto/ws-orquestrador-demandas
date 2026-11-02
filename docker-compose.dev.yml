@@ -1,0 +1,14 @@
+# Banco de desenvolvimento local. Publicado só em 127.0.0.1 (C-35). Credenciais fictícias, só para a máquina local.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: migrator_dev
+      POSTGRES_PASSWORD: dev_somente_local
+      POSTGRES_DB: orquestrador_dev
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+volumes:
+  dbdata:
