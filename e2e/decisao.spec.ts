@@ -1,6 +1,6 @@
 // T43: T11 Decisão do pacote (03, T11; RF-12 a RF-14; 04, C-14; P1-a, P1-b, P1-d). Os pacotes são criados pela API com a
-// sessão da conta fictícia "cto", um DEC novo por teste, todos sobre uma demanda só desta spec (criada com a ESP e o RSK
-// na primeira vez que um teste precisa). Uma demanda por teste estourava o limite por ator da suíte inteira (C-36: 30
+// sessão da conta fictícia "cto", um DEC novo por teste, todos sobre uma demanda só desta spec (do seed, com a ESP e o
+// RSK gravados na primeira vez que um teste precisa). Uma demanda por teste estourava o limite por ator da suíte inteira (C-36: 30
 // demandas por hora por conta). A ordem do arquivo é a do fluxo: aprovar e a dupla aprovação deixam a demanda em Pronta
 // para decisão; devolver a leva a Em análise; arquivar, a Encerrada, por último. Cada teste roda também sozinho. O
 // pacote de rascunho de agente é o do seed fictício (T33), que nasce "CTO e administradora" (08-correcao, A-04: o nível
@@ -8,8 +8,12 @@
 // nível "Só o CTO", criado pela "cto". Com A-02 (só um DEC aprovado por demanda), a dupla aprovação usa uma demanda
 // própria, que vem do seed (TITULOS_DO_E2E.duplaAprovacao) e não da API, pelo mesmo limite C-36; ela troca a sessão da
 // página da "cto" para a "administradora". O axe roda pendente, desatualizado, com erro e decidido.
+//
+// DEC-DEM-20261102-0002-v1: a demanda da spec também vem do seed (TITULOS_DO_E2E.decisao), achada por demandaDoSeed.
+// Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
+import { api, demandaDoSeed, entrarComo, semViolacoes } from './apoio';
 
 type Demanda = { id: string };
 type Versao = { id: string };
@@ -24,17 +28,20 @@ const espValida = {
   definicaoDePronto: ['Testes verdes (fictício)'],
 };
 const rskValido = { riscoTecnicoNivel: 'alto', riscoOperacionalNivel: 'medio', riscoJuridicoNivel: 'baixo' };
-const TITULO = 'Demanda da decisão (fictício)';
+const TITULO = TITULOS_DO_E2E.decisao;
 
-let demandaDaSpec: string | null = null;
-
+// A demanda da spec vem do seed (DEC-DEM-20261102-0002-v1), e não de uma variável do módulo: quando um teste falhava, o
+// worker novo do Playwright perdia a variável e criava outra demanda pela "cto", e o fim da suíte recebia 429 (C-36). O
+// estado fica no banco: a ESP e o RSK só são criados se a demanda ainda não tem ESP, então o worker novo acha a mesma
+// demanda com as mesmas versões e não cria nada, como numa execução sem falha.
 async function demanda(page: Page): Promise<string> {
-  if (demandaDaSpec) return demandaDaSpec;
-  const d = await api<Demanda>(page, 'POST', '/api/demandas', { titulo: TITULO, tipo: 'melhoria', solicitanteNome: 'Pessoa Ficticia' });
-  await api<Versao>(page, 'POST', `/api/demandas/${d.id}/especificacoes`, espValida);
-  await api<Versao>(page, 'POST', `/api/demandas/${d.id}/pareceres-risco`, rskValido);
-  demandaDaSpec = d.id;
-  return d.id;
+  const id = await demandaDoSeed(page, TITULO);
+  const { itens } = await api<{ itens: Versao[] }>(page, 'GET', `/api/demandas/${id}/especificacoes`);
+  if (itens.length === 0) {
+    await api<Versao>(page, 'POST', `/api/demandas/${id}/especificacoes`, espValida);
+    await api<Versao>(page, 'POST', `/api/demandas/${id}/pareceres-risco`, rskValido);
+  }
+  return id;
 }
 
 // Título de scripts/seed-ficticio.ts (TITULOS_DO_E2E.duplaAprovacao): a demanda própria da dupla aprovação.

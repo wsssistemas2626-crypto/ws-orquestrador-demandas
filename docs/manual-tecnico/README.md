@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.0 |
-| Atualizado em | 31/10/2026 |
+| Versão do sistema | 0.1.1 (sem mudança de comportamento desde a 0.1.0; ver o [CHANGELOG](../../CHANGELOG.md)) |
+| Atualizado em | 02/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
 | Fonte de verdade | o código do ramo (padrão técnico, seção 11). Onde a spec ou o plano dizem outra coisa, vale o código, e a diferença está apontada no capítulo |

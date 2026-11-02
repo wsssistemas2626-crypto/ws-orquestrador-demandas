@@ -133,8 +133,11 @@ const DEMANDAS: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
 // Demandas próprias de testes do e2e que aprovam um DEC (08-correcao): com A-02, a demanda só tem um DEC aprovado, então
 // cada um desses testes precisa de uma demanda só dele. Elas vêm do seed, e não da API, para o e2e não gastar o limite
 // de demandas por hora da conta (C-36). Nascem sem ESP, RSK nem DEC; o teste cria os dele. Os títulos são os que
-// e2e/decisao.spec.ts, e2e/pedido-construcao.spec.ts e e2e/axe-todas.spec.ts procuram. A `axeSoCto` recebe o DEC de
-// pessoa de nível cto da T11 da axe-todas (o DEC de agente nasce "CTO e administradora", A-04).
+// e2e/decisao.spec.ts, e2e/pedido-construcao.spec.ts, e2e/axe-todas.spec.ts e e2e/parecer-risco-qa.spec.ts procuram. A
+// `axeSoCto` recebe o DEC de pessoa de nível cto da T11 da axe-todas (o DEC de agente nasce "CTO e administradora", A-04).
+// DEC-DEM-20261102-0002-v1: a `decisao` é a demanda da decisao.spec (antes criada pela API na primeira vez que um teste
+// precisava, e de novo a cada worker novo do Playwright), e a `rskDuploClique` e a `espListaDeTextos` são as do duplo
+// clique e da T07 da parecer-risco-qa.spec. Com elas, a conta "cto" sai de 30 de 30 demandas na suíte para 27 de 30.
 export const TITULOS_DO_E2E = {
   duplaAprovacao: 'Dupla aprovação do pacote (fictício)',
   pedidoGerar: 'Portal do pedido: gerar e baixar (fictício)',
@@ -142,6 +145,9 @@ export const TITULOS_DO_E2E = {
   pedidoValidacao: 'Portal do pedido: validação do /construir (fictício)',
   pedidoEstudo: 'Estudo do pedido de construção (fictício)',
   axeSoCto: 'Pacote só do CTO no axe (fictício)',
+  decisao: 'Demanda da decisão (fictício)',
+  rskDuploClique: 'Duplo clique no parecer de risco (fictício)',
+  espListaDeTextos: 'Lista de textos da especificação (fictício)',
 } as const;
 
 // Todas com contexto: a `descricao` do Pedido de Construção sai dele, e o validarPedido recusa descrição vazia.
@@ -178,6 +184,30 @@ const DEMANDAS_DO_E2E: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
     solicitantePapel: 'produto',
     linhaServicoProvavel: 'sob_medida',
     contexto: 'Ajuste pequeno, sem compromisso com o cliente: basta a aprovação do CTO.',
+  },
+  {
+    titulo: TITULOS_DO_E2E.decisao,
+    tipo: 'melhoria',
+    solicitanteNome: 'Pessoa Ficticia Produto',
+    solicitantePapel: 'produto',
+    linhaServicoProvavel: 'sob_medida',
+    contexto: 'A equipe precisa decidir entre construir numa entrega ou em duas.',
+  },
+  {
+    titulo: TITULOS_DO_E2E.rskDuploClique,
+    tipo: 'melhoria',
+    solicitanteNome: 'Pessoa Ficticia Produto',
+    solicitantePapel: 'produto',
+    linhaServicoProvavel: 'sob_medida',
+    contexto: 'O parecer de risco é gravado uma vez só, mesmo com dois cliques seguidos.',
+  },
+  {
+    titulo: TITULOS_DO_E2E.espListaDeTextos,
+    tipo: 'melhoria',
+    solicitanteNome: 'Pessoa Ficticia Produto',
+    solicitantePapel: 'produto',
+    linhaServicoProvavel: 'sob_medida',
+    contexto: 'A especificação lista o escopo em itens, e cada item pode ser corrigido ou removido.',
   },
 ];
 

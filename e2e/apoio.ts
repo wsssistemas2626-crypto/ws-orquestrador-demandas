@@ -49,10 +49,32 @@ export async function entrarSoComSenha(page: Page, conta: 'sem2fa' | 'configurar
 }
 
 // Nenhuma violação do axe nas regras de TAGS_AXE. A mensagem do erro lista regra, impacto e alvo, sem o HTML da página.
+//
+// DEC-DEM-20261102-0002-v1: depois de uma Server Action, o Next 16 re-renderiza a página e o <title> chega por
+// streaming, depois do corpo que o teste espera. Por isso o axe só roda depois de a página ter <title> não vazio, por
+// até 5 s. A espera não decide nada: se o título não chegar, o axe roda assim mesmo e reprova pela regra
+// `document-title`, para o erro dizer a regra, e não o tempo esgotado (e2e/sem-violacoes.spec.ts). As regras são as de
+// TAGS_AXE, sem nenhuma desligada nem filtrada.
+const ESPERA_DO_TITULO_MS = 5_000;
+
 export async function semViolacoes(page: Page, rotulo: string): Promise<void> {
+  // true: o título chegou; false: não chegou em 5 s, e o axe roda para reprovar com a regra que falta.
+  const temTitulo = await page.waitForFunction(() => document.title.trim() !== '', undefined, { timeout: ESPERA_DO_TITULO_MS }).then(
+    () => true,
+    () => false,
+  );
   const r = await new AxeBuilder({ page }).withTags([...TAGS_AXE]).analyze();
   const violacoes = r.violations.map((v) => ({ regra: v.id, impacto: v.impact, alvos: v.nodes.map((n) => n.target.join(' ')) }));
-  expect(violacoes, `axe em ${rotulo}`).toEqual([]);
+  expect(violacoes, `axe em ${rotulo}${temTitulo ? '' : ' (a página ficou sem <title> por 5 s)'}`).toEqual([]);
+}
+
+// Uma demanda própria do e2e, criada pelo seed fictício (scripts/seed-ficticio.ts, TITULOS_DO_E2E) e procurada pelo
+// título entre as de tipo melhoria: o teste não gasta o limite de demandas por hora da conta (C-36).
+export async function demandaDoSeed(page: Page, titulo: string): Promise<string> {
+  const { itens } = await api<{ itens: { id: string; titulo: string }[] }>(page, 'GET', '/api/demandas?tipo=melhoria&limit=100');
+  const d = itens.find((x) => x.titulo === titulo);
+  if (!d) throw new Error(`e2e: o seed não tem a demanda "${titulo}"`);
+  return d.id;
 }
 
 // Chamada à API com a sessão da página: `Origin` do painel e corpo JSON (C-15). Resposta fora de 2xx falha o teste com

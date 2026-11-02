@@ -1,0 +1,39 @@
+{
+  "pedido": "DEC-DEM-20261102-0002-v1",
+  "demanda": {
+    "id": "DEM-20261102-0002",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.1: estabilizar três testes e2e instáveis no CI",
+    "descricao": "No CI do PR #1 (execução 41249512830, commit e0f3933), o e2e contra o build de produção falhou em 3 de 126 testes, e passou numa nova execução do mesmo código: instabilidade, não regressão. (1) e2e/agentes-teto.spec.ts:106 ('ligar o risco'), axe em T12 com agente ligado (agentes-teto.spec.ts:143), e (2) e2e/decisao.spec.ts:151 ('nível cto: aprovar A'), axe em T11 decidido (decisao.spec.ts:175): os dois acusaram a regra document-title (serious) no alvo html. O axe de e2e/apoio.ts:53-55 (semViolacoes) roda logo depois da ação, enquanto o <title> da página ainda não chegou (o metadado do Next 16 chega por streaming depois da Server Action). (3) e2e/parecer-risco-qa.spec.ts:183 ('T07 da ESP com a correção da Lista de textos'): POST /api/demandas respondeu 429 (e2e/apoio.ts:67), porque a suíte cria demandas pela mesma conta e esbarra no limite de 30 demandas por hora do C-36. Base: main (dd8ddee, versão 0.1.0)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261102-0002-v1",
+    "conteudo": "Testes e2e estáveis, sem afrouxar nada do que verificam. (a) semViolacoes, em e2e/apoio.ts, espera a página ter <title> não vazio (por exemplo, expect(page).not.toHaveTitle('') ou o título esperado da tela) antes de rodar o axe, e continua exigindo zero violação com as mesmas tags; nenhuma regra do axe é desligada. Se o <title> realmente faltar numa tela, o teste continua falhando. (b) O teste de parecer-risco-qa.spec.ts:183 deixa de criar demanda pela API e usa uma demanda fictícia própria do scripts/seed-ficticio.ts (dados reaproveitados), como os demais testes que esbarravam no C-36. É proibido mudar conferirLimite, criar variável de ambiente, conta ou cabeçalho de exceção para teste (regra da 06-T43-revisao do pedido DEC-DEM-20261022-0001-v1). (c) Se outros testes também criam demanda pela API e somam perto do limite, eles passam para demandas do seed na mesma correção. Nenhum comportamento do sistema muda: só e2e/, scripts/seed-ficticio.ts (com teste em scripts/scripts.test.ts) e o CHANGELOG. Fora do escopo: os médios M-01 a M-07 da 08 do pedido anterior e o médio do reteste, que seguem para decisão de Fabiano."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261102-0002-v1",
+    "nivel": "baixo",
+    "conteudo": "Só testes e dados fictícios do seed. O risco é afrouxar uma verificação para o teste passar: esperar o <title> não pode virar desligar a regra document-title, e reaproveitar dado do seed não pode virar exceção do C-36. Os dois casos são recusados na revisão. Nenhum dado pessoal real (JUR-2026-002, 7.4): só as contas e demandas fictícias que já existem."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261102-0002-v1",
+    "opcaoEscolhida": "Estabilizar os três testes e2e instáveis num pedido de correção (cadeia curta) sobre a main, sem afrouxar o axe nem o C-36",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-02"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "semViolacoes só roda o axe depois de a página ter <title> não vazio, e continua exigindo zero violação com as mesmas tags",
+    "Uma tela sem <title> continua fazendo o teste falhar (teste que prova a falha com a regra document-title)",
+    "parecer-risco-qa.spec.ts:183 usa demanda fictícia do seed e não chama POST /api/demandas",
+    "conferirLimite, as variáveis de ambiente e as contas ficam como estão; o 429 do C-36 continua testado",
+    "A suíte pnpm test:e2e inteira passa três vezes seguidas contra o build de produção"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.1",
+    "PR com CI verde"
+  ]
+}

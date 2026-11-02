@@ -3,6 +3,105 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.1 — 2026-11-02
+
+Correção do pedido `DEC-DEM-20261102-0002-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.0 (`dd8ddee`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano.
+
+**Nenhum comportamento do sistema muda.** Mudaram só testes e2e, o seed fictício e a versão. Não mudaram `src/`,
+`drizzle/`, `.github/`, `Dockerfile`, `playwright.config.ts` nem `e2e/servidor.ts`. Não há migration nova nem variável de
+ambiente nova. A imagem só difere da 0.1.0 no `scripts/seed-ficticio.ts` e no `package.json`.
+
+### O que mudou
+
+- **Três testes e2e instáveis no CI do PR #1** (execução 41249512830, commit `e0f3933`) foram estabilizados, e nenhum
+  deles verifica menos do que antes:
+  - **`document-title` falso** em "T12 com agente ligado" (`e2e/agentes-teto.spec.ts`) e em "T11 decidido"
+    (`e2e/decisao.spec.ts`). Depois de uma Server Action, o Next 16 re-renderiza a página, e o `<title>` chega por
+    streaming depois do corpo. O axe rodava nesse intervalo. Agora `semViolacoes` (`e2e/apoio.ts`) espera a página ter
+    `<title>` não vazio por até 5 s antes de rodar o axe. Se o título não chegar, o axe roda assim mesmo e reprova pela
+    regra `document-title`. As `TAGS_AXE` são as mesmas, e nenhuma regra foi desligada ou filtrada.
+  - **429 em "T07 da ESP com a correção da Lista de textos"** (`e2e/parecer-risco-qa.spec.ts`). A conta "cto" fechava a
+    suíte com 30 de 30 demandas na hora. Quando um teste da `decisao.spec.ts` falhava, o worker novo do Playwright criava
+    a 31ª demanda. Agora a T07, o duplo clique do parecer de risco e a `decisao.spec.ts` usam demandas fictícias do seed,
+    pela função nova `demandaDoSeed` (`e2e/apoio.ts`), e não criam demanda pela API. A `decisao.spec.ts` deixou de
+    guardar a demanda numa variável do módulo, e um worker novo não cria mais demanda. Com isso, a "cto" fecha a suíte
+    com 27 de 30. O limite do C-36 (`conferirLimite`, 30 demandas por hora por ator) não mudou e continua testado em
+    `src/modules/limites.test.ts` e `src/app/api/demandas/demandas.bordas.test.ts`.
+- **Teste novo `e2e/sem-violacoes.spec.ts`**, em `/configuracao/agentes`, com dois casos:
+  - corrida: o `<title>` volta 500 ms depois do corpo. Tem de passar, e antes da correção falhava com `document-title`;
+  - controle negativo: uma tela sem `<title>` continua reprovada pela regra `document-title`.
+- **Seed fictício** (`scripts/seed-ficticio.ts`): entraram três demandas próprias do e2e, de tipo `melhoria`, em Nova,
+  sem versão e criadas pela conta fictícia `sem2fa`:
+  - "Demanda da decisão (fictício)";
+  - "Duplo clique no parecer de risco (fictício)";
+  - "Lista de textos da especificação (fictício)".
+
+  O seed passa de 11 para 14 demandas: 5 da conta `cto` e 9 próprias do e2e (`TITULOS_DO_E2E`). As regras do seed
+  continuam as mesmas, inclusive a guarda `SEED_FICTICIO=1` com banco vazio. Os testes estão em `scripts/scripts.test.ts`.
+- **Versão:** o `package.json` passou de 0.1.0 para 0.1.1, e o teste estático `test/estatico/projeto.test.ts` confere a
+  versão nova.
+- **Documentação:**
+  - estas notas;
+  - a versão no `README.md` e no manual técnico;
+  - a verificação do axe no cap. 08 do manual e o seed no cap. 10;
+  - em `docs/operacao/deploy.md`: a versão, a primeira publicação com a 0.1.1 (seção 4) e o rollback da 0.1.1 (seção 6).
+
+### Verificações desta versão
+
+- `pnpm test`: 192 arquivos, 3.697 de 3.697 (`03-engenheiro-frontend.md` e `04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 128 testes em 22 arquivos, verde três vezes seguidas, sem mudança de
+  código entre as corridas. Houve também uma corrida com uma falha forçada e temporária em `decisao.spec.ts`: só o teste
+  forçado falhou, e não houve 429 no fim (`04-qa-automacao.md`).
+- `docker build` local: imagem de 1,73 GB em disco e 425 MB de conteúdo, nada publicado (`05-devops-sre.md`).
+- A homologação (`construir.mjs homologar`) e o ensaio de rollback (`construir.mjs ensaiar-rollback`) ficam para a
+  Parada 3.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), em testes e sem efeito no sistema:
+
+- **M-01 deste pedido (médio), para o `qa-automacao` num pedido seguinte.** Em `e2e/decisao.spec.ts:39`, a guarda só
+  confere se a demanda já tem ESP. Quando não tem, cria a ESP e o RSK juntos. Se o RSK falhar depois de a ESP ser
+  gravada, o próximo worker acha a ESP e pula o RSK, e os testes de aprovar e decidir falham até um seed novo.
+  Correção: conferir o RSK à parte.
+- **B-01:** o duplo clique, a T07 e a `decisao.spec.ts` só passam com banco recém-semeado. Isso vale no CI e no
+  `homologar`, que apaga os volumes. Duas corridas contra a mesma homologação fazem esses testes falharem.
+- **B-02:** o comentário de `playwright.config.ts:4` ainda diz "Os dados de cada teste são criados pela API", o que já
+  não vale para as demandas do seed. O arquivo está fora do que a etapa de documentação edita, então a correção fica
+  para quem pode editar o arquivo.
+- **Minor da triagem:**
+  - `demandaDaDupla` (`e2e/decisao.spec.ts`) e os buscadores de demanda do seed nas outras specs podem passar a usar
+    `demandaDoSeed`;
+  - `demandaDoSeed` e `demandaDaDupla` procuram só entre as 100 primeiras demandas `melhoria`. Hoje a suíte usa perto de
+    70. Se a suíte crescer, a busca deve filtrar pela API.
+
+Da entrega (`05-devops-sre.md`), para Fabiano:
+
+- **Segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER`.** Ainda não existem no GitHub. Até existirem:
+  - todo push na `main` publica a imagem no GHCR (`:<sha>`, `:v0.1.1`, `:latest`) e fica vermelho no passo "Disparar o
+    Easypanel", sem deploy;
+  - a limpeza das versões antigas do GHCR não roda, e o pacote acumula mais de 2 versões.
+
+  O merge da 0.1.1 cai nesse caso. Antes de qualquer passo, tire um snapshot da VPS no hPanel.
+- **Primeira publicação de verdade** pela seção 4 do `docs/operacao/deploy.md`, com a `:latest`, que depois do merge é
+  a 0.1.1, e as mesmas 7 migrations da 0.1.0.
+- **Rollback da 0.1.1** pelo caminho A (só trocar a imagem, sem restaurar backup), para
+  `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:dd8ddee6d8a30cda8dff0f1a45f0abe30db8f364` (a `v0.1.0`). Na
+  cadeia curta ele não foi ensaiado: o ensaio é o `ensaiar-rollback` da Parada 3.
+- Continuam de antes, sem mudança neste pedido: as actions por SHA e a imagem de cerca de 1,7 GB por causa do `tsx`
+  (seção 10 do `deploy.md`).
+- A imagem local `ws-orquestrador-demandas:local` (1,73 GB) ficou no Docker da VPS. Apagá-la depende de confirmação de
+  Fabiano.
+
+Continuam abertas, sem mudança, as pendências da 0.1.0 (seção abaixo):
+
+- os médios M-01 a M-07 e o médio novo do reteste;
+- a leitura do QR com aparelho real;
+- a configuração do pipeline e do Easypanel;
+- as pendências das outras áreas antes de ligar agente.
+
 ## 0.1.0 — 2026-10-31
 
 Primeira versão, construída pelo `/construir` a partir do pedido `DEC-DEM-20261022-0001-v1` (spec aprovada na

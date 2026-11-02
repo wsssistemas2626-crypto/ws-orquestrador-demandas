@@ -2,12 +2,12 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.0 |
+| Versão | 0.1.1 |
 | Imagem | `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas` (privada) |
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 31/10/2026 (`documentacao-tecnica`: requisitos de operação na seção 3 e rota `/configuracao/agentes`) |
+| Atualizado em | 02/11/2026 (`documentacao-tecnica`: versão 0.1.1, primeira publicação com a 0.1.1 na seção 4 e rollback da 0.1.1 na seção 6) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -95,10 +95,11 @@ Requisitos de operação que o código supõe:
 - **Agentes desligados.** Na 0.1.0, `ANTHROPIC_API_KEY` fica ausente e os quatro agentes, desligados. As
   pré-condições para ligar estão no [manual técnico, cap. 06](../manual-tecnico/06-agentes-de-ia.md#pré-condições-para-ligar-qualquer-agente-em-produção).
 
-## 4. Primeira publicação (versão 0.1.0)
+## 4. Primeira publicação
 
-A `main` ainda não tem versão no ar: não há para onde voltar, e o `deploy.yml` não chama os webhooks (todas as
-migrations são novas).
+A produção ainda não tem versão no ar, então não há para onde voltar. A 0.1.0 foi mergeada e a imagem dela está no
+GHCR, mas os serviços do Easypanel não foram criados. Depois do merge da 0.1.1, a primeira publicação de verdade usa
+a `:latest`, que passa a ser a 0.1.1, com as mesmas 7 migrations da 0.1.0.
 
 1. Snapshot no hPanel.
 2. Criar o projeto e o serviço `db` (Postgres 16). O usuário criado pelo Easypanel é o **migrator** (dono do banco).
@@ -106,7 +107,14 @@ migrations são novas).
    nunca é usada aqui):
    `CREATE ROLE orquestrador_app LOGIN PASSWORD '<senha nova>' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;`
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
-5. Mergear o PR. Esperar o `deploy.yml` verde (imagem publicada; aviso de migration pendente).
+5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
+   - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
+   - **sem migration nova** (como no merge da 0.1.1, que não muda `drizzle/`): roda o passo "Disparar o Easypanel".
+     - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
+       EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
+     - Com os segredos cadastrados, o passo chama os webhooks antes da migration do passo 6, e o `app` responde 503 na
+       saúde até a migration rodar (seção 8). Para o `app` não subir antes da migration, cadastre os segredos de webhook
+       só depois do passo 7.
 6. Migration pela seção 5, passo 3. O backup do passo 2 da seção 5 pode ser pulado só nesta primeira vez, porque o
    banco está vazio.
 7. Deploy do `worker` e depois do `app` pelo botão do Easypanel. Conferir a seção 8.
@@ -171,6 +179,10 @@ na homologação por `construir.mjs ensaiar-rollback <DEC-id>` antes de cada PR 
 anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaurar`, e as 7 migrations novas não alteram
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
+
+A 0.1.1 não traz migration: o journal dela é o mesmo da 0.1.0. A volta da 0.1.1 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:dd8ddee6d8a30cda8dff0f1a45f0abe30db8f364` (a `v0.1.0`). Essa
+volta só foi conferida no código. O ensaio é o `ensaiar-rollback` da Parada 3.
 
 ## 7. Homologação
 

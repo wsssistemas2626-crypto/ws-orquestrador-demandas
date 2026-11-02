@@ -307,9 +307,9 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     expect(await precoVigente(b.db, 'modelo-ficticio', new Date('2026-10-22T12:00:00Z'))).toEqual({ entradaPorMilhao: 3, saidaPorMilhao: 15 });
     expect(await contar(b, 'select count(*)::int as n from configuracao_agente where ligado')).toBe(0);
 
-    // Uma demanda de cada tipo, mais as seis próprias do e2e (08-correcao); uma delas com ESP, RSK e DEC gravados como
-    // rascunho de agente (para a T43).
-    expect(TOTAL_DEMANDAS_DO_SEED).toBe(11);
+    // Uma demanda de cada tipo, mais as nove próprias do e2e (08-correcao e DEC-DEM-20261102-0002-v1); uma delas com ESP,
+    // RSK e DEC gravados como rascunho de agente (para a T43).
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(14);
     const tipos = (await b.poolMigrator.query('select distinct tipo from demanda order by tipo')).rows.map((r) => r.tipo);
     expect(tipos).toEqual(['bug', 'estudo', 'melhoria', 'novo_projeto', 'produto_proprio']);
     expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
@@ -339,8 +339,10 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
 
   // 08-correcao (A-02, C-36): cada teste do e2e que aprova um DEC tem uma demanda própria, criada pelo seed com o título
   // que a spec procura, sem ESP, RSK nem DEC e em Nova. A autora é a conta fictícia `sem2fa` (papel cto): o seed grava
-  // com a hora do sistema, e as seis entrariam no limite de 30 demandas por hora (C-36) da conta que as criasse. A "cto"
-  // e a "administradora" já gastam esse limite nas specs; a `sem2fa` nunca cria demanda no e2e.
+  // com a hora do sistema, e as nove entrariam no limite de 30 demandas por hora (C-36) da conta que as criasse. A "cto"
+  // e a "administradora" já gastam esse limite nas specs; a `sem2fa` nunca cria demanda no e2e. Desde o
+  // DEC-DEM-20261102-0002-v1, também as da decisao.spec e da parecer-risco-qa.spec, que não aprovam DEC no segundo caso,
+  // vêm daqui pelo mesmo limite.
   it('as demandas próprias do e2e: uma por título, de títulos diferentes, sem versão nenhuma, em Nova e pela conta sem2fa', async () => {
     const titulos = Object.values(TITULOS_DO_E2E);
     expect(new Set(titulos).size).toBe(titulos.length);
@@ -368,7 +370,13 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     }
     // A do DEC só do CTO da axe-todas.spec (T11) é procurada entre as de tipo melhoria.
     expect(tipoDe(TITULOS_DO_E2E.axeSoCto)).toBe('melhoria');
-    expect(titulos).toHaveLength(6);
+    // DEC-DEM-20261102-0002-v1: as da decisao.spec e as duas da parecer-risco-qa.spec, que o e2e procura entre as de
+    // tipo melhoria (demandaDoSeed, em e2e/apoio.ts), em vez de criá-las pela API da conta "cto" (C-36).
+    expect(TITULOS_DO_E2E.decisao).toBe('Demanda da decisão (fictício)');
+    expect(TITULOS_DO_E2E.rskDuploClique).toBe('Duplo clique no parecer de risco (fictício)');
+    expect(TITULOS_DO_E2E.espListaDeTextos).toBe('Lista de textos da especificação (fictício)');
+    for (const t of [TITULOS_DO_E2E.decisao, TITULOS_DO_E2E.rskDuploClique, TITULOS_DO_E2E.espListaDeTextos]) expect(tipoDe(t), t).toBe('melhoria');
+    expect(titulos).toHaveLength(9);
     // A conta cto fica com as cinco de antes (uma de cada tipo), e a administradora com nenhuma, como antes da 08-correcao.
     const doSeedPor = (email: string) => contar(b, `select count(*)::int as n from demanda d join "user" u on u.id = d.autor_id where u.email = $1`, [email]);
     expect(await doSeedPor(CONTAS_FICTICIAS.cto.email)).toBe(5);
