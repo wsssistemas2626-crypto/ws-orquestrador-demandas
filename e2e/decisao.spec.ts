@@ -1,14 +1,16 @@
-// T43: T11 Decisão do pacote (03, T11; RF-12 a RF-14; 04, C-14; P1-a, P1-b, P1-d). Os pacotes são criados pela API com a
-// sessão da conta fictícia "cto", um DEC novo por teste, todos sobre uma demanda só desta spec (do seed, com a ESP e o
-// RSK gravados na primeira vez que um teste precisa). Uma demanda por teste estourava o limite por ator da suíte inteira (C-36: 30
-// demandas por hora por conta). A ordem do arquivo é a do fluxo: aprovar e a dupla aprovação deixam a demanda em Pronta
-// para decisão; devolver a leva a Em análise; arquivar, a Encerrada; depois, o 404 e a sessão, sem mudar o banco. Cada
-// teste roda também sozinho. O pacote de rascunho de agente é o do seed fictício (T33), que nasce "CTO e administradora"
-// (08-correcao, A-04: o nível
-// do DEC de agente é da regra do servidor), e nenhum teste daqui registra decisão nele. O P1-b usa um DEC de pessoa de
-// nível "Só o CTO", criado pela "cto". Com A-02 (só um DEC aprovado por demanda), a dupla aprovação usa uma demanda
-// própria, que vem do seed (TITULOS_DO_E2E.duplaAprovacao) e não da API, pelo mesmo limite C-36; ela troca a sessão da
-// página da "cto" para a "administradora". O axe roda pendente, desatualizado, com erro e decidido.
+// T43: T11 Decisão do pacote (03, T11; RF-12 a RF-14; 04, C-14; P1-a, P1-b, P1-d). Os pacotes são criados pela API
+// com a sessão da conta fictícia "cto", um DEC novo por teste, todos sobre uma demanda só desta spec (do seed, com a
+// ESP e o RSK gravados na primeira vez que um teste precisa). Uma demanda por teste estourava o limite por ator da
+// suíte inteira (C-36: 30 demandas por hora por conta). A ordem do arquivo é a do fluxo: aprovar e a dupla aprovação
+// deixam a demanda em Pronta para decisão; devolver a leva a Em análise; arquivar, a Encerrada; depois, o 404 e a
+// sessão, sem mudar o banco. Cada teste roda também sozinho. O pacote de rascunho de agente é o do seed fictício
+// (T33), que nasce "CTO e administradora" (08-correcao, A-04: o nível do DEC de agente é da regra do servidor), e
+// nenhum teste daqui registra decisão nele. O P1-b usa um DEC de pessoa de nível "Só o CTO", criado pela "cto". Com
+// A-02 (só um DEC aprovado por demanda), a dupla aprovação usa uma demanda própria, que vem do seed
+// (TITULOS_DO_E2E.duplaAprovacao) e não da API, pelo mesmo limite C-36; ela troca a sessão da página da "cto" para
+// a "administradora". O axe roda nos estados pendente (com e sem rascunho de agente), com erro, com o diálogo aberto,
+// sem formulário, com o conflito da A-02, desatualizado e decidido (aprovado, aprovado nas duas contas, devolvido e
+// arquivado).
 //
 // DEC-DEM-20261102-0002-v1: a demanda da spec também vem do seed (TITULOS_DO_E2E.decisao), achada por demandaDoSeed.
 //
@@ -17,10 +19,10 @@
 // qualquer POST, e não supõe o número da versão (proximoId):
 //   - exigem banco recém-semeado: "nível cto: aprovar A" e "dupla aprovação" (a demanda não pode ter DEC aprovado: A-02
 //     recusa o segundo), "CA-12.4" (a demanda tem de estar num status de onde a devolução a leva a Em análise; depois
-//     do "Arquivar" ela fica Encerrada, que é final) e "Arquivar" (só a partida de ORIGENS_DO_FLUXO prova a mudança para
-//     Encerrada: B-01 do DEC-DEM-20261102-0003-v1, corrigido no DEC-DEM-20261102-0004-v1). Fora do CI, eles são pulados
-//     com a mensagem "exige banco recém-semeado: ..."; no CI, o banco é sempre novo (Testcontainers), e a mesma
-//     pré-condição falsa reprova o teste;
+//     do "Arquivar" ela fica Encerrada, que é final) e "Arquivar" (só a partida de ORIGENS_DO_FLUXO prova a mudança
+//     para Encerrada: B-01 do DEC-DEM-20261102-0003-v1, corrigido no DEC-DEM-20261102-0004-v1). Fora do CI, eles
+//     são pulados com a mensagem "exige banco recém-semeado: ..."; no CI, o banco é sempre novo (Testcontainers), e a
+//     mesma pré-condição falsa reprova o teste;
 //   - rodam em qualquer banco: C-14, M-01, P1-b, A-02 (o segundo DEC aprovado recebe o 409, e a demanda fica com um só
 //     DEC aprovado) e o de 404 e sessão.
 // Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
@@ -361,6 +363,7 @@ test('Arquivar → "Pacote arquivado. A demanda foi para Encerrada."', async ({ 
   await expect(page.getByRole('alert').filter({ hasText: 'Pacote arquivado' })).toHaveText('Pacote arquivado. A demanda foi para Encerrada.');
   expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('arquivada');
   expect(await statusDa(page, demandaId), `status da demanda ${demandaId} depois de arquivar`).toBe('encerrada');
+  await semViolacoes(page, 'T11 arquivado');
 });
 
 // Sem pré-condição e sem POST: vale em qualquer banco, e roda também quando o "Arquivar" é pulado numa execução repetida.
