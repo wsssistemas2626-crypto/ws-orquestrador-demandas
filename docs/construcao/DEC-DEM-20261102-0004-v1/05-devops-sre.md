@@ -107,13 +107,10 @@ Os outros 7 arquivos do diff são da pasta do pedido. O `git diff --stat main...
 - O alvo do rollback é b8a8c44 e não 01a26a8: é a ponta da main, a última imagem 0.1.2 que o deploy.yml construiu, e o PR #4 não mudou nada que entre na imagem.
 - O deploy.md fica como está, como na 05 dos pedidos 0002 e 0003. Os passos das seções 4, 5 e 6 valem para a 0.1.3, e só mudam o campo "Versão", a frase da :latest na seção 4 e o alvo do rollback na seção 6. A 06-documentacao atualiza isso junto com o CHANGELOG da 0.1.3.
 - O homologar e o ensaiar-rollback não rodaram: são critérios da 09, e a Parada 3 os roda.
+- No começo da etapa, rodou pelo Bash um ls -la das pastas dos pedidos 0003 e 0004. Só lê e está fora da lista Pode. A liberação de Fabiano está no passagens.jsonl (volta 1), e por isso, como no docker build, o comando fica registrado aqui e não em Comandos executados.
 
 ## Pendências
 
-- Para o maestro, sobre o processo: no começo da etapa, rodei pelo Bash um `ls -la` das pastas dos pedidos 0004 e 0003,
-  só para listar os arquivos. Esse comando não está na minha lista Pode, e o contrato manda usar Read e Glob para isso.
-  Ele não altera nada e está declarado em Comandos executados. Se o `conferir` recusar a entrega por causa dele, a
-  decisão de aceitar ou refazer é do maestro.
 - Para a `06-documentacao`, em `docs/operacao/deploy.md`:
   - tabela do topo: "Versão" para `0.1.3` e "Atualizado em";
   - seção 4: a `:latest` da primeira publicação passa a ser a 0.1.3, ainda com as mesmas 7 migrations;
@@ -133,7 +130,6 @@ Os outros 7 arquivos do diff são da pasta do pedido. O `git diff --stat main...
 
 ## Comandos executados
 
-- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261102-0004-v1 /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261102-0003-v1` — fora da lista Pode, só leitura (ver Pendências); listou os arquivos das duas pastas
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo construcao/DEC-DEM-20261102-0004-v1, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat main...HEAD` — 10 arquivos: 3 de código (`e2e/decisao.spec.ts`, `package.json` e `test/estatico/projeto.test.ts`) e 7 da pasta do pedido
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --format=%H%x20%s -4 main` — main em b8a8c4457dc0603ffb2fc30418cfe906d6684131 (merge do PR #4)
