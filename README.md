@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.1 (`package.json`) |
+| Versão | 0.1.2 (`package.json`) |
 | Atualizado em | 02/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
@@ -51,6 +51,11 @@ pnpm audit --prod --audit-level high
 - `pnpm test:e2e` roda o Playwright com axe. Sem `BASE_URL`, o `e2e/servidor.ts` sobe um Postgres descartável, aplica
   as migrations, cria os dados fictícios, faz o `next build` e o `next start` em `127.0.0.1:3101`. Com `BASE_URL`,
   roda contra um ambiente que já está de pé e não sobe nada.
+- Os dados do e2e vêm do seed fictício (contas e demandas achadas pelo título) e da API (o que os testes criam). Contra
+  o mesmo banco, as demandas do seed acumulam versões e decisões entre execuções. Sem a variável `CI`, os testes que
+  precisam de banco recém-semeado são pulados com a mensagem `exige banco recém-semeado: <motivo>`; com `CI` (GitHub
+  Actions e homologação do `/construir`), eles reprovam, porque ali o banco é sempre novo. A suíte inteira repetida na
+  mesma hora contra o mesmo banco recebe 429 do limite de demandas por hora: espere uma hora entre as execuções.
 - `pnpm audit --prod --audit-level high` (ou `pnpm audit:prod`) tem de terminar com código 0. O `pnpm-workspace.yaml`
   fixa o `zod` em 4.6.6 por `overrides`, inclusive o que vem pelo better-auth. Não tire essa linha sem rodar o audit.
 

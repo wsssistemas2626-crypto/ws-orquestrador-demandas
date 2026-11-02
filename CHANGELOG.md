@@ -3,6 +3,136 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.2 — 2026-11-02
+
+Correção do pedido `DEC-DEM-20261102-0003-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.1 (`30b71b5`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano.
+
+**Nenhum comportamento do sistema muda.** Mudaram só os testes e2e, o comentário do topo do `playwright.config.ts`, a
+conferência da versão em `test/estatico/projeto.test.ts` e o campo `version` do `package.json`. Não mudaram `src/`,
+`scripts/`, `drizzle/`, `.github/`, `Dockerfile`, `e2e/servidor.ts` nem nenhuma linha de configuração do Playwright
+(`workers: 1`, `retries: 0`, `fullyParallel: false`, `forbidOnly`, `webServer`). Não há migration nova nem variável de
+ambiente nova. A imagem só difere da 0.1.1 no `package.json`: `e2e/`, `test/` e `playwright.config.ts` não entram nela.
+
+Fecha as pendências M-01, B-01 e B-02 de teste registradas na 0.1.1 (seção abaixo).
+
+### O que mudou
+
+- **M-01: a preparação da demanda da `decisao.spec.ts` completa uma falha parcial.** Antes, ela olhava só se a demanda
+  tinha ESP e, se não tinha, criava a ESP e o RSK juntos. Se o RSK falhasse depois de a ESP gravar, as execuções
+  seguintes pulavam o RSK, e os testes de decisão recebiam 400 `Faltam itens para o pacote.` até um seed novo. Agora a
+  função `prepararEspERsk` (`e2e/preparacao.ts`, arquivo novo) confere a lista de ESP e a de RSK separadamente e cria só
+  o que falta, primeiro a ESP. A falha de uma criação não é engolida: o teste reprova, e a chamada seguinte completa o
+  que ficou faltando, sem versão a mais. A dupla aprovação usa a mesma preparação.
+- **B-01: o duplo clique e a T07 não supõem mais `v1`** (`e2e/parecer-risco-qa.spec.ts`). Os dois leem a lista de RSK
+  ou de ESP antes de agir e calculam o id esperado com `proximoId` (`e2e/preparacao.ts`): a versão mais nova mais 1, pelo
+  número. O id vai no botão `Gravar`, com nome exato (sem isso, `-v1` casaria com `-v10`), na URL, no alerta e no corpo
+  da Server Action. Depois de agir, a lista tem de ser exatamente a versão nova na frente e as antigas na mesma ordem. A
+  T07 lê o `escopoInclui` da versão de id esperado, e não da primeira da lista. O sentinela do duplo clique passou a ser
+  gerado em cada execução.
+- **B-01: a `decisao.spec.ts` confere o estado de partida antes de agir.** "nível cto: aprovar A", "dupla aprovação" e
+  "CA-12.4" precisam de uma demanda sem DEC aprovado ou num status de onde o fluxo ainda anda (`nova`, `em_analise`,
+  `aguardando_informacao`, `pronta_para_decisao`). A conferência roda depois das leituras e antes de qualquer criação:
+  - sem a variável `CI`, o teste é pulado com a mensagem `exige banco recém-semeado: <motivo>`;
+  - com `CI` (GitHub Actions e `construir.mjs homologar`), a pré-condição falsa **reprova** o teste. Nesses ambientes o
+    banco é sempre novo, e a pré-condição falsa ali é defeito.
+
+  O teste pulado não gasta o limite do C-36 nem deixa estado no banco. Não há `return` silencioso, `test.skip` sem
+  condição nem exceção à A-02 ou ao C-36.
+- **Teste novo da A-02** em `e2e/decisao.spec.ts`, que roda em qualquer banco: com um DEC aprovado na demanda, aprovar
+  outro mostra `Não foi possível concluir: outro pacote desta demanda já está aprovado.`, o pacote novo continua
+  `pendente` e a demanda tem exatamente um DEC `aprovada`. O axe roda também nesse estado da T11.
+- **Teste novo da M-01** em `e2e/decisao.spec.ts`: chama a preparação duas vezes contra o banco e confere que a lista
+  vazia ganha só a v1 e a que já tinha versão fica igual.
+- **`e2e/preparacao.spec.ts`, arquivo novo:** 12 testes sem navegador e sem API, com falsos, para `prepararEspERsk`
+  (inclusive a falha parcial e a falha que se propaga), `procurarEmPaginas` e `proximoId`.
+- **Busca no seed com paginação.** `demandaDoSeed` (`e2e/apoio.ts`) e a busca do DEC de rascunho de agente da
+  `decisao.spec.ts` percorrem as páginas de 100 com `offset` até achar o item ou chegar ao total. Antes, liam só a
+  primeira página.
+- **Versão do 404 calculada.** O teste "Arquivar" usava `DEC-<demanda>-v9` como versão inexistente, que passa a existir
+  na 3.ª execução contra o mesmo banco. Agora usa a versão seguinte à mais nova, lida logo antes.
+- **Comentário do `playwright.config.ts`** (linhas 4-9): descreve as duas fontes de dado do e2e, o seed fictício e a API
+  pela sessão da página. Diz também que as demandas do seed acumulam versões e decisões entre execuções contra o mesmo
+  banco, e que o teste que precisa de banco recém-semeado diz isso ao ser pulado.
+- **Versão:** o `package.json` passou de 0.1.1 para 0.1.2, e `test/estatico/projeto.test.ts` confere a versão nova.
+- **Documentação:**
+  - estas notas;
+  - a versão no `README.md` e no manual técnico, e no `README.md` o que acontece ao rodar o e2e de novo contra o mesmo
+    banco;
+  - em `docs/operacao/deploy.md`: a versão, a primeira publicação com a 0.1.2 (seção 4) e o rollback da 0.1.2
+    (seção 6).
+
+### Verificações desta versão
+
+- `pnpm test`: 192 arquivos, 3.697 de 3.697 (`03-engenheiro-frontend.md` e `04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 142 de 142, sem teste pulado, três vezes seguidas, cada uma com banco
+  novo (`04-qa-automacao.md`).
+- As três specs do achado com `--repeat-each=3` num banco só: 75 passaram, 6 pulados com a mensagem
+  `exige banco recém-semeado: ...` (só "aprovar A", "dupla aprovação" e "CA-12.4", na 2.ª e na 3.ª repetição) e nenhuma
+  falha.
+- Rodada com a M-01 forçada pelo estado (só a ESP gravada, sem o RSK): passou com a correção e falhou com a guarda
+  antiga (`04-qa-automacao.md`).
+- `docker build` local: imagem de 1,73 GB em disco e 425 MB de conteúdo, igual à 0.1.1, nada publicado
+  (`05-devops-sre.md`).
+- A homologação (`construir.mjs homologar`) e o ensaio de rollback (`construir.mjs ensaiar-rollback`) ficam para a
+  Parada 3.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), em testes e sem efeito no sistema:
+
+- **B-01 desta revisão (baixo), para o `qa-automacao` num pedido seguinte.** Numa execução repetida, o teste "Arquivar"
+  (`e2e/decisao.spec.ts:348`) aceita a demanda que já está `encerrada`. Nesse caso, a conferência de que o status passou
+  a `encerrada` passa sem provar a mudança. No CI e no `homologar`, com banco novo, a mudança continua provada.
+  Sugestão: no CI, exigir só os status de onde o fluxo anda; fora dele, anotar no teste que a mudança de status não foi
+  conferida.
+- Para Fabiano: continuam as pendências da primeira publicação registradas nos PR #1 e #2 (abaixo).
+
+Da entrega (`05-devops-sre.md`), para Fabiano:
+
+- **Segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER`.** Ainda não existem no GitHub. Até existirem:
+  - todo push na `main` publica a imagem no GHCR (`:<sha>`, `:v0.1.2`, `:latest`) e fica vermelho no passo "Disparar o
+    Easypanel", sem deploy;
+  - a limpeza das versões antigas do GHCR não roda, e o pacote acumula mais de 2 versões.
+
+  O merge da 0.1.2 cai nesse caso. Antes de qualquer passo, tire um snapshot da VPS no hPanel.
+- **Primeira publicação de verdade** pela seção 4 do `docs/operacao/deploy.md`, com a `:latest`, que depois do merge é
+  a 0.1.2, e as mesmas 7 migrations da 0.1.0.
+- **Rollback da 0.1.2** pelo caminho A (só trocar a imagem, sem restaurar backup), para
+  `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:30b71b5185cb58d403847b95532e54b5a299e77a` (a `v0.1.1`). Antes
+  de voltar, confirme a tag em Packages. Na cadeia curta ele não foi ensaiado: o ensaio é o `ensaiar-rollback` da
+  Parada 3.
+- Continuam de antes, sem mudança neste pedido: as actions por SHA e a imagem de cerca de 1,7 GB por causa do `tsx`
+  (seção 10 do `deploy.md`).
+- A imagem local `ws-orquestrador-demandas:local` (1,73 GB, agora a da 0.1.2) ficou no Docker da VPS. Apagá-la depende
+  de confirmação de Fabiano.
+
+Registradas nas outras etapas deste pedido, fora do escopo dele:
+
+- **Limite do C-36 em execuções repetidas** (`02-tech-lead.md`, N-02): a suíte e2e **inteira** rodada duas vezes na
+  mesma hora contra a mesma homologação recebe 429, porque a conta "cto" cria 27 demandas por execução e o limite é 30
+  por hora. É o controle funcionando. Contra a mesma homologação, a 2.ª execução completa só vale com uma hora de
+  intervalo.
+- **N-04, observação de produto** (`01-qa-funcional.md`, `02-tech-lead.md`): a API cria DEC numa demanda Encerrada, e a
+  devolução depois disso mostra "A demanda voltou para Em análise." sem que o status mude. Fica para uma demanda
+  própria, se Fabiano quiser, com o `analista-requisitos` (relaciona-se com a M-02 da 0.1.0).
+- **Teste C-13 sensível a CPU disputada** (`04-qa-automacao.md`): `src/modules/pacotes-decisao/concorrencia.test.ts:73`
+  estourou os 30 s com o `pnpm test` rodando junto do lint e do typecheck, e passou sozinho. Para o `tech-lead` e a
+  `qualidade`.
+- **Login TOTP em falhas em sequência** (`04-qa-automacao.md`): quando vários testes falham em menos de 1 s, o login da
+  conta "cto" na mesma janela do TOTP é recusado (`e2e/apoio.ts:39`), e isso esconde a causa real da falha. Para o
+  `tech-lead`, numa demanda própria.
+- **Buscadores do seed nas outras specs** (`02-tech-lead.md`, minor): `e2e/axe-todas.spec.ts` e
+  `e2e/pedido-construcao.spec.ts` ainda têm busca própria, só na primeira página de 100 (`limit=100`, sem `offset`), e
+  podem passar a usar a `demandaDoSeed` de `e2e/apoio.ts`, que pagina.
+- **Arquivos de apoio da regressão** (`04-qa-automacao.md`): em `e2e/test-results/`, ignorado pelo git, ficaram o
+  reporter auxiliar de contagem e os JSONs das execuções. Não entram em commit; podem ser apagados.
+
+Continuam abertas, sem mudança, as pendências da 0.1.0 (seção abaixo): os médios M-01 a M-07 e o médio novo do
+reteste, a leitura do QR com aparelho real, a configuração do pipeline e do Easypanel e as pendências das outras áreas
+antes de ligar agente.
+
 ## 0.1.1 — 2026-11-02
 
 Correção do pedido `DEC-DEM-20261102-0002-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.0 (`dd8ddee`). Ainda
