@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.3 (`package.json`) |
+| Versão | 0.1.4 (`package.json`) |
 | Atualizado em | 02/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |

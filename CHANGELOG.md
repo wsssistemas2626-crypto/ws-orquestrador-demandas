@@ -3,6 +3,116 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.4 — 2026-11-02
+
+Correção do pedido `DEC-DEM-20261102-0005-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.3 (`00a924e`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano.
+
+**Nenhum comportamento do sistema muda.** Mudaram só `e2e/decisao.spec.ts`, a conferência da versão em
+`test/estatico/projeto.test.ts`, o campo `version` do `package.json`, e entrou o teste novo
+`test/estatico/decisao-e2e.test.ts`. Não mudaram `src/`, `scripts/`, `drizzle/`, `.github/`, `Dockerfile`,
+`playwright.config.ts` nem `e2e/apoio.ts`. Não há migration nova nem variável de ambiente nova. O axe não achou
+violação na tela arquivada, então a tela não precisou de correção. A imagem só difere da 0.1.3 no `package.json`:
+`e2e/` e `test/` não entram nela.
+
+Fecha as duas pendências da revisão da 0.1.3 (seção abaixo): a B-1 estética do cabeçalho da `decisao.spec.ts` e o
+estado arquivado sem axe.
+
+### O que mudou
+
+- **O teste "Arquivar" passa pelo axe na tela arquivada** (`e2e/decisao.spec.ts:348`). Depois do alerta "Pacote
+  arquivado. A demanda foi para Encerrada." e das conferências `statusDecisao` `arquivada` e status `encerrada`, ele
+  chama `semViolacoes(page, 'T11 arquivado')` (`:366`). A chamada é a mesma dos outros estados, sem regra desligada nem
+  elemento excluído. A pré-condição (`exigeBancoRecemSemeado(ORIGENS_DO_FLUXO.includes(status), ...)`) e as
+  conferências de status antes e depois de arquivar continuam iguais às da 0.1.3. Com isso, uma violação de
+  acessibilidade na tela arquivada passa a reprovar o CI.
+- **Comentário do cabeçalho da `decisao.spec.ts`** (`:1-28`): a quebra das linhas foi refeita, sem linha órfã e com no
+  máximo 120 caracteres por linha (antes, as linhas 1, 3, 6 e 20 passavam disso, e a linha 7 tinha só "(08-correcao,
+  A-04: o nível"). A frase do axe passou a listar todos os estados que têm axe: pendente (com e sem rascunho de agente),
+  com erro, com o diálogo aberto, sem formulário, com o conflito da A-02, desatualizado e decidido (aprovado, aprovado
+  nas duas contas, devolvido e arquivado). No diff, só mudaram linhas que começam com `//`.
+- **Teste novo `test/estatico/decisao-e2e.test.ts`** (14 testes, só leitura de arquivo, sem banco nem relógio). Roda no
+  `pnpm test` e confere:
+  - que o cabeçalho da `decisao.spec.ts` não tem linha acima de 120 caracteres nem linha órfã, e que a frase do axe cita
+    o arquivado;
+  - que o "Arquivar" chama `semViolacoes(page, 'T11 arquivado')` uma vez, depois do alerta e das três conferências de
+    status, sem navegação no meio, com a pré-condição e as conferências da 0.1.3;
+  - que a spec só pula pela pré-condição, com mensagem;
+  - que nenhum arquivo `e2e/**/*.ts` usa `disableRules`, `disableOtherRules`, `exclude`, `include`, `withRules` ou
+    `options` do axe, e que só `e2e/apoio.ts` monta o `AxeBuilder`, com `TAGS_AXE`.
+- **Versão:** o `package.json` passou de 0.1.3 para 0.1.4, e `test/estatico/projeto.test.ts` confere a versão nova.
+- **Documentação:**
+  - estas notas;
+  - a versão no `README.md` e no manual técnico, e o teste estático do axe no cap. 08 do manual;
+  - em `docs/operacao/deploy.md`: a versão, a primeira publicação com a 0.1.4 (seção 4) e o rollback da 0.1.4
+    (seção 6).
+
+Não houve `.skip`, `.only`, `.fixme` ou `.todo` novo, nem asserção afrouxada. O axe (`semViolacoes` e `TAGS_AXE`), o
+C-36 e a A-02 ficaram iguais, e `retries`, `workers` e `fullyParallel` não mudaram.
+
+### Verificações desta versão
+
+- `pnpm test`: 193 arquivos, 3.711 de 3.711, com os 14 testes novos (`04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143, sem teste pulado, três vezes seguidas, cada uma com banco
+  novo. Nas três, o "Arquivar" aparece aprovado, e não pulado (`04-qa-automacao.md`).
+- `e2e/decisao.spec.ts --repeat-each=3` num banco só, sem `CI`: 19 passaram, 8 pulados e nenhuma falha. A 1.ª
+  repetição passa os 9 testes, o "Arquivar" com o axe do arquivado incluído; a 2.ª e a 3.ª passam 5 (C-14, M-01, P1-b,
+  A-02 e o de 404 e sessão) e pulam 4 ("nível cto: aprovar A", "dupla aprovação", "CA-12.4" e "Arquivar"). O reporter
+  JSON mostrou a mensagem `exige banco recém-semeado: ...` em cada pulo.
+- Controle negativo do axe, temporário e desfeito: com um `<img>` sem `alt` injetado na tela arquivada, o "Arquivar"
+  reprovou com `axe em T11 arquivado`, regra `image-alt`. Sem a linha `semViolacoes` nova, o teste estático reprovou.
+- Largura do cabeçalho: a linha mais longa tem 120 caracteres, medida pelo teste estático e conferida com `awk` na
+  revisão (`04-maestro.md`).
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico, alto ou médio; dois baixos (abaixo).
+- `docker build` local: imagem de 1,74 GB em disco e 425 MB de conteúdo, praticamente igual à 0.1.3, nada publicado
+  (`05-devops-sre.md`).
+- A homologação (`construir.mjs homologar`), o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam
+  para a Parada 3.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), em testes e sem efeito no sistema:
+
+- **B-1 (baixo), para quem mexer em `test/estatico/decisao-e2e.test.ts` ou em `e2e/apoio.ts`.** A trava "nenhum e2e
+  desliga o axe" (`test/estatico/decisao-e2e.test.ts:186` e `:193-199`) não pega um `r.violations.filter(...)` posto em
+  `e2e/apoio.ts` antes do `map`, e a varredura `e2e/**/*.ts` não olha `.tsx`, `.js` nem `.mjs`. Nada foi afrouxado
+  neste pedido: é um limite do teste novo.
+- **B-2 (baixo), para quem refatorar `e2e/decisao.spec.ts` ou `e2e/apoio.ts`.** O teste estático
+  (`test/estatico/decisao-e2e.test.ts:144-150` e `:196-198`) confere trechos exatos do código desses arquivos (a linha
+  de `ORIGENS_DO_FLUXO`, o `if (process.env.CI)`, o `new AxeBuilder`). Uma refatoração legítima reprova o teste e exige
+  atualizá-lo junto. É de propósito: mudar esses controles exige decisão explícita.
+- **Prettier fora do CI.** O `prettier --check` acusa 548 arquivos da `main`, inclusive os desta versão. O Prettier não
+  está no CI nem no `pnpm lint`. Se o time quiser, cabe num pedido próprio.
+- Para Fabiano: continuam as pendências da primeira publicação registradas nos PR #1 a #5 (abaixo).
+
+Da entrega (`05-devops-sre.md`), para Fabiano:
+
+- **Segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER`.** Ainda não existem no GitHub. Até existirem:
+  - todo push na `main` publica a imagem no GHCR (`:<sha>`, `:v0.1.4`, `:latest`) e fica vermelho no passo "Disparar o
+    Easypanel", sem deploy;
+  - a limpeza das versões antigas do GHCR não roda, e o pacote acumula mais de 2 versões.
+
+  O merge da 0.1.4 cai nesse caso. Antes de qualquer passo, tire um snapshot da VPS no hPanel.
+- **Primeira publicação de verdade** pela seção 4 do `docs/operacao/deploy.md`, com a `:latest`, que depois do merge é
+  a 0.1.4, e as mesmas 7 migrations da 0.1.0. A 0.1.4 não traz migration: a seção 5 (backup → migrate → deploy) não se
+  aplica a ela.
+- **Rollback da 0.1.4** pelo caminho A (só trocar a imagem de `worker` e `app`, sem restaurar backup), para
+  `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:00a924ec746d731c9c0c9fb9a95bcf4c6d7f3c17` (a `v0.1.3`, merge
+  do PR #5). Antes de voltar, confirme a tag em Packages: o `devops-sre` não conferiu o GHCR. Na cadeia curta a volta
+  não foi ensaiada: o ensaio é o `ensaiar-rollback` da Parada 3.
+- **Conferência do `.env.example` sem grep nesta versão.** Como `src/` não mudou, ela se apoia no diff vazio e na
+  conferência com grep da 0.1.2. Nenhuma variável nova.
+- Continuam de antes, sem mudança neste pedido: as actions por SHA e a imagem de cerca de 1,7 GB por causa do `tsx`
+  (seção 10 do `deploy.md`).
+- A imagem local `ws-orquestrador-demandas:local` (1,74 GB, agora a da 0.1.4) ficou no Docker da VPS. Apagá-la depende
+  de confirmação de Fabiano.
+
+Continuam abertas, sem mudança: a N-04 da 0.1.3 (a API aceita criar e arquivar DEC numa demanda Encerrada, e o alerta
+diz "A demanda foi para Encerrada." mesmo quando ela já estava), as pendências da 0.1.2 registradas nas outras etapas
+(limite do C-36 em execuções repetidas, teste C-13 sensível a CPU, login TOTP em falhas em sequência, buscadores do
+seed nas outras specs) e as da 0.1.0 (seções abaixo).
+
 ## 0.1.3 — 2026-11-02
 
 Correção do pedido `DEC-DEM-20261102-0004-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.2 (`b8a8c44`). Ainda

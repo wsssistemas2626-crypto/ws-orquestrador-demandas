@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.3 (sem mudança de comportamento desde a 0.1.0; ver o [CHANGELOG](../../CHANGELOG.md)) |
+| Versão do sistema | 0.1.4 (sem mudança de comportamento desde a 0.1.0; ver o [CHANGELOG](../../CHANGELOG.md)) |
 | Atualizado em | 02/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
