@@ -6,7 +6,7 @@
 //   - duplo clique em "Gravar": um envio só, um RSK só, e a resposta da Server Action sem o que foi digitado;
 //   - a correção do achado 1 da 06-T41-revisao ligada também na T07 da ESP (FormularioEspecificacao passa `aoRemover`):
 //     o engenheiro a viu no navegador só na T08.
-// Os dados de cada teste são criados aqui, pela conta "cto". O limite por ator (C-36: 30 demandas por hora) conta por
+// Os dados do describe são criados aqui, pela conta "cto". O limite por ator (C-36: 30 demandas por hora) conta por
 // conta, e a "administradora" já não tem folga na suíte inteira: com as 4 demandas daqui por ela, os 3 últimos testes
 // do parecer-risco.spec.ts (que roda depois deste) falharam, e o de 320 px só cria uma demanda. Nenhum teste depende de
 // outro ter rodado antes.
@@ -18,9 +18,16 @@
 // inteira (C-36). O modo serial faz o Playwright pular o resto do describe se um teste falhar, em vez de reiniciar o
 // processo e rodar o beforeAll de novo, o que criaria mais 2 demandas e daria 429 nas specs seguintes. Os cinco só
 // leem (GET e telas): nenhum muda o dado que o outro confere, e cada um passa sozinho (--grep), com o beforeAll.
-// Uso por conta deste arquivo, igual ao de antes: "cto" 4 demandas e 9 versões; "administradora" 0 e 0.
+//
+// DEC-DEM-20261102-0002-v1: o duplo clique e a T07 da ESP não criam mais demanda pela API. Cada um usa uma demanda
+// própria do seed fictício (TITULOS_DO_E2E.rskDuploClique e TITULOS_DO_E2E.espListaDeTextos, achadas por
+// demandaDoSeed), que nasce sem versão nenhuma. A T07 era a última criação da "cto" na suíte, sem folga, e recebeu 429
+// no CI quando um worker novo da decisao.spec criou mais uma demanda. O teste da T07 confere pela API que o total de
+// demandas fica igual antes e depois dele. Só o beforeAll do describe cria demandas (2).
+// Uso por conta deste arquivo: "cto" 2 demandas e 9 versões; "administradora" 0 e 0.
 import { expect, test, type Page, type Request } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
+import { api, demandaDoSeed, entrarComo, semViolacoes } from './apoio';
 
 type Demanda = { id: string };
 type Versao = { id: string };
@@ -42,6 +49,7 @@ const decValido = { resumoExecutivo: 'Resumo fictício.', opcaoA: { descricao: '
 const criar = (page: Page) => api<Demanda>(page, 'POST', '/api/demandas', { titulo: TITULO, tipo: 'melhoria', solicitanteNome: 'Pessoa Ficticia' });
 const espPelaApi = (page: Page, id: string, extra: Record<string, unknown> = {}) => api<Versao>(page, 'POST', `/api/demandas/${id}/especificacoes`, { ...espValida, ...extra });
 const rskPelaApi = (page: Page, id: string, extra: Record<string, unknown> = {}) => api<Versao>(page, 'POST', `/api/demandas/${id}/pareceres-risco`, { ...rskValido, ...extra });
+const totalDeDemandas = async (page: Page) => (await api<{ total: number }>(page, 'GET', '/api/demandas?limit=1')).total;
 const pareceres = async (page: Page, id: string) => (await api<{ itens: Versao[] }>(page, 'GET', `/api/demandas/${id}/pareceres-risco`)).itens;
 const ehServerAction = (r: Request) => r.method() === 'POST' && r.headers()['next-action'] !== undefined;
 const grupo = (page: Page, nome: string) => page.getByRole('group', { name: nome, exact: true });
@@ -143,7 +151,7 @@ test.describe('?base= forjado na T08 e chegada da T08 na T05 com a URL forjada',
 
 test('duplo clique em "Gravar": um envio só e um RSK só; a resposta da Server Action não traz o que foi digitado', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const d = await criar(page);
+  const d = { id: await demandaDoSeed(page, TITULOS_DO_E2E.rskDuploClique) };
   await page.goto(`/demandas/${d.id}/pareceres-risco/novo`);
   await expect(page.getByRole('heading', { level: 1, name: 'Novo parecer de risco' })).toBeVisible();
   const envios: Request[] = [];
@@ -182,7 +190,8 @@ test('duplo clique em "Gravar": um envio só e um RSK só; a resposta da Server 
 
 test('T07 da ESP com a correção da Lista de textos: erro no item 2 de "Escopo inclui"; remover o item 1 leva o erro e o link do resumo para o novo item 1', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const d = await criar(page);
+  const totalAntes = await totalDeDemandas(page);
+  const d = { id: await demandaDoSeed(page, TITULOS_DO_E2E.espListaDeTextos) };
   await page.goto(`/demandas/${d.id}/especificacoes/nova`);
   await expect(page.getByRole('heading', { level: 1, name: 'Nova versão da especificação técnica' })).toBeVisible();
 
@@ -216,4 +225,6 @@ test('T07 da ESP com a correção da Lista de textos: erro no item 2 de "Escopo 
   await expect(page.getByRole('alert').filter({ hasText: 'gravada.' })).toHaveText(`ESP-${d.id}-v1 gravada.`);
   const [esp] = (await api<{ itens: Array<{ escopoInclui: string[] }> }>(page, 'GET', `/api/demandas/${d.id}/especificacoes`)).itens;
   expect(esp!.escopoInclui).toEqual(['Escopo corrigido (fictício)']);
+  // DEC-DEM-20261102-0002-v1 (critério 3): o teste usa a demanda do seed e não cria demanda nenhuma.
+  expect(await totalDeDemandas(page), 'total de demandas antes e depois do teste').toBe(totalAntes);
 });
