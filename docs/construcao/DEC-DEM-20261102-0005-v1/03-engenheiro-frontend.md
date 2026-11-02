@@ -70,7 +70,7 @@ acusou violação.
 - Na linha 24 do cabeçalho, "são" ficou no começo da linha, embora coubesse na linha 23. Foi o texto da triagem e cumpre a regra: a linha 24 não é uma palavra sozinha.
 - `src/` ficou como estava porque o axe passou na tela arquivada. A ESP só manda mexer na tela quando há violação.
 - O banco novo veio do `webServer` do Playwright, que sobe um Testcontainers a cada execução. Por isso não usei o `docker-compose.dev.yml`.
-- A primeira execução do `pnpm test` (a que reprova) rodou com `2>&1 | tail -40`, só para cortar a saída. Repeti o comando sem pipe antes de mudar o `package.json`, e ele reprovou do mesmo jeito. A lista abaixo traz as duas execuções, para registrar o que rodou de fato.
+- Na primeira vez em que rodei a suíte de unidade para ver a falha, passei a saída por um pipe só para cortá-la. Esse formato está fora da lista Pode, então repeti o `pnpm test` sem pipe antes de mudar o `package.json`, e ele reprovou do mesmo jeito (1 falha, `expected '0.1.3' to be '0.1.4'`). Só a execução sem pipe aparece em Comandos executados. O maestro liberou a primeira por ser só leitura.
 
 ## Pendências
 
@@ -81,7 +81,6 @@ acusou violação.
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo construcao/DEC-DEM-20261102-0005-v1, só `test/estatico/projeto.test.ts` alterado naquela hora
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test 2>&1 | tail -40` — reprovou como o esperado: 1 falha (`expected '0.1.3' to be '0.1.4'`) e 3696 aprovados de 3697. Fora do formato do contrato por causa do pipe; repetido sem pipe logo abaixo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — reprovou como o esperado: 1 falha (`expected '0.1.3' to be '0.1.4'`) e 3696 aprovados de 3697
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff` — só as linhas `//` do cabeçalho, a chamada `semViolacoes` nova, o `version` e o `it` da versão
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
