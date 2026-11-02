@@ -149,6 +149,7 @@ sai igual.
 
 ## Decisões tomadas
 
+- Foram lidos, na estruturaAutonoma, o comando /construir e os arquivos dos agentes devops-sre e documentacao-tecnica. A leitura serviu para saber o que o verificar da Parada 3 exige e a quem cabem a versão e o CHANGELOG. Ela foi liberada, e a liberação está registrada no passagens.jsonl.
 - Liberação dada pelo maestro, por delegação de Fabiano, e registrada no `passagens.jsonl`: na 03-correcao, o `engenheiro-frontend` pode editar `scripts/seed-ficticio.ts` e `scripts/scripts.test.ts` (demandas fictícias do seed para o e2e, sem mexer no C-36) e trocar a versão do `package.json` de 0.1.0 para 0.1.1.
 - Engenheiro-frontend, e não backend: a parte maior (`e2e/` e `pnpm test:e2e`) já está na lista Pode dele, e a liberação que falta, `scripts/seed-ficticio.ts` e `scripts/scripts.test.ts`, é a menor.
 - A `decisao.spec.ts` também passa para uma demanda do seed, pelo item (c) da ESP: é dela o +1 que causou o 429, e sem estado de módulo o worker novo não cria demanda.
@@ -165,9 +166,6 @@ sai igual.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma log --oneline -5 -- .claude/commands/construir.md` — 5 commits, arquivo rastreado
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma show HEAD:.claude/agents/documentacao-tecnica.md` — lista Pode: README, CHANGELOG, docs/manual-tecnico e docs/operacao
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma show HEAD:.claude/agents/devops-sre.md` — lista Pode sem e2e/ nem scripts/
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short --branch` — ramo construcao/DEC-DEM-20261102-0002-v1, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -5` — 53462b5 (01-reproducao) sobre dd8ddee (main 0.1.0)
 
