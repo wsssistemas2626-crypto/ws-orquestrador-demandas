@@ -111,7 +111,7 @@ variável nova.
 
 - Nenhum arquivo de entrega mudou: o diff não toca em src, scripts, drizzle, .github, Dockerfile nem na operação, e o contrato da 05 manda alterar só o que a correção exigir.
 - Por liberação do maestro, por delegação de Fabiano (02/11, até 14h de Brasília), rodou o docker build com o caminho absoluto do repositório, em primeiro plano. Resultado: passou, imagem ws-orquestrador-demandas:local (081eeee74a50) com 1,73 GB em disco e 425 MB de conteúdo, igual à 0.1.1.
-- O grep de process.env rodou com o caminho absoluto de src, porque o Bash não troca de pasta; é o mesmo comando da lista Pode, só com o caminho completo, e não lê nada fora de src.
+- Por liberação do maestro, registrada no passagens.jsonl, rodou o grep de process.env em src com o caminho absoluto do repositório, porque o Bash não troca de pasta. Resultado: as mesmas leituras da 0.1.1, e o .env.example cobre todas as variáveis que o código lê.
 - O deploy.md fica como está, como na 05 do pedido 0002: os passos das seções 4, 5 e 6 valem para a 0.1.2, e só mudam o campo "Versão", a frase da :latest na seção 4 e o alvo do rollback na seção 6, que a 06-documentacao atualiza junto com o CHANGELOG da 0.1.2.
 - O homologar e o ensaiar-rollback não rodaram: são critérios da 09, e a Parada 3 os roda.
 
@@ -141,8 +141,6 @@ variável nova.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --format=%H%x20%s -4 main` — main em 30b71b5185cb58d403847b95532e54b5a299e77a (merge do PR #2, 0.1.1)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -10` — 3661a5c (04-revisao) no topo, sobre 30b71b5
 - `docker image ls ws-orquestrador-demandas` — `ws-orquestrador-demandas:local`, 1,73 GB em disco, 425 MB de conteúdo
-- `grep -rn "process.env" /home/deploy/servidor/projetos/ws-orquestrador-demandas/src` — as mesmas leituras da 0.1.1; todas no `.env.example`
-
 ## Critério de pronto atendido
 
 - [x] o CI roda lint, typecheck, test e, se houver tela, e2e (`ci.yml` sem mudança; a spec nova entra no `pnpm test:e2e`)
