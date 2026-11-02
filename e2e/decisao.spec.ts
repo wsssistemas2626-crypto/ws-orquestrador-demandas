@@ -2,8 +2,9 @@
 // sessão da conta fictícia "cto", um DEC novo por teste, todos sobre uma demanda só desta spec (do seed, com a ESP e o
 // RSK gravados na primeira vez que um teste precisa). Uma demanda por teste estourava o limite por ator da suíte inteira (C-36: 30
 // demandas por hora por conta). A ordem do arquivo é a do fluxo: aprovar e a dupla aprovação deixam a demanda em Pronta
-// para decisão; devolver a leva a Em análise; arquivar, a Encerrada, por último. Cada teste roda também sozinho. O
-// pacote de rascunho de agente é o do seed fictício (T33), que nasce "CTO e administradora" (08-correcao, A-04: o nível
+// para decisão; devolver a leva a Em análise; arquivar, a Encerrada; depois, o 404 e a sessão, sem mudar o banco. Cada
+// teste roda também sozinho. O pacote de rascunho de agente é o do seed fictício (T33), que nasce "CTO e administradora"
+// (08-correcao, A-04: o nível
 // do DEC de agente é da regra do servidor), e nenhum teste daqui registra decisão nele. O P1-b usa um DEC de pessoa de
 // nível "Só o CTO", criado pela "cto". Com A-02 (só um DEC aprovado por demanda), a dupla aprovação usa uma demanda
 // própria, que vem do seed (TITULOS_DO_E2E.duplaAprovacao) e não da API, pelo mesmo limite C-36; ela troca a sessão da
@@ -15,11 +16,13 @@
 // mesmo banco (homologação reaproveitada, --repeat-each). Cada teste confere pela API o estado de que precisa antes de
 // qualquer POST, e não supõe o número da versão (proximoId):
 //   - exigem banco recém-semeado: "nível cto: aprovar A" e "dupla aprovação" (a demanda não pode ter DEC aprovado: A-02
-//     recusa o segundo) e "CA-12.4" (a demanda tem de estar num status de onde a devolução a leva a Em análise; depois
-//     do "Arquivar" ela fica Encerrada, que é final). Fora do CI, eles são pulados com a mensagem "exige banco
-//     recém-semeado: ..."; no CI, o banco é sempre novo (Testcontainers), e a mesma pré-condição falsa reprova o teste;
+//     recusa o segundo), "CA-12.4" (a demanda tem de estar num status de onde a devolução a leva a Em análise; depois
+//     do "Arquivar" ela fica Encerrada, que é final) e "Arquivar" (só a partida de ORIGENS_DO_FLUXO prova a mudança para
+//     Encerrada: B-01 do DEC-DEM-20261102-0003-v1, corrigido no DEC-DEM-20261102-0004-v1). Fora do CI, eles são pulados
+//     com a mensagem "exige banco recém-semeado: ..."; no CI, o banco é sempre novo (Testcontainers), e a mesma
+//     pré-condição falsa reprova o teste;
 //   - rodam em qualquer banco: C-14, M-01, P1-b, A-02 (o segundo DEC aprovado recebe o 409, e a demanda fica com um só
-//     DEC aprovado) e "Arquivar".
+//     DEC aprovado) e o de 404 e sessão.
 // Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
@@ -340,19 +343,30 @@ test('CA-12.4: desatualizado: aviso, Aprovar indisponível e explicado; Devolver
   await semViolacoes(page, 'T11 devolvido');
 });
 
-test('Arquivar → "Pacote arquivado. A demanda foi para Encerrada."; 404 e sem sessão', async ({ page }) => {
+test('Arquivar → "Pacote arquivado. A demanda foi para Encerrada."', async ({ page }) => {
   await entrarComo(page, 'cto');
   const demandaId = await demandaDoSeed(page, TITULO);
   const status = await statusDa(page, demandaId);
-  // Encerrada já é o destino: numa execução repetida, o arquivamento grava e a demanda continua Encerrada.
-  exigeBancoRecemSemeado([...ORIGENS_DO_FLUXO, 'encerrada'].includes(status), `a demanda ${demandaId} está ${status}, e o arquivamento não a leva a Encerrada`);
+  // Só a partida de ORIGENS_DO_FLUXO prova a mudança para Encerrada: é a origem de decisao_arquivada. De Encerrada,
+  // que é final, arquivar grava a decisão e não muda o status; e o alerta é texto fixo. Por isso o teste confere o
+  // status antes e depois de arquivar.
+  exigeBancoRecemSemeado(ORIGENS_DO_FLUXO.includes(status), `a demanda ${demandaId} está ${status}, e o arquivamento não prova a mudança para Encerrada`);
   const decId = await novoPacote(page, await completarEspERsk(page, demandaId), 'cto');
+  // De qualquer status de ORIGENS_DO_FLUXO, o DEC novo leva a demanda a Pronta para decisão (dec_criado), que é origem
+  // de decisao_arquivada: o status antes de arquivar é sempre pronta_para_decisao.
+  expect(await statusDa(page, demandaId), `status da demanda ${demandaId} antes de arquivar`).toBe('pronta_para_decisao');
   await page.goto(`/pacotes-decisao/${decId}`);
   await decisao(page, 'Arquivar').check();
   await confirmar(page);
   await expect(page.getByRole('alert').filter({ hasText: 'Pacote arquivado' })).toHaveText('Pacote arquivado. A demanda foi para Encerrada.');
-  expect(await statusDa(page, demandaId)).toBe('encerrada');
+  expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('arquivada');
+  expect(await statusDa(page, demandaId), `status da demanda ${demandaId} depois de arquivar`).toBe('encerrada');
+});
 
+// Sem pré-condição e sem POST: vale em qualquer banco, e roda também quando o "Arquivar" é pulado numa execução repetida.
+test('404 para DEC inexistente, id de outro tipo e caminho inválido; sem sessão, a decisão vai para /entrar', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const demandaId = await demandaDoSeed(page, TITULO);
   // N-01: a versão que não existe é a seguinte à mais nova, lida agora; nada é criado entre a leitura e o goto.
   const decInexistente = proximoId('DEC', demandaId, (await pacotes(page, demandaId)).map((p) => p.id));
   for (const caminho of [`/pacotes-decisao/${decInexistente}`, `/pacotes-decisao/ESP-${demandaId}-v1`, '/pacotes-decisao/qualquer-coisa']) {
@@ -360,6 +374,8 @@ test('Arquivar → "Pacote arquivado. A demanda foi para Encerrada."; 404 e sem 
     expect(r?.status(), caminho).toBe(404);
     await expect(page.getByRole('heading', { level: 1, name: 'Página não encontrada' })).toBeVisible();
   }
+  // O DEC de agente do seed existe em qualquer banco (o C-14 depende dele).
+  const decId = await idDoDecDeRascunhoDoSeed(page);
   await page.context().clearCookies();
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page).toHaveURL(/\/entrar\?/);

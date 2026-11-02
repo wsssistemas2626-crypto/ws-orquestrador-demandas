@@ -1,2 +1,3 @@
 {"pedido":"DEC-DEM-20261102-0004-v1","etapa":"01-reproducao","de":"qa-funcional","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-11-02T16:58:00.000Z","fim":"2026-11-02T17:08:21.458Z","minutos":10,"motivo":null}
 {"pedido":"DEC-DEM-20261102-0004-v1","etapa":"02-triagem","de":"tech-lead","para":"engenheiro-frontend","status":"pronto","volta":0,"inicio":"2026-11-02T17:08:21.000Z","fim":"2026-11-02T17:12:00.581Z","minutos":4,"motivo":null}
+{"pedido":"DEC-DEM-20261102-0004-v1","etapa":"03-correcao","de":"engenheiro-frontend","para":"qa-automacao","status":"pronto","volta":0,"inicio":"2026-11-02T17:12:01.000Z","fim":"2026-11-02T17:41:11.039Z","minutos":29,"motivo":null}
