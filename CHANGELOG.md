@@ -3,6 +3,115 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.3 — 2026-11-02
+
+Correção do pedido `DEC-DEM-20261102-0004-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.2 (`b8a8c44`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano.
+
+**Nenhum comportamento do sistema muda.** Mudaram só `e2e/decisao.spec.ts`, a conferência da versão em
+`test/estatico/projeto.test.ts` e o campo `version` do `package.json`. Não mudaram `src/`, `scripts/`, `drizzle/`,
+`.github/`, `Dockerfile`, `playwright.config.ts`, `e2e/apoio.ts`, `e2e/preparacao.ts` nem a função
+`exigeBancoRecemSemeado`. Não há migration nova nem variável de ambiente nova. A imagem só difere da 0.1.2 no
+`package.json`: `e2e/` e `test/` não entram nela.
+
+Fecha a B-01 da revisão da 0.1.2 (seção abaixo): o "Arquivar" aceitava a demanda já `encerrada` e passava sem provar a
+mudança de status.
+
+### O que mudou
+
+- **O teste "Arquivar" prova a mudança para Encerrada também fora do CI** (`e2e/decisao.spec.ts:346`, título
+  `Arquivar → "Pacote arquivado. A demanda foi para Encerrada."`, sem o "; 404 e sem sessão" de antes).
+  - A pré-condição (`:353`) aceita só a partida de um status de `ORIGENS_DO_FLUXO` (`nova`, `em_analise`,
+    `aguardando_informacao`, `pronta_para_decisao`), a origem da transição `decisao_arquivada`. `encerrada` deixou de ser
+    aceita: dela, arquivar grava a decisão mas não muda o status.
+  - Com a demanda já `encerrada` e sem a variável `CI`, o teste é pulado com a mensagem
+    `exige banco recém-semeado: a demanda <DEM-id> está encerrada, e o arquivamento não prova a mudança para Encerrada`.
+    Com `CI` (GitHub Actions e `construir.mjs homologar`), a mesma pré-condição falsa **reprova** o teste.
+  - O teste confere o status antes e depois de arquivar: `pronta_para_decisao` depois do DEC novo e antes de arquivar
+    (`:357`), `statusDecisao` `arquivada` no DEC (`:362`) e `encerrada` na demanda (`:363`). O alerta "Pacote arquivado.
+    A demanda foi para Encerrada." é texto fixo e não serve de prova sozinho.
+- **Teste novo de 404 e sessão, separado do "Arquivar"** (`e2e/decisao.spec.ts:367`,
+  `404 para DEC inexistente, id de outro tipo e caminho inválido; sem sessão, a decisão vai para /entrar`). As
+  conferências que estavam no fim do "Arquivar" (três caminhos com 404 e o redirecionamento para `/entrar` sem sessão)
+  foram para ele, sem perder nenhuma. Não tem pré-condição nem POST e roda em qualquer banco, inclusive quando o
+  "Arquivar" é pulado numa execução repetida. A sessão usa o DEC de rascunho de agente do seed, e o 404 usa a versão
+  seguinte à mais nova, lida no próprio teste.
+- **Comentário do cabeçalho da `decisao.spec.ts`:** o "Arquivar" passou para a lista dos testes que exigem banco
+  recém-semeado, e o de 404 e sessão foi para a dos que rodam em qualquer banco.
+- **Versão:** o `package.json` passou de 0.1.2 para 0.1.3, e `test/estatico/projeto.test.ts` confere a versão nova.
+- **Documentação:**
+  - estas notas;
+  - a versão no `README.md` e no manual técnico;
+  - em `docs/operacao/deploy.md`: a versão, a primeira publicação com a 0.1.3 (seção 4) e o rollback da 0.1.3
+    (seção 6).
+
+Não houve `.skip`, `.only`, `.fixme` ou `.todo` novo, nem asserção afrouxada. O axe (`semViolacoes`), o C-36 e a A-02
+ficaram iguais, e `retries`, `workers` e `fullyParallel` não mudaram.
+
+### Verificações desta versão
+
+- `pnpm test`: 192 arquivos, 3.697 de 3.697 (`03-engenheiro-frontend.md` e `04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143, sem teste pulado, três vezes seguidas, cada uma com banco
+  novo (`04-qa-automacao.md`).
+- `e2e/decisao.spec.ts --repeat-each=3` num banco só, sem `CI`: 19 passaram, 8 pulados com a mensagem
+  `exige banco recém-semeado: ...` e nenhuma falha. A 1.ª repetição passa os 9 testes; a 2.ª e a 3.ª passam 5 (C-14,
+  M-01, P1-b, A-02 e o de 404 e sessão) e pulam 4 ("nível cto: aprovar A", "dupla aprovação", "CA-12.4" e
+  "Arquivar").
+- Reprodução do defeito, `--grep "Arquivar" --repeat-each=2`: com as conferências novas e a pré-condição antiga, a 2.ª
+  repetição falhou em "antes de arquivar" (esperado `pronta_para_decisao`, recebido `encerrada`); com a correção, ela é
+  pulada com a mensagem (`03-engenheiro-frontend.md`).
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico, alto ou médio.
+- `docker build` local: imagem de 1,73 GB em disco e 425 MB de conteúdo, igual à 0.1.2, nada publicado
+  (`05-devops-sre.md`).
+- O ramo com `CI` do "Arquivar" foi provado pela leitura: a prova executada fica com o `construir.mjs homologar` (que
+  passa `CI`) e com o CI do PR, na Parada 3. A homologação e o ensaio de rollback (`construir.mjs ensaiar-rollback`)
+  também ficam para a Parada 3.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), em testes e sem efeito no sistema:
+
+- **B-1 (baixo, estético), para quem mexer na `decisao.spec.ts` da próxima vez.** No comentário de cabeçalho
+  (`e2e/decisao.spec.ts:6-8`), a quebra de linha deixou "(08-correcao, A-04: o nível" sozinho numa linha.
+- **Axe no estado "arquivado" (observação, não é achado deste pedido).** O cabeçalho da `decisao.spec.ts` diz que o axe
+  roda nos estados pendente, desatualizado, com erro e decidido, mas o estado arquivado não tem `semViolacoes`. Já era
+  assim na 0.1.2. Se o time quiser cobrir, cabe num pedido próprio.
+- Para Fabiano: continuam as pendências da primeira publicação registradas nos PR #1 a #3 (abaixo).
+
+Da entrega (`05-devops-sre.md`), para Fabiano:
+
+- **Segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER`.** Ainda não existem no GitHub. Até existirem:
+  - todo push na `main` publica a imagem no GHCR (`:<sha>`, `:v0.1.3`, `:latest`) e fica vermelho no passo "Disparar o
+    Easypanel", sem deploy;
+  - a limpeza das versões antigas do GHCR não roda, e o pacote acumula mais de 2 versões.
+
+  O merge da 0.1.3 cai nesse caso. Antes de qualquer passo, tire um snapshot da VPS no hPanel.
+- **Primeira publicação de verdade** pela seção 4 do `docs/operacao/deploy.md`, com a `:latest`, que depois do merge é
+  a 0.1.3, e as mesmas 7 migrations da 0.1.0. A 0.1.3 não traz migration: a seção 5 (backup → migrate → deploy) não se
+  aplica a ela.
+- **Rollback da 0.1.3** pelo caminho A (só trocar a imagem de `worker` e `app`, sem restaurar backup), para
+  `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:b8a8c4457dc0603ffb2fc30418cfe906d6684131` (a `v0.1.2`, merge
+  do PR #4). Se essa tag não estiver em Packages, a alternativa com o mesmo código é a do merge do PR #3
+  (`01a26a8321a1bd630c6bb1f70a8b68bfa5bd775f`). Antes de voltar, confirme a tag em Packages: o `devops-sre` não
+  conferiu o GHCR. Na cadeia curta a volta não foi ensaiada: o ensaio é o `ensaiar-rollback` da Parada 3.
+- **Conferência do `.env.example` sem grep nesta versão.** Como `src/` não mudou, ela se apoia no diff vazio e na
+  conferência com grep da 0.1.2. Nenhuma variável nova.
+- Continuam de antes, sem mudança neste pedido: as actions por SHA e a imagem de cerca de 1,7 GB por causa do `tsx`
+  (seção 10 do `deploy.md`).
+- A imagem local `ws-orquestrador-demandas:local` (1,73 GB, agora a da 0.1.3) ficou no Docker da VPS. Apagá-la depende
+  de confirmação de Fabiano.
+
+Registrada nas outras etapas deste pedido, fora do escopo dele:
+
+- **N-04, observação de produto** (`01-qa-funcional.md`, `02-tech-lead.md`, `04-qa-automacao.md`): a API aceita criar e
+  arquivar DEC numa demanda Encerrada, e o alerta diz "A demanda foi para Encerrada." mesmo quando ela já estava. Fica
+  para uma demanda própria, se Fabiano quiser, com o `analista-requisitos`.
+
+Continuam abertas, sem mudança, as pendências da 0.1.2 registradas nas outras etapas (limite do C-36 em execuções
+repetidas, teste C-13 sensível a CPU, login TOTP em falhas em sequência, buscadores do seed nas outras specs) e as da
+0.1.0 (seção abaixo).
+
 ## 0.1.2 — 2026-11-02
 
 Correção do pedido `DEC-DEM-20261102-0003-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.1 (`30b71b5`). Ainda
