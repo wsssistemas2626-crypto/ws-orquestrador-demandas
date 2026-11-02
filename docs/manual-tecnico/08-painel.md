@@ -40,7 +40,10 @@ A verificação fica em `semViolacoes` (`e2e/apoio.ts`) e exige zero violação.
 `<title>` não vazio, por até 5 s. Depois de uma Server Action, o Next 16 re-renderiza a página, e o título chega por
 streaming depois do corpo. Se o título não chegar, o axe roda assim mesmo e reprova pela regra `document-title`.
 Nenhuma regra é desligada nem filtrada. O `e2e/sem-violacoes.spec.ts` confere os dois casos: título atrasado passa,
-tela sem título reprova.
+tela sem título reprova. Na decisão (T11), o axe roda também na tela arquivada, depois do alerta "Pacote arquivado. A
+demanda foi para Encerrada." (`e2e/decisao.spec.ts`, teste "Arquivar"). O `test/estatico/decisao-e2e.test.ts`, que roda
+no `pnpm test`, reprova se algum `e2e/**/*.ts` usar `disableRules`, `disableOtherRules`, `exclude`, `include`,
+`withRules` ou `options` do axe, ou se outro arquivo além de `e2e/apoio.ts` montar o `AxeBuilder`.
 
 ## Pendências de interface conhecidas
 
