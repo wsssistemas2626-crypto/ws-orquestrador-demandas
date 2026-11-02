@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
 import { relogioDoSistema } from '../src/lib/relogio';
 import { codigoTotp } from '../test/sessao';
+import { procurarEmPaginas, TAMANHO_DA_PAGINA } from './preparacao';
 
 // 03, seção 5, e RNF-11: as regras do axe que toda tela cumpre.
 export const TAGS_AXE = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const;
@@ -70,9 +71,14 @@ export async function semViolacoes(page: Page, rotulo: string): Promise<void> {
 
 // Uma demanda própria do e2e, criada pelo seed fictício (scripts/seed-ficticio.ts, TITULOS_DO_E2E) e procurada pelo
 // título entre as de tipo melhoria: o teste não gasta o limite de demandas por hora da conta (C-36).
+// DEC-DEM-20261102-0003-v1 (N-03): a busca percorre as páginas (procurarEmPaginas), porque numa homologação reaproveitada
+// as demandas que o e2e cria pela API empurram as do seed para fora da primeira página.
 export async function demandaDoSeed(page: Page, titulo: string): Promise<string> {
-  const { itens } = await api<{ itens: { id: string; titulo: string }[] }>(page, 'GET', '/api/demandas?tipo=melhoria&limit=100');
-  const d = itens.find((x) => x.titulo === titulo);
+  const d = await procurarEmPaginas(
+    (offset) =>
+      api<{ itens: { id: string; titulo: string }[]; total: number }>(page, 'GET', `/api/demandas?tipo=melhoria&limit=${TAMANHO_DA_PAGINA}&offset=${offset}`),
+    (x) => x.titulo === titulo,
+  );
   if (!d) throw new Error(`e2e: o seed não tem a demanda "${titulo}"`);
   return d.id;
 }

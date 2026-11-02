@@ -1,7 +1,12 @@
 // e2e do painel (T36). Sem BASE_URL, o Playwright sobe o próprio servidor (e2e/servidor.ts: Postgres descartável pelo
 // Testcontainers, migrations, seed fictício, `next build` e `next start` na porta 3101, só em 127.0.0.1: o build de
 // produção, desde a 08-correcao). Com BASE_URL, roda os mesmos testes contra um ambiente já de pé (homologação), sem
-// subir nada. Os dados de cada teste são criados pela API.
+// subir nada. Os dados do e2e vêm de duas fontes:
+//   - o seed fictício (scripts/seed-ficticio.ts): as contas de CONTAS_FICTICIAS, o DEC de rascunho de agente e as
+//     demandas de TITULOS_DO_E2E, achadas pelo título (e2e/apoio.ts, demandaDoSeed);
+//   - a API, pela sessão da página (e2e/apoio.ts, api): as demandas e as versões que os testes criam.
+// As demandas do seed acumulam versões e decisões entre execuções contra o mesmo banco (homologação reaproveitada). O
+// teste que precisa de banco recém-semeado diz isso ao ser pulado ("exige banco recém-semeado: ...").
 import { defineConfig, devices } from '@playwright/test';
 
 const BASE_URL = process.env.BASE_URL;
