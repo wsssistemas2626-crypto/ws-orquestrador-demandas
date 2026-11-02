@@ -140,7 +140,6 @@ Total: **27 de 30**, contra 30 de 30 antes. Nenhuma criação de demanda depende
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short --branch` — ramo construcao/DEC-DEM-20261102-0002-v1, limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas exec vitest run scripts/scripts.test.ts` — 2 falharam, 31 passaram (teste antes do código)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts` — 2 falharam, 31 passaram (teste antes do código)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/sem-violacoes.spec.ts e2e/parecer-risco-qa.spec.ts` — 2 falharam, 7 passaram (teste antes do código)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
