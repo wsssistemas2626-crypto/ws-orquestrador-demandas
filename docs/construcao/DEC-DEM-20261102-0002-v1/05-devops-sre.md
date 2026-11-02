@@ -120,7 +120,7 @@ Daí em diante, versões sem migration seguem sozinhas pelo webhook, e o rollbac
 ## Decisões tomadas
 
 - Nenhum arquivo de entrega mudou: o diff não toca em `src/`, `drizzle/`, `.github/`, `Dockerfile` nem na operação, e o contrato da 05 manda alterar só o que a correção exigir.
-- O build e o grep rodaram com caminho absoluto: o Bash desta etapa não troca de pasta, e o maestro liberou essas duas formas, com registro no `passagens.jsonl`.
+- Por liberação do maestro, registrada no passagens.jsonl, rodaram fora da lista Pode a troca de pasta (que não persistiu), o docker build com o caminho absoluto do repositório e o grep de process.env em src com caminho absoluto. Resultado: imagem local construída com 1,73 GB em disco e 425 MB de conteúdo, e o .env.example cobre todas as variáveis que o código lê.
 - O campo "Versão" do `deploy.md` fica `0.1.0` aqui: não muda nenhum passo, e a `06-documentacao` já atualiza a versão (CHANGELOG da 0.1.1 e B-02) e pode trocar o campo na mesma passada.
 - Registrei que o merge publica a imagem, mesmo sem os segredos: o `deploy.yml` roda "Publicar" antes do passo dos webhooks. Só o deploy no Easypanel fica de fora.
 - O `homologar` e o `ensaiar-rollback` não rodaram: são critérios da 09, e a Parada 3 os roda.
@@ -141,12 +141,9 @@ Daí em diante, versões sem migration seguem sozinhas pelo webhook, e o rollbac
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — 28e5c66 (04-revisao) no topo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat main...HEAD` — 15 arquivos, 8 de código; fora do diff: `src/`, `drizzle/`, `.github/`, Dockerfile e `docs/operacao/`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff main...HEAD -- package.json` — só `version` 0.1.0 → 0.1.1
-- `cd /home/deploy/servidor/projetos/ws-orquestrador-demandas` — a pasta não persistiu para a chamada seguinte
-- `git status` — `On branch main` da estruturaAutonoma: o Bash não trocou de pasta
+- `git status` — `On branch main` da estruturaAutonoma: o Bash não roda na pasta do repositório
 - `docker image ls ws-orquestrador-demandas` — nenhuma imagem local (antes do build)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --format=%H%x20%s -3 main` — main em dd8ddee6d8a30cda8dff0f1a45f0abe30db8f364 (merge do PR #1, 0.1.0)
-- `docker build -t ws-orquestrador-demandas:local /home/deploy/servidor/projetos/ws-orquestrador-demandas` — passou, imagem 26367a38b1ef (liberado pelo maestro)
-- `grep -rn "process.env" /home/deploy/servidor/projetos/ws-orquestrador-demandas/src` — só variáveis já no `.env.example` (liberado pelo maestro)
 - `docker image ls ws-orquestrador-demandas` — `ws-orquestrador-demandas:local`, 1,73 GB em disco, 425 MB de conteúdo
 
 ## Critério de pronto atendido
