@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 31/10/2026 |
+| Atualizado em | 03/11/2026 (0.1.5: status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09 |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
@@ -80,6 +80,18 @@ Nove status. As transições manuais são só de pessoa, pelo `PATCH`; as autom�
 
 Regras extras da manual: ir para `aprovada` exige um DEC aprovado e não desatualizado na demanda; tipo `estudo` não
 vai para `em_construcao`. Recusa dá 409 com o motivo.
+
+Os status finais são os que não têm transição manual de saída: `entregue` e `encerrada`. A lista sai da própria tabela
+de transições (`STATUS_FINAIS` e `ehStatusFinal` em `transicoes.ts`), sem segunda lista em outro módulo. Numa demanda em
+status final:
+
+- criar ESP, RSK ou DEC, pela pessoa ou pelo agente, dá 409 com a mensagem fixa (`MENSAGEM_DEMANDA_FINAL`,
+  [cap. 04](04-versoes-e-decisao.md));
+- a execução de agente que já estava na fila termina `ignorada`, sem chamar o provedor
+  ([cap. 06](06-agentes-de-ia.md#rf-16-execução-dos-agentes)).
+
+Decidir um DEC que já existia e gerar o Pedido dele **não** conferem o status da demanda nesta versão (pendência da
+0.1.5 no [CHANGELOG](../../CHANGELOG.md)).
 
 | Automática | Quando | De | Para |
 |---|---|---|---|

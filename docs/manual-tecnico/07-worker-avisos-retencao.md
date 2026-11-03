@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 31/10/2026 |
+| Atualizado em | 03/11/2026 (0.1.5: nova tentativa do aviso no RF-25) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-24, RF-25; RNF-05, RNF-08 |
 | Fontes no código | `src/worker/index.ts`, `src/worker/iniciar.ts`, `src/jobs/`, `src/modules/avisos/` (`aviso-dec.ts`, `enviador.ts`), `src/modules/retencao/expurgar.ts`, `src/modules/agentes/situacao-worker.ts`, `src/lib/env-worker.ts` |
@@ -45,12 +45,24 @@ Cada instância grava o próprio batimento em `worker_batimento` ao subir e a ca
   conteúdo da demanda. O destinatário vem só de `EMAIL_AVISO_DECISAO`, o remetente de `EMAIL_REMETENTE`; nada vem de
   cabeçalho de requisição.
 - Status: `enviado` (com o id do provedor e a data), `sem_provedor` (falta chave, remetente ou destinatário; não chama
-  ninguém), `pendente` ou `falhou`. São 3 tentativas no total (1 + 2 da fila); na 3ª falha, `falhou`, log de erro e
-  Sentry. `enviado`, `sem_provedor` e `falhou` não tentam de novo.
+  ninguém), `pendente` ou `falhou`. `enviado`, `sem_provedor` e `falhou` não tentam de novo.
+- Tentativas: 3 no total (1 + as 2 novas tentativas da fila, `retryLimit: 2`; `TENTATIVAS_AVISO` em `aviso-dec.ts`).
+  Cada falha soma 1 em `aviso_email.tentativas`. O que acontece depende do tipo de falha (`enviador.ts` classifica, e
+  `enviarAviso` decide; regra da 0.1.5, M-03):
+
+  | Falha | Classificação | O que acontece |
+  |---|---|---|
+  | Resend responde 4xx que não é 429 (por exemplo 400, 401, 403, 422) | `recusado` | `falhou` na hora, na 1ª tentativa; log de erro `aviso_email_falhou` e Sentry; o job termina sem erro |
+  | Resend responde 429 ou 5xx; erro de rede; tempo limite; resposta fora do formato | `transitorio` | conta a tentativa e fica `pendente`; log `aviso_email_falha` e a fila tenta de novo; na 3ª, `falhou`, `aviso_email_falhou` e Sentry |
+  | Erro fora do enviador (montar o e-mail, banco no meio do envio) | erro inesperado | desfaz a transação do envio; a tentativa é contada numa transação nova, com a trava da linha, e segue a regra do `transitorio` |
+  | Banco fora (nem a contagem grava) | erro inesperado | sobe sem contar; o handler (`src/jobs/aviso-dec-pronto.ts`) loga `aviso_erro_inesperado`, manda ao Sentry e relança para a fila |
+
+  Com a trava, jobs concorrentes do mesmo DEC com erro inesperado não somam a mesma tentativa duas vezes: o aviso
+  termina com exatamente 3. Se o aviso já saiu de `pendente` quando o erro é contado, nada é somado.
+- Limite conhecido (B-2 da 0.1.5): um erro depois de o Resend aceitar o e-mail (falha ao gravar `enviado` ou no commit)
+  também conta tentativa. O `Idempotency-Key` impede o reenvio, mas, depois de três erros assim, o aviso fica `falhou`
+  com o e-mail entregue.
 - Resend com tempo limite de 10 s. Nos testes e no CI não há envio real (RNF-14).
-- Limite conhecido (M-03, aberto): erro inesperado no envio gasta as novas tentativas da fila sem somar
-  `aviso_email.tentativas`, e o aviso pode ficar `pendente` para sempre; a recusa definitiva do Resend (4xx) é tentada
-  de novo.
 - Remetente: o domínio de `EMAIL_REMETENTE` precisa de SPF e DKIM no Resend ([deploy.md, seção 3](../operacao/deploy.md)).
 
 ## RF-24. Expurgo do texto bruto

@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 31/10/2026 |
+| Atualizado em | 03/11/2026 (0.1.5: recusa em status final e citação do DEC da consolidação) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-08 a RF-14 |
 | Fontes no código | `src/modules/especificacoes/`, `src/modules/pareceres-risco/`, `src/modules/pacotes-decisao/` (`criar.ts`, `decidir.ts`, `desatualizado.ts`, `consultas.ts`, `schemas.ts`), `src/modules/versoes.ts`, `drizzle/0003_rls_privilegios_dominio.sql` |
@@ -10,6 +10,17 @@
 Toda gravação de ESP, RSK ou DEC é uma versão nova. Criar e decidir fazem `SELECT … FOR UPDATE` na linha da demanda:
 isso serializa a versão N e fecha a corrida entre uma aprovação e uma ESP nova (C-13). Cada criação conta no limite de
 60 versões por hora por ator (ESP, RSK e DEC somados); acima, 429.
+
+Na criação de ESP, RSK e DEC, a ordem dentro da transação é: trava da demanda → recusa em status final → limite por
+ator → o resto. Numa demanda `entregue` ou `encerrada` ([cap. 03](03-demandas.md#rf-07-status-e-transições)), a
+criação, pela pessoa ou pelo agente, responde 409:
+
+```json
+{ "erro": "conflito", "mensagem": "Esta demanda está em status final. Não aceita nova especificação, parecer de risco nem pacote de decisão." }
+```
+
+A recusa vem antes de qualquer insert, evento, agente disparado, aviso ou job, e antes do limite: numa demanda final,
+o ator que já passou do limite recebe 409, e não 429 (`recusarSeDemandaFinal`, `src/modules/demandas/transicoes.ts`).
 
 ## RF-08. Especificação técnica (ESP)
 
@@ -54,8 +65,16 @@ RSK gravado numa demanda que já tem ESP dispara o agente `consolidacao`, se lig
 - Corpo: `resumoExecutivo` (obrigatório), `opcaoA` e `opcaoB` (cada uma com `descricao` obrigatória e `vantagens`,
   `desvantagens`, `quandoEscolher` opcionais), `recomendacao` opcional e `nivelAprovacaoRequerido` (`cto` ou
   `cto_e_administradora`).
-- O DEC cita a ESP e o RSK **de maior versão** da demanda no momento da gravação, e grava uma cópia do tipo, do título
-  e da descrição da demanda, que não muda se a demanda for editada.
+- Qual ESP e qual RSK o DEC cita, lidos sob a trava da demanda:
+  - DEC de pessoa (painel, rota ou Server Action) e DEC pela rota com o token da `consolidacao`: a ESP e o RSK **de
+    maior versão** da demanda no momento da gravação;
+  - DEC gravado pelo worker da consolidação: a ESP e o RSK **que o agente leu** (`citados` de `montarEntrada`, passados
+    como `especificacaoId` e `parecerRiscoId` em `ExtrasDoPacote`). A leitura filtra por id e por demanda; id
+    inexistente ou de outra demanda dá 404 e nada é gravado. Se entrou versão mais nova depois da leitura, o DEC nasce
+    desatualizado (RF-12) (M-01, corrigido na 0.1.5).
+  - `especificacaoId` e `parecerRiscoId` nunca vêm do corpo da requisição nem da saída do modelo: o schema da rota não
+    tem esses campos, e o que vier a mais é descartado (C-11, C-25).
+- O DEC grava uma cópia do tipo, do título e da descrição da demanda, que não muda se a demanda for editada.
 - Sem ESP ou sem RSK: 400 "Faltam itens para o pacote." com `faltando: ["especificacao", "parecer_risco"]` (o que
   faltar).
 - **DEC de agente nasce sempre `cto_e_administradora`** (`NIVEL_DO_DEC_DE_AGENTE`, A-04 da 08): o schema de saída da
@@ -63,8 +82,8 @@ RSK gravado numa demanda que já tem ESP dispara o agente `consolidacao`, se lig
   nova do DEC.
 - Na mesma transação: a demanda vai a `pronta_para_decisao` (ator `sistema`) e o aviso por e-mail fica pendente, com
   o job ([cap. 07](07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail)).
-- Limite conhecido (M-02, aberto): criar ESP, RSK ou DEC não confere o status da demanda; numa demanda `encerrada` ou
-  `entregue` a gravação passa e dispara agente e aviso.
+- Demanda em status final: 409 antes de gravar (início deste capítulo; M-02, corrigido na 0.1.5 para a criação).
+  Decidir um DEC já existente e gerar o Pedido dele não conferem o status da demanda (pendência da 0.1.5).
 
 ## RF-11. Imutabilidade
 
@@ -80,6 +99,9 @@ geração do pedido.
 
 - DEC desatualizado não pode ser aprovado: 409 "o pacote está desatualizado e não pode ser aprovado.". Devolver e
   arquivar continuam possíveis.
+- O DEC da consolidação pode **nascer** desatualizado: ele cita a ESP e o RSK que o agente leu, e uma versão mais nova
+  pode ter entrado entre o agendamento e a gravação (RF-10). Ele leva a demanda a `pronta_para_decisao` e agenda o aviso
+  como qualquer DEC; a execução disparada pela versão nova gera o DEC que cita a mais nova.
 - Pedido de Construção de DEC desatualizado: 409, e a tela esconde a seção do pedido
   ([cap. 05](05-pedido-de-construcao.md)).
 

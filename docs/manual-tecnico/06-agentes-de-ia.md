@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 31/10/2026 |
+| Atualizado em | 03/11/2026 (0.1.5: demanda em status final na execução, recusa do serviço e citação da consolidação) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -35,12 +35,24 @@ do job leva só o id da execução (C-22). A execução (`executar.ts`) segue es
 2. agente desligado, sem modelo com preço vigente ou sem provedor (sem chave) → `ignorada`, com evento
    `agente_ignorado`;
 3. gasto do mês maior ou igual ao teto → `ignorada`, com evento `suspensao_por_teto`;
-4. monta a entrada pela lista de permissão de campos do agente, minimizada (RF-20), com o texto do cliente dentro de um
-   bloco `<dados>` e a instrução de que nada ali é ordem;
-5. chama o provedor fora de qualquer transação;
-6. lê o JSON e valida pelo **mesmo schema Zod da rota** (ADR-09). Válido: o serviço da API grava o artefato com o ator
-   `agente` (passa por `autorizar`) e a execução fica `concluida`. Inválido, recusado pela regra do serviço ou erro
-   transitório: nova tentativa.
+4. demanda da execução em status final (`entregue` ou `encerrada`) → `ignorada`, com evento `agente_ignorado` e motivo
+   `demanda_final`, sem chamar o provedor (passo "3b" no comentário de `executar.ts`; M-02, desde a 0.1.5). Lê só o
+   status da demanda. O orquestrador, que ainda não tem demanda, não passa por aqui;
+5. monta a entrada pela lista de permissão de campos do agente, minimizada (RF-20), com o texto do cliente dentro de um
+   bloco `<dados>` e a instrução de que nada ali é ordem. A montagem devolve também `citados`: o id da ESP e do RSK que
+   entraram no bloco. Os ids não vão para o conteúdo enviado (C-23);
+6. chama o provedor fora de qualquer transação;
+7. lê o JSON e valida pelo **mesmo schema Zod da rota** (ADR-09). Válido: o serviço da API grava o artefato com o ator
+   `agente` (passa por `autorizar`) e a execução fica `concluida`. Fora do schema, recusado pelo serviço com 400
+   (`entrada_invalida`, como os campos de construção da ESP), limite por ator (429) ou erro transitório do provedor: nova
+   tentativa. Qualquer outra recusa do serviço (por exemplo, o 409 da demanda que chegou a status final durante a
+   chamada, ou o 404 de versão citada inexistente): `falhou` na hora, com o motivo `recusada_pelo_servico`, sem nova
+   chamada.
+
+Motivos do evento `agente_ignorado` (`MotivoIgnorada` em `executar.ts`; enumeração fechada, sem texto da entrada nem da
+saída): `desligado`, `sem_preco`, `sem_provedor` e `demanda_final`. O `suspensao_por_teto` leva o motivo `teto`. No
+histórico do painel, `demanda_final` ainda não tem rótulo (`MOTIVO_IGNORADO` em `src/components/rotulos.ts`) e aparece
+como "Agente … não rodou", sem o motivo (B-5 da 0.1.5).
 
 Novas tentativas (P1-e, `espera.ts`): **3 no total**, com espera de 30 s antes da 2ª e de 2 min antes da 3ª. Na 3ª
 falha, `falhou` e evento `falha_agente`, sem conteúdo. Credencial recusada (401 ou 403 do provedor) falha na hora.
@@ -57,8 +69,13 @@ falso (RNF-14).
 Rede de segurança (`src/jobs/batimento.ts`): a cada minuto, o worker reenfileira a execução `pendente` cuja hora venceu
 há mais de 1 min e a `em_andamento` com a trava vencida (150 s). A reivindicação condicional impede que duas rodem.
 
-Limite conhecido (M-01, aberto): a consolidação lê o RSK da chave da execução, mas o DEC cita o RSK mais novo da
-demanda; o resumo pode vir de um parecer diferente do citado.
+Citação da consolidação (M-01, corrigido na 0.1.5): a entrada da consolidação lê o RSK da chave da execução
+(`rsk:<RSK-id>`) e a ESP de maior versão no momento da leitura. O DEC cita **essas duas**, pelos ids de `citados`, e não
+as mais novas no momento da gravação ([cap. 04](04-versoes-e-decisao.md#rf-10-pacote-de-decisão-dec)). Assim, o resumo
+escrito pelo modelo, o DEC, a tela de decisão e o Pedido falam do mesmo RSK. Um RSK ou uma ESP gravados entre o
+agendamento e a gravação, inclusive durante a chamada ao provedor, fazem o DEC nascer desatualizado, e ele não pode ser
+aprovado ([RF-12](04-versoes-e-decisao.md#rf-12-dec-desatualizado)). Se faltar um dos dois ids, a gravação é recusada
+com 404 e a execução fica `falhou` (`recusada_pelo_servico`).
 
 ## RF-17. Uso por chamada
 

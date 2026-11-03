@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.4 (sem mudança de comportamento desde a 0.1.0; ver o [CHANGELOG](../../CHANGELOG.md)) |
-| Atualizado em | 02/11/2026 |
+| Versão do sistema | 0.1.5 (muda três regras de domínio: a citação do DEC da consolidação, a recusa em status final e a nova tentativa do aviso; ver o [CHANGELOG](../../CHANGELOG.md)) |
+| Atualizado em | 03/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
 | Fonte de verdade | o código do ramo (padrão técnico, seção 11). Onde a spec ou o plano dizem outra coisa, vale o código, e a diferença está apontada no capítulo |
@@ -43,7 +43,7 @@ Operação em produção (serviços do Easypanel, deploy, rollback, alertas) fic
 | RF-07 | Nove status e tabela de transições | [03](03-demandas.md#rf-07-status-e-transições) |
 | RF-08 | ESP versionada com os campos de construção | [04](04-versoes-e-decisao.md#rf-08-especificação-técnica-esp) |
 | RF-09 | RSK versionado | [04](04-versoes-e-decisao.md#rf-09-parecer-de-risco-rsk) |
-| RF-10 | DEC cita a ESP e o RSK mais novos | [04](04-versoes-e-decisao.md#rf-10-pacote-de-decisão-dec) |
+| RF-10 | DEC cita a ESP e o RSK (os mais novos; na consolidação, os que o agente leu) | [04](04-versoes-e-decisao.md#rf-10-pacote-de-decisão-dec) |
 | RF-11 | Versão gravada nunca muda | [04](04-versoes-e-decisao.md#rf-11-imutabilidade) |
 | RF-12 | DEC desatualizado | [04](04-versoes-e-decisao.md#rf-12-dec-desatualizado) |
 | RF-13 | Decisão só por pessoa com 2FA | [04](04-versoes-e-decisao.md#rf-13-decisão) |
@@ -73,6 +73,7 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | DEC | Pacote de decisão, em versões (`DEC-<demanda>-vN`); cita uma ESP e um RSK |
 | Versão | Linha gravada de ESP, RSK ou DEC. Não muda depois de gravada; mudar é gravar a próxima |
 | Desatualizado | DEC que cita ESP ou RSK de versão menor que a mais nova da demanda |
+| Status final | `entregue` ou `encerrada`: status sem transição manual de saída (`STATUS_FINAIS`, `transicoes.ts`). Não aceita ESP, RSK nem DEC novos |
 | Decisão | `aprovada` (opção A ou B), `devolvida` ou `arquivada`, registrada uma vez por DEC; sem decisão, o DEC está `pendente` |
 | Aprovação | Registro de uma pessoa (papel `cto` ou `administradora`) aprovando uma opção do DEC |
 | Pedido de Construção | JSON gerado de um DEC aprovado, no formato que o `validarPedido` do `/construir` aceita |
