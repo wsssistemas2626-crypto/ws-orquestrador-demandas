@@ -1,0 +1,40 @@
+{
+  "pedido": "DEC-DEM-20261103-0007-v1",
+  "demanda": {
+    "id": "DEM-20261103-0007",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.6: médios M-05 a M-08 e actions fixadas por SHA",
+    "descricao": "Na 08-revisao do pedido DEC-DEM-20261022-0001-v1 (docs/construcao/DEC-DEM-20261022-0001-v1/08-maestro.md, seção Médio) ficaram sete médios para a primeira publicação (CA-P5-16). M-01 a M-03 foram para o pedido DEC-DEM-20261103-0006-v1 e a M-04 fechou no reteste do 0001. Este pedido corrige os três de segurança e o ponto de CI que também bloqueia a publicação. (M-05, C-21) src/modules/acesso/exigir-pessoa.ts:48 e src/app/(painel)/layout.tsx:35-36: erro não tratado em página ou layout sai pelo console do Next, fora do log por lista de permissão, e os parâmetros do Drizzle podem conter o token de sessão. (M-06, C-10) src/modules/demandas/consultas.ts:153-164: token de agente lê solicitanteNome, anexos e o nome da conta autora pela API, contornando a minimização do RF-20. (M-07, C-37) scripts/seed-ficticio.ts: o seed cria contas com senha e segredo TOTP que estão no git, e as guardas são só SEED_FICTICIO=1 e o banco sem demanda nem conta. (M-08, novo, da triagem do pedido 0006, 02-tech-lead.md:417) src/modules/pacotes-decisao/decidir.ts:201-219 (registrarDecisao) e src/modules/pedido-construcao/gerar.ts:42-61 (gerarPedido) não conferem o status da demanda: um DEC pendente de demanda levada a encerrada à mão ainda pode ser aprovado e gerar Pedido. (Aviso) Na 0.1.5 todo 4xx que não é 429 vira falhou na hora; o 408 e o 409 de requisição concorrente com a mesma Idempotency-Key do Resend são passageiros (04-qa-automacao.md:165 do pedido 0006). (CI) .github/workflows/ci.yml e deploy.yml usam actions/checkout@v5 e actions/setup-node@v5 com o comentário \"SHA pendente\". Base: a main depois do merge do pedido 0006 (versão 0.1.5)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261103-0007-v1",
+    "conteudo": "(M-05) Erro não tratado em página, layout ou rota do painel não chega ao stdout ou stderr com mensagem, causa ou parâmetros de consulta: passa pelo log por lista de permissão (src/lib/log) com evento fixo e identificador do erro, e vai ao Sentry pelo mesmo saneamento já usado; um teste prova que um erro com parâmetro contendo um token fictício não aparece na saída; o caminho (por exemplo onRequestError no src/instrumentation.ts, saneamento do erro do Drizzle ou os dois) é da triagem. (M-06) Para ator agente, a leitura de demanda pela API não devolve solicitanteNome, anexos nem o nome da conta autora (o mesmo critério de minimização da entrada do agente, RF-20); a pessoa continua vendo tudo; teste de contrato para os dois atores e para a listagem, se ela também expuser. (M-07) O seed ganha uma segunda guarda, independente do banco vazio e de SEED_FICTICIO, que o impede de rodar com a configuração de produção (sugestão a avaliar na triagem: exigir BETTER_AUTH_URL em loopback); a homologação (docker-compose.hml.yml), o e2e e o CI continuam semeando; teste da recusa com mensagem fixa que cita só nomes de variável. (M-08) Aprovar ou rejeitar DEC (registrarDecisao) e gerar Pedido (gerarPedido) numa demanda em status final é recusado com 409 e mensagem fixa, sob a trava da demanda e antes de qualquer efeito, usando a mesma fonte de status finais da 0.1.5 (ehStatusFinal em src/modules/demandas/transicoes.ts); teste nos dois lados. (Aviso) O enviador classifica 408 e 409 do Resend como transitorio, com teste; os demais 4xx que não são 429 seguem falhou na hora. (CI) Toda action de terceiros dos workflows fica fixada pelo SHA completo do commit, sem trocar de versão maior, com o comentário da versão: actions/checkout v5.1.0 = fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 e actions/setup-node v5.0.0 = a0853c24544627f65ddf259abe73b1d18a591444 (conferidos pelo maestro na API do GitHub em 03/11/2026); o comentário \"SHA pendente\" sai. Nenhum controle é afrouxado (C-10, C-21, C-37, A-02, axe, C-36). Sem migration. Mudam src/, scripts/seed-ficticio.ts, .github/workflows/, os testes, package.json (versão 0.1.6) e CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261103-0007-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe em log de erro, na API lida por agente, no seed e no CI, com dados fictícios. Riscos: o saneamento esconder o erro a ponto de impedir o diagnóstico (o identificador e o evento fixo continuam no log e no Sentry); a minimização quebrar um agente que precise do campo (a entrada do agente já não recebe esses campos); a guarda nova do seed travar a homologação ou o e2e; um SHA errado quebrar o CI (o CI do PR prova). Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261103-0007-v1",
+    "opcaoEscolhida": "Corrigir M-05 a M-08, a classificação do 408 e do 409 do aviso e fixar as actions por SHA num pedido de correção (cadeia curta) sobre a main, antes da primeira publicação",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-03"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Erro não tratado do painel não sai com mensagem, causa ou parâmetro pelo console; vai ao log por lista de permissão com evento fixo e identificador",
+    "Ator agente não recebe solicitanteNome, anexos nem nome da conta autora pela API; a pessoa recebe",
+    "O seed recusa a configuração de produção mesmo com SEED_FICTICIO=1 e banco vazio, e a homologação e o e2e seguem semeando",
+    "Aprovar DEC ou gerar Pedido em demanda em status final é recusado com 409; 408 e 409 do Resend seguem tentados de novo",
+    "As actions dos workflows estão fixadas por SHA completo, sem \"SHA pendente\", e o CI do PR fica verde",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.6",
+    "PR com CI verde"
+  ]
+}
