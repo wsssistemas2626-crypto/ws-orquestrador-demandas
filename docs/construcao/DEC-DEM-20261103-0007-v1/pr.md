@@ -93,7 +93,7 @@ altera dado existente.
 
 ## Testes
 
-- Unidade e integração: 3.879 de 3.879 (66 novos nas etapas 03 e 04).
+- Unidade e integração: 3.879 de 3.879 (68 novos nas etapas 03 e 04).
 - Ponta a ponta: 143 de 143 na homologação; na 04, 143 de 143 em três rodadas seguidas, cada uma com banco novo.
 - `docker build` local: passou na 05.
 - Os SHAs das actions são provados pelo CI deste PR.
