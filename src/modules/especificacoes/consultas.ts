@@ -5,7 +5,17 @@ import type { Db } from '../../db';
 import { demanda, especificacaoTecnica, user } from '../../db/schema';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
-import { contaDoAutor, responsavelDe, responsavelMinimo, type Responsavel, type ResponsavelMinimo } from '../demandas/consultas';
+import {
+  contaDoAutor,
+  listaMinima,
+  listaMinimaOuNula,
+  responsavelDe,
+  responsavelMinimo,
+  textoMinimo,
+  textoMinimoOuNulo,
+  type Responsavel,
+  type ResponsavelMinimo,
+} from '../demandas/consultas';
 import { idVersao } from '../versoes';
 
 export type EspecificacaoVista = {
@@ -72,29 +82,35 @@ function vistaDe({ e, nome }: Linha): EspecificacaoVista {
 // vista não sai sem entrar aqui.
 export type EspecificacaoVistaMinima = Omit<EspecificacaoVista, 'autor'> & { autor: ResponsavelMinimo; versaoMaisNova?: string };
 
-export function vistaDaEspecificacaoPara(ator: Ator, v: EspecificacaoVista & { versaoMaisNova?: string }): EspecificacaoVista | EspecificacaoVistaMinima {
+// M-a do 0009 (RF-20): o texto livre e as listas de texto passam pelo mesmo `minimizar` da entrada do agente, com
+// `nomes`, o nome do solicitante da demanda (nomesDosSolicitantes). Sistema alvo, repositório, ids e datas ficam iguais.
+export function vistaDaEspecificacaoPara(
+  ator: Ator,
+  v: EspecificacaoVista & { versaoMaisNova?: string },
+  nomes: readonly string[],
+): EspecificacaoVista | EspecificacaoVistaMinima {
   if (ator.tipo === 'pessoa') return v;
   return {
     id: v.id,
     demandaId: v.demandaId,
     versao: v.versao,
-    descricaoObjetiva: v.descricaoObjetiva,
-    situacaoAtual: v.situacaoAtual,
-    situacaoDesejada: v.situacaoDesejada,
-    escopoInclui: v.escopoInclui,
-    escopoExclui: v.escopoExclui,
-    sistemasErp: v.sistemasErp,
-    sistemasEcommerceMarketplace: v.sistemasEcommerceMarketplace,
-    sistemasApisTerceiros: v.sistemasApisTerceiros,
-    sistemasServicosInternos: v.sistemasServicosInternos,
-    dadosEntidades: v.dadosEntidades,
-    dadosCamposCriticos: v.dadosCamposCriticos,
-    restricoesTecnicas: v.restricoesTecnicas,
-    duvidasEmAberto: v.duvidasEmAberto,
+    descricaoObjetiva: textoMinimo(v.descricaoObjetiva, nomes),
+    situacaoAtual: textoMinimoOuNulo(v.situacaoAtual, nomes),
+    situacaoDesejada: textoMinimoOuNulo(v.situacaoDesejada, nomes),
+    escopoInclui: listaMinima(v.escopoInclui, nomes),
+    escopoExclui: listaMinima(v.escopoExclui, nomes),
+    sistemasErp: textoMinimoOuNulo(v.sistemasErp, nomes),
+    sistemasEcommerceMarketplace: textoMinimoOuNulo(v.sistemasEcommerceMarketplace, nomes),
+    sistemasApisTerceiros: textoMinimoOuNulo(v.sistemasApisTerceiros, nomes),
+    sistemasServicosInternos: textoMinimoOuNulo(v.sistemasServicosInternos, nomes),
+    dadosEntidades: textoMinimoOuNulo(v.dadosEntidades, nomes),
+    dadosCamposCriticos: textoMinimoOuNulo(v.dadosCamposCriticos, nomes),
+    restricoesTecnicas: textoMinimoOuNulo(v.restricoesTecnicas, nomes),
+    duvidasEmAberto: listaMinima(v.duvidasEmAberto, nomes),
     sistemaAlvo: v.sistemaAlvo,
     repositorioDestino: v.repositorioDestino,
-    criteriosAceitePreliminares: v.criteriosAceitePreliminares,
-    definicaoDePronto: v.definicaoDePronto,
+    criteriosAceitePreliminares: listaMinimaOuNula(v.criteriosAceitePreliminares, nomes),
+    definicaoDePronto: listaMinimaOuNula(v.definicaoDePronto, nomes),
     autor: responsavelMinimo(v.autor),
     rascunhoAgente: v.rascunhoAgente,
     criadaEm: v.criadaEm,

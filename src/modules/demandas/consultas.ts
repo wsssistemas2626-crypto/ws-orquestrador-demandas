@@ -189,10 +189,28 @@ export type DemandaVistaMinima = Omit<DemandaVista, 'solicitanteNome' | 'anexos'
 export const responsavelMinimo = (r: Responsavel): ResponsavelMinimo => (r.tipo === 'pessoa' ? { tipo: 'pessoa' } : { tipo: 'agente', agente: r.agente });
 
 // M-1 do 0008 (RF-20): o texto livre passa pelo mesmo `minimizar` da entrada do agente, com o nome do solicitante da
-// própria demanda. Nulo continua nulo.
-const nomesDoSolicitante = (nome: string | null): string[] => (nome === null ? [] : [nome]);
-const textoMinimo = (s: string, nomes: readonly string[]): string => minimizarValor(s, nomes) as string;
-const textoMinimoOuNulo = (s: string | null, nomes: readonly string[]): string | null => (s === null ? null : textoMinimo(s, nomes));
+// própria demanda. Nulo continua nulo. Exportados para as vistas mínimas de ESP, RSK e DEC (M-a do 0009): uma regra só.
+export const nomesDoSolicitante = (nome: string | null): string[] => (nome === null ? [] : [nome]);
+export const textoMinimo = (s: string, nomes: readonly string[]): string => minimizarValor(s, nomes) as string;
+export const textoMinimoOuNulo = (s: string | null, nomes: readonly string[]): string | null => (s === null ? null : textoMinimo(s, nomes));
+export const listaMinima = (xs: readonly string[], nomes: readonly string[]): string[] => xs.map((x) => textoMinimo(x, nomes));
+export const listaMinimaOuNula = (xs: readonly string[] | null, nomes: readonly string[]): string[] | null => (xs === null ? null : listaMinima(xs, nomes));
+
+// M-a do 0009: os nomes do solicitante de cada demanda, numa consulta só, para a vista mínima de ESP, RSK e DEC (que
+// não carregam o `solicitanteNome`). Demanda que não existe fica fora do mapa; quem lê usa lista vazia.
+export async function nomesDosSolicitantes(db: Db, demandaIds: readonly string[]): Promise<Map<string, string[]>> {
+  const mapa = new Map<string, string[]>();
+  const ids = [...new Set(demandaIds)];
+  if (ids.length === 0) return mapa;
+  const linhas = await db.select({ id: demanda.id, nome: demanda.solicitanteNome }).from(demanda).where(inArray(demanda.id, ids));
+  for (const l of linhas) mapa.set(l.id, nomesDoSolicitante(l.nome));
+  return mapa;
+}
+
+// Os nomes do solicitante de uma demanda só (as rotas de uma demanda ou de um artefato).
+export async function nomesDaDemanda(db: Db, demandaId: string): Promise<string[]> {
+  return (await nomesDosSolicitantes(db, [demandaId])).get(demandaId) ?? [];
+}
 
 const versaoMinima = (v: VersaoResumo): VersaoResumoMinima => ({
   id: v.id,
@@ -219,7 +237,7 @@ export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | 
     contexto: textoMinimoOuNulo(d.contexto, nomes),
     descricaoProblema: textoMinimoOuNulo(d.descricaoProblema, nomes),
     impactoPercebido: textoMinimoOuNulo(d.impactoPercebido, nomes),
-    duvidasEntrada: d.duvidasEntrada.map((x) => textoMinimo(x, nomes)),
+    duvidasEntrada: listaMinima(d.duvidasEntrada, nomes),
     rascunhoAgente: d.rascunhoAgente,
     responsavel: responsavelMinimo(d.responsavel),
     criadaEm: d.criadaEm,

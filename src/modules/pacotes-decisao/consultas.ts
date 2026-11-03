@@ -12,7 +12,17 @@ import type { TipoDemanda } from '../../db/schema/demandas';
 import type { NivelRisco } from '../../db/schema/versoes';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
-import { contaDoAutor, responsavelDe, responsavelMinimo, type Responsavel, type ResponsavelMinimo, type StatusDecisao } from '../demandas/consultas';
+import {
+  contaDoAutor,
+  listaMinimaOuNula,
+  responsavelDe,
+  responsavelMinimo,
+  textoMinimo,
+  textoMinimoOuNulo,
+  type Responsavel,
+  type ResponsavelMinimo,
+  type StatusDecisao,
+} from '../demandas/consultas';
 import { expressaoDesatualizado } from './desatualizado';
 import type { FiltroPacotes } from './schemas';
 
@@ -177,7 +187,20 @@ export type PacoteDecisaoVistaMinima = Omit<PacoteDecisaoVista, 'autor' | 'aprov
   decisao: DecisaoMinima | null;
 };
 
-export function vistaDoPacotePara(ator: Ator, v: PacoteDecisaoVista): PacoteDecisaoVista | PacoteDecisaoVistaMinima {
+// M-a do 0009 (RF-20): cada subcampo da opção passa pelo `minimizar`; subcampo opcional ausente continua ausente.
+function opcaoMinima(o: Opcao, nomes: readonly string[]): Opcao {
+  return {
+    descricao: textoMinimo(o.descricao, nomes),
+    ...(o.vantagens === undefined ? {} : { vantagens: textoMinimo(o.vantagens, nomes) }),
+    ...(o.desvantagens === undefined ? {} : { desvantagens: textoMinimo(o.desvantagens, nomes) }),
+    ...(o.quandoEscolher === undefined ? {} : { quandoEscolher: textoMinimo(o.quandoEscolher, nomes) }),
+  };
+}
+
+// M-a do 0009 (RF-20): o texto livre (cópia da demanda, resumo, opções, recomendação, comentário da decisão e as listas
+// da ESP citada) passa pelo mesmo `minimizar` da entrada do agente, com `nomes`, o nome do solicitante da demanda do DEC
+// (nomesDosSolicitantes). Ids, sistema alvo, repositório, níveis e status ficam iguais. A pessoa não usa `nomes`.
+export function vistaDoPacotePara(ator: Ator, v: PacoteDecisaoVista, nomes: readonly string[]): PacoteDecisaoVista | PacoteDecisaoVistaMinima {
   if (ator.tipo === 'pessoa') return v;
   return {
     id: v.id,
@@ -186,12 +209,12 @@ export function vistaDoPacotePara(ator: Ator, v: PacoteDecisaoVista): PacoteDeci
     especificacaoId: v.especificacaoId,
     parecerRiscoId: v.parecerRiscoId,
     demandaTipo: v.demandaTipo,
-    demandaTitulo: v.demandaTitulo,
-    demandaDescricao: v.demandaDescricao,
-    resumoExecutivo: v.resumoExecutivo,
-    opcaoA: v.opcaoA,
-    opcaoB: v.opcaoB,
-    recomendacao: v.recomendacao,
+    demandaTitulo: textoMinimo(v.demandaTitulo, nomes),
+    demandaDescricao: textoMinimo(v.demandaDescricao, nomes),
+    resumoExecutivo: textoMinimo(v.resumoExecutivo, nomes),
+    opcaoA: opcaoMinima(v.opcaoA, nomes),
+    opcaoB: opcaoMinima(v.opcaoB, nomes),
+    recomendacao: textoMinimoOuNulo(v.recomendacao, nomes),
     nivelAprovacaoRequerido: v.nivelAprovacaoRequerido,
     autor: responsavelMinimo(v.autor),
     rascunhoAgente: v.rascunhoAgente,
@@ -199,13 +222,15 @@ export function vistaDoPacotePara(ator: Ator, v: PacoteDecisaoVista): PacoteDeci
     statusDecisao: v.statusDecisao,
     aprovadores: v.aprovadores.map((a) => ({ papel: a.papel, opcao: a.opcao, registradaEm: a.registradaEm, dataDocumento: a.dataDocumento })),
     desatualizado: v.desatualizado,
-    decisao: v.decisao ? { opcaoEscolhida: v.decisao.opcaoEscolhida, comentarios: v.decisao.comentarios, decididaEm: v.decisao.decididaEm } : null,
+    decisao: v.decisao
+      ? { opcaoEscolhida: v.decisao.opcaoEscolhida, comentarios: textoMinimoOuNulo(v.decisao.comentarios, nomes), decididaEm: v.decisao.decididaEm }
+      : null,
     rascunhosCitados: v.rascunhosCitados,
     especificacaoCitada: {
       sistemaAlvo: v.especificacaoCitada.sistemaAlvo,
       repositorioDestino: v.especificacaoCitada.repositorioDestino,
-      criteriosAceitePreliminares: v.especificacaoCitada.criteriosAceitePreliminares,
-      definicaoDePronto: v.especificacaoCitada.definicaoDePronto,
+      criteriosAceitePreliminares: listaMinimaOuNula(v.especificacaoCitada.criteriosAceitePreliminares, nomes),
+      definicaoDePronto: listaMinimaOuNula(v.especificacaoCitada.definicaoDePronto, nomes),
     },
     niveisRisco: { tecnico: v.niveisRisco.tecnico, operacional: v.niveisRisco.operacional, juridico: v.niveisRisco.juridico },
   };

@@ -56,8 +56,48 @@ describe('log por lista de permissão (C-21)', () => {
 
   it('redact continua como segunda barreira para campo permitido com objeto', () => {
     const { linhas, destino } = capturar();
-    criarLogger(destino).info({ evento: 'x', erro: { senha: SENTINELAS.senha, token: SENTINELAS.token } } as never);
+    criarLogger(destino).info({ evento: 'x', instancia: { senha: SENTINELAS.senha, token: SENTINELAS.token } } as never);
     expect(contemSentinela(linhas.join(''))).toBe(false);
+  });
+
+  // B-b (DEC-DEM-20261103-0009-v1): objeto que não é Error também é reduzido; nenhuma chave dele sai, nem as que o
+  // `redact` não cobre (motivo, cpf). Só o `code`, e só no formato curto.
+  it('erro em objeto simples vira { classe: desconhecido }, sem nenhuma chave do objeto', () => {
+    const { linhas, destino } = capturar();
+    criarLogger(destino).error({ evento: 'falha', erro: { motivo: 'falha para joana.ficticia@exemplo.invalid', cpf: '000.000.001-91' } });
+    expect(JSON.parse(linhas[0]!).erro).toEqual({ classe: 'desconhecido' });
+    expect(linhas.join('')).not.toContain('joana.ficticia@exemplo.invalid');
+    expect(linhas.join('')).not.toContain('000.000.001-91');
+  });
+
+  it('erro em objeto simples com code no formato leva só o code', () => {
+    const { linhas, destino } = capturar();
+    const logger = criarLogger(destino);
+    logger.error({ evento: 'falha', erro: { motivo: 'falha para joana.ficticia@exemplo.invalid', cpf: '000.000.001-91', code: '23505' } });
+    logger.error({ evento: 'falha', erro: { motivo: 'x', code: 'código com espaço 000.000.001-91' } });
+    logger.error({ evento: 'falha', erro: { code: 23505 } });
+    expect(linhas.map((l) => JSON.parse(l).erro)).toEqual([{ classe: 'desconhecido', code: '23505' }, { classe: 'desconhecido' }, { classe: 'desconhecido' }]);
+    expect(linhas.join('')).not.toContain('000.000.001-91');
+  });
+
+  // instrumentation.ts passa `reduzirErro(err)`: o erro que já chega na forma exata { classe, code? } mantém a classe.
+  it('erro que já chega reduzido mantém a classe; chave a mais ou classe fora do formato vira desconhecido', () => {
+    const { linhas, destino } = capturar();
+    const logger = criarLogger(destino);
+    logger.error({ evento: 'falha', erro: { classe: 'ErroEnvioEmail', code: 'recusado' } });
+    logger.error({ evento: 'falha', erro: { classe: 'Error' } });
+    logger.error({ evento: 'falha', erro: { classe: 'Error', code: 'código com espaço' } });
+    logger.error({ evento: 'falha', erro: { classe: 'Error', motivo: 'falha para joana.ficticia@exemplo.invalid' } });
+    logger.error({ evento: 'falha', erro: { classe: 'Joana Fictícia Teste' } });
+    expect(linhas.map((l) => JSON.parse(l).erro)).toEqual([
+      { classe: 'ErroEnvioEmail', code: 'recusado' },
+      { classe: 'Error' },
+      { classe: 'Error' },
+      { classe: 'desconhecido' },
+      { classe: 'desconhecido' },
+    ]);
+    expect(linhas.join('')).not.toContain('joana.ficticia@exemplo.invalid');
+    expect(linhas.join('')).not.toContain('Joana Fictícia Teste');
   });
 
   // Testes acrescentados na 06-T02-testes (qa-automacao).
@@ -104,10 +144,11 @@ describe('log por lista de permissão (C-21)', () => {
     'detail',
     'stack',
   ])('segunda barreira: a chave %s dentro de campo permitido sai como [removido]', (chave) => {
+    // Desde o B-b do 0009, `erro` em objeto é reduzido antes do pino; a barreira é conferida noutro campo permitido.
     const { linhas, destino } = capturar();
-    criarLogger(destino).info({ evento: 'redact', erro: { [chave]: `${SENTINELAS.texto} ${SENTINELAS.email}` } } as never);
+    criarLogger(destino).info({ evento: 'redact', instancia: { [chave]: `${SENTINELAS.texto} ${SENTINELAS.email}` } } as never);
     expect(contemSentinela(linhas.join(''))).toBe(false);
-    expect(JSON.parse(linhas[0]!).erro[chave]).toBe('[removido]');
+    expect(JSON.parse(linhas[0]!).instancia[chave]).toBe('[removido]');
   });
 
   it('erro de consulta do Drizzle com causa do Postgres sai só com a classe e o code da causa', () => {
