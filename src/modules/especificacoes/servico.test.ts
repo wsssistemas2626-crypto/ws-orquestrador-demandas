@@ -1,17 +1,19 @@
 // Serviço da ESP contra o Postgres real, pelo papel do app (RF-08, RF-11, RF-15, C-11, C-30, C-36). Dados só fictícios;
 // o relógio é sempre o fixo.
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../test/banco';
 import { SENTINELAS, contemSentinela } from '../../../test/sentinelas';
 import { criarDb } from '../../db';
 import { demanda, especificacaoTecnica, evento, user } from '../../db/schema';
 import { comTransacao } from '../../db/transacao';
 import { ErroDominio } from '../../lib/erros';
+import { criarFila, type Fila } from '../../lib/fila';
 import { relogioFixo, type RelogioFixo } from '../../lib/relogio';
 import type { AtorAgente, AtorPessoa, AtorSistema } from '../acesso/ator';
 import { criarDemandaSchema, type Status, type Tipo } from '../demandas/schemas';
 import { criarDemanda } from '../demandas/servico';
+import { MENSAGEM_DEMANDA_FINAL } from '../demandas/transicoes';
 import { MENSAGEM_LIMITE } from '../limites';
 import { idVersao } from '../versoes';
 import { listarEspecificacoes, obterEspecificacao } from './consultas';
@@ -198,12 +200,88 @@ describe('dúvida em aberto (RF-15)', () => {
     expect((await eventosDa(id)).map((e) => e.acao)).toEqual(['demanda_criada', 'especificacao_criada']);
   });
 
-  it.each(['aprovada', 'em_construcao', 'encerrada'] as const)('com dúvida, mas em %s (fora da origem permitida), o status não muda', async (status) => {
+  // M-02: `encerrada` saiu desta lista e virou caso de recusa (describe "demanda em status final").
+  it.each(['aprovada', 'em_construcao'] as const)('com dúvida, mas em %s (fora da origem permitida), o status não muda', async (status) => {
     const id = await novaDemanda('bug', status);
     await criarEspecificacao(deps, cto, id, esp({ duvidasEmAberto: ['Dúvida fictícia'] }));
     expect(await statusDa(id)).toBe(status);
     expect((await eventosDa(id)).map((e) => e.acao)).not.toContain('status_alterado');
   });
+});
+
+// M-02 (DEC-DEM-20261103-0006-v1): numa demanda em status final, a ESP é recusada sob a trava, antes do limite, do
+// insert, do evento, da mudança de status e do gatilho do agente de risco. Com o risco ligado e a fila presente, para
+// provar que nenhuma execução nem job nasce.
+describe('demanda em status final (M-02)', () => {
+  let fila: Fila;
+  beforeAll(async () => {
+    fila = await criarFila(b.urlApp);
+  });
+  afterAll(async () => {
+    await fila.parar();
+  });
+  afterEach(async () => {
+    await b.poolMigrator.query('update configuracao_agente set ligado = false, modelo = null');
+  });
+
+  const ligarRisco = async () => {
+    await b.poolMigrator.query('update configuracao_ia set teto_mensal = 10 where id = 1');
+    await b.poolMigrator.query(`update configuracao_agente set ligado = true, modelo = 'modelo-ficticio' where agente = 'risco'`);
+  };
+  const execucoesDa = async (demandaId: string) =>
+    Number((await b.poolMigrator.query('select count(*) from execucao_agente where demanda_id = $1', [demandaId])).rows[0].count);
+  const jobsDa = async (demandaId: string) =>
+    Number((await b.poolMigrator.query(`select count(*) from pgboss.job where name = 'agente.executar' and singleton_key like $1`, [`%${demandaId}%`])).rows[0].count);
+
+  it.each([
+    ['entregue', 'pessoa', []],
+    ['encerrada', 'pessoa', []],
+    ['entregue', 'pessoa', ['Dúvida fictícia']],
+    ['encerrada', 'pessoa', ['Dúvida fictícia']],
+    ['entregue', 'agente', []],
+    ['encerrada', 'agente', []],
+  ] as const)('em %s, pelo ator %s (dúvidas %j) → conflito com a mensagem fixa, e nada gravado nem disparado', async (status, quem, duvidas) => {
+    await ligarRisco();
+    const id = await novaDemanda('bug', status);
+    const ator = quem === 'pessoa' ? cto : insumo;
+    const erro = await criarEspecificacao({ ...deps, fila }, ator, id, esp({ duvidasEmAberto: [...duvidas] })).catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(ErroDominio);
+    expect(erro).toMatchObject({ codigo: 'conflito', mensagem: MENSAGEM_DEMANDA_FINAL });
+    expect(await linhasEsp(id)).toEqual([]);
+    expect(await statusDa(id)).toBe(status);
+    expect((await eventosDa(id)).map((e) => e.acao)).toEqual(['demanda_criada']);
+    expect(await execucoesDa(id)).toBe(0);
+    expect(await jobsDa(id)).toBe(0);
+  });
+
+  it('a recusa vem antes do limite por ator: com 60 artefatos na hora, a demanda final dá conflito, e não limite_excedido', async () => {
+    const id = await novaDemanda('bug', 'encerrada');
+    await migrator()
+      .insert(especificacaoTecnica)
+      .values(
+        Array.from({ length: 60 }, (_, i) => ({
+          id: idVersao('ESP', id, i + 1),
+          demandaId: id,
+          versao: i + 1,
+          descricaoObjetiva: 'x',
+          escopoInclui: ['x'],
+          autorTipo: 'pessoa' as const,
+          autorId: administradora.usuarioId,
+          rascunhoAgente: false,
+          criadaEm: relogio.agora(),
+        })),
+      );
+    await expect(criarEspecificacao(deps, administradora, id, esp())).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGEM_DEMANDA_FINAL });
+  });
+
+  it.each(['nova', 'em_analise', 'aguardando_informacao', 'pronta_para_decisao', 'aprovada', 'em_construcao', 'devolvida'] as const)(
+    'em %s (não final), a ESP é gravada',
+    async (status) => {
+      const id = await novaDemanda('bug', status);
+      expect(await criarEspecificacao(deps, cto, id, esp())).toMatchObject({ id: idVersao('ESP', id, 1), versao: 1 });
+      expect(await linhasEsp(id)).toHaveLength(1);
+    },
+  );
 });
 
 describe('transação e limite', () => {

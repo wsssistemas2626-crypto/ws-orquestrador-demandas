@@ -1,6 +1,6 @@
 // Serviço da especificação técnica (ESP, RF-08, RF-11, RF-15). Cada gravação é uma versão nova e imutável: o papel do
-// app só tem SELECT e INSERT na tabela (C-34). Numa transação: autorizar → trava da demanda (CA-04.3) → limite por ator
-// (C-36) → regra de construção com o tipo atual da demanda → próxima versão → insert com a autoria só do ator (C-11) →
+// app só tem SELECT e INSERT na tabela (C-34). Numa transação: autorizar → trava da demanda (CA-04.3) → recusa em status
+// final (409, M-02) → limite por ator (C-36) → regra de construção com o tipo atual da demanda → próxima versão → insert com a autoria só do ator (C-11) →
 // evento sem texto livre (C-30) → com dúvida em aberto, a demanda vai a aguardando_informacao pelo ator sistema, sem
 // nenhuma mensagem ao solicitante (CA-15.1, CA-15.2); sem dúvida, dispara o agente de risco (T28). Aceita a transação de quem chama (G3.8): o worker grava a versão,
 // a execução e o job juntos (ADR-02, ADR-06). A entrada já chega validada pelo Zod (rota, Server Action ou job).
@@ -12,7 +12,7 @@ import { autorizar } from '../acesso/matriz';
 import { dispararSeLigado } from '../agentes/gatilhos';
 import { registrarEvento } from '../historico/registrar';
 import { autoriaDo, type DepsComFila } from '../demandas/servico';
-import { mudarStatusPeloSistema } from '../demandas/transicoes';
+import { mudarStatusPeloSistema, recusarSeDemandaFinal } from '../demandas/transicoes';
 import { conferirLimite } from '../limites';
 import { idVersao, proximaVersao, travarDemanda } from '../versoes';
 import { obterEspecificacao, type EspecificacaoVista } from './consultas';
@@ -33,6 +33,7 @@ export async function criarEspecificacao(
   const corpo = async (tr: Transacao): Promise<string> => {
     const { tx } = tr;
     const atual = await travarDemanda(tx, demandaId);
+    recusarSeDemandaFinal(atual.status);
     await conferirLimite(tx, ator, 'artefato', deps.relogio);
     const campos = validarCamposDeConstrucao(atual.tipo, entrada);
     if (campos.length > 0) throw new ErroDominio('entrada_invalida', MENSAGEM_CAMPOS_INVALIDOS, { campos });

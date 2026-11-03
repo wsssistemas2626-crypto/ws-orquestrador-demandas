@@ -37,7 +37,7 @@ import {
   montarEmailDoAviso,
   type DepsAviso,
 } from './aviso-dec';
-import { EnviadorSemProvedor, criarEnviador } from './enviador';
+import { EnviadorResend, EnviadorSemProvedor, ErroEnvioEmail, criarEnviador } from './enviador';
 
 const cto: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-aviso-cto', nome: 'Pessoa Ficticia CTO', papel: 'cto' };
 const REMETENTE = 'avisos@exemplo.test';
@@ -362,6 +362,94 @@ describe('enviarAviso', () => {
     }
     expect(await linhaAviso(decId)).toMatchObject({ status: 'pendente', tentativas: 1 });
     expect(contemSentinela(linhas.join('\n'))).toBe(false);
+  });
+});
+
+// M-03 (DEC-DEM-20261103-0006-v1): a recusa definitiva do provedor (4xx que não é 429) falha na hora; o 429 e o 5xx
+// continuam tentados de novo; o erro inesperado fora do enviador conta a tentativa, numa transação própria.
+describe('enviarAviso: recusa definitiva, falha passageira e erro inesperado (M-03)', () => {
+  const capturar = () => {
+    const linhas: string[] = [];
+    substituirDestinoDoLog({ write: (l) => void linhas.push(l) });
+    return linhas;
+  };
+  const resendCom = (status: number) => new EnviadorResend({ chave: 'chave-ficticia-de-teste', fetch: async () => new Response('{}', { status }) });
+
+  it('enviador que recusa (ErroEnvioEmail recusado) → falhou na 1ª, sem relançar, com log e Sentry; a 2ª não chama o enviador', async () => {
+    const { decId } = await decPronto();
+    let chamadas = 0;
+    const recusa: DepsAviso['enviador'] = {
+      enviar: async () => {
+        chamadas += 1;
+        throw new ErroEnvioEmail('recusado');
+      },
+    };
+    const linhas = capturar();
+    try {
+      expect(await enviarAviso(depsAviso({ enviador: recusa }), decId)).toBe('falhou');
+    } finally {
+      substituirDestinoDoLog(null);
+    }
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: 1, enviado_em: null });
+    const registros = linhas.map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(registros.map((r) => r.evento)).toEqual(['aviso_email_falhou']);
+    expect(registros[0]).toMatchObject({ level: 50, tentativa: 1, status: 'falhou', erro: { classe: 'ErroEnvioEmail', code: 'recusado' } });
+    await Sentry.flush(2000);
+    expect(eventosSentry).toHaveLength(1);
+    expect(eventosSentry[0]).toContain('ErroEnvioEmail recusado');
+    expect(eventosSentry[0]).toContain('aviso_email_falhou');
+    expect(await enviarAviso(depsAviso({ enviador: recusa }), decId)).toBe('falhou');
+    expect(chamadas).toBe(1);
+  });
+
+  it.each([400, 403, 422])('EnviadorResend com resposta %i → falhou na 1ª, sem nova tentativa', async (status) => {
+    const { decId } = await decPronto();
+    expect(await enviarAviso(depsAviso({ enviador: resendCom(status) }), decId)).toBe('falhou');
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: 1 });
+  });
+
+  it.each([429, 500, 503])('EnviadorResend com resposta %i → continua pendente, conta a tentativa e pede nova tentativa', async (status) => {
+    const { decId } = await decPronto();
+    await expect(enviarAviso(depsAviso({ enviador: resendCom(status) }), decId)).rejects.toBeInstanceOf(AvisoNaoEnviado);
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'pendente', tentativas: 1 });
+  });
+
+  it('erro inesperado fora do enviador (URL base inválida) → conta 1, 2 e 3, termina falhou com Sentry uma vez, sem chamar o enviador', async () => {
+    const { decId } = await decPronto();
+    const quebrada = depsAviso({ config: { ...CONFIG_TESTE, urlBase: 'ftp://orquestrador.exemplo.test', emailRemetente: REMETENTE, emailAvisoDecisao: DESTINATARIO } });
+    const linhas = capturar();
+    try {
+      await expect(enviarAviso(quebrada, decId)).rejects.toMatchObject({ tentativa: 1 });
+      expect(await linhaAviso(decId)).toMatchObject({ status: 'pendente', tentativas: 1 });
+      await expect(enviarAviso(quebrada, decId)).rejects.toBeInstanceOf(AvisoNaoEnviado);
+      expect(await linhaAviso(decId)).toMatchObject({ status: 'pendente', tentativas: 2 });
+      await Sentry.flush(2000);
+      expect(eventosSentry).toHaveLength(0);
+      expect(await enviarAviso(quebrada, decId)).toBe('falhou');
+    } finally {
+      substituirDestinoDoLog(null);
+    }
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: 3, enviado_em: null });
+    expect(enviador.chamadas).toBe(0);
+    await Sentry.flush(2000);
+    expect(eventosSentry).toHaveLength(1);
+    expect(eventosSentry[0]).toContain('aviso_email_falhou');
+    const registros = linhas.map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(registros.map((r) => r.evento)).toEqual(['aviso_email_falha', 'aviso_email_falha', 'aviso_email_falhou']);
+    expect(registros[2]).toMatchObject({ level: 50, tentativa: 3, status: 'falhou', erro: { classe: 'RangeError' } });
+    const saida = `${linhas.join('\n')}${eventosSentry.join('')}`;
+    for (const v of ['ftp://', 'orquestrador.exemplo.test', REMETENTE, DESTINATARIO, 'URL base']) expect(saida).not.toContain(v);
+    // Já falhou: um job atrasado não conta de novo.
+    expect(await enviarAviso(quebrada, decId)).toBe('falhou');
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: 3 });
+  });
+
+  it('erro inesperado com o aviso já enviado → ja_enviado, sem contar', async () => {
+    const { decId } = await decPronto();
+    expect(await enviarAviso(depsAviso(), decId)).toBe('enviado');
+    const quebrada = depsAviso({ config: { ...CONFIG_TESTE, urlBase: 'ftp://orquestrador.exemplo.test', emailRemetente: REMETENTE, emailAvisoDecisao: DESTINATARIO } });
+    expect(await enviarAviso(quebrada, decId)).toBe('ja_enviado');
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'enviado', tentativas: 1 });
   });
 });
 

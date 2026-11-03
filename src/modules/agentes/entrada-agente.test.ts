@@ -339,6 +339,39 @@ describe('consolidacao', () => {
   });
 });
 
+// M-01 (DEC-DEM-20261103-0006-v1): a entrada devolve a ESP e o RSK que entraram no bloco, para o DEC citar os mesmos.
+// Os ids vão só em `citados`, nunca no conteúdo enviado ao provedor (C-23).
+describe('citados (M-01)', () => {
+  it('consolidação: citados traz a ESP mais nova lida e o RSK da chave, e o conteúdo não tem nenhum dos dois ids', async () => {
+    const dem = await novaDemanda();
+    await novaEsp(dem.id, { descricaoObjetiva: 'Versao um' });
+    const esp2 = await novaEsp(dem.id, { descricaoObjetiva: 'Versao dois' });
+    const rsk1 = await novoRsk(dem.id, { resumo: 'Parecer um' });
+    await novoRsk(dem.id, { resumo: 'Parecer dois' });
+    const r = await montarEntrada(b.db, 'consolidacao', `rsk:${rsk1.id}`);
+    expect(r.citados).toEqual({ especificacaoId: esp2.id, parecerRiscoId: rsk1.id });
+    expect((dadosDe(r.conteudo).parecer as Record<string, unknown>).resumo).toBe('Parecer um');
+    expect((dadosDe(r.conteudo).especificacao as Record<string, unknown>).descricaoObjetiva).toBe('Versao dois');
+    for (const v of [esp2.id, rsk1.id, dem.id]) expect(r.conteudo).not.toContain(v);
+  });
+
+  it('risco: citados traz a ESP da chave e parecer nulo', async () => {
+    const dem = await novaDemanda();
+    const v1 = await novaEsp(dem.id);
+    await novaEsp(dem.id);
+    const r = await montarEntrada(b.db, 'risco', `esp:${v1.id}`);
+    expect(r.citados).toEqual({ especificacaoId: v1.id, parecerRiscoId: null });
+    expect(r.conteudo).not.toContain(v1.id);
+  });
+
+  it('insumo técnico e orquestrador: citados com os dois nulos', async () => {
+    const dem = await novaDemanda();
+    expect((await montarEntrada(b.db, 'insumo_tecnico', `demanda:${dem.id}`)).citados).toEqual({ especificacaoId: null, parecerRiscoId: null });
+    const pendente = await novaPendente('Texto ficticio');
+    expect((await montarEntrada(b.db, 'orquestrador', `entrada:${pendente}`)).citados).toEqual({ especificacaoId: null, parecerRiscoId: null });
+  });
+});
+
 describe('chave de entrada', () => {
   it('demanda que não existe → nao_encontrado', async () => {
     await esperarNaoEncontrado(montarEntrada(b.db, 'insumo_tecnico', 'demanda:DEM-20991231-9999'));

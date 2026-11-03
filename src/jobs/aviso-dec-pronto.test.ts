@@ -142,6 +142,26 @@ describe('tratarAvisoDecPronto', () => {
     expect(contemSentinela(linhas.join('\n'))).toBe(false);
   });
 
+  // M-03 (DEC-DEM-20261103-0006-v1): o erro inesperado fora do enviador conta a tentativa; na 3ª execução do mesmo job
+  // o aviso fica falhou e o job termina sem erro, como a falha comum.
+  it('erro inesperado fora do enviador, três execuções do mesmo job → aviso_nao_enviado duas vezes e, na 3ª, falhou sem relançar', async () => {
+    const decId = await decPronto();
+    const quebrada: DepsAviso = { ...depsAviso(), config: { ...CONFIG, urlBase: 'ftp://orquestrador.exemplo.test' } };
+    const rodar = () =>
+      tratarAvisoDecPronto(quebrada, [{ id: 'job-8', data: { decId } }]).then(
+        () => null,
+        (e: unknown) => e as Error,
+      );
+    expect((await rodar())?.message).toBe('aviso_nao_enviado');
+    expect((await rodar())?.message).toBe('aviso_nao_enviado');
+    expect(await rodar()).toBeNull();
+    expect(registros()).toContainEqual(expect.objectContaining({ evento: 'aviso_job_tratado', jobId: 'job-8', status: 'falhou' }));
+    expect(registros().filter((r) => r.evento === 'aviso_erro_inesperado')).toEqual([]);
+    expect((await b.poolMigrator.query('select status, tentativas from aviso_email where pacote_decisao_id = $1', [decId])).rows[0]).toEqual({ status: 'falhou', tentativas: 3 });
+    expect(enviador.chamadas).toBe(0);
+    expect(linhas.join('\n')).not.toContain('orquestrador.exemplo.test');
+  });
+
   // 06-T30-testes (qa-automacao): CA-25.2 pelo handler, com os dois jobs do mesmo DEC no mesmo lote.
   it('CA-25.2 no handler: dois jobs do mesmo DEC → um e-mail só, o segundo termina ja_enviado', async () => {
     const decId = await decPronto();

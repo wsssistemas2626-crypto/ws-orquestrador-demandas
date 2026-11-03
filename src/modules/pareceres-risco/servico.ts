@@ -1,6 +1,6 @@
 // Serviço do parecer de risco (RSK, RF-09, RF-11). Cada gravação é uma versão nova e imutável: o papel do app só tem
-// SELECT e INSERT na tabela (C-34). Numa transação: autorizar → trava da demanda (CA-04.3) → limite por ator (C-36) →
-// próxima versão → insert com a autoria só do ator (C-11) → evento sem texto livre (C-30). O RSK não exige ESP (o pacote
+// SELECT e INSERT na tabela (C-34). Numa transação: autorizar → trava da demanda (CA-04.3) → recusa em status final
+// (409, M-02) → limite por ator (C-36) → próxima versão → insert com a autoria só do ator (C-11) → evento sem texto livre (C-30). O RSK não exige ESP (o pacote
 // de decisão é que exige as duas) e não muda o status da demanda; com ESP na demanda, dispara a consolidação (T28). Aceita a transação de quem chama (G3.8): o worker
 // grava a versão, a execução e o job juntos (ADR-02, ADR-06). A entrada já chega validada pelo Zod (rota, Server Action
 // ou job).
@@ -12,6 +12,7 @@ import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { dispararSeLigado } from '../agentes/gatilhos';
 import { autoriaDo, type DepsComFila } from '../demandas/servico';
+import { recusarSeDemandaFinal } from '../demandas/transicoes';
 import { registrarEvento } from '../historico/registrar';
 import { conferirLimite } from '../limites';
 import { idVersao, proximaVersao, travarDemanda } from '../versoes';
@@ -41,7 +42,8 @@ export async function criarParecerRisco(
   const rascunhoAgente = autoria.autorTipo === 'agente';
   const corpo = async (tr: Transacao): Promise<string> => {
     const { tx } = tr;
-    await travarDemanda(tx, demandaId);
+    const atual = await travarDemanda(tx, demandaId);
+    recusarSeDemandaFinal(atual.status);
     await conferirLimite(tx, ator, 'artefato', deps.relogio);
     const versao = await proximaVersao(tx, parecerRisco, demandaId);
     const id = idVersao('RSK', demandaId, versao);

@@ -2,7 +2,9 @@
 // envio; payload fora dele é descartado sem o conteúdo no log. Ao contrário de agente.executar, esta fila usa a nova
 // tentativa do pg-boss (retryLimit 2, ADR-07 (a)): o handler relança quando o envio falhou e ainda há tentativa. O erro
 // relançado tem mensagem fixa e nenhuma causa, porque o pg-boss guarda a mensagem no próprio job. Na 3ª falha,
-// enviarAviso marca o aviso `falhou` e manda ao Sentry, e o job termina sem erro.
+// enviarAviso marca o aviso `falhou` e manda ao Sentry, e o job termina sem erro. Desde o M-03, o erro inesperado fora do
+// enviador também conta tentativa dentro de enviarAviso; o ramo `aviso_erro_inesperado` abaixo fica só para quando nem a
+// contagem foi possível (banco fora), e aí o erro sobe sem contar.
 import { FILAS, PAYLOADS } from '../lib/fila';
 import { log } from '../lib/log';
 import { capturarErro } from '../lib/sentry';
