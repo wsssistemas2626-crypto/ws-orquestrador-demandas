@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.5: status final no RF-07) |
+| Atualizado em | 03/11/2026 (0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09 |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
@@ -57,11 +57,27 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
   A resposta traz `total`. Chave repetida na query é recusada.
 - `GET /api/demandas/:id`: a demanda, as listas de versões de ESP, RSK e DEC (com `statusDecisao` e `desatualizado`
   em cada DEC), as dúvidas da entrada e `agentesEmAndamento` (execuções `pendente` ou `em_andamento`). A autoria
-  aparece como `responsavel` (nome da conta ou nome do agente), nunca pelo id interno.
+  aparece como `responsavel` (nome da conta ou nome do agente), nunca pelo id interno. Isso é o que a pessoa recebe; o
+  agente recebe a vista mínima (abaixo).
 - Nenhuma leitura de demanda traz o texto bruto.
 - `PATCH /api/demandas/:id` (só pessoa): altera campos e, com `status`, faz a transição manual. Ausente = não muda;
   `null` limpa campo opcional. Sem nada a mudar, 400 "Nada foi alterado.". Tudo é conferido antes de gravar.
-- Limite conhecido (M-06, aberto): o token de agente lê `solicitanteNome`, `anexos` e o nome da conta autora pela API.
+- **Vista mínima para quem não é pessoa** (`vistaDaDemandaPara` em `consultas.ts`; M-06, desde a 0.1.6). Vale no
+  `GET /api/demandas/:id` e na resposta do `POST /api/demandas`. A pessoa recebe a vista inteira. Qualquer outro ator
+  (o token de agente) recebe o objeto montado chave a chave, por lista de permissão:
+  - sem as chaves `solicitanteNome` e `anexos` (a chave some, não vem `null`);
+  - `responsavel` de pessoa vira `{ "tipo": "pessoa" }`, sem o nome da conta; o mesmo no `autor` de cada item de
+    `especificacoes`, `pareceresRisco` e `pacotesDecisao`;
+  - autor agente fica `{ "tipo": "agente", "agente": "<nome do agente>" }`;
+  - campo novo da vista não chega ao agente sem entrar na lista.
+
+  A listagem `GET /api/demandas` não tem esses campos para nenhum ator.
+- Limites conhecidos (pendências da 0.1.6 no [CHANGELOG](../../CHANGELOG.md)):
+  - **M-1, aberto, bloqueia a primeira publicação:** a vista mínima devolve `titulo`, `contexto`, `descricaoProblema`,
+    `justificativaUrgencia`, `impactoPercebido` e `duvidasEntrada` sem passar pelo `minimizar`, e a listagem devolve o
+    `titulo`. Nome ou contato escrito nesses textos chega inteiro ao token de agente, ao contrário da entrada do agente
+    ([cap. 06](06-agentes-de-ia.md#rf-20-minimização));
+  - **M-2, aberto:** as leituras próprias de ESP, RSK e DEC devolvem ao agente o nome da conta autora.
 
 ## RF-07. Status e transições
 
@@ -88,10 +104,10 @@ status final:
 - criar ESP, RSK ou DEC, pela pessoa ou pelo agente, dá 409 com a mensagem fixa (`MENSAGEM_DEMANDA_FINAL`,
   [cap. 04](04-versoes-e-decisao.md));
 - a execução de agente que já estava na fila termina `ignorada`, sem chamar o provedor
-  ([cap. 06](06-agentes-de-ia.md#rf-16-execução-dos-agentes)).
-
-Decidir um DEC que já existia e gerar o Pedido dele **não** conferem o status da demanda nesta versão (pendência da
-0.1.5 no [CHANGELOG](../../CHANGELOG.md)).
+  ([cap. 06](06-agentes-de-ia.md#rf-16-execução-dos-agentes));
+- decidir um DEC que já existia (aprovar, devolver ou arquivar) e gerar o Pedido dele dão 409, com mensagem fixa
+  própria, sem gravar nada (M-08, desde a 0.1.6; [cap. 04](04-versoes-e-decisao.md#rf-13-decisão) e
+  [cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)).
 
 | Automática | Quando | De | Para |
 |---|---|---|---|

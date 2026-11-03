@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 02/11/2026 |
+| Atualizado em | 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-26; RNF-11, RNF-16 |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/components/`, `src/proxy.ts`, `e2e/` |
@@ -49,5 +49,12 @@ no `pnpm test`, reprova se algum `e2e/**/*.ts` usar `disableRules`, `disableOthe
 
 - Textos para a `ux-ui-design`: QF-01 a QF-04 e D-01 a D-06 do `07-qa-funcional.md` (por exemplo, o bloqueio de
   15 minutos anunciado como "Aguarde um minuto"), e as mensagens de 409 da decisão e do pedido desatualizado.
+- Desde a 0.1.6 (B-4): os dois textos de 409 de demanda em status final, que a T11 mostra depois de "Não foi possível
+  concluir: " ([cap. 04](04-versoes-e-decisao.md#rf-13-decisão) e [cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)),
+  foram escritos na triagem e esperam a revisão da `ux-ui-design`. A T11 não esconde as ações de decisão nem a seção do
+  pedido quando a demanda está em status final; esconder é decisão da `ux-ui-design`.
+- Falha ao carregar uma tela mostra "Não foi possível carregar esta página." e "Tentar de novo" (`src/app/error.tsx`),
+  sem mensagem, pilha nem `digest`. O registro do erro é o `erro_requisicao` do servidor
+  ([cap. 02](02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).
 - Leitura do QR da T02 com o Google Authenticator e o Microsoft Authenticator (cenário U-01 do UAT) ainda não foi feita
   com aparelho real. O QR é gerado por `src/lib/qr.ts`.

@@ -3,6 +3,185 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.6 — 2026-11-03
+
+Correção do pedido `DEC-DEM-20261103-0007-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.5 (`e0d5f4c`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano. **A primeira publicação continua
+bloqueada**, agora pelo médio M-1 desta revisão (dado pessoal no texto livre lido pelo agente, em "Pendências abertas").
+
+Fecha os médios M-05, M-06 e M-07 da 0.1.0 e o M-08 (novo na triagem do pedido 0006), corrige a classificação do 408 e
+do 409 do Resend e fixa as actions dos workflows por SHA. **Cinco comportamentos do sistema mudam**, descritos abaixo.
+Não há migration nova, coluna nova nem variável de ambiente nova. Não mudaram `src/db/`, `drizzle/`, `e2e/`,
+`Dockerfile`, `.env.example` nem o lockfile.
+
+### O que mudou
+
+- **M-05 (C-21): erro não tratado de página, layout, metadados ou Server Component não sai mais pelo console com
+  mensagem, pilha, `cause` ou parâmetros.** São três peças:
+  - **na origem** (`src/modules/acesso/exigir-pessoa.ts`): toda falha do `getSession` do Better Auth vira
+    `ErroLeituraSessao`, com mensagem fixa (`erro_leitura_sessao`), sem `cause` e só com o `code` validado. Vale para
+    rota, Server Action, página, layout, metadados e `/configurar-2fa`. Na falha de banco, o token de sessão que ia nos
+    parâmetros da consulta não chega a nenhuma saída;
+  - **no registro** (`onRequestError` em `src/instrumentation.ts`, só no runtime Node): uma linha de log
+    `erro_requisicao` com `metodo`, `rota` (o modelo, por exemplo `/demandas/[id]`, nunca o caminho com id ou query),
+    `codigoErro: 'erro_interno'`, `erroId` e o erro reduzido a classe e código; o mesmo erro vai ao Sentry pelo
+    `capturarErro` das rotas. O `erroId` é o `digest` do Next e só entra no formato `^[A-Za-z0-9_-]{1,64}$`.
+    `redirect()` e `notFound()` não são registrados;
+  - **no console** (`src/lib/console-saneado.ts`, instalado no `register()` depois da configuração e do Sentry):
+    `console.error` e `console.warn` passam a gravar só `{ evento: 'console_erro' | 'console_aviso', erro, erroId }`
+    pelo log. Texto solto e objeto não saem. `console.log` e `console.info` não mudam, e o erro de configuração do boot,
+    que cita só o nome da variável (C-31), continua legível.
+  - `erroId` entrou na lista de permissão do log (`CAMPOS_PERMITIDOS`, `src/lib/log.ts`), e o próprio log descarta valor
+    fora do formato.
+  - O que a operação vê: o log do `app` no Easypanel não traz mais mensagem nem pilha de erro de tela. O que sobra para
+    o diagnóstico é, no log, o `erroId`, a rota, a classe e o código e, no Sentry, a tag `evento: erro_requisicao`, o
+    título `<classe> <code>` e os quadros da pilha sem mensagem. O Sentry não recebe o `erroId`.
+- **M-06 (C-10, RF-20): o ator que não é pessoa recebe a vista mínima da demanda.** `vistaDaDemandaPara`
+  (`src/modules/demandas/consultas.ts`) é usada no `GET /api/demandas/:id` e na resposta do `POST /api/demandas`:
+  - a pessoa recebe a vista inteira, como antes;
+  - qualquer outro ator (o token de agente) recebe a vista montada chave a chave, por lista de permissão: sem as chaves
+    `solicitanteNome` e `anexos` (a chave some, não vem `null`), com `responsavel` de pessoa igual a `{ "tipo": "pessoa" }`
+    e o mesmo no `autor` das listas `especificacoes`, `pareceresRisco` e `pacotesDecisao`. Autor agente fica
+    `{ "tipo": "agente", "agente": "<nome>" }`. Campo novo da vista não chega ao agente sem entrar na lista;
+  - a listagem `GET /api/demandas` já não tinha esses campos e agora tem teste de contrato nos dois atores.
+  - Os campos de texto livre da demanda continuam saindo para o agente sem minimização: é o M-1 (Pendências).
+- **M-07 (C-37): o seed fictício recusa a configuração fora do loopback.** `scripts/seed-ficticio.ts` ganhou uma
+  segunda guarda, independente de `SEED_FICTICIO` e do banco vazio: o host da origem validada do `BETTER_AUTH_URL`
+  tem de ser `127.0.0.1`, `localhost` ou `[::1]`, por igualdade exata (`ehLoopback`, `src/lib/env.ts`, a mesma lista do
+  cookie `Secure`). Fora disso, antes de abrir conexão ou transação:
+  - o resultado é `recusado_producao`, com código de saída 1 e nada gravado;
+  - a saída é a mensagem fixa "Seed fictício não rodou: BETTER_AUTH_URL não aponta para o loopback (127.0.0.1,
+    localhost ou [::1]), e o seed só roda fora da produção. Nada foi alterado.", sem o valor da URL;
+  - o log grava `seed_ficticio` com `codigoErro: 'url_fora_do_loopback'`;
+  - no `pnpm start:hml`, a recusa imprime "Seed fictício não rodou (BETTER_AUTH_URL fora do loopback)." e não derruba a
+    subida.
+
+  A homologação (`127.0.0.1:3200`), o e2e (`127.0.0.1:3101`) e o banco de desenvolvimento seguem semeando.
+- **M-08: decidir DEC e gerar Pedido numa demanda em status final dá 409.**
+  - `registrarDecisao` (`src/modules/pacotes-decisao/decidir.ts`) trava a demanda e, se ela está `entregue` ou
+    `encerrada` (`ehStatusFinal`), responde 409 `conflito` com "a demanda está em status final; o pacote não pode mais
+    ser decidido.". A recusa vem antes de ler o DEC e de toda outra conferência: aprovar, devolver e arquivar recebem
+    essa mensagem, também num DEC já decidido e na segunda aprovação de um DEC `cto_e_administradora`.
+  - `gerarPedido` (`src/modules/pedido-construcao/gerar.ts`) passou a travar a demanda, como a decisão, e responde 409
+    com "a demanda está em status final; o pacote não gera mais Pedido de Construção." antes de ler o DEC. O
+    `desatualizado` agora é lido sob a trava.
+  - Nada é gravado na recusa: nem `aprovacao`, nem `decisao`, nem evento, nem `pedido_gerado`. A matriz vem antes: token
+    de agente segue 403 e sem credencial segue 401.
+  - Consequência: depois de "Arquivar" (que leva a demanda a `encerrada`), decidir de novo o mesmo DEC dá o 409 da
+    demanda final, não o "este pacote já tem decisão registrada."; e gerar de novo o Pedido de um DEC aprovado depois que
+    a demanda foi a `entregue` passou a dar 409 (B-5, abaixo).
+- **Aviso por e-mail: 408 e 409 do Resend são tentados de novo** (`src/modules/avisos/enviador.ts`). Passam a
+  `transitorio`, com 429 e 5xx: o aviso fica `pendente` e a fila tenta até a 3.ª, quando termina `falhou`. Os outros 4xx
+  (400, 401, 403, 410, 413, 422) seguem `recusado` e `falhou` na 1.ª. O 409 da mesma `Idempotency-Key` com corpo
+  diferente, que não é passageiro, também gasta as 3 tentativas: é limitado, e aceito na triagem.
+- **CI: actions fixadas por SHA** (`.github/workflows/ci.yml` e `deploy.yml`). As 9 linhas `uses:` são
+  `actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0` (5 no `ci.yml`, 1 no `deploy.yml`) e
+  `actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0` (3 no `ci.yml`), sem troca de versão maior. O
+  "SHA pendente" saiu dos `uses:` e dos cabeçalhos. Os gatilhos não mudaram.
+- **Testes:** os da correção e 13 novos na regressão (contrato HTTP do 409 nas rotas de decisão e de Pedido, e os casos
+  exploratórios do console). Quatro asserções existentes mudaram porque fixavam o comportamento corrigido, sem ficar
+  mais fracas: o 409 do DEC arquivado em `gerar.test.ts` e `acoes-pedido.test.ts` (agora com a mensagem da demanda
+  final), o erro do `getSession` em `exigir-pessoa.test.ts` e `resolver-ator-qa.test.ts` (agora `ErroLeituraSessao`, sem
+  a mensagem crua) e a linha do 409 em `enviador.test.ts` (de `recusado` para `transitorio`).
+- **Versão:** o `package.json` passou de 0.1.5 para 0.1.6, e `test/estatico/projeto.test.ts` confere a versão nova.
+- **Documentação:**
+  - estas notas;
+  - a versão no `README.md`, no manual técnico e no `docs/operacao/deploy.md`;
+  - no manual: cap. 02 (log, console e `ErroLeituraSessao`), 03 (vista do agente e status final), 04 e 05 (409 da
+    demanda final na decisão e no Pedido), 06 (alcance da minimização na API), 07 (408 e 409), 08 (textos para a
+    `ux-ui-design`), 09 (rotas, erros e exemplos) e 10 (guarda do seed);
+  - no `deploy.md`: a primeira publicação (seção 4, com o bloqueio do M-1), o seed (seção 7), o `erro_requisicao` e o
+    aviso (seções 8 e 9); as seções 6 e 10 vieram da `05-devops-sre.md`.
+
+Não houve `.skip`, `.only` ou `.todo` novo, nem asserção afrouxada. O C-10, o C-21, o C-36, o C-37, a A-02 e o axe
+continuam sem exceção. O único `eslint-disable-next-line no-console` novo fica na linha de `console-saneado.ts` que troca
+os dois métodos, com a razão (G3.7).
+
+### Verificações desta versão
+
+- `pnpm test`: 195 arquivos, 3.879 de 3.879 (`04-qa-automacao.md`; a `05-devops-sre.md` repetiu sem o build em
+  paralelo, com o mesmo resultado).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143, sem teste pulado, três vezes seguidas, cada uma com banco
+  novo. Nenhum spec precisou de ajuste.
+- Testes que reproduzem os defeitos da `01-qa-funcional.md`: o sentinela fictício em `message`, `cause`, `stack` e
+  `params` do erro do `getSession`, no `onRequestError` e no console (com espião no `stdout` e no `stderr` do processo);
+  o `GET` e o `POST` com token de agente; o seed com quatro URLs fora do loopback; decidir e gerar em `encerrada` e
+  `entregue`, pela função e pela rota; 408 e 409 pelas três tentativas.
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico ou alto; três médios e cinco baixos
+  (abaixo).
+- `docker build` local: 1,74 GB em disco e 426 MB de conteúdo, o mesmo da 0.1.5, nada publicado (`05-devops-sre.md`).
+- A homologação (`construir.mjs homologar`), o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR, que
+  prova os 9 SHAs, ficam para a Parada 3.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), médios, **abertos** (M-1 a M-3 são desta revisão; não confundir com os M-01
+a M-03 da 0.1.0):
+
+- **M-1 (RF-20, LGPD): dado pessoal no texto livre lido pelo agente. Bloqueia a primeira publicação (CA-P5-16) até o
+  pedido seguinte (0008) corrigi-lo ou até Fabiano e a `gestao-riscos` aceitarem o risco.** A vista mínima tira as
+  chaves e o nome do autor, mas devolve ao token de agente `titulo`, `contexto`, `descricaoProblema`,
+  `justificativaUrgencia`, `impactoPercebido` e `duvidasEntrada` sem passar pelo `minimizar`
+  (`src/modules/demandas/consultas.ts:199-222`); o `titulo` da listagem `GET /api/demandas` também. A entrada do agente
+  troca nome, e-mail, CPF, CNPJ e telefone por marcadores; pela API, um nome ou contato escrito no texto livre sai
+  inteiro. O comentário do código diz "o mesmo critério da entrada do agente", e isso não é verdade hoje. Por ser dado
+  pessoal, não fica como dívida sem esse aceite.
+- **M-2: autoria nas leituras próprias de ESP, RSK e DEC.** `GET /api/especificacoes/:espId`,
+  `GET /api/pareceres-risco/:rskId` e `GET /api/pacotes-decisao/:decId` seguem dando ao token de agente o `autor.nome`
+  da conta, e o DEC também `aprovadores[].nome`, `referenciaDocumento` e `decididaPor`
+  (`src/modules/especificacoes/consultas.ts:63`, `src/modules/pacotes-decisao/consultas.ts:148-155`). Ficou fora do
+  M-06 por não estar no texto aprovado da ESP; precisa de dono e prazo. Recomendação do maestro: no pedido 0008, junto
+  com o M-1.
+- **M-3: diagnóstico do erro fora de requisição** (`src/lib/console-saneado.ts:31-32`). O que não passa pelo
+  `onRequestError` (`uncaughtException`, `unhandledRejection`, `onError` do `after()`) e chega ao console perde a pilha e
+  não vai ao Sentry, que roda com `defaultIntegrations: false`; aviso só de texto do Next vira `console_erro` sem pista.
+  Não vaza dado; dificulta o diagnóstico em produção. Sugestão da revisão: chamar `capturarErro` quando o argumento for
+  `Error` sem `digest`. Recomendação do maestro: no pedido 0008.
+
+Da revisão deste pedido, baixos:
+
+- **B-1:** `onRequestError` passa `erro: err` cru ao log (`src/instrumentation.ts:51`); com valor que não é `Error`, o
+  `redact` só cobre um nível. Não é explorável hoje, porque o Next converte antes; `reduzirErro(err)` fecha. Junto do
+  0008.
+- **B-2:** o Next pode guardar `console.warn` ao carregar um módulo, e o `onError: console.error` do `next-server`,
+  antes do `register()`. São avisos de API dinâmica e erros do `after()`, sem token.
+- **B-3:** a guarda do seed lê o `BETTER_AUTH_URL`, não o `DATABASE_URL`. Quem trocar só a URL ainda cai na guarda do
+  banco com conta e demanda. Defesa em profundidade, aceitável.
+- **B-4:** os dois textos novos de 409 (`demandaFinal` em `decidir.ts` e `gerar.ts`) foram escritos na triagem e pedem a
+  revisão da `ux-ui-design`, que também decide se a tela do DEC esconde as ações quando a demanda está em status final.
+- **B-5:** gerar de novo o Pedido de um DEC numa demanda `entregue` passou a dar 409. Antes, o mesmo DEC gerava sempre o
+  mesmo Pedido (CA-22.2) em qualquer status. É o que a ESP aprovada pede; fica registrado para quem mexer no fluxo do
+  Pedido.
+
+Registradas nas outras etapas deste pedido:
+
+- **`erroId` fora do Sentry** (achado da `06-documentacao`): a triagem (`02-tech-lead.md`) diz que o `erroId` casa a
+  linha do log com o evento no Sentry, mas o `capturarErro` (`src/lib/sentry.ts:40-46`) manda só o título
+  `<classe> <code>`, os quadros da pilha e a tag `evento`. O manual descreve o código; levar o `erroId` como tag é
+  decisão para o pedido 0008.
+- **Risco que sobra no M-05, para a Parada 3:** a prova é de unidade. Se o Next escrever o erro de renderização direto
+  no `process.stderr`, ou guardar a referência do `console.error` antes do `register()`, a peça do console não pega, e
+  só a origem (token) e o registro (`erro_requisicao`) seguem garantidos. A conferência é o passo 2 da D-01 da
+  `01-qa-funcional.md` na homologação: parar o `db`, abrir `/demandas` e ler o log do `app`.
+- **Teste estático das actions por SHA** (`04-qa-automacao.md`): um teste em `test/estatico/` que exija
+  `owner/repo@<40 hex> # vX.Y.Z` em todo `uses:` de terceiros. Fora da lista **Pode** da `05-entrega`; vai a um próximo
+  pedido. Sugestão da `05-devops-sre.md`: Dependabot ou Renovate para `github-actions`, para o SHA e o comentário mudarem
+  juntos.
+- **Segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER`:** sem mudança desde a 0.1.5. Até existirem, o merge
+  publica a imagem no GHCR e fica vermelho no passo "Disparar o Easypanel", sem deploy. Antes de qualquer passo, tire um
+  snapshot da VPS no hPanel.
+- **Rollback da 0.1.6** pelo caminho A (só trocar a imagem de `worker` e `app`), para
+  `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:e0d5f4c39740275c31e4f4de55874128adb52e78` (a `v0.1.5`, merge
+  do PR #7). Ao voltar, o M-05 e o M-06 deixam de valer até a correção ser publicada. Na cadeia curta a volta não foi
+  ensaiada: o ensaio é o `ensaiar-rollback` da Parada 3.
+- A imagem local `ws-orquestrador-demandas:local` (agora a da 0.1.6) ficou no Docker da VPS. Apagá-la depende de
+  confirmação de Fabiano.
+
+Continuam abertas, sem mudança: os baixos B-1 a B-6 da 0.1.5, as versões do Next e do Better Auth acima do padrão
+técnico, o médio do reteste da 0.1.0 (demanda sem saída com DEC aprovado e versão nova), as pendências da 0.1.4 e da
+0.1.2 e as da 0.1.0 (seções abaixo).
+
 ## 0.1.5 — 2026-11-03
 
 Correção do pedido `DEC-DEM-20261103-0006-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.4 (`cf36ec5`). Ainda
@@ -112,12 +291,12 @@ Registradas nas outras etapas deste pedido, fora do escopo dele:
   (`src/modules/pacotes-decisao/decidir.ts`) e `gerarPedido` (`src/modules/pedido-construcao/gerar.ts`) não conferem o
   status da demanda. Um DEC pendente de uma demanda levada a `encerrada` à mão ainda pode ser aprovado e gerar Pedido.
   Isso é o que sobra da N-04 da 0.1.3: criar DEC numa demanda Encerrada passou a dar 409, mas arquivar ainda é aceito,
-  e o alerta continua dizendo "A demanda foi para Encerrada." quando ela já estava.
+  e o alerta continua dizendo "A demanda foi para Encerrada." quando ela já estava. Fechada na 0.1.6 (M-08).
 - **Ações de nova ESP, RSK ou DEC em demanda final** (`02-tech-lead.md`, para a `ux-ui-design`): a tela de detalhe pode
   continuar mostrando essas ações; a pessoa recebe a mensagem fixa do 409. Esconder a ação é decisão de interface.
 - **409 e 408 do Resend** (`04-qa-automacao.md`, a confirmar pelo `tech-lead`): pela regra nova, todo 4xx que não é 429
   falha na hora. Se o Resend responder 409 a uma requisição concorrente com a mesma `Idempotency-Key`, ou 408, esse caso
-  passageiro deixa de ser tentado de novo.
+  passageiro deixa de ser tentado de novo. Fechada na 0.1.6.
 - **Versões do Next e do Better Auth** (`05-devops-sre.md`): o build usa next 16.4.1 e better-auth 1.7.7, acima da
   referência do padrão técnico (16.3.8 e 1.7.6). Vem da 0.1.0 (correção S-01); falta ADR ou a atualização do padrão.
 - **Médio do reteste da 0.1.0** (demanda sem saída com DEC aprovado e versão nova): continua aberto. A recusa da 0.1.5
@@ -667,18 +846,21 @@ risco residual; o `seguranca-aplicacao` não aceita risco residual sozinho):
   parecer (`src/modules/agentes/entrada-agente.ts`). Fechada na 0.1.5.
 - **M-02**: criar ESP, RSK ou DEC não confere o status da demanda; numa demanda `encerrada` ou `entregue`, dispara
   agente, aviso e possível pedido (`src/modules/pacotes-decisao/criar.ts`). Fechada na 0.1.5 para a criação; decidir e
-  gerar o Pedido em demanda `encerrada` seguem abertos (pendências da 0.1.5).
+  gerar o Pedido em demanda `encerrada` ficaram abertos na 0.1.5 e fecharam na 0.1.6 (M-08).
 - **M-03**: erro inesperado no envio do aviso gasta as novas tentativas sem somar `aviso_email.tentativas`, e o aviso
   pode ficar `pendente` para sempre; a recusa definitiva do Resend (4xx) é tentada de novo
   (`src/jobs/aviso-dec-pronto.ts`). Fechada na 0.1.5.
 - **M-04**: o `no-store` das páginas era conferido só no `next dev`. Resolvido no e2e local, que agora roda contra o
   build de produção, e conferido na homologação com `BASE_URL`; segue na lista para o registro da decisão.
 - **M-05**: erro não tratado em página ou layout sai pelo `console` do Next, fora do log por lista de permissão
-  (`src/modules/acesso/exigir-pessoa.ts`, `src/app/(painel)/layout.tsx`).
+  (`src/modules/acesso/exigir-pessoa.ts`, `src/app/(painel)/layout.tsx`). Fechada na 0.1.6, com o risco da prova só
+  de unidade registrado nas pendências dela.
 - **M-06**: o token de agente lê `solicitanteNome`, anexos e o nome da conta autora pela API, contornando a
-  minimização (`src/modules/demandas/consultas.ts`).
+  minimização (`src/modules/demandas/consultas.ts`). Fechada na 0.1.6 para a leitura de demanda; o texto livre sem
+  minimização (M-1) e a autoria nas leituras de ESP, RSK e DEC (M-2) seguem abertos (pendências da 0.1.6).
 - **M-07**: o seed cria contas com senha e segredo TOTP que estão no git; a guarda é `SEED_FICTICIO=1` com banco vazio.
-  Controle operacional: `SEED_FICTICIO` nunca no serviço de produção (`docs/operacao/deploy.md`, seção 7).
+  Controle operacional: `SEED_FICTICIO` nunca no serviço de produção (`docs/operacao/deploy.md`, seção 7). Fechada na
+  0.1.6: o seed também recusa `BETTER_AUTH_URL` fora do loopback.
 - **Médio novo do reteste (08)**: a regra "nunca dois DEC aprovados" junto com a do desatualizado pode deixar a
   demanda sem saída. O v1 é aprovado, entra uma ESP ou um RSK novos, o pedido do v1 dá 409 e o v2 não pode ser
   aprovado. Saídas possíveis: recusar ESP, RSK e DEC novos numa demanda com DEC aprovado (trata também a M-02), ou
@@ -688,7 +870,8 @@ risco residual; o `seguranca-aplicacao` não aceita risco residual sozinho):
 Configuração e pipeline (fora do `/construir`; passo a passo em `docs/operacao/deploy.md`, seções 2 e 10):
 
 - Fixar por SHA completo `actions/checkout@v5` e `actions/setup-node@v5` nos dois workflows, e por digest a imagem
-  `ghcr.io/gitleaks/gitleaks:v8.28.0`. Sem isso, o C-39 (A-05) não fecha por inteiro.
+  `ghcr.io/gitleaks/gitleaks:v8.28.0`. Sem isso, o C-39 (A-05) não fecha por inteiro. O gitleaks fechou em 31/10/2026
+  e as actions na 0.1.6.
 - Segredos do GitHub `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER`.
 - Credencial de leitura de pacotes (`read:packages`) do GHCR no Easypanel.
 - Acesso **Admin** das Actions do repositório ao pacote no GHCR, para a limpeza das versões antigas.

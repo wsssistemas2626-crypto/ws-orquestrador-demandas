@@ -2,12 +2,12 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.5 |
+| Versão | 0.1.6 |
 | Imagem | `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas` (privada) |
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 03/11/2026 (`documentacao-tecnica`: versão 0.1.5, primeira publicação com a 0.1.5 na seção 4, rollback da 0.1.5 na seção 6 e o `aviso_email_falhou` na seção 9) |
+| Atualizado em | 03/11/2026 (`devops-sre`: actions por SHA na seção 10 e rollback da 0.1.6 na seção 6; `documentacao-tecnica`: versão 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -98,8 +98,13 @@ Requisitos de operação que o código supõe:
 ## 4. Primeira publicação
 
 A produção ainda não tem versão no ar, então não há para onde voltar. A 0.1.0 foi mergeada e a imagem dela está no
-GHCR, mas os serviços do Easypanel não foram criados. Depois do merge da 0.1.5, a primeira publicação de verdade usa
-a `:latest`, que passa a ser a 0.1.5, com as mesmas 7 migrations da 0.1.0.
+GHCR, mas os serviços do Easypanel não foram criados. Depois do merge da 0.1.6, a `:latest` passa a ser a 0.1.6, com
+as mesmas 7 migrations da 0.1.0.
+
+**A primeira publicação está bloqueada pelo M-1 da 0.1.6** (CA-P5-16): a leitura de demanda pela API entrega ao token
+de agente o texto livre sem minimização, e um dado pessoal escrito ali sai inteiro
+([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6). Só comece o passo 1 depois de o pedido seguinte (0008)
+corrigi-lo e ser mergeado, ou de Fabiano e a `gestao-riscos` aceitarem o risco por escrito.
 
 1. Snapshot no hPanel.
 2. Criar o projeto e o serviço `db` (Postgres 16). O usuário criado pelo Easypanel é o **migrator** (dono do banco).
@@ -109,7 +114,7 @@ a `:latest`, que passa a ser a 0.1.5, com as mesmas 7 migrations da 0.1.0.
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
 5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
    - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
-   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.5, que não mudam `drizzle/`): roda o passo "Disparar o
+   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.6, que não mudam `drizzle/`): roda o passo "Disparar o
      Easypanel".
      - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
        EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
@@ -221,14 +226,21 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
 - **Se um dia houver homologação no Easypanel:** acesso restrito (autenticação básica do Easypanel ou lista de IPs),
   `BETTER_AUTH_URL` em https, banco próprio e separado do de produção, e nenhum dado real.
 - **`SEED_FICTICIO` nunca no serviço de produção (M-07).** O seed cria contas com senha e segredo TOTP públicos, que
-  estão no git (`scripts/seed-ficticio.ts`). Ele recusa banco que já tem demanda ou conta, mas a regra é não pôr a
-  variável em produção, nem por um deploy.
+  estão no git (`scripts/seed-ficticio.ts`). Ele recusa banco que já tem demanda ou conta e, desde a 0.1.6, recusa
+  `BETTER_AUTH_URL` fora do loopback, antes de abrir conexão: com o https de produção, sai com código 1 e "Seed fictício
+  não rodou: BETTER_AUTH_URL não aponta para o loopback (...)", sem gravar nada
+  ([manual, cap. 10](../manual-tecnico/10-configuracao-e-scripts.md#scripts-de-operação)). A guarda é uma segunda
+  barreira; a regra continua sendo não pôr a variável em produção, nem por um deploy.
 
 ## 8. Conferência depois de cada deploy ou rollback
 
 1. `GET https://<domínio>/api/saude` responde 200 `{"status":"ok"}`. 503 = banco fora ou migration diferente da imagem.
 2. Logs do `app` e do `worker` no Easypanel sem `worker_configuracao_invalida` nem `worker_falha_ao_subir` (as
-   mensagens citam só o nome da variável).
+   mensagens citam só o nome da variável). Desde a 0.1.6, o log do `app` não traz mensagem nem pilha de erro de tela:
+   erro de página ou layout aparece como `erro_requisicao`, com `rota`, `erro` (classe e código) e `erroId`, e erro que
+   chega ao console como `console_erro` ou `console_aviso`. No Sentry, o mesmo erro tem a tag `evento` igual a
+   `erro_requisicao` e o título `<classe> <code>`, sem o `erroId`: case pela hora, pela classe e pelo código
+   ([manual, cap. 02](../manual-tecnico/02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).
 3. Em `/configuracao/agentes`, batimento do worker com menos de 5 minutos e uma instância só.
 4. Entrar com uma conta real (senha e 2FA) e abrir a fila de demandas.
 
@@ -244,8 +256,9 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
 Aviso por e-mail no Sentry, desde a 0.1.5 ([manual, cap. 07](../manual-tecnico/07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail)):
 
 - `aviso_email_falhou`: o aviso de um DEC terminou `falhou`. Chega na 1ª tentativa quando o Resend recusa de vez (4xx
-  que não é 429; com 401 ou 403, confira primeiro `RESEND_API_KEY` no worker) e na 3ª quando a falha é passageira ou
-  é um erro inesperado. O DEC continua na fila do painel; o e-mail não é reenviado sozinho.
+  que não é 408, 409 nem 429; com 401 ou 403, confira primeiro `RESEND_API_KEY` no worker) e na 3ª quando a falha é
+  passageira (408, 409, 429, 5xx, rede ou tempo limite; o 408 e o 409 desde a 0.1.6) ou é um erro inesperado. O DEC
+  continua na fila do painel; o e-mail não é reenviado sozinho.
 - `aviso_erro_inesperado`: só quando nem a contagem da tentativa gravou, ou seja, banco fora. Conferir o `db` e a
   saúde (seção 8).
 

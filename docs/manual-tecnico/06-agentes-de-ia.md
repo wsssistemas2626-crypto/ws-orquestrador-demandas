@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.5: demanda em status final na execução, recusa do serviço e citação da consolidação) |
+| Atualizado em | 03/11/2026 (0.1.6: alcance da minimização na leitura pela API, no RF-20) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -115,6 +115,12 @@ Vale para todo campo de texto de todo agente, não só para o texto bruto (`mini
 
 Ao provedor vai só a lista de campos permitida para cada agente (`entrada-agente.ts`). Risco residual registrado para
 aceite (J-03 da spec): nome de outra pessoa dentro de texto livre ainda pode chegar ao provedor.
+
+Esta minimização vale para a entrada que o worker monta. A leitura de demanda pela API com token de agente segue outra
+regra, a vista mínima ([cap. 03](03-demandas.md#rf-06-consultar-e-alterar); M-06, desde a 0.1.6): tira
+`solicitanteNome`, `anexos` e o nome da conta, mas **não** passa os campos de texto livre pelo `minimizar`. Um e-mail,
+telefone ou nome escrito no `contexto`, por exemplo, chega ao token de agente como foi gravado (M-1, aberto; bloqueia a
+primeira publicação, [CHANGELOG](../../CHANGELOG.md)).
 
 ## Pré-condições para ligar qualquer agente em produção
 
