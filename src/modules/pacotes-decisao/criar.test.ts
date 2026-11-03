@@ -8,11 +8,13 @@ import { SENTINELAS, contemSentinela } from '../../../test/sentinelas';
 import { criarDb } from '../../db';
 import { demanda, evento, pacoteDecisao, user } from '../../db/schema';
 import { comTransacao } from '../../db/transacao';
-import { ErroDominio } from '../../lib/erros';
+import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
+import { FILAS, criarFila, type Fila } from '../../lib/fila';
 import { relogioFixo, type RelogioFixo } from '../../lib/relogio';
 import type { AtorAgente, AtorPessoa, AtorSistema } from '../acesso/ator';
 import { alterarDemandaSchema, criarDemandaSchema, type Status } from '../demandas/schemas';
 import { alterarDemanda, criarDemanda } from '../demandas/servico';
+import { MENSAGEM_DEMANDA_FINAL } from '../demandas/transicoes';
 import { criarEspecificacaoSchema } from '../especificacoes/schemas';
 import { criarEspecificacao } from '../especificacoes/servico';
 import { MENSAGEM_LIMITE } from '../limites';
@@ -239,7 +241,8 @@ describe('criarPacoteDecisao: gravação', () => {
     expect(await statusDa(id)).toBe('pronta_para_decisao');
   });
 
-  it.each(['pronta_para_decisao', 'aprovada', 'em_construcao', 'encerrada'] as const)('em %s (fora da origem), o DEC é gravado e o status não muda', async (status) => {
+  // M-02: `encerrada` saiu desta lista e virou caso de recusa (describe "demanda em status final"); `devolvida` entrou.
+  it.each(['pronta_para_decisao', 'aprovada', 'em_construcao', 'devolvida'] as const)('em %s (fora da origem), o DEC é gravado e o status não muda', async (status) => {
     const id = await demandaPronta({}, status);
     await criarPacoteDecisao(deps, cto, id, dec());
     expect(await statusDa(id)).toBe(status);
@@ -315,6 +318,124 @@ describe('criarPacoteDecisao: autoria, acesso e histórico', () => {
     await criarPacoteDecisao(deps, consolidacao, id, dec());
     const ev = (await eventosDa(id)).find((e) => e.acao === 'pacote_decisao_criado')!;
     expect(ev).toMatchObject({ atorTipo: 'agente', atorId: 'consolidacao', atorTokenPrefixo: 'Cn5oL1dA', depois: { versao: 1, rascunhoAgente: true } });
+  });
+});
+
+// M-02 (DEC-DEM-20261103-0006-v1): numa demanda em status final, o DEC é recusado sob a trava, antes do limite, do
+// insert, do evento, da mudança de status e do aviso. Com a fila presente, para provar que nenhum job de aviso nasce.
+describe('criarPacoteDecisao: demanda em status final (M-02)', () => {
+  let fila: Fila;
+  beforeAll(async () => {
+    fila = await criarFila(b.urlApp);
+  });
+  afterAll(async () => {
+    await fila.parar();
+  });
+
+  const avisosDa = async (demandaId: string) =>
+    Number((await b.poolMigrator.query('select count(*) from aviso_email where pacote_decisao_id like $1', [`DEC-${demandaId}-%`])).rows[0].count);
+  const jobsDeAvisoDa = async (demandaId: string) =>
+    Number((await b.poolMigrator.query(`select count(*) from pgboss.job where name = $1 and data->>'decId' like $2`, [FILAS.avisoDecPronto, `DEC-${demandaId}-%`])).rows[0].count);
+
+  it.each([
+    ['entregue', 'pessoa'],
+    ['encerrada', 'pessoa'],
+    ['entregue', 'agente'],
+    ['encerrada', 'agente'],
+  ] as const)('em %s, pelo ator %s → conflito com a mensagem fixa, sem DEC, sem evento, sem aviso e sem job', async (status, quem) => {
+    // ESP e RSK gravados antes de a demanda chegar ao status final.
+    const id = await demandaPronta();
+    await migrator().update(demanda).set({ status }).where(eq(demanda.id, id));
+    const extras = quem === 'agente' ? { execucaoAgenteId: '00000000-0000-4000-8000-000000000031', especificacaoId: idVersao('ESP', id, 1), parecerRiscoId: idVersao('RSK', id, 1) } : {};
+    const erro = await criarPacoteDecisao({ ...deps, fila }, quem === 'pessoa' ? cto : consolidacao, id, dec(), undefined, extras).catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(ErroDominio);
+    expect(erro).toMatchObject({ codigo: 'conflito', mensagem: MENSAGEM_DEMANDA_FINAL });
+    expect(await linhasDec(id)).toEqual([]);
+    expect(await statusDa(id)).toBe(status);
+    expect((await eventosDa(id)).map((e) => e.acao)).toEqual(['demanda_criada', 'especificacao_criada', 'parecer_risco_criado']);
+    expect(await avisosDa(id)).toBe(0);
+    expect(await jobsDeAvisoDa(id)).toBe(0);
+  });
+
+  it('a recusa vem antes do que falta: demanda encerrada sem ESP e sem RSK → conflito, e não entrada_invalida', async () => {
+    const id = await novaDemanda({}, 'encerrada');
+    await expect(criarPacoteDecisao(deps, cto, id, dec())).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGEM_DEMANDA_FINAL });
+  });
+
+  it.each(['nova', 'em_analise', 'aguardando_informacao', 'pronta_para_decisao', 'aprovada', 'em_construcao', 'devolvida'] as const)(
+    'em %s (não final), o DEC é gravado, com aviso e job',
+    async (status) => {
+      const id = await demandaPronta();
+      await migrator().update(demanda).set({ status }).where(eq(demanda.id, id));
+      expect(await criarPacoteDecisao({ ...deps, fila }, cto, id, dec())).toMatchObject({ id: idVersao('DEC', id, 1) });
+      expect(await linhasDec(id)).toHaveLength(1);
+      expect(await avisosDa(id)).toBe(1);
+      expect(await jobsDeAvisoDa(id)).toBe(1);
+    },
+  );
+});
+
+// M-01 (DEC-DEM-20261103-0006-v1): o worker passa a ESP e o RSK que a entrada da consolidação leu, e o DEC cita esses,
+// mesmo com versão mais nova na demanda (o DEC nasce desatualizado). Pessoa, rota e Server Action citam os mais novos.
+describe('criarPacoteDecisao: ESP e RSK citados pelo worker (M-01)', () => {
+  it('com extras.especificacaoId e extras.parecerRiscoId, cita essas versões, e não as mais novas; o DEC sai desatualizado', async () => {
+    const id = await demandaPronta();
+    await criarEspecificacao(deps, cto, id, esp({ descricaoObjetiva: 'ESP v2' }));
+    await criarParecerRisco(deps, cto, id, rsk({ riscoTecnicoNivel: 'baixo' }));
+    const v = await criarPacoteDecisao(deps, consolidacao, id, dec(), undefined, {
+      execucaoAgenteId: '00000000-0000-4000-8000-000000000032',
+      especificacaoId: idVersao('ESP', id, 1),
+      parecerRiscoId: idVersao('RSK', id, 1),
+    });
+    expect(v).toMatchObject({ especificacaoId: idVersao('ESP', id, 1), parecerRiscoId: idVersao('RSK', id, 1), desatualizado: true });
+    expect((await linhasDec(id))[0]).toMatchObject({ especificacaoVersao: 1, parecerRiscoVersao: 1 });
+    const ev = (await eventosDa(id)).find((e) => e.acao === 'pacote_decisao_criado')!;
+    expect(ev.depois).toMatchObject({ especificacaoId: idVersao('ESP', id, 1), parecerRiscoId: idVersao('RSK', id, 1) });
+  });
+
+  it('com os extras iguais às mais novas, o DEC não sai desatualizado', async () => {
+    const id = await demandaPronta();
+    const v = await criarPacoteDecisao(deps, consolidacao, id, dec(), undefined, { especificacaoId: idVersao('ESP', id, 1), parecerRiscoId: idVersao('RSK', id, 1) });
+    expect(v).toMatchObject({ especificacaoId: idVersao('ESP', id, 1), parecerRiscoId: idVersao('RSK', id, 1), desatualizado: false });
+  });
+
+  it('extras.parecerRiscoId de outra demanda → nao_encontrado, e nada gravado', async () => {
+    const id = await demandaPronta();
+    const outra = await demandaPronta();
+    const erro = await criarPacoteDecisao(deps, consolidacao, id, dec(), undefined, { especificacaoId: idVersao('ESP', id, 1), parecerRiscoId: idVersao('RSK', outra, 1) }).catch(
+      (e: unknown) => e,
+    );
+    expect(erro).toBeInstanceOf(ErroDominio);
+    expect(erro).toMatchObject({ codigo: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO });
+    expect(await linhasDec(id)).toEqual([]);
+    expect(await linhasDec(outra)).toEqual([]);
+  });
+
+  it('extras.especificacaoId de outra demanda → nao_encontrado, e nada gravado', async () => {
+    const id = await demandaPronta();
+    const outra = await demandaPronta();
+    await expect(
+      criarPacoteDecisao(deps, consolidacao, id, dec(), undefined, { especificacaoId: idVersao('ESP', outra, 1), parecerRiscoId: idVersao('RSK', id, 1) }),
+    ).rejects.toMatchObject({ codigo: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO });
+    expect(await linhasDec(id)).toEqual([]);
+  });
+
+  it('extras com versão que não existe → nao_encontrado, e nada gravado', async () => {
+    const id = await demandaPronta();
+    await expect(
+      criarPacoteDecisao(deps, consolidacao, id, dec(), undefined, { especificacaoId: idVersao('ESP', id, 1), parecerRiscoId: idVersao('RSK', id, 7) }),
+    ).rejects.toMatchObject({ codigo: 'nao_encontrado' });
+    await expect(
+      criarPacoteDecisao(deps, consolidacao, id, dec(), undefined, { especificacaoId: idVersao('ESP', id, 7), parecerRiscoId: idVersao('RSK', id, 1) }),
+    ).rejects.toMatchObject({ codigo: 'nao_encontrado' });
+    expect(await linhasDec(id)).toEqual([]);
+  });
+
+  it('pela pessoa, sem extras, continua citando as mais novas', async () => {
+    const id = await demandaPronta();
+    await criarParecerRisco(deps, cto, id, rsk());
+    const v = await criarPacoteDecisao(deps, cto, id, dec());
+    expect(v).toMatchObject({ especificacaoId: idVersao('ESP', id, 1), parecerRiscoId: idVersao('RSK', id, 2), desatualizado: false });
   });
 });
 

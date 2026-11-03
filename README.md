@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.4 (`package.json`) |
-| Atualizado em | 02/11/2026 |
+| Versão | 0.1.5 (`package.json`) |
+| Atualizado em | 03/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
 | Repositório | `wsssistemas2626-crypto/ws-orquestrador-demandas` (privado) |

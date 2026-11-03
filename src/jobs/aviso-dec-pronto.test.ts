@@ -12,6 +12,7 @@ import { substituirDestinoDoLog } from '../lib/log';
 import { relogioFixo } from '../lib/relogio';
 import type { AtorPessoa } from '../modules/acesso/ator';
 import type { DepsAviso } from '../modules/avisos/aviso-dec';
+import { ErroEnvioEmail } from '../modules/avisos/enviador';
 import { criarDemandaSchema } from '../modules/demandas/schemas';
 import { criarDemanda } from '../modules/demandas/servico';
 import { criarEspecificacaoSchema } from '../modules/especificacoes/schemas';
@@ -142,6 +143,44 @@ describe('tratarAvisoDecPronto', () => {
     expect(contemSentinela(linhas.join('\n'))).toBe(false);
   });
 
+  // M-03 (DEC-DEM-20261103-0006-v1): o erro inesperado fora do enviador conta a tentativa; na 3ª execução do mesmo job
+  // o aviso fica falhou e o job termina sem erro, como a falha comum.
+  it('erro inesperado fora do enviador, três execuções do mesmo job → aviso_nao_enviado duas vezes e, na 3ª, falhou sem relançar', async () => {
+    const decId = await decPronto();
+    const quebrada: DepsAviso = { ...depsAviso(), config: { ...CONFIG, urlBase: 'ftp://orquestrador.exemplo.test' } };
+    const rodar = () =>
+      tratarAvisoDecPronto(quebrada, [{ id: 'job-8', data: { decId } }]).then(
+        () => null,
+        (e: unknown) => e as Error,
+      );
+    expect((await rodar())?.message).toBe('aviso_nao_enviado');
+    expect((await rodar())?.message).toBe('aviso_nao_enviado');
+    expect(await rodar()).toBeNull();
+    expect(registros()).toContainEqual(expect.objectContaining({ evento: 'aviso_job_tratado', jobId: 'job-8', status: 'falhou' }));
+    expect(registros().filter((r) => r.evento === 'aviso_erro_inesperado')).toEqual([]);
+    expect((await b.poolMigrator.query('select status, tentativas from aviso_email where pacote_decisao_id = $1', [decId])).rows[0]).toEqual({ status: 'falhou', tentativas: 3 });
+    expect(enviador.chamadas).toBe(0);
+    expect(linhas.join('\n')).not.toContain('orquestrador.exemplo.test');
+  });
+
+  // 04-regressao (qa-automacao, DEC-DEM-20261103-0006-v1): M-03 pelo handler. A recusa definitiva do provedor (4xx que não
+  // é 429) termina o job na 1ª execução, sem relançar: o pg-boss não tenta de novo.
+  it('M-03: recusa definitiva do provedor → o job termina sem erro na 1ª execução, aviso falhou com 1 tentativa', async () => {
+    const decId = await decPronto();
+    let chamadas = 0;
+    const recusa: DepsAviso['enviador'] = {
+      enviar: async () => {
+        chamadas += 1;
+        throw new ErroEnvioEmail('recusado');
+      },
+    };
+    await expect(tratarAvisoDecPronto({ ...depsAviso(), enviador: recusa }, [{ id: 'job-9', data: { decId } }])).resolves.toBeUndefined();
+    expect(chamadas).toBe(1);
+    expect(registros()).toContainEqual(expect.objectContaining({ evento: 'aviso_job_tratado', jobId: 'job-9', status: 'falhou' }));
+    expect(registros().filter((r) => r.evento === 'aviso_erro_inesperado' || r.evento === 'aviso_email_falha')).toEqual([]);
+    expect((await b.poolMigrator.query('select status, tentativas from aviso_email where pacote_decisao_id = $1', [decId])).rows[0]).toEqual({ status: 'falhou', tentativas: 1 });
+  });
+
   // 06-T30-testes (qa-automacao): CA-25.2 pelo handler, com os dois jobs do mesmo DEC no mesmo lote.
   it('CA-25.2 no handler: dois jobs do mesmo DEC → um e-mail só, o segundo termina ja_enviado', async () => {
     const decId = await decPronto();
@@ -235,5 +274,23 @@ describe('no worker', () => {
     expect(contemSentinela(JSON.stringify(job!.output))).toBe(false);
     expect((await b.poolMigrator.query('select status, tentativas from aviso_email where pacote_decisao_id = $1', [decId])).rows[0]).toEqual({ status: 'pendente', tentativas: 1 });
     expect(contemSentinela(linhas.join('\n'))).toBe(false);
+  });
+
+  // 04-regressao (qa-automacao, DEC-DEM-20261103-0006-v1): M-03 pelo caminho real. Ao contrário da falha passageira
+  // acima (job em retry), a recusa definitiva conclui o job na 1ª execução, sem nova tentativa do pg-boss.
+  it('M-03 no worker: recusa definitiva do provedor → job completed na 1ª execução (retry_count 0), uma chamada só, aviso falhou', async () => {
+    let chamadas = 0;
+    const recusa = {
+      enviar: async () => {
+        chamadas += 1;
+        throw new ErroEnvioEmail('recusado');
+      },
+    };
+    await iniciar({ ...deps, enviador: recusa });
+    const decId = await decPronto();
+    await expect.poll(async () => (await jobsDoDec(decId)).map((j) => j.state), { timeout: 15_000 }).toEqual(['completed']);
+    expect(await jobsDoDec(decId)).toMatchObject([{ state: 'completed', retry_count: 0, retry_limit: 2 }]);
+    expect(chamadas).toBe(1);
+    expect((await b.poolMigrator.query('select status, tentativas from aviso_email where pacote_decisao_id = $1', [decId])).rows[0]).toEqual({ status: 'falhou', tentativas: 1 });
   });
 });

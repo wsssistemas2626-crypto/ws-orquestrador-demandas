@@ -21,7 +21,10 @@ import { criarDemanda } from '../demandas/servico';
 import { obterEspecificacao } from '../especificacoes/consultas';
 import { criarEspecificacaoSchema } from '../especificacoes/schemas';
 import { criarEspecificacao } from '../especificacoes/servico';
+import { OPCOES_DECISAO } from '../../db/schema/decisao';
 import { obterPacoteDecisao } from '../pacotes-decisao/consultas';
+import { MENSAGENS_DECISAO, registrarDecisao } from '../pacotes-decisao/decidir';
+import { registrarDecisaoSchema } from '../pacotes-decisao/schemas';
 import { obterParecerRisco } from '../pareceres-risco/consultas';
 import { criarParecerRiscoSchema } from '../pareceres-risco/schemas';
 import { criarParecerRisco } from '../pareceres-risco/servico';
@@ -528,6 +531,169 @@ describe('executarAgente: falhas do provedor e da entrada', () => {
     expect(await executarAgente(deps, id)).toBe('falhou');
     expect(provedor.chamadas).toHaveLength(0);
     expect(await eventosDa(id)).toMatchObject([{ acao: 'falha_agente', demanda_id: null, depois: { agente: 'orquestrador', motivo: 'entrada_nao_encontrada' } }]);
+  });
+});
+
+// M-02 (DEC-DEM-20261103-0006-v1): demanda em status final não gasta agente pago. A execução que já estava na fila é
+// encerrada `ignorada` antes de montar a entrada; a demanda fechada durante a chamada é recusada pelo serviço (409),
+// sem nova tentativa.
+describe('executarAgente: demanda em status final (M-02)', () => {
+  const levarA = (demandaId: string, status: string) => b.poolMigrator.query('update demanda set status = $2 where id = $1', [demandaId, status]);
+  const avisos = async (demandaId: string) =>
+    Number((await b.poolMigrator.query('select count(*) from aviso_email where pacote_decisao_id like $1', [`DEC-${demandaId}-%`])).rows[0].count);
+
+  // A execução do agente pedido, criada com a demanda ainda aberta; devolve a demanda e a tabela do artefato.
+  async function execucaoDe(agente: 'insumo_tecnico' | 'risco' | 'consolidacao') {
+    if (agente === 'insumo_tecnico') {
+      const outra = await novaDemanda();
+      await ligar('insumo_tecnico');
+      const id = (await novaExecucao('insumo_tecnico', `demanda:${outra.id}`, outra.id))!;
+      return { id, demandaId: outra.id, tabela: 'especificacao_tecnica' as const, saida: PROMPTS.insumo_tecnico.exemploSaida };
+    }
+    if (agente === 'risco') return { id: (await novaExecucao())!, demandaId: dem.id, tabela: 'parecer_risco' as const, saida: RSK_VALIDO };
+    const rsk = await criarParecerRisco(base, cto, dem.id, criarParecerRiscoSchema.parse(RSK_VALIDO));
+    await ligar('consolidacao');
+    return { id: (await novaExecucao('consolidacao', `rsk:${rsk.id}`))!, demandaId: dem.id, tabela: 'pacote_decisao' as const, saida: PROMPTS.consolidacao.exemploSaida };
+  }
+
+  it.each([
+    ['insumo_tecnico', 'encerrada'],
+    ['insumo_tecnico', 'entregue'],
+    ['risco', 'encerrada'],
+    ['risco', 'entregue'],
+    ['consolidacao', 'encerrada'],
+    ['consolidacao', 'entregue'],
+  ] as const)('%s na fila e demanda levada a %s → ignorada, sem chamar o provedor, sem uso e sem artefato', async (agente, status) => {
+    const ex = await execucaoDe(agente);
+    provedor.respostas.push(resposta(ex.saida));
+    await levarA(ex.demandaId, status);
+    expect(await executarAgente(deps, ex.id)).toBe('ignorada');
+    expect(provedor.chamadas).toHaveLength(0);
+    expect(await usos(ex.id)).toEqual([]);
+    expect(await execucao(ex.id)).toMatchObject({ status: 'ignorada', bloqueada_ate: null });
+    expect(await eventosDa(ex.id)).toEqual([
+      { acao: 'agente_ignorado', ator_tipo: 'sistema', ator_id: 'sistema', demanda_id: ex.demandaId, depois: { agente, motivo: 'demanda_final' } },
+    ]);
+    expect(await contar(ex.tabela, ex.demandaId)).toBe(0);
+  });
+
+  it.each(['insumo_tecnico', 'risco', 'consolidacao'] as const)(
+    '%s: demanda levada a entregue durante a chamada → falhou (recusada pelo serviço), uma chamada só, uso erro e nada gravado',
+    async (agente) => {
+      const ex = await execucaoDe(agente);
+      const falso = new ProvedorFalso();
+      falso.respostas.push(resposta(ex.saida));
+      const fecha: ProvedorIA = {
+        gerar: async (p) => {
+          await levarA(ex.demandaId, 'entregue');
+          return falso.gerar(p);
+        },
+      };
+      expect(await executarAgente({ ...base, provedor: fecha }, ex.id)).toBe('falhou');
+      expect(falso.chamadas).toHaveLength(1);
+      expect(await usos(ex.id)).toMatchObject([{ resultado: 'erro' }]);
+      expect(await eventosDa(ex.id)).toMatchObject([{ acao: 'falha_agente', depois: { agente, motivo: 'recusada_pelo_servico', tentativas: 1 } }]);
+      expect(await execucao(ex.id)).toMatchObject({ status: 'falhou', tentativas: 1 });
+      expect(await contar(ex.tabela, ex.demandaId)).toBe(0);
+      expect(await avisos(ex.demandaId)).toBe(0);
+    },
+  );
+
+  it('demanda aberta continua chamando o provedor (controle): risco em em_construcao grava o RSK', async () => {
+    await levarA(dem.id, 'em_construcao');
+    provedor.respostas.push(resposta(RSK_VALIDO));
+    expect(await executarAgente(deps, (await novaExecucao())!)).toBe('concluida');
+    expect(await contar('parecer_risco', dem.id)).toBe(1);
+  });
+});
+
+// M-01 (DEC-DEM-20261103-0006-v1): o RSK e a ESP que a consolidação leu são os que o DEC cita. Um RSK ou uma ESP mais
+// nova que entra entre o agendamento e a gravação faz o DEC nascer desatualizado, e a aprovação dele é barrada.
+describe('executarAgente: a consolidação cita o que leu (M-01)', () => {
+  const RESUMO_V1 = 'Resumo fictício do RSK v1';
+  const RESUMO_V2 = 'Resumo fictício do RSK v2';
+  const rskCom = (resumo: string) => criarParecerRiscoSchema.parse({ ...(RSK_VALIDO as object), resumo });
+  const execucaoDaChave = async (chave: string) =>
+    (await b.poolMigrator.query<{ id: string }>('select id from execucao_agente where chave_entrada = $1', [chave])).rows[0]!.id;
+  const linhaDec = async (decId: string) =>
+    (
+      await b.poolMigrator.query<{ especificacao_id: string; especificacao_versao: number; parecer_risco_id: string; parecer_risco_versao: number }>(
+        'select especificacao_id, especificacao_versao, parecer_risco_id, parecer_risco_versao from pacote_decisao where id = $1',
+        [decId],
+      )
+    ).rows[0]!;
+
+  it('a fila: RSK v2 criado depois de agendar a consolidação do v1 → resumo enviado e citação são do v1, o DEC sai desatualizado e não é aprovado', async () => {
+    await ligar('consolidacao');
+    const rsk1 = await criarParecerRisco(base, cto, dem.id, rskCom(RESUMO_V1));
+    const rsk2 = await criarParecerRisco(base, cto, dem.id, rskCom(RESUMO_V2));
+    const idV1 = await execucaoDaChave(`rsk:${rsk1.id}`);
+    // A execução do v2 também foi agendada pelo gatilho; só a do v1 roda aqui.
+    await execucaoDaChave(`rsk:${rsk2.id}`);
+    provedor.respostas.push(resposta(PROMPTS.consolidacao.exemploSaida));
+    expect(await executarAgente(deps, idV1)).toBe('concluida');
+
+    expect(provedor.chamadas).toHaveLength(1);
+    expect(provedor.chamadas[0]!.conteudo).toContain(RESUMO_V1);
+    expect(provedor.chamadas[0]!.conteudo).not.toContain(RESUMO_V2);
+    const decId = idVersao('DEC', dem.id, 1);
+    expect(await linhaDec(decId)).toMatchObject({ parecer_risco_id: rsk1.id, parecer_risco_versao: 1, especificacao_id: esp.id, especificacao_versao: 1 });
+    const dec = await obterPacoteDecisao(b.db, decId);
+    expect(dec).toMatchObject({ parecerRiscoId: rsk1.id, desatualizado: true });
+
+    const aprovar = registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: OPCOES_DECISAO[0], revisouRascunhosDeAgente: true });
+    await expect(registrarDecisao(base, cto, decId, aprovar)).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_DECISAO.desatualizado });
+  });
+
+  it('a chamada: RSK v2 gravado durante a chamada ao provedor → o DEC cita o RSK v1, que foi o lido', async () => {
+    const rsk1 = await criarParecerRisco(base, cto, dem.id, rskCom(RESUMO_V1));
+    await ligar('consolidacao');
+    const id = (await novaExecucao('consolidacao', `rsk:${rsk1.id}`))!;
+    const falso = new ProvedorFalso();
+    falso.respostas.push(resposta(PROMPTS.consolidacao.exemploSaida));
+    const comRskNovo: ProvedorIA = {
+      gerar: async (p) => {
+        await criarParecerRisco(base, cto, dem.id, rskCom(RESUMO_V2));
+        return falso.gerar(p);
+      },
+    };
+    expect(await executarAgente({ ...base, provedor: comRskNovo }, id)).toBe('concluida');
+    expect(falso.chamadas[0]!.conteudo).toContain(RESUMO_V1);
+    expect(falso.chamadas[0]!.conteudo).not.toContain(RESUMO_V2);
+    const decId = idVersao('DEC', dem.id, 1);
+    expect(await linhaDec(decId)).toMatchObject({ parecer_risco_id: rsk1.id, parecer_risco_versao: 1 });
+    expect(await obterPacoteDecisao(b.db, decId)).toMatchObject({ parecerRiscoId: rsk1.id, desatualizado: true });
+  });
+
+  it('a ESP durante a chamada: ESP v2 gravada durante a chamada → o DEC cita a ESP v1, e o conteúdo enviado é o da v1', async () => {
+    const rsk1 = await criarParecerRisco(base, cto, dem.id, rskCom(RESUMO_V1));
+    await ligar('consolidacao');
+    const id = (await novaExecucao('consolidacao', `rsk:${rsk1.id}`))!;
+    const falso = new ProvedorFalso();
+    falso.respostas.push(resposta(PROMPTS.consolidacao.exemploSaida));
+    const DESCRICAO_V2 = 'Descrição fictícia da ESP v2';
+    const comEspNova: ProvedorIA = {
+      gerar: async (p) => {
+        await espDaPessoa(dem.id, { descricaoObjetiva: DESCRICAO_V2, duvidasEmAberto: [] });
+        return falso.gerar(p);
+      },
+    };
+    const esperado = (await montarEntrada(b.db, 'consolidacao', `rsk:${rsk1.id}`)).conteudo;
+    expect(await executarAgente({ ...base, provedor: comEspNova }, id)).toBe('concluida');
+    expect(falso.chamadas[0]!.conteudo).toBe(esperado);
+    expect(falso.chamadas[0]!.conteudo).not.toContain(DESCRICAO_V2);
+    expect(await contar('especificacao_tecnica', dem.id)).toBe(2);
+    const decId = idVersao('DEC', dem.id, 1);
+    expect(await linhaDec(decId)).toMatchObject({ especificacao_id: esp.id, especificacao_versao: 1, parecer_risco_id: rsk1.id });
+    expect(await obterPacoteDecisao(b.db, decId)).toMatchObject({ especificacaoId: esp.id, desatualizado: true });
+  });
+
+  it('sem corrida: um RSK e uma ESP, sem versão nova no meio → o DEC cita os dois e não sai desatualizado', async () => {
+    const rsk1 = await criarParecerRisco(base, cto, dem.id, rskCom(RESUMO_V1));
+    await ligar('consolidacao');
+    provedor.respostas.push(resposta(PROMPTS.consolidacao.exemploSaida));
+    expect(await executarAgente(deps, (await novaExecucao('consolidacao', `rsk:${rsk1.id}`))!)).toBe('concluida');
+    expect(await obterPacoteDecisao(b.db, idVersao('DEC', dem.id, 1))).toMatchObject({ especificacaoId: esp.id, parecerRiscoId: rsk1.id, desatualizado: false });
   });
 });
 

@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 31/10/2026 |
+| Atualizado em | 03/11/2026 (0.1.5: 409 de demanda em status final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Fontes no código | `src/app/api/**/route.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
@@ -76,6 +76,26 @@ Content-Type: application/json
 { "erro": "conflito", "mensagem": "o pacote está desatualizado e não pode ser aprovado." }
 ```
 
+## Exemplo: parecer de risco numa demanda encerrada
+
+Vale igual para `POST .../especificacoes` e `POST .../pacotes-decisao`, pela pessoa e pelo token do agente. Nada é
+gravado, e nenhum agente, aviso ou job é disparado ([cap. 04](04-versoes-e-decisao.md)).
+
+```http
+POST /api/demandas/DEM-20261103-0902/pareceres-risco HTTP/1.1
+Authorization: Bearer wsod_<token>
+Content-Type: application/json
+
+{ "riscoTecnicoNivel": "baixo", "riscoOperacionalNivel": "baixo", "riscoJuridicoNivel": "baixo" }
+```
+
+```http
+HTTP/1.1 409 Conflict
+Content-Type: application/json
+
+{ "erro": "conflito", "mensagem": "Esta demanda está em status final. Não aceita nova especificação, parecer de risco nem pacote de decisão." }
+```
+
 ## Erros
 
 Corpo de erro: `{ "erro": <código>, "mensagem": <texto em pt-BR> }`, mais `campos` (lista de `{ campo, mensagem }`),
@@ -89,7 +109,7 @@ Corpo de erro: `{ "erro": <código>, "mensagem": <texto em pt-BR> }`, mais `camp
 | `sem_2fa` | 403 | sessão de conta sem 2FA ativo |
 | `nao_encontrado` | 404 | id fora do formato (sem consulta) ou inexistente |
 | `metodo_nao_permitido` | 405 | método que a rota não tem |
-| `conflito` | 409 | já decidido; não é o DEC mais novo; outro DEC aprovado; desatualizado; transição de status recusada; agente desligado |
+| `conflito` | 409 | já decidido; não é o DEC mais novo; outro DEC aprovado; desatualizado; transição de status recusada; agente desligado; ESP, RSK ou DEC numa demanda `entregue` ou `encerrada` |
 | `capacidade_de_ids_esgotada` | 409 | a sequência de ids de demanda passou de 9.999 |
 | `corpo_grande` | 413 | corpo acima de 512 KB |
 | `tipo_nao_suportado` | 415 | corpo que não é `application/json` |

@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { demanda } from '../../db/schema';
 import type { Transacao } from '../../db/transacao';
 import type { Deps } from '../../lib/deps';
+import { ErroDominio } from '../../lib/erros';
 import { mudancaDeCampo, registrarEvento } from '../historico/registrar';
 import { travarDemanda } from '../versoes';
 import type { Status, Tipo } from './schemas';
@@ -25,6 +26,23 @@ const MANUAIS: Readonly<Record<Status, readonly Status[]>> = Object.freeze({
 });
 
 const FINAIS: Readonly<Partial<Record<Status, string>>> = Object.freeze({ entregue: 'Entregue', encerrada: 'Encerrada' });
+
+// M-02: a fonte única dos status finais é FINAIS, sem segunda lista nos serviços. Numa demanda em status final, criar
+// ESP, RSK ou DEC é recusado com 409 (`conflito`, e não `entrada_invalida` nem `limite_excedido`, que fazem o executor de
+// agente tentar de novo e gastar outra chamada paga).
+export const STATUS_FINAIS: readonly Status[] = Object.freeze(Object.keys(FINAIS) as Status[]);
+
+export function ehStatusFinal(status: Status): boolean {
+  return Object.prototype.hasOwnProperty.call(FINAIS, status);
+}
+
+export const MENSAGEM_DEMANDA_FINAL =
+  'Esta demanda está em status final. Não aceita nova especificação, parecer de risco nem pacote de decisão.';
+
+// Chamada logo depois da trava da demanda, antes do limite por ator e de qualquer insert, evento, gatilho ou aviso.
+export function recusarSeDemandaFinal(status: Status): void {
+  if (ehStatusFinal(status)) throw new ErroDominio('conflito', MENSAGEM_DEMANDA_FINAL);
+}
 
 export const MOTIVOS_TRANSICAO = Object.freeze({
   semPacote: 'a demanda não tem pacote de decisão aprovado e atualizado.',

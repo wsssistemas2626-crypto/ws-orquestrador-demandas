@@ -21,6 +21,12 @@ const total = async (page: Page, consulta: string): Promise<number> => (await ap
 
 const coluna = (page: Page, n: number) => page.locator(`main tbody tr td:nth-child(${n})`).allInnerTexts();
 
+// A Região de aviso só ganha "N demandas encontradas." depois que o React assume a lista da carga inicial (o efeito de
+// ResultadoAnunciado). Antes disso, um clique que pede o foco no resultado pode ter o pedido consumido pelo efeito
+// atrasado da lista inicial, e o resultado novo chega sem o foco (04-regressao do DEC-DEM-20261103-0006-v1: falhou 1 vez
+// em 3 no "tipo e linha de serviço juntos", com a URL do caminho com script). Esperar o texto fecha essa janela.
+const esperarFilaPronta = (page: Page) => expect(page.locator('main').getByRole('status')).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
+
 test('tipo e linha de serviço juntos: só as linhas com os dois valores, legenda com os dois e contagem da API', async ({ page }) => {
   await entrarComo(page, 'cto');
   const alvo = await criar(page, { titulo: 'Fila QA tipo e linha (fictício)', tipo: 'novo_projeto', linhaServicoProvavel: 'ia_controle_humano' });
@@ -31,6 +37,7 @@ test('tipo e linha de serviço juntos: só as linhas com os dois valores, legend
   expect(esperadas).toBeLessThanOrEqual(20);
 
   await page.goto('/demandas');
+  await esperarFilaPronta(page);
   await page.getByLabel('Tipo').selectOption({ label: 'Novo projeto' });
   await page.getByLabel('Linha de serviço').selectOption({ label: 'IA com controle humano' });
   await expect(page).toHaveURL(/\/demandas$/);
@@ -86,6 +93,7 @@ test('"Limpar filtros" do formulário, com resultado na tela: volta a /demandas,
   await page.goto('/demandas?tipo=bug');
   await expect(page.locator('main caption')).toHaveText(LEGENDA_BUG);
   await expect(page.getByLabel('Tipo')).toHaveValue('bug');
+  await esperarFilaPronta(page);
   await page.locator('main fieldset').getByRole('link', { name: 'Limpar filtros' }).click();
   await expect(page).toHaveURL(/\/demandas$/);
   await expect(page.getByText(LEGENDA_TODAS)).toBeFocused();

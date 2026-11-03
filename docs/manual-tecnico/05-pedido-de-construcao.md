@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 31/10/2026 |
+| Atualizado em | 03/11/2026 (0.1.5: limite do status final na geração) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-22, RF-23; RNF-15 |
 | Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`), `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/api/pacotes-decisao/route.ts` |
@@ -25,6 +25,10 @@ Ordem das conferências (`gerar.ts`). Recusado em qualquer passo, nada é entreg
 6. `validarPedido` da cópia em `src/vendor/construir/pedido.mjs` (a mesma regra do `/construir`, conferida por SHA-256
    em teste) → 422 "O pedido não passou na validação do /construir. Nada foi entregue." com os `erros` dele;
 7. evento `pedido_gerado` (sem conteúdo) e a resposta.
+
+Limite conhecido (pendência da 0.1.5): a geração não confere o status da demanda. Um DEC aprovado de uma demanda levada
+a `encerrada` ou `entregue` ainda gera o pedido. Desde a 0.1.5, só a **criação** de ESP, RSK e DEC é recusada em status
+final ([cap. 04](04-versoes-e-decisao.md)).
 
 Resposta: 200, corpo = o JSON, com `content-disposition: attachment; filename="<decId>.json"`.
 

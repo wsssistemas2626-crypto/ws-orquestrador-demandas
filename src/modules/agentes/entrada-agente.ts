@@ -149,7 +149,13 @@ async function lerDemanda(db: Db, demandaId: string) {
   return d;
 }
 
-const colunasDaEspecificacao = () => ({ ...colunas(especificacaoTecnica, CAMPOS_DA_ESPECIFICACAO), demandaId: especificacaoTecnica.demandaId });
+// O `id` e o `demandaId` são lidos fora da lista de permissão: vão só para `citados` e para achar a demanda, nunca para
+// o conteúdo (`escolher` copia só os campos da lista, C-23).
+const colunasDaEspecificacao = () => ({
+  ...colunas(especificacaoTecnica, CAMPOS_DA_ESPECIFICACAO),
+  id: especificacaoTecnica.id,
+  demandaId: especificacaoTecnica.demandaId,
+});
 
 async function lerEspecificacao(db: Db, espId: string) {
   const [e] = await db.select(colunasDaEspecificacao()).from(especificacaoTecnica).where(eq(especificacaoTecnica.id, espId));
@@ -157,7 +163,8 @@ async function lerEspecificacao(db: Db, espId: string) {
   return e;
 }
 
-// A de maior versão da demanda: é a que o DEC vai citar (criarPacoteDecisao).
+// A de maior versão da demanda no momento da leitura. O DEC da consolidação cita esta, pelo id que vai em `citados`, e
+// não a mais nova no momento da gravação (M-01).
 async function lerEspecificacaoMaisNova(db: Db, demandaId: string) {
   const [e] = await db
     .select(colunasDaEspecificacao())
@@ -171,24 +178,30 @@ async function lerEspecificacaoMaisNova(db: Db, demandaId: string) {
 
 async function lerParecer(db: Db, rskId: string) {
   const [r] = await db
-    .select({ ...colunas(parecerRisco, CAMPOS_DO_PARECER), demandaId: parecerRisco.demandaId })
+    .select({ ...colunas(parecerRisco, CAMPOS_DO_PARECER), id: parecerRisco.id, demandaId: parecerRisco.demandaId })
     .from(parecerRisco)
     .where(eq(parecerRisco.id, rskId));
   if (!r) throw naoEncontrado();
   return r;
 }
 
-async function entradaDoOrquestrador(db: Db, pendenteId: string): Promise<{ conteudo: string; demandaId: null }> {
+// M-01: a ESP e o RSK que entraram no bloco, para o DEC da consolidação citar os mesmos. Nulo quando o agente não lê.
+export type CitadosNaEntrada = { especificacaoId: string | null; parecerRiscoId: string | null };
+export type EntradaDoAgente = { conteudo: string; demandaId: string | null; citados: CitadosNaEntrada };
+
+const NADA_CITADO: CitadosNaEntrada = Object.freeze({ especificacaoId: null, parecerRiscoId: null });
+
+async function entradaDoOrquestrador(db: Db, pendenteId: string): Promise<EntradaDoAgente> {
   // Só o texto e o nome (para trocá-lo no texto); papel, origem e quem registrou não são lidos.
   const [p] = await db
     .select({ texto: entradaPendente.texto, solicitanteNome: entradaPendente.solicitanteNome })
     .from(entradaPendente)
     .where(eq(entradaPendente.id, pendenteId));
   if (!p) throw naoEncontrado();
-  return { conteudo: delimitarComoDado({ textoRecebido: minimizar(p.texto, { nomes: [p.solicitanteNome] }) }), demandaId: null };
+  return { conteudo: delimitarComoDado({ textoRecebido: minimizar(p.texto, { nomes: [p.solicitanteNome] }) }), demandaId: null, citados: { ...NADA_CITADO } };
 }
 
-export async function montarEntrada(db: Db, agente: Agente, chaveEntrada: string): Promise<{ conteudo: string; demandaId: string | null }> {
+export async function montarEntrada(db: Db, agente: Agente, chaveEntrada: string): Promise<EntradaDoAgente> {
   const id = idDaChave(agente, chaveEntrada);
   const campos = CAMPOS_POR_AGENTE[agente];
   if (campos.textoRecebido) return entradaDoOrquestrador(db, id);
@@ -204,5 +217,6 @@ export async function montarEntrada(db: Db, agente: Agente, chaveEntrada: string
   const dados: Record<string, unknown> = { demanda: escolher(d, campos.demanda, nomes) };
   if (especificacao) dados.especificacao = escolher(especificacao, CAMPOS_DA_ESPECIFICACAO, nomes);
   if (parecer) dados.parecer = escolher(parecer, CAMPOS_DO_PARECER, nomes);
-  return { conteudo: delimitarComoDado(dados), demandaId };
+  const citados: CitadosNaEntrada = { especificacaoId: especificacao?.id ?? null, parecerRiscoId: parecer?.id ?? null };
+  return { conteudo: delimitarComoDado(dados), demandaId, citados };
 }

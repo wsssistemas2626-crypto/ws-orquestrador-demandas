@@ -3,6 +3,155 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.5 — 2026-11-03
+
+Correção do pedido `DEC-DEM-20261103-0006-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.4 (`cf36ec5`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano.
+
+Fecha três médios de regra de domínio da 0.1.0 (seção abaixo): M-01, M-02 e M-03. **Três comportamentos do sistema
+mudam**, descritos abaixo. Não há migration nova, coluna nova nem variável de ambiente nova: o motivo novo
+`demanda_final` vai no `jsonb` do evento. Não mudaram `src/db/`, `drizzle/`, `scripts/`, `.github/`, `Dockerfile` nem
+o lockfile.
+
+### O que mudou
+
+- **M-01: o DEC da consolidação cita a ESP e o RSK que o agente leu.**
+  - Antes, o agente de consolidação lia o RSK da chave da execução e a ESP mais nova, e o DEC citava a ESP e o RSK mais
+    novos no momento da gravação. Um RSK ou uma ESP gravados entre o agendamento e a gravação (inclusive durante a
+    chamada ao provedor, que pode levar até 120 s) faziam o DEC citar uma versão que o modelo não leu.
+  - Agora `montarEntrada` (`src/modules/agentes/entrada-agente.ts`) devolve também `citados`, com o id da ESP e do RSK
+    que entraram no bloco enviado ao provedor. Os ids não vão para o conteúdo enviado. O worker passa esses ids ao
+    `criarPacoteDecisao` (`src/modules/pacotes-decisao/criar.ts`), que lê **essas** versões sob a trava da demanda,
+    filtrando pela demanda. Id inexistente ou de outra demanda dá 404 e nada é gravado.
+  - Se entrou versão mais nova depois da leitura, o DEC da consolidação **nasce desatualizado**, e a aprovação dele é
+    barrada pela regra que já existia (409 "o pacote está desatualizado e não pode ser aprovado."). A execução do RSK
+    novo gera o DEC coerente. O DEC desatualizado leva a demanda a `pronta_para_decisao` e agenda o aviso, como qualquer
+    DEC.
+  - DEC criado por pessoa (painel, rota ou Server Action) continua citando a ESP e o RSK mais novos, sob a trava. Os ids
+    citados nunca vêm do corpo da requisição nem da saída do modelo.
+- **M-02: ESP, RSK e DEC são recusados em demanda `entregue` ou `encerrada`.**
+  - Os três serviços (`src/modules/especificacoes/servico.ts`, `src/modules/pareceres-risco/servico.ts` e
+    `src/modules/pacotes-decisao/criar.ts`), pela pessoa e pelo agente, respondem 409 `conflito` com a mensagem fixa
+    "Esta demanda está em status final. Não aceita nova especificação, parecer de risco nem pacote de decisão.". A
+    recusa vem logo depois da trava da demanda, antes do limite por ator e de qualquer insert, evento, agente, aviso ou
+    job.
+  - Os status finais saem da máquina de estados (`STATUS_FINAIS`, `ehStatusFinal` e `recusarSeDemandaFinal` em
+    `src/modules/demandas/transicoes.ts`): hoje são `encerrada` e `entregue`. Nos outros sete status a criação continua
+    permitida.
+  - A execução de agente que já estava na fila quando a demanda chegou a status final termina `ignorada`, com evento
+    `agente_ignorado` e motivo `demanda_final`, **sem chamar o provedor** (`src/modules/agentes/executar.ts`). Se a
+    demanda for fechada durante a chamada, o serviço recusa com 409 e a execução termina `falhou`
+    (`recusada_pelo_servico`), sem nova tentativa.
+- **M-03: o aviso por e-mail falha na hora na recusa definitiva e conta o erro inesperado**
+  (`src/modules/avisos/aviso-dec.ts`).
+  - Resposta 4xx do Resend que não é 429 (por exemplo 400, 401, 403, 422) marca o aviso `falhou` na 1.ª tentativa, com
+    `aviso_email_falhou` no log e no Sentry, e o job termina sem erro. Antes, era tentada de novo até a 3.ª.
+  - 429, 5xx, erro de rede, tempo limite e resposta fora do formato continuam como antes: contam a tentativa, o aviso
+    fica `pendente` e a fila tenta de novo até a 3.ª.
+  - Erro inesperado fora do enviador (por exemplo, falha ao montar o e-mail ou do banco no meio do envio) passa a contar
+    a tentativa, numa transação própria e com a trava da linha. Na 3.ª, o aviso fica `falhou` e vai ao Sentry como a
+    falha comum. Antes, o aviso ficava `pendente` para sempre, sem alerta.
+  - Só quando nem a contagem é possível (banco fora), o erro sobe sem contar, e o handler
+    (`src/jobs/aviso-dec-pronto.ts`) registra `aviso_erro_inesperado`, como antes.
+- **Testes:** 17 testes novos de regressão na 04 e os da correção, entre eles o arquivo novo
+  `src/modules/pareceres-risco/servico.test.ts`. O contrato HTTP do 409 é conferido nas três rotas. Os dois `it.each`
+  que afirmavam o comportamento antigo para `encerrada` (`criar.test.ts` e `especificacoes/servico.test.ts`) mudaram de
+  lista, e o caso `encerrada` virou caso de recusa.
+- **e2e:** quatro testes da fila (`e2e/fila-qa.spec.ts` e `e2e/fila.spec.ts`) passaram a esperar "N demandas
+  encontradas." antes do clique que pede o foco. Corrige um teste instável que já existia, sem tirar asserção.
+- **Versão:** o `package.json` passou de 0.1.4 para 0.1.5, e `test/estatico/projeto.test.ts` confere a versão nova.
+- **Documentação:**
+  - estas notas;
+  - a versão no `README.md` e no manual técnico;
+  - no manual: as regras novas nos cap. 03 (status final), 04 (citação do DEC e recusa), 06 (passo 3b da execução e
+    citação da consolidação), 07 (nova tentativa do aviso) e 09 (o 409 de status final, com exemplo);
+  - em `docs/operacao/deploy.md`: a versão, a primeira publicação com a 0.1.5 (seção 4), o rollback da 0.1.5 (seção 6)
+    e o alerta do Sentry (seção 9).
+
+Não houve `.skip`, `.only` ou `.todo` novo, nem asserção afrouxada. A A-02, o C-11, o C-21, o C-22, o C-25, o C-36 e o
+axe continuam sem exceção. O `retryLimit` e o `singletonKey` da fila do aviso não mudaram.
+
+### Verificações desta versão
+
+- `pnpm test`: 194 arquivos, 3.811 de 3.811 (`04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143, sem teste pulado, três vezes seguidas, cada uma com banco
+  novo. A contagem foi reiniciada depois da correção do teste instável da fila (`04-qa-automacao.md`).
+- Testes que reproduzem os defeitos da `01-qa-funcional.md`: o RSK v2 criado depois de agendar a consolidação do v1
+  (resumo enviado e citação do v1, DEC desatualizado, aprovação barrada), as variantes durante a chamada ao provedor
+  (RSK v2 e ESP v2), a recusa em `entregue` e `encerrada` pela pessoa e pelo agente, o 4xx definitivo pelo handler e
+  pelo pg-boss real, e quatro execuções simultâneas do erro inesperado terminando em exatamente 3 tentativas.
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico, alto ou médio; seis baixos (abaixo).
+- `docker build` local: imagem de 1,73 GB em disco e 425 MB de conteúdo, praticamente igual à 0.1.4, nada publicado
+  (`05-devops-sre.md`).
+- A homologação (`construir.mjs homologar`), o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam
+  para a Parada 3.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), baixos, para um pedido seguinte:
+
+- **B-1:** a regra de que `especificacaoId` e `parecerRiscoId` só vêm do worker está garantida pelo código de hoje e
+  por comentário (`src/modules/pacotes-decisao/criar.ts:79-81`). Falta um teste estático de que nada em `src/app/`
+  passa esses extras. A leitura filtra pela demanda de qualquer forma.
+- **B-2:** erro depois de o e-mail ter saído (falha ao gravar `enviado` ou no commit) conta tentativa e tenta de novo.
+  A chave de idempotência `dec-<id>` segura o reenvio, mas, depois de três erros assim, o aviso termina `falhou` com o
+  e-mail entregue. Já acontecia antes.
+- **B-3:** `STATUS_FINAIS` é exportado e usado só nos testes.
+- **B-4:** quem filtra ou pagina a fila antes de o React assumir a lista inicial pode ficar sem o foco no resultado
+  (`src/app/(painel)/demandas/FiltrosFila.tsx`, WCAG 2.4.3). O e2e agora espera a página ficar pronta; o defeito é do
+  produto.
+- **B-5:** o motivo `demanda_final` não tem rótulo em `MOTIVO_IGNORADO` (`src/components/rotulos.ts:163`). O histórico
+  mostra só "Agente X não rodou", sem o motivo. O texto é decisão da `ux-ui-design`.
+- **B-6:** três comentários de cabeçalho passam de 120 colunas (`especificacoes/servico.ts:3`,
+  `pareceres-risco/servico.ts:3`, `pacotes-decisao/criar.ts:4`).
+
+Registradas nas outras etapas deste pedido, fora do escopo dele:
+
+- **Decidir e gerar o Pedido em demanda `encerrada`** (`02-tech-lead.md`, novo médio à parte): `registrarDecisao`
+  (`src/modules/pacotes-decisao/decidir.ts`) e `gerarPedido` (`src/modules/pedido-construcao/gerar.ts`) não conferem o
+  status da demanda. Um DEC pendente de uma demanda levada a `encerrada` à mão ainda pode ser aprovado e gerar Pedido.
+  Isso é o que sobra da N-04 da 0.1.3: criar DEC numa demanda Encerrada passou a dar 409, mas arquivar ainda é aceito,
+  e o alerta continua dizendo "A demanda foi para Encerrada." quando ela já estava.
+- **Ações de nova ESP, RSK ou DEC em demanda final** (`02-tech-lead.md`, para a `ux-ui-design`): a tela de detalhe pode
+  continuar mostrando essas ações; a pessoa recebe a mensagem fixa do 409. Esconder a ação é decisão de interface.
+- **409 e 408 do Resend** (`04-qa-automacao.md`, a confirmar pelo `tech-lead`): pela regra nova, todo 4xx que não é 429
+  falha na hora. Se o Resend responder 409 a uma requisição concorrente com a mesma `Idempotency-Key`, ou 408, esse caso
+  passageiro deixa de ser tentado de novo.
+- **Versões do Next e do Better Auth** (`05-devops-sre.md`): o build usa next 16.4.1 e better-auth 1.7.7, acima da
+  referência do padrão técnico (16.3.8 e 1.7.6). Vem da 0.1.0 (correção S-01); falta ADR ou a atualização do padrão.
+- **Médio do reteste da 0.1.0** (demanda sem saída com DEC aprovado e versão nova): continua aberto. A recusa da 0.1.5
+  vale só para status final, não para demanda com DEC aprovado.
+
+Da entrega (`05-devops-sre.md`), para Fabiano:
+
+- **Segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER`.** Ainda não existem no GitHub. Até existirem:
+  - todo push na `main` publica a imagem no GHCR (`:<sha>`, `:v0.1.5`, `:latest`) e fica vermelho no passo "Disparar o
+    Easypanel", sem deploy;
+  - a limpeza das versões antigas do GHCR não roda, e o pacote acumula mais de 2 versões.
+
+  O merge da 0.1.5 cai nesse caso. Antes de qualquer passo, tire um snapshot da VPS no hPanel.
+- **Primeira publicação de verdade** pela seção 4 do `docs/operacao/deploy.md`, com a `:latest`, que depois do merge é
+  a 0.1.5, e as mesmas 7 migrations da 0.1.0. A 0.1.5 não traz migration: a seção 5 (backup → migrate → deploy) não se
+  aplica a ela.
+- **Rollback da 0.1.5** pelo caminho A (só trocar a imagem de `worker` e `app`, sem restaurar backup), para
+  `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:cf36ec5fe634ec27004817e30f656d92a80eb23d` (a `v0.1.4`, merge
+  do PR #6). Antes de voltar, confirme a tag em Packages: o `devops-sre` não conferiu o GHCR. Na cadeia curta a volta
+  não foi ensaiada: o ensaio é o `ensaiar-rollback` da Parada 3.
+- **Mudança que a operação vê no Sentry:** o alerta "erro novo no Sentry" (seção 9 do `deploy.md`) passa a receber
+  `aviso_email_falhou` também no 4xx definitivo e no erro inesperado; `aviso_erro_inesperado` fica só para o banco fora.
+  Nenhuma das três mudanças pede ação no painel.
+- **Conferência do `.env.example` sem grep nesta versão.** O diff não acrescenta nem remove leitura de `process.env`;
+  a conferência se apoia nesse diff vazio e no grep do pedido 0003. Nenhuma variável nova.
+- Continuam de antes, sem mudança neste pedido: as actions por SHA e a imagem de cerca de 1,7 GB por causa do `tsx`
+  (seção 10 do `deploy.md`).
+- A imagem local `ws-orquestrador-demandas:local` (1,73 GB, agora a da 0.1.5) ficou no Docker da VPS. Apagá-la depende
+  de confirmação de Fabiano.
+
+Continuam abertas, sem mudança: os médios M-04 a M-07 da 0.1.0, as pendências da 0.1.4 (B-1, B-2 e o Prettier fora do
+CI), as da 0.1.2 registradas nas outras etapas (limite do C-36 em execuções repetidas, teste C-13 sensível a CPU, login
+TOTP em falhas em sequência, buscadores do seed nas outras specs) e as da 0.1.0 (seções abaixo).
+
 ## 0.1.4 — 2026-11-02
 
 Correção do pedido `DEC-DEM-20261102-0005-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.3 (`00a924e`). Ainda
@@ -515,12 +664,13 @@ Segurança, nível médio (decidir na Parada 3 se entram numa correção antes d
 risco residual; o `seguranca-aplicacao` não aceita risco residual sozinho):
 
 - **M-01**: a consolidação lê o RSK da chave da execução, mas o DEC cita o RSK mais novo; o resumo pode vir de outro
-  parecer (`src/modules/agentes/entrada-agente.ts`).
+  parecer (`src/modules/agentes/entrada-agente.ts`). Fechada na 0.1.5.
 - **M-02**: criar ESP, RSK ou DEC não confere o status da demanda; numa demanda `encerrada` ou `entregue`, dispara
-  agente, aviso e possível pedido (`src/modules/pacotes-decisao/criar.ts`).
+  agente, aviso e possível pedido (`src/modules/pacotes-decisao/criar.ts`). Fechada na 0.1.5 para a criação; decidir e
+  gerar o Pedido em demanda `encerrada` seguem abertos (pendências da 0.1.5).
 - **M-03**: erro inesperado no envio do aviso gasta as novas tentativas sem somar `aviso_email.tentativas`, e o aviso
   pode ficar `pendente` para sempre; a recusa definitiva do Resend (4xx) é tentada de novo
-  (`src/jobs/aviso-dec-pronto.ts`).
+  (`src/jobs/aviso-dec-pronto.ts`). Fechada na 0.1.5.
 - **M-04**: o `no-store` das páginas era conferido só no `next dev`. Resolvido no e2e local, que agora roda contra o
   build de produção, e conferido na homologação com `BASE_URL`; segue na lista para o registro da decisão.
 - **M-05**: erro não tratado em página ou layout sai pelo `console` do Next, fora do log por lista de permissão

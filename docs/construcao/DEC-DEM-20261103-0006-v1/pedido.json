@@ -1,0 +1,38 @@
+{
+  "pedido": "DEC-DEM-20261103-0006-v1",
+  "demanda": {
+    "id": "DEM-20261103-0006",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.5: médios M-01, M-02 e M-03 do pedido 0001 (consolidação, demanda encerrada e aviso)",
+    "descricao": "Na 08-revisao do pedido DEC-DEM-20261022-0001-v1 (docs/construcao/DEC-DEM-20261022-0001-v1/08-maestro.md, seção Médio) ficaram sete médios para a primeira publicação (CA-P5-16). Este pedido corrige os três de regra de domínio. (M-01) src/modules/agentes/entrada-agente.ts:199: a consolidação lê o RSK da chave da execução, mas o DEC criado depois cita o RSK mais novo da demanda (criarPacoteDecisao, maisNova); o resumo pode vir de um parecer diferente do citado. (M-02) src/modules/pacotes-decisao/criar.ts:74: criar ESP, RSK ou DEC não confere o status da demanda; numa demanda encerrada ou entregue isso dispara agente pago, aviso por e-mail e possível Pedido. (M-03) src/jobs/aviso-dec-pronto.ts:26: erro inesperado no envio gasta as novas tentativas do pg-boss sem somar aviso_email.tentativas, e o aviso fica pendente para sempre; já a recusa definitiva do Resend (4xx) é tentada de novo. Base: main (cf36ec5, versão 0.1.4)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261103-0006-v1",
+    "conteudo": "(M-01) O parecer de risco que a consolidação resume é o mesmo que o DEC resultante cita: se um RSK mais novo entrar entre o agendamento e a execução da consolidação, ou a consolidação usa o mais novo, ou o DEC cita o da execução; a escolha é da triagem, registrada com o motivo, e um teste cria o RSK v2 depois de agendar a consolidação do v1 e confere que resumo e citação batem. (M-02) Criar ESP, RSK ou DEC, por pessoa ou por agente, numa demanda em estado terminal (os estados terminais vêm da máquina de estados da demanda; no mínimo encerrada e entregue) é recusado com ErroDominio e mensagem fixa, dentro da mesma trava da demanda, antes de qualquer insert, agendamento de agente, aviso por e-mail ou Pedido; há teste para cada um dos três artefatos e para o caminho do agente. (M-03) No handler aviso.dec-pronto, o erro inesperado também conta em aviso_email.tentativas e, esgotadas as tentativas, o aviso fica falhou e vai ao Sentry, como a falha comum; a recusa definitiva do Resend (resposta 4xx que não é 429) marca falhou na primeira vez, sem nova tentativa; o 429 e o 5xx continuam tentados de novo. Nenhum controle é afrouxado (C-11, C-22, A-02, axe, C-36); nenhuma migration que altere dado existente. Mudam src/ nos três pontos, os testes, package.json (versão 0.1.5) e CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261103-0006-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe em regra de domínio e no job de aviso, sem dado pessoal real e com dados fictícios. Riscos: recusar por engano artefato numa demanda que ainda está aberta (o teste cobre os estados não terminais também); mudar a ordem da trava e abrir corrida entre leitura e insert; o aviso deixar de ser tentado quando a falha é temporária. Se a correção pedir migration, ela só pode acrescentar, e o ensaio de rollback tem de voltar sem restaurar backup. Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261103-0006-v1",
+    "opcaoEscolhida": "Corrigir M-01, M-02 e M-03 num pedido de correção (cadeia curta) sobre a main, antes da primeira publicação",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-03"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "O RSK resumido pela consolidação é o mesmo citado no DEC que sai dela, com teste do RSK novo entre agendamento e execução",
+    "Criar ESP, RSK ou DEC numa demanda em estado terminal é recusado antes de agente, aviso ou Pedido, e continua permitido nos estados não terminais",
+    "Erro inesperado no aviso soma tentativas e termina em falhou; 4xx definitivo do Resend falha sem nova tentativa; 429 e 5xx seguem tentados",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.5",
+    "PR com CI verde"
+  ]
+}

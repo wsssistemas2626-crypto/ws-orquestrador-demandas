@@ -2,12 +2,12 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.4 |
+| Versão | 0.1.5 |
 | Imagem | `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas` (privada) |
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 02/11/2026 (`documentacao-tecnica`: versão 0.1.4, primeira publicação com a 0.1.4 na seção 4 e rollback da 0.1.4 na seção 6) |
+| Atualizado em | 03/11/2026 (`documentacao-tecnica`: versão 0.1.5, primeira publicação com a 0.1.5 na seção 4, rollback da 0.1.5 na seção 6 e o `aviso_email_falhou` na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -98,8 +98,8 @@ Requisitos de operação que o código supõe:
 ## 4. Primeira publicação
 
 A produção ainda não tem versão no ar, então não há para onde voltar. A 0.1.0 foi mergeada e a imagem dela está no
-GHCR, mas os serviços do Easypanel não foram criados. Depois do merge da 0.1.4, a primeira publicação de verdade usa
-a `:latest`, que passa a ser a 0.1.4, com as mesmas 7 migrations da 0.1.0.
+GHCR, mas os serviços do Easypanel não foram criados. Depois do merge da 0.1.5, a primeira publicação de verdade usa
+a `:latest`, que passa a ser a 0.1.5, com as mesmas 7 migrations da 0.1.0.
 
 1. Snapshot no hPanel.
 2. Criar o projeto e o serviço `db` (Postgres 16). O usuário criado pelo Easypanel é o **migrator** (dono do banco).
@@ -109,7 +109,7 @@ a `:latest`, que passa a ser a 0.1.4, com as mesmas 7 migrations da 0.1.0.
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
 5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
    - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
-   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.4, que não mudam `drizzle/`): roda o passo "Disparar o
+   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.5, que não mudam `drizzle/`): roda o passo "Disparar o
      Easypanel".
      - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
        EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
@@ -181,11 +181,16 @@ anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaur
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
 
-A 0.1.4 não traz migration: o journal dela é o mesmo da 0.1.3 à 0.1.0, e o `/api/saude` da 0.1.3 responde 200 sobre o
-mesmo banco. A volta da 0.1.4 é o caminho A, para
+A 0.1.5 não traz migration: o journal dela é o mesmo da 0.1.4 à 0.1.0, e o `/api/saude` da 0.1.4 responde 200 sobre o
+mesmo banco. O único dado novo é o motivo `demanda_final` no `jsonb` do evento `agente_ignorado`, que a 0.1.4 lê sem
+restrição de valor (o histórico mostra "Agente … não rodou" nas duas versões). A volta da 0.1.5 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:cf36ec5fe634ec27004817e30f656d92a80eb23d` (a `v0.1.4`, commit
+de merge do PR #6 na `main`). Antes de voltar, confirme a tag em Packages: sem os segredos de webhook, a limpeza do GHCR
+não roda e a `v0.1.4` continua lá. Essa volta só foi conferida no código. O ensaio é o `ensaiar-rollback` da Parada 3.
+
+A 0.1.4 também não trouxe migration; a volta dela era o caminho A, para
 `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:00a924ec746d731c9c0c9fb9a95bcf4c6d7f3c17` (a `v0.1.3`, commit
-de merge do PR #5 na `main`). Antes de voltar, confirme a tag em Packages: sem os segredos de webhook, a limpeza do GHCR
-não roda e a `v0.1.3` continua lá. Essa volta só foi conferida no código. O ensaio é o `ensaiar-rollback` da Parada 3.
+de merge do PR #5 na `main`).
 
 A 0.1.3 também não trouxe migration; a volta dela era o caminho A, para
 `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:b8a8c4457dc0603ffb2fc30418cfe906d6684131` (a `v0.1.2`, commit
@@ -227,6 +232,14 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
 | Batimento do worker (`/configuracao/agentes`) | mais de 5 min sem bater | Logs do `worker`; deploy do serviço; conferir variáveis |
 | Duas instâncias de worker | qualquer ocorrência | Conferir réplicas = 1 no Easypanel |
 | Erro novo no Sentry (com DSN) | primeira ocorrência de cada tipo | Triagem pelo `tech-lead`; incidente se afetar decisão ou dado |
+
+Aviso por e-mail no Sentry, desde a 0.1.5 ([manual, cap. 07](../manual-tecnico/07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail)):
+
+- `aviso_email_falhou`: o aviso de um DEC terminou `falhou`. Chega na 1ª tentativa quando o Resend recusa de vez (4xx
+  que não é 429; com 401 ou 403, confira primeiro `RESEND_API_KEY` no worker) e na 3ª quando a falha é passageira ou
+  é um erro inesperado. O DEC continua na fila do painel; o e-mail não é reenviado sozinho.
+- `aviso_erro_inesperado`: só quando nem a contagem da tentativa gravou, ou seja, banco fora. Conferir o `db` e a
+  saúde (seção 8).
 
 O monitor externo da saúde ainda não existe: até lá, a conferência é a da seção 8.
 

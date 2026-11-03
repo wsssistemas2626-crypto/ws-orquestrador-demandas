@@ -11,7 +11,10 @@
 // - sem enviador configurado, sem remetente ou sem destinatário: `sem_provedor`, sem chamar ninguém;
 // - envio certo: `enviado`, com o id do provedor e a data;
 // - falha: conta a tentativa; antes da 3ª, lança AvisoNaoEnviado (mensagem fixa) para a fila tentar de novo (retryLimit
-//   2, ADR-07 (a)); na 3ª, `falhou`, log de erro e Sentry, sem relançar.
+//   2, ADR-07 (a)); na 3ª, `falhou`, log de erro e Sentry, sem relançar;
+// - recusa definitiva do provedor (4xx que não é 429): `falhou` na hora, com log de erro e Sentry (M-03);
+// - erro inesperado fora do enviador: conta a tentativa numa transação própria, com a trava da linha, e segue a regra da
+//   falha; sem banco, sobe sem contar (M-03).
 // O e-mail é montado na hora, só com o id do DEC, o id da demanda e o link (CA-25.3): destinatário só da configuração e
 // link só da origem configurada, nunca de cabeçalho de requisição (C-38). O log leva só ids, tentativa, status e o erro
 // reduzido (C-21): nem destinatário, nem remetente, nem corpo.
@@ -109,11 +112,39 @@ type Desfecho =
   | { resultado: 'falhou'; erro?: unknown; tentativa?: number }
   | { resultado: 'tentar_de_novo'; erro: unknown; tentativa: number };
 
+// M-03: erro inesperado fora do enviador (montagem do e-mail, banco no meio do envio) desfaz a transação do envio. A
+// tentativa é contada aqui, numa transação nova e com a trava da linha (um job concorrente do mesmo DEC não soma duas
+// vezes). Aviso que já saiu de `pendente` não conta: devolve o mesmo resultado que o envio daria. Se nem esta contagem
+// for possível (banco fora), o erro original sobe sem contar, e o handler o trata como `aviso_erro_inesperado`.
+async function contarErroInesperado(deps: DepsAviso, decId: string, erro: unknown): Promise<Desfecho> {
+  try {
+    return await comTransacao(deps.pool, async ({ tx }): Promise<Desfecho> => {
+      const [aviso] = await tx
+        .select({ status: avisoEmail.status, tentativas: avisoEmail.tentativas })
+        .from(avisoEmail)
+        .where(eq(avisoEmail.pacoteDecisaoId, decId))
+        .for('update');
+      if (!aviso) return { resultado: 'sem_aviso' };
+      if (aviso.status === 'enviado') return { resultado: 'ja_enviado' };
+      if (aviso.status === 'sem_provedor' || aviso.status === 'falhou') return { resultado: aviso.status };
+      const tentativa = aviso.tentativas + 1;
+      const esgotou = tentativa >= TENTATIVAS_AVISO;
+      await tx
+        .update(avisoEmail)
+        .set({ tentativas: tentativa, status: esgotou ? 'falhou' : 'pendente', atualizadoEm: deps.relogio.agora() })
+        .where(eq(avisoEmail.pacoteDecisaoId, decId));
+      return esgotou ? { resultado: 'falhou', erro, tentativa } : { resultado: 'tentar_de_novo', erro, tentativa };
+    });
+  } catch {
+    throw erro;
+  }
+}
+
 export async function enviarAviso(deps: DepsAviso, decId: string): Promise<ResultadoAviso> {
   // Id fora do formato: não há aviso a procurar, e nada chega ao banco.
   if (!RE_DEC.test(decId)) return 'sem_aviso';
   const demandaId = demandaDoDec(decId);
-  const desfecho = await comTransacao(deps.pool, async ({ tx }): Promise<Desfecho> => {
+  const envio = async ({ tx }: Transacao): Promise<Desfecho> => {
     const [aviso] = await tx
       .select({ status: avisoEmail.status, tentativas: avisoEmail.tentativas })
       .from(avisoEmail)
@@ -145,13 +176,23 @@ export async function enviarAviso(deps: DepsAviso, decId: string): Promise<Resul
         await atualizar({ status: 'sem_provedor' });
         return { resultado: 'sem_provedor' };
       }
-      const esgotou = tentativa >= TENTATIVAS_AVISO;
+      // M-03: a recusa definitiva (4xx que não é 429) não muda numa nova tentativa; o transitório (429, 5xx, rede, tempo
+      // limite, formato) segue tentado de novo.
+      const definitivo = e instanceof ErroEnvioEmail && e.tipo === 'recusado';
+      const esgotou = definitivo || tentativa >= TENTATIVAS_AVISO;
       await atualizar({ tentativas: tentativa, status: esgotou ? 'falhou' : 'pendente' });
       return esgotou ? { resultado: 'falhou', erro: e, tentativa } : { resultado: 'tentar_de_novo', erro: e, tentativa };
     }
     await atualizar({ status: 'enviado', tentativas: tentativa, idProvedor, enviadoEm: deps.relogio.agora() });
     return { resultado: 'enviado' };
-  });
+  };
+
+  let desfecho: Desfecho;
+  try {
+    desfecho = await comTransacao(deps.pool, envio);
+  } catch (e) {
+    desfecho = await contarErroInesperado(deps, decId, e);
+  }
 
   if (desfecho.resultado === 'tentar_de_novo') {
     log.warn({ evento: 'aviso_email_falha', demandaId, tentativa: desfecho.tentativa, status: 'pendente', erro: desfecho.erro });

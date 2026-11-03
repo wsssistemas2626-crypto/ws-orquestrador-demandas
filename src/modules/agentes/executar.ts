@@ -2,6 +2,7 @@
 // 1. reivindica a execução (UPDATE condicional): nada voltou → `ja_tratada`, sem chamar o provedor (CA-16.4);
 // 2. agente desligado, sem modelo com preço vigente ou sem provedor (sem chave) → `ignorada` + `agente_ignorado` (CA-19.4);
 // 3. gasto do mês ≥ teto → `ignorada` + `suspensao_por_teto` (CA-18.1, CA-18.3, C-26);
+// 3b. demanda em status final → `ignorada` + `agente_ignorado`, sem chamar o provedor (M-02);
 // 4. monta a entrada pela lista de permissão, minimizada (T24), com o prompt do agente (T26);
 // 5. chama o provedor fora de qualquer transação;
 // 6. JSON + schema da rota (ADR-09). Válido: numa transação, o serviço da API grava o artefato com o ator agente (passa
@@ -12,9 +13,10 @@
 // Toda chamada feita ao provedor deixa uma linha de uso, em transação própria, com o resultado já conhecido (CA-17.2).
 // Nada da saída define status, autoria nem ator (C-25): o schema descarta chave desconhecida e o serviço usa o ator.
 // O log leva só agente, ids, tentativa e resultado (C-21); o evento, só o agente, a tentativa e o motivo (C-30).
+import { eq } from 'drizzle-orm';
 import type { z } from 'zod';
 import { PROMPTS } from '../../agents';
-import type { ResultadoUso } from '../../db/schema';
+import { demanda, type ResultadoUso } from '../../db/schema';
 import { comTransacao, type Transacao } from '../../db/transacao';
 import type { Deps } from '../../lib/deps';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
@@ -22,6 +24,7 @@ import { log } from '../../lib/log';
 import { capturarErro } from '../../lib/sentry';
 import type { Agente, AtorAgente, AtorSistema } from '../acesso/ator';
 import { marcarPendenteComoFalha } from '../demandas/entradas-pendentes';
+import { ehStatusFinal } from '../demandas/transicoes';
 import { criarEspecificacaoSchema } from '../especificacoes/schemas';
 import { criarEspecificacao } from '../especificacoes/servico';
 import { registrarEvento, type AcaoEvento } from '../historico/registrar';
@@ -29,7 +32,7 @@ import { criarPacoteDecisao, NIVEL_DO_DEC_DE_AGENTE } from '../pacotes-decisao/c
 import { criarParecerRiscoSchema } from '../pareceres-risco/schemas';
 import { criarParecerRisco } from '../pareceres-risco/servico';
 import { obterConfiguracaoAgente } from './configuracao';
-import { montarEntrada } from './entrada-agente';
+import { montarEntrada, type CitadosNaEntrada, type EntradaDoAgente } from './entrada-agente';
 import { TENTATIVAS_MAXIMAS } from './espera';
 import { confirmarPosse, encerrar, ExecucaoPerdida, reagendar, reivindicar, type ExecucaoAgente } from './execucoes';
 import { calcularCusto, precoVigente, type PrecoPorMilhao } from './preco';
@@ -45,8 +48,9 @@ export type ResultadoExecucao = 'concluida' | 'reagendada' | 'falhou' | 'ignorad
 
 export type DestinoDoAgente = {
   schema: z.ZodType;
-  // Grava o artefato pelo serviço da API, na transação de quem chama, e devolve o id dele.
-  gravar(t: Transacao, deps: DepsAgente, ator: AtorAgente, exec: ExecucaoAgente, saida: unknown): Promise<string>;
+  // Grava o artefato pelo serviço da API, na transação de quem chama, e devolve o id dele. `citados` é a ESP e o RSK que a
+  // entrada leu (M-01): só a consolidação usa, para o DEC citar o que o modelo leu.
+  gravar(t: Transacao, deps: DepsAgente, ator: AtorAgente, exec: ExecucaoAgente, saida: unknown, citados: CitadosNaEntrada): Promise<string>;
 };
 
 // Motivos que vão ao evento e ao log: enumeração fechada, sem texto da saída nem da entrada.
@@ -60,7 +64,7 @@ type MotivoFalha =
   | 'entrada_nao_encontrada'
   | 'sem_destino'
   | 'tentativas_esgotadas';
-type MotivoIgnorada = 'desligado' | 'sem_preco' | 'sem_provedor' | 'teto';
+type MotivoIgnorada = 'desligado' | 'sem_preco' | 'sem_provedor' | 'teto' | 'demanda_final';
 
 const SISTEMA: AtorSistema = { tipo: 'sistema' };
 const atorDo = (agente: Agente): AtorAgente => ({ tipo: 'agente', agente, prefixoToken: null });
@@ -69,6 +73,19 @@ const atorDo = (agente: Agente): AtorAgente => ({ tipo: 'agente', agente, prefix
 function demandaDa(exec: ExecucaoAgente): string {
   if (!exec.demandaId) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
   return exec.demandaId;
+}
+
+// A consolidação sempre lê uma ESP e um RSK (chave rsk:); o tipo obriga a tratar o nulo, que vira recusa sem nova
+// tentativa.
+function citadosDaConsolidacao(citados: CitadosNaEntrada): { especificacaoId: string; parecerRiscoId: string } {
+  if (citados.especificacaoId === null || citados.parecerRiscoId === null) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
+  return { especificacaoId: citados.especificacaoId, parecerRiscoId: citados.parecerRiscoId };
+}
+
+// M-02: lê só o status. Demanda que não existe → false, e a montagem da entrada segue dando `entrada_nao_encontrada`.
+async function demandaEmStatusFinal(db: DepsAgente['db'], demandaId: string): Promise<boolean> {
+  const [d] = await db.select({ status: demanda.status }).from(demanda).where(eq(demanda.id, demandaId));
+  return d !== undefined && ehStatusFinal(d.status);
 }
 
 // O orquestrador cria a demanda a partir da entrada pendente (T28); os outros três gravam ESP, RSK e DEC da demanda.
@@ -88,9 +105,10 @@ export const DESTINOS: Readonly<Partial<Record<Agente, DestinoDoAgente>>> = Obje
       (await criarParecerRisco(deps, ator, demandaDa(exec), criarParecerRiscoSchema.parse(saida), t, { execucaoAgenteId: exec.id })).id,
   },
   // A saída não tem o nível de aprovação (A-04): é o da regra do servidor, que o serviço também impõe a todo ator agente.
+  // O DEC cita a ESP e o RSK que a entrada leu, e não os mais novos na hora de gravar (M-01).
   consolidacao: {
     schema: SCHEMA_DE_SAIDA.consolidacao,
-    gravar: async (t, deps, ator, exec, saida) =>
+    gravar: async (t, deps, ator, exec, saida, citados) =>
       (
         await criarPacoteDecisao(
           deps,
@@ -98,7 +116,7 @@ export const DESTINOS: Readonly<Partial<Record<Agente, DestinoDoAgente>>> = Obje
           demandaDa(exec),
           { ...saidaConsolidacaoSchema.parse(saida), nivelAprovacaoRequerido: NIVEL_DO_DEC_DE_AGENTE },
           t,
-          { execucaoAgenteId: exec.id },
+          { execucaoAgenteId: exec.id, ...citadosDaConsolidacao(citados) },
         )
       ).id,
   },
@@ -211,10 +229,13 @@ async function executarReivindicada(c: Contexto): Promise<ResultadoExecucao> {
   if (config.modelo === null || preco === null) return ignorar(c, 'agente_ignorado', 'sem_preco');
   if (!deps.provedor) return ignorar(c, 'agente_ignorado', 'sem_provedor');
   if ((await situacaoDoTeto(deps.db, deps.relogio)).suspenso) return ignorar(c, 'suspensao_por_teto', 'teto');
+  // M-02: a execução que estava na fila quando a demanda chegou a status final não chama o provedor. A demanda fechada
+  // durante a chamada é recusada pelo serviço, sob a trava (409 → recusada_pelo_servico, sem nova tentativa).
+  if (exec.demandaId !== null && (await demandaEmStatusFinal(deps.db, exec.demandaId))) return ignorar(c, 'agente_ignorado', 'demanda_final');
 
-  let conteudo: string;
+  let entrada: EntradaDoAgente;
   try {
-    conteudo = (await montarEntrada(deps.db, exec.agente, exec.chaveEntrada)).conteudo;
+    entrada = await montarEntrada(deps.db, exec.agente, exec.chaveEntrada);
   } catch (e) {
     if (e instanceof ErroDominio && e.codigo === 'nao_encontrado') return falhar(c, 'entrada_nao_encontrada');
     throw e;
@@ -224,11 +245,11 @@ async function executarReivindicada(c: Contexto): Promise<ResultadoExecucao> {
   const chamada = { modelo: config.modelo, preco };
   let resposta: RespostaDoProvedor;
   try {
-    resposta = await deps.provedor.gerar({ modelo: config.modelo, sistema: prompt.sistema, conteudo, maxTokens: prompt.maxTokens });
+    resposta = await deps.provedor.gerar({ modelo: config.modelo, sistema: prompt.sistema, conteudo: entrada.conteudo, maxTokens: prompt.maxTokens });
   } catch (e) {
     return tratarErroDaChamada(c, chamada, e);
   }
-  return tratarResposta(c, chamada, destino, resposta);
+  return tratarResposta(c, chamada, destino, resposta, entrada.citados);
 }
 
 type Chamada = { modelo: string; preco: PrecoPorMilhao };
@@ -262,7 +283,13 @@ async function tratarErroDaChamada(c: Contexto, ch: Chamada, e: unknown): Promis
   return falhar(c, e instanceof ErroProvedor ? 'autenticacao' : 'erro_inesperado');
 }
 
-async function tratarResposta(c: Contexto, ch: Chamada, destino: DestinoDoAgente, resposta: RespostaDoProvedor): Promise<ResultadoExecucao> {
+async function tratarResposta(
+  c: Contexto,
+  ch: Chamada,
+  destino: DestinoDoAgente,
+  resposta: RespostaDoProvedor,
+  citados: CitadosNaEntrada,
+): Promise<ResultadoExecucao> {
   const { deps, exec } = c;
   const tokensEntrada = inteiroNaoNegativo(resposta.tokensEntrada);
   const tokensSaida = inteiroNaoNegativo(resposta.tokensSaida);
@@ -282,7 +309,7 @@ async function tratarResposta(c: Contexto, ch: Chamada, destino: DestinoDoAgente
   try {
     await comTransacao(deps.pool, async (t) => {
       await confirmarPosse(t.tx, exec);
-      const artefatoId = await destino.gravar(t, deps, atorDo(exec.agente), exec, saida.dados);
+      const artefatoId = await destino.gravar(t, deps, atorDo(exec.agente), exec, saida.dados, citados);
       await encerrar(t.tx, exec, 'concluida', deps.relogio, artefatoId);
     });
   } catch (e) {
