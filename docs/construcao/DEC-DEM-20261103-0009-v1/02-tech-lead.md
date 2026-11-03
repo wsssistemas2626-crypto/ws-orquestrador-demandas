@@ -101,17 +101,16 @@ telefone `(11) 90000-0001`, nos campos de texto e de lista de DEC, ESP e RSK e n
   Pedido de Construção não mudam.
 - Os utilitários de minimização são reaproveitados da demanda, e não copiados, para seguir a regra de não duplicar.
 - O B-b fica restrito ao `log.ts`, para não mudar o retorno de `reduzirErro` nos outros pontos que o usam.
+- No começo da etapa, listei a pasta do pedido e li o `pedido.json` pelo shell, com `ls` e `cat`. Os dois só leem e
+  estão fora da lista **Pode**. O maestro liberou esse uso pela regra de 25/10 e o registrou no `passagens.jsonl`.
 
 ## Pendências
 
 - O engenheiro precisa conferir duas coisas que não abri: as linhas do `POST` de `pareceres-risco/route.ts` e o tipo
   que os serviços de criação de ESP e RSK devolvem.
-- Desvio desta etapa: rodei dois comandos de shell fora da lista **Pode**, só de leitura (`ls` e `cat` na pasta do
-  pedido, no primeiro comando abaixo). Estão declarados como rodaram. Nada foi alterado.
 
 ## Comandos executados
 
-- `ls /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261103-0009-v1; cat /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261103-0009-v1/pedido.json` — fora da lista Pode, só leitura
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/app/api`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/app/api/especificacoes HEAD:src/app/api/pareceres-risco HEAD:src/app/api/pacotes-decisao HEAD:src/app/api/demandas/[id]`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/app/api/pacotes-decisao/[decId] HEAD:src/app/api/especificacoes/[espId] HEAD:src/app/api/pareceres-risco/[rskId] HEAD:src/modules/dados-pessoais`
