@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.6: alcance da minimização na leitura pela API, no RF-20) |
+| Atualizado em | 03/11/2026 (0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -116,11 +116,13 @@ Vale para todo campo de texto de todo agente, não só para o texto bruto (`mini
 Ao provedor vai só a lista de campos permitida para cada agente (`entrada-agente.ts`). Risco residual registrado para
 aceite (J-03 da spec): nome de outra pessoa dentro de texto livre ainda pode chegar ao provedor.
 
-Esta minimização vale para a entrada que o worker monta. A leitura de demanda pela API com token de agente segue outra
-regra, a vista mínima ([cap. 03](03-demandas.md#rf-06-consultar-e-alterar); M-06, desde a 0.1.6): tira
-`solicitanteNome`, `anexos` e o nome da conta, mas **não** passa os campos de texto livre pelo `minimizar`. Um e-mail,
-telefone ou nome escrito no `contexto`, por exemplo, chega ao token de agente como foi gravado (M-1, aberto; bloqueia a
-primeira publicação, [CHANGELOG](../../CHANGELOG.md)).
+Esta minimização vale para a entrada que o worker monta. Desde a 0.1.7 (M-1), a leitura de demanda pela API com token
+de agente usa a mesma regra: `minimizarValor` saiu de `entrada-agente.ts` para `src/modules/dados-pessoais/minimizar.ts`
+e é usada pelos dois. A vista mínima ([cap. 03](03-demandas.md#rf-06-consultar-e-alterar)) tira `solicitanteNome`,
+`anexos` e o nome da conta e passa o texto livre da demanda (e o `titulo` da listagem) pela minimização, com o nome do
+solicitante entre os trocados. Fora da demanda, a API ainda não minimiza: `demandaTitulo`, `demandaDescricao` e
+`decisao.comentarios` do DEC e o texto de ESP e RSK chegam ao token de agente como foram gravados (M-a, aberto;
+bloqueia a primeira publicação, [CHANGELOG](../../CHANGELOG.md)).
 
 ## Pré-condições para ligar qualquer agente em produção
 

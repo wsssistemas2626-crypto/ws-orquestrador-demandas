@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 03/11/2026 (0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09 |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
@@ -69,15 +69,20 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
   - `responsavel` de pessoa vira `{ "tipo": "pessoa" }`, sem o nome da conta; o mesmo no `autor` de cada item de
     `especificacoes`, `pareceresRisco` e `pacotesDecisao`;
   - autor agente fica `{ "tipo": "agente", "agente": "<nome do agente>" }`;
+  - desde a 0.1.7 (M-1), `titulo`, `contexto`, `descricaoProblema`, `justificativaUrgencia`, `impactoPercebido` e cada
+    item de `duvidasEntrada` passam por `minimizarValor` (`src/modules/dados-pessoais/minimizar.ts`, a mesma regra da
+    entrada do agente, [cap. 06](06-agentes-de-ia.md#rf-20-minimização)), com o nome do solicitante entre os trocados:
+    nome, e-mail, CPF, CNPJ e telefone viram marcadores como `[nome removido]`. Campo nulo continua `null`;
   - campo novo da vista não chega ao agente sem entrar na lista.
 
-  A listagem `GET /api/demandas` não tem esses campos para nenhum ator.
-- Limites conhecidos (pendências da 0.1.6 no [CHANGELOG](../../CHANGELOG.md)):
-  - **M-1, aberto, bloqueia a primeira publicação:** a vista mínima devolve `titulo`, `contexto`, `descricaoProblema`,
-    `justificativaUrgencia`, `impactoPercebido` e `duvidasEntrada` sem passar pelo `minimizar`, e a listagem devolve o
-    `titulo`. Nome ou contato escrito nesses textos chega inteiro ao token de agente, ao contrário da entrada do agente
-    ([cap. 06](06-agentes-de-ia.md#rf-20-minimização));
-  - **M-2, aberto:** as leituras próprias de ESP, RSK e DEC devolvem ao agente o nome da conta autora.
+  A listagem `GET /api/demandas` não tem esses campos para nenhum ator. Desde a 0.1.7, ela usa `listarDemandasPara`:
+  quem não é pessoa recebe o `titulo` de cada item minimizado com o nome do solicitante daquele item, e nenhum ator
+  recebe a chave `solicitanteNome`. O painel segue com `listarDemandas`, sem mudança. Só a pessoa recebe o texto
+  original; o ator `sistema` também recebe o minimizado.
+- Limite conhecido (pendências da 0.1.7 no [CHANGELOG](../../CHANGELOG.md)):
+  - **M-a, aberto, bloqueia a primeira publicação:** o M-1 fechou só na demanda. O DEC guarda cópia do título e da
+    descrição da demanda, e `demandaTitulo`, `demandaDescricao`, `decisao.comentarios` e o texto de ESP e RSK saem sem
+    minimizar para o token de agente ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)).
 
 ## RF-07. Status e transições
 

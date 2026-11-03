@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
+| Atualizado em | 03/11/2026 (0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-01, RF-02, RNF-10, RNF-12, RNF-13; controles C-01 a C-21 de `04-seguranca-aplicacao.md` |
 | Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `bloqueio-verificacao.ts`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
@@ -69,7 +69,11 @@ de entrada tem campo de autoria, e o Zod descarta chave desconhecida (C-11).
 
 Ler não é ver tudo: em `ler_demanda` (e na resposta de `criar_demanda`), quem não é pessoa recebe a vista mínima da
 demanda, sem `solicitanteNome`, `anexos` e nome de conta ([cap. 03](03-demandas.md#rf-06-consultar-e-alterar); M-06,
-desde a 0.1.6). As leituras próprias de ESP, RSK e DEC ainda devolvem ao agente o nome da conta autora (M-2, aberto,
+desde a 0.1.6), e, desde a 0.1.7, com o texto livre minimizado (M-1). Desde a 0.1.7 (M-2), as sete rotas de leitura de
+ESP, RSK e DEC também cortam para quem não é pessoa, por lista de permissão (`vistaDaEspecificacaoPara`,
+`vistaDoParecerPara`, `vistaDoPacotePara`): autor pessoa vira `{ "tipo": "pessoa" }`, os aprovadores saem sem `nome` e
+`referenciaDocumento`, e a decisão sem `decididaPor`. Ainda saem sem minimizar para o agente `demandaTitulo`,
+`demandaDescricao` e `decisao.comentarios` do DEC e o texto de ESP e RSK (M-a, aberto, bloqueia a primeira publicação;
 [CHANGELOG](../../CHANGELOG.md)).
 
 ## Proteção das rotas
@@ -117,12 +121,21 @@ com a mensagem genérica, sem texto do Postgres, do Drizzle nem do Zod. Os códi
   com `erro` sendo o primeiro argumento que for `Error`, reduzido a classe e código. Texto solto e objeto não saem, e
   a falha do próprio log é engolida, sem voltar ao console original. `console.log` e `console.info` não mudam. O erro de
   configuração do boot sai antes da troca e continua legível, só com o nome da variável (C-31).
-- Limites conhecidos ([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6):
+  - Desde a 0.1.7 (M-3), `console.error` com `Error` sem a chave `digest` também vai ao Sentry, por
+    `capturarErro(erro, { evento: 'console_erro' })`, com o mesmo saneamento das rotas e dentro da mesma guarda contra
+    reentrada (falha do Sentry não entra em laço). Com `digest`, não vai: já saiu pelo `onRequestError`. `console.warn`
+    fica só no log. `defaultIntegrations` continua `false`.
+  - Desde a 0.1.7 (B-1), o `onRequestError` grava `reduzirErro(err)`: valor que não é `Error` vira
+    `{ "classe": "desconhecido" }`.
+- Limites conhecidos ([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6 e da 0.1.7):
   - a prova do console é de unidade: se o Next escrever direto no `process.stderr` ou guardar a referência do
     `console.error` antes do `register()`, a troca não pega (B-2), e só a `ErroLeituraSessao` e o `erro_requisicao`
     seguem garantidos;
-  - erro fora de requisição (`uncaughtException`, `unhandledRejection`, `onError` do `after()`) que chega ao console
-    perde a pilha e não vai ao Sentry (M-3, aberto). Não vaza dado; dificulta o diagnóstico.
+  - erro fora de requisição (`uncaughtException`, `unhandledRejection`, `onError` do `after()`) só chega ao Sentry se
+    o Next o escrever por `console.error`; isso não foi conferido no runtime do Next 16 (prova de unidade, risco do M-3
+    para a Parada 3);
+  - a não duplicação depende de o Next não mandar o mesmo erro sem `digest` ao `onRequestError` e ao `console.error`
+    (B-a); no máximo, um evento a mais, sem dado.
 
 ## Segredos (RNF-13)
 
