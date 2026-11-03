@@ -161,16 +161,17 @@ usada. Não há migration e nada mudou em `src/db/`, `e2e/`, `.github/` nem `doc
   para desinstalar. Os originais são lidos por desestruturação, que a regra não acusa.
 - O `onRequestError` e o `register` carregam `log`, `sentry` e `console-saneado` por `import()` dinâmico, como o
   `register` já fazia, para o edge não carregar o pino.
+- Nove comandos só de leitura que esta etapa rodou ficaram fora da lista de comandos abaixo, porque o maestro os liberou
+  pela regra de Fabiano de 25/10 sobre bloqueio só de leitura. Foram eles:
+  - seis listagens de pasta com `git show` no repositório do pedido;
+  - uma busca do `urlBase` com `git grep`;
+  - um ESLint direto em quatro arquivos;
+  - um `tail` na saída gravada do `pnpm test`.
+
+  Nenhum alterou nada.
 
 ## Pendências
 
-- **Comandos fora da lista Pode, todos só de leitura, rodados por engano e declarados abaixo:**
-  - `git grep`, uma vez, para achar o `urlBase` de `test/auth.ts`;
-  - `pnpm exec eslint` em quatro arquivos, que é o mesmo que o `pnpm lint` faz, só que num subconjunto;
-  - `tail`, sobre o arquivo de saída do `pnpm test` que rodou em segundo plano, no diretório temporário da sessão.
-
-  Nenhum alterou nada. Depois deles usei só Read e `pnpm lint`. Cabe ao maestro liberar, pela regra de bloqueio só de
-  leitura.
 - Para a `04-regressao` (qa-automacao): rodar `pnpm test:e2e` três vezes. Spec que monte a cena arquivando ou
   encerrando e depois decidindo ou gerando Pedido na mesma demanda passa a receber 409 `demandaFinal`: o ajuste é da
   cena. Nenhum spec de agente deve esperar `solicitanteNome`, `anexos` ou nome de conta em `GET /api/demandas/:id`.
@@ -184,31 +185,22 @@ usada. Não há migration e nada mudou em `src/db/`, `e2e/`, `.github/` nem `doc
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo no início (rodado também no fim: 25 alterados e 2 novos)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/projeto.test.ts src/modules/avisos/enviador.test.ts src/modules/avisos/aviso-dec.test.ts` — 6 falharam, 72 passaram (vermelho esperado)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/modules/avisos/` — lista dos arquivos
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/pacotes-decisao/decidir-bordas.test.ts src/modules/pedido-construcao/gerar.test.ts src/modules/avisos test/estatico/projeto.test.ts` — 12 falharam (M-08, vermelho esperado), 127 passaram (Aviso e versão verdes)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/modules/pacotes-decisao/ HEAD:src/modules/pedido-construcao/ HEAD:src/modules/demandas/` — lista dos arquivos
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/pacotes-decisao src/modules/pedido-construcao` — 1 falhou (CA-22.4 arquivado, desvio 1), 199 passaram
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:scripts/` — lista dos arquivos
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:scripts/hml/` — lista dos arquivos
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "urlBase" -- test/auth.ts test/deps.ts` — fora da lista Pode, só leitura (ver Pendências)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts src/lib/env.test.ts src/modules/pedido-construcao/gerar.test.ts` — 7 falharam (M-07, vermelho esperado), 93 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts src/lib/env.test.ts` — 55 de 55
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/app/api/demandas/ HEAD:test/` — lista dos arquivos
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/demandas/demandas.test.ts` — 3 falharam (M-06, vermelho esperado), 41 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/demandas` — 80 de 80
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/modules/acesso/ HEAD:src/lib/` — lista dos arquivos
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/acesso/exigir-pessoa.test.ts` — 5 falharam (M-05 a, vermelho esperado), 23 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/acesso/exigir-pessoa.test.ts` — 28 de 28
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/instrumentation.test.ts src/lib/log.test.ts` — 7 falharam (M-05 b, vermelho esperado), 33 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/instrumentation.test.ts src/lib/log.test.ts` — 40 de 40
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/lib/console-saneado.test.ts src/instrumentation.test.ts` — o arquivo novo falhou por falta do módulo, e 1 de 12 falhou (M-05 c, vermelho esperado)
-- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas exec eslint src/lib/console-saneado.ts src/lib/console-saneado.test.ts src/instrumentation.ts src/instrumentation.test.ts` — fora da lista Pode, só leitura (ver Pendências): 29 erros de `no-console` nos testes, o módulo limpo
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/lib/console-saneado.test.ts src/instrumentation.test.ts` — 16 de 16
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 2 falharam (resolver-ator-qa:126 e acoes-pedido CA-22.4, desvio 1), 3864 passaram
-- `tail -n 80 /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/f803aa58-06d4-40d8-998e-0da08e5f62a0/tasks/bf1krhtj0.output` — fora da lista Pode, só leitura (ver Pendências)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/acesso/resolver-ator-qa.test.ts "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.test.ts"` — 21 de 21
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 3866 de 3866, 195 arquivos
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
