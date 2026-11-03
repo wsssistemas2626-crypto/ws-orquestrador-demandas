@@ -100,6 +100,27 @@ describe('log por lista de permissão (C-21)', () => {
     expect(linhas.join('')).not.toContain('Joana Fictícia Teste');
   });
 
+  // 04-regressao do 0009 (qa-automacao): bordas do B-b. Objeto com cara de Error (name, message, stack, cause) que não é
+  // instância de Error, lista, objeto vazio, objeto sem protótipo e objeto com chave só herdada não atravessam o log; o
+  // `code` da `cause` de um objeto simples não é lido (só o de Error real).
+  it('erro parecido com Error, lista, objeto vazio, sem protótipo ou com chave herdada vira { classe: desconhecido }', () => {
+    const { linhas, destino } = capturar();
+    const logger = criarLogger(destino);
+    const semPrototipo = Object.assign(Object.create(null) as object, { motivo: 'falha para joana.ficticia@exemplo.invalid' });
+    const herdado = Object.create({ motivo: 'falha para joana.ficticia@exemplo.invalid' }) as object;
+    const parecidoComErro = {
+      name: 'TypeError',
+      message: 'falha para joana.ficticia@exemplo.invalid',
+      stack: 'TypeError: 000.000.001-91',
+      cause: { code: '23505', detail: '000.000.001-91' },
+    };
+    for (const erro of [parecidoComErro, ['joana.ficticia@exemplo.invalid'], {}, semPrototipo, herdado]) logger.error({ evento: 'falha', erro });
+    expect(linhas.map((l) => JSON.parse(l).erro)).toEqual(Array.from({ length: 5 }, () => ({ classe: 'desconhecido' })));
+    expect(linhas.join('')).not.toContain('joana.ficticia@exemplo.invalid');
+    expect(linhas.join('')).not.toContain('000.000.001-91');
+    expect(linhas.join('')).not.toContain('TypeError');
+  });
+
   // Testes acrescentados na 06-T02-testes (qa-automacao).
 
   it.each(['info', 'warn', 'error'] as const)('nível %s: nenhum sentinela passado como campo de topo chega à saída', (nivel) => {

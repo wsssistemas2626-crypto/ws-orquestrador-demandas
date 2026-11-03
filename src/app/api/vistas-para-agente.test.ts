@@ -257,9 +257,11 @@ const SOLICITANTE = 'Joana Fictícia Teste';
 const EMAIL = 'joana.ficticia@exemplo.invalid';
 const CPF = '000.000.001-91';
 const TELEFONE = '(11) 90000-0001';
-const FRAGMENTOS = [SOLICITANTE, EMAIL, CPF, TELEFONE];
-const TRECHO = `Falar com ${SOLICITANTE}: contato ${EMAIL}, CPF ${CPF}, telefone ${TELEFONE}`;
-const TRECHO_MINIMO = 'Falar com [nome removido]: contato [e-mail removido], CPF [CPF removido], telefone [telefone removido]';
+// B-2 da revisão de segurança (04-regressao do 0009): CNPJ fictício, que o `minimizar` também troca.
+const CNPJ = '00.000.000/0001-91';
+const FRAGMENTOS = [SOLICITANTE, EMAIL, CPF, CNPJ, TELEFONE];
+const TRECHO = `Falar com ${SOLICITANTE}: contato ${EMAIL}, CPF ${CPF}, CNPJ ${CNPJ}, telefone ${TELEFONE}`;
+const TRECHO_MINIMO = 'Falar com [nome removido]: contato [e-mail removido], CPF [CPF removido], CNPJ [CNPJ removido], telefone [telefone removido]';
 
 const ESP_COM_DADO = {
   descricaoObjetiva: TRECHO,
@@ -292,10 +294,12 @@ const RSK_COM_DADO = {
   preCondicoes: [TRECHO],
   envolverJuridicoOuAdministradoraQuando: TRECHO,
 };
-// opcaoA sem desvantagens e quandoEscolher; opcaoB sem vantagens e quandoEscolher: as chaves ausentes seguem ausentes.
+// opcaoA com quandoEscolher e sem desvantagens; opcaoB sem vantagens e quandoEscolher: os subcampos presentes saem
+// minimizados e as chaves ausentes seguem ausentes (B-2 da revisão de segurança do 0009: quandoEscolher com o dado).
+const OPCAO_A_MINIMA = { descricao: TRECHO_MINIMO, vantagens: TRECHO_MINIMO, quandoEscolher: TRECHO_MINIMO };
 const DEC_COM_DADO = {
   resumoExecutivo: TRECHO,
-  opcaoA: { descricao: TRECHO, vantagens: TRECHO },
+  opcaoA: { descricao: TRECHO, vantagens: TRECHO, quandoEscolher: TRECHO },
   opcaoB: { descricao: TRECHO, desvantagens: TRECHO },
   recomendacao: TRECHO,
   nivelAprovacaoRequerido: 'cto',
@@ -388,7 +392,7 @@ describe('M-a: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa
       expect(dec.demandaDescricao).toBe(`Contexto: ${TRECHO_MINIMO}\n\nProblema: ${TRECHO_MINIMO}`);
       expect(dec.resumoExecutivo).toBe(TRECHO_MINIMO);
       expect(dec.recomendacao).toBe(TRECHO_MINIMO);
-      expect(dec.opcaoA).toEqual({ descricao: TRECHO_MINIMO, vantagens: TRECHO_MINIMO });
+      expect(dec.opcaoA).toEqual(OPCAO_A_MINIMA);
       expect(dec.opcaoB).toEqual({ descricao: TRECHO_MINIMO, desvantagens: TRECHO_MINIMO });
       expect(dec.decisao).toMatchObject({ opcaoEscolhida: 'B', comentarios: TRECHO_MINIMO });
       expect(dec.especificacaoCitada).toEqual({
@@ -430,15 +434,24 @@ describe('M-a: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa
     }
     for (const dec of [r.dec, ...r.decs, ...r.fila]) {
       expect(dec).toMatchObject({ recomendacao: null, decisao: null, especificacaoCitada: { sistemaAlvo: null, repositorioDestino: null, criteriosAceitePreliminares: null, definicaoDePronto: null } });
-      expect(Object.keys(dec.opcaoA as Obj).sort()).toEqual(['descricao', 'vantagens']);
+      expect(Object.keys(dec.opcaoA as Obj).sort()).toEqual(['descricao', 'quandoEscolher', 'vantagens']);
       expect(Object.keys(dec.opcaoB as Obj).sort()).toEqual(['descricao', 'desvantagens']);
     }
     for (const rsk of [r.rsk, ...r.rsks]) expect(rsk).toMatchObject({ resumo: null, riscoTecnicoComentario: null, recomendacoesMitigacao: [], preCondicoes: [] });
   });
 
   it('POST de ESP, RSK e DEC: o 201 do agente vem minimizado; o da pessoa, original', async () => {
+    // 04-regressao do 0009 (qa-automacao): demanda própria, com o mesmo dado fictício de `comDado`. As versões criadas
+    // aqui não entram nas leituras de `comDado` dos outros testes (que contam 3 DEC), e a ordem dos testes não importa.
+    const idPost = (
+      await criarDemanda(
+        deps,
+        pessoa,
+        criarDemandaSchema.parse({ titulo: `Erro no cadastro da ${SOLICITANTE}`, tipo: 'bug', solicitanteNome: SOLICITANTE, contexto: TRECHO, descricaoProblema: TRECHO }),
+      )
+    ).id;
     const criar = (h: HandlerRota, recurso: string, corpo: unknown, cred: Credencial) =>
-      chamarRota(h, { metodo: 'POST', caminho: `/api/demandas/${comDado.id}/${recurso}`, params: { id: comDado.id }, corpo, ...cred });
+      chamarRota(h, { metodo: 'POST', caminho: `/api/demandas/${idPost}/${recurso}`, params: { id: idPost }, corpo, ...cred });
     const doAgente = [
       await criar(POST_ESP, 'especificacoes', ESP_COM_DADO, { bearer: tokenInsumo }),
       await criar(POST_RSK, 'pareceres-risco', RSK_COM_DADO, { bearer: tokenRisco }),
@@ -454,7 +467,8 @@ describe('M-a: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa
     );
     expect(esp).toMatchObject({ descricaoObjetiva: TRECHO_MINIMO, escopoInclui: [TRECHO_MINIMO], sistemaAlvo: 'meu-sistema', autor: { tipo: 'agente', agente: 'insumo_tecnico' } });
     expect(rsk).toMatchObject({ resumo: TRECHO_MINIMO, preCondicoes: [TRECHO_MINIMO], riscoOperacionalNivel: 'alto', autor: { tipo: 'agente', agente: 'risco' } });
-    expect(dec).toMatchObject({ demandaTitulo: 'Erro no cadastro da [nome removido]', resumoExecutivo: TRECHO_MINIMO, opcaoA: { descricao: TRECHO_MINIMO, vantagens: TRECHO_MINIMO }, nivelAprovacaoRequerido: 'cto_e_administradora' });
+    expect(dec).toMatchObject({ demandaTitulo: 'Erro no cadastro da [nome removido]', resumoExecutivo: TRECHO_MINIMO, opcaoA: OPCAO_A_MINIMA, nivelAprovacaoRequerido: 'cto_e_administradora' });
+    expect(Object.keys((dec as Obj).opcaoA as Obj).sort()).toEqual(['descricao', 'quandoEscolher', 'vantagens']);
     expect(Object.keys((dec as Obj).opcaoB as Obj).sort()).toEqual(['descricao', 'desvantagens']);
 
     const daPessoa = [
@@ -467,5 +481,29 @@ describe('M-a: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa
     expect(espP).toMatchObject({ ...ESP_COM_DADO, autor: { tipo: 'pessoa', nome: CONTA } });
     expect(rskP).toMatchObject({ ...RSK_COM_DADO, autor: { tipo: 'pessoa', nome: CONTA } });
     expect(decP).toMatchObject({ demandaTitulo: `Erro no cadastro da ${SOLICITANTE}`, resumoExecutivo: TRECHO, opcaoA: DEC_COM_DADO.opcaoA, opcaoB: DEC_COM_DADO.opcaoB });
+  });
+
+  // 04-regressao do 0009 (qa-automacao): GET /api/pacotes-decisao cruza demandas e monta os nomes por demandaId numa
+  // consulta só. Duas demandas com solicitantes diferentes (fictícios), cada DEC citando o próprio: no agente, cada item
+  // sai com o nome da própria demanda trocado; na pessoa, os dois originais.
+  it('fila: cada DEC é minimizado com o nome do solicitante da própria demanda', async () => {
+    const nomes = ['Bruno Ficticio Exemplo', 'Carla Ficticia Exemplo'];
+    const decIds: string[] = [];
+    for (const nome of nomes) {
+      const id = (await criarDemanda(deps, pessoa, criarDemandaSchema.parse({ titulo: `Pedido de ${nome}`, tipo: 'bug', solicitanteNome: nome }))).id;
+      await criarEspecificacao(deps, pessoa, id, ESP);
+      await criarParecerRisco(deps, pessoa, id, RSK);
+      decIds.push((await criarPacoteDecisao(deps, pessoa, id, criarPacoteDecisaoSchema.parse({ ...DEC, resumoExecutivo: `Falar com ${nome}` }))).id);
+    }
+    const lerFila = async (cred: Credencial) => {
+      const texto = await lerTexto(GET_FILA, '/api/pacotes-decisao?limit=100', {}, cred);
+      return ((JSON.parse(texto) as Obj).itens as Obj[]).filter((i) => decIds.includes(i.id as string));
+    };
+    const doAgente = await lerFila({ bearer: tokenRisco });
+    expect(doAgente.map((d) => d.id).sort()).toEqual([...decIds].sort());
+    for (const d of doAgente) expect(d).toMatchObject({ demandaTitulo: 'Pedido de [nome removido]', resumoExecutivo: 'Falar com [nome removido]' });
+    for (const nome of nomes) expect(JSON.stringify(doAgente), nome).not.toContain(nome);
+    const daPessoa = await lerFila({ cookie });
+    expect(daPessoa.map((d) => d.resumoExecutivo).sort()).toEqual(nomes.map((n) => `Falar com ${n}`).sort());
   });
 });
