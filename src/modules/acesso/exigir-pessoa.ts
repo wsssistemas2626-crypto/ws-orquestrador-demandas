@@ -5,6 +5,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { obterDeps, type Deps } from '../../lib/deps';
 import { ErroDominio } from '../../lib/erros';
+import { reduzirErro } from '../../lib/reduzir-erro';
 import { ehPapel, type AtorPessoa } from './ator';
 import { destinoSeguro } from './destino-seguro';
 import { MENSAGENS_ACESSO as MENSAGEM } from './mensagens';
@@ -13,13 +14,35 @@ export const SESSAO_SEM_2FA_MS = 15 * 60 * 1000;
 
 type DepsAcesso = Pick<Deps, 'auth' | 'relogio'>;
 
+// M-05 (C-21): a falha do getSession (banco fora, por exemplo) pode trazer na mensagem, nos `params` ou no `cause` a
+// consulta da sessão, que leva o token como parâmetro. O erro que sobe daqui tem mensagem fixa, nenhum `cause` e só o
+// `code` validado por reduzirErro: nem o Next, nem o log, nem o Sentry recebem o original, por nenhum caminho (rota,
+// Server Action, página, layout ou metadados).
+export class ErroLeituraSessao extends Error {
+  readonly code?: string;
+  constructor(code?: string) {
+    super('erro_leitura_sessao');
+    if (code !== undefined) this.code = code;
+  }
+}
+// No protótipo, e não na instância: a instância fica só com `code`.
+Object.defineProperty(ErroLeituraSessao.prototype, 'name', { value: 'ErroLeituraSessao', enumerable: false });
+
+async function sessaoDe(deps: DepsAcesso, cabecalhos: Headers) {
+  try {
+    return await deps.auth.api.getSession({ headers: cabecalhos });
+  } catch (e) {
+    throw new ErroLeituraSessao(reduzirErro(e).code);
+  }
+}
+
 // A sessão como o acesso a enxerga. `null` quando não há sessão, a conta está desativada ou a sessão sem 2FA passou
 // dos 15 min (as três dão 401).
 async function lerPessoa(
   deps: DepsAcesso,
   cabecalhos: Headers,
 ): Promise<{ usuarioId: string; nome: string; papel: unknown; com2fa: boolean } | null> {
-  const s = await deps.auth.api.getSession({ headers: cabecalhos });
+  const s = await sessaoDe(deps, cabecalhos);
   if (!s || s.user.desativadoEm) return null;
   const com2fa = s.user.twoFactorEnabled === true;
   if (!com2fa) {

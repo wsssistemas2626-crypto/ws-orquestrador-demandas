@@ -408,10 +408,34 @@ describe('enviarAviso: recusa definitiva, falha passageira e erro inesperado (M-
     expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: 1 });
   });
 
-  it.each([429, 500, 503])('EnviadorResend com resposta %i → continua pendente, conta a tentativa e pede nova tentativa', async (status) => {
+  it.each([408, 409, 429, 500, 503])('EnviadorResend com resposta %i → continua pendente, conta a tentativa e pede nova tentativa', async (status) => {
     const { decId } = await decPronto();
     await expect(enviarAviso(depsAviso({ enviador: resendCom(status) }), decId)).rejects.toBeInstanceOf(AvisoNaoEnviado);
     expect(await linhaAviso(decId)).toMatchObject({ status: 'pendente', tentativas: 1 });
+  });
+
+  // 0.1.6: o 409 do Resend é passageiro (mesma Idempotency-Key ao mesmo tempo); se persistir, gasta as 3 tentativas.
+  it('EnviadorResend com 409 nas três tentativas → pendente na 1ª e na 2ª, falhou na 3ª', async () => {
+    const { decId } = await decPronto();
+    const linhas = capturar();
+    try {
+      await expect(enviarAviso(depsAviso({ enviador: resendCom(409) }), decId)).rejects.toMatchObject({ tentativa: 1 });
+      expect(await linhaAviso(decId)).toMatchObject({ status: 'pendente', tentativas: 1 });
+      await expect(enviarAviso(depsAviso({ enviador: resendCom(409) }), decId)).rejects.toMatchObject({ tentativa: 2 });
+      expect(await enviarAviso(depsAviso({ enviador: resendCom(409) }), decId)).toBe('falhou');
+    } finally {
+      substituirDestinoDoLog(null);
+    }
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: TENTATIVAS_AVISO });
+    const registros = linhas.map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(registros.map((r) => r.evento)).toEqual(['aviso_email_falha', 'aviso_email_falha', 'aviso_email_falhou']);
+    expect(registros[2]).toMatchObject({ erro: { classe: 'ErroEnvioEmail', code: 'transitorio' } });
+  });
+
+  it.each([401, 410, 413])('EnviadorResend com resposta %i → falhou na 1ª (segue recusa definitiva)', async (status) => {
+    const { decId } = await decPronto();
+    expect(await enviarAviso(depsAviso({ enviador: resendCom(status) }), decId)).toBe('falhou');
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: 1 });
   });
 
   it('erro inesperado fora do enviador (URL base inválida) → conta 1, 2 e 3, termina falhou com Sentry uma vez, sem chamar o enviador', async () => {

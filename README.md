@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.5 (`package.json`) |
+| Versão | 0.1.6 (`package.json`) |
 | Atualizado em | 03/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
@@ -100,10 +100,12 @@ docker compose -f docker-compose.hml.yml -p hml-local down -v
    ```bash
    pnpm db:migrate
    ```
-5. Crie os dados fictícios (só com o banco vazio):
+5. Crie os dados fictícios (só com o banco vazio e o `BETTER_AUTH_URL` no loopback, como no passo 3):
    ```bash
    SEED_FICTICIO=1 pnpm exec tsx --env-file=.env.local scripts/seed-ficticio.ts
    ```
+   Com o `BETTER_AUTH_URL` fora de `127.0.0.1`, `localhost` ou `[::1]`, o seed recusa com código 1 e não grava nada
+   ([cap. 10 do manual](docs/manual-tecnico/10-configuracao-e-scripts.md#scripts-de-operação)).
 6. Suba o painel e a API em `http://127.0.0.1:3101`. O Next lê o `.env.local`:
    ```bash
    pnpm dev

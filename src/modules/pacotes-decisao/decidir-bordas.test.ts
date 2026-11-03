@@ -146,6 +146,66 @@ describe('RF-07: transição automática quando a demanda já saiu de pronta_par
   });
 });
 
+// M-08 (DEC-DEM-20261103-0007-v1): decidir um DEC de demanda em status final é recusado com 409, logo depois da trava e
+// antes de toda outra conferência, sem linha em aprovacao, decisao nem evento; a demanda segue no status final.
+describe('M-08: decidir DEC de demanda em status final', () => {
+  const eventosDa = async (demandaId: string) => (await migrator().select().from(evento).where(eq(evento.demandaId, demandaId))).length;
+  const levarA = async (demandaId: string, status: 'encerrada' | 'entregue') => {
+    if (status === 'encerrada') await alterarDemanda(deps, cto, demandaId, alterarDemandaSchema.parse({ status: 'encerrada' }));
+    // entregue só se chega por aprovada → em_construcao → entregue, com DEC aprovado; aqui o DEC tem de ficar pendente.
+    else await migrator().update(demanda).set({ status: 'entregue' }).where(eq(demanda.id, demandaId));
+  };
+  const decisoes = [
+    ['aprovar', aprovar('A')],
+    ['devolver', decisaoDe({ statusDecisao: 'devolvida' })],
+    ['arquivar', decisaoDe({ statusDecisao: 'arquivada' })],
+  ] as const;
+
+  for (const status of ['encerrada', 'entregue'] as const) {
+    it.each(decisoes)(`%s um DEC pendente em demanda ${status} → 409 demandaFinal, sem efeito`, async (_acao, entrada) => {
+      const { decId, demandaId } = await prepararDec();
+      await levarA(demandaId, status);
+      const antes = await eventosDa(demandaId);
+      await expect(registrarDecisao(deps, cto, decId, entrada)).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_DECISAO.demandaFinal });
+      expect(await aprovacoesDo(decId)).toEqual([]);
+      expect(await decisoesDo(decId)).toEqual([]);
+      expect(await eventosDa(demandaId)).toBe(antes);
+      expect(await statusDa(demandaId)).toBe(status);
+    });
+  }
+
+  it('DEC já decidido em demanda encerrada → 409 demandaFinal (vem antes do jaDecidido)', async () => {
+    const { decId, demandaId } = await prepararDec();
+    await registrarDecisao(deps, cto, decId, aprovar('A'));
+    await levarA(demandaId, 'encerrada');
+    const antes = await eventosDa(demandaId);
+    await expect(registrarDecisao(deps, cto, decId, aprovar('A'))).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_DECISAO.demandaFinal });
+    await expect(registrarDecisao(deps, cto, decId, decisaoDe({ statusDecisao: 'arquivada' }))).rejects.toMatchObject({ mensagem: MENSAGENS_DECISAO.demandaFinal });
+    expect(await aprovacoesDo(decId)).toHaveLength(1);
+    expect(await decisoesDo(decId)).toHaveLength(1);
+    expect(await eventosDa(demandaId)).toBe(antes);
+  });
+
+  it('dupla aprovação com só a do CTO e a demanda encerrada → a da administradora é recusada', async () => {
+    const { decId, demandaId } = await prepararDec({ nivel: 'cto_e_administradora' });
+    await registrarDecisao(deps, cto, decId, aprovar('A'));
+    await levarA(demandaId, 'encerrada');
+    await expect(registrarDecisao(deps, administradora, decId, aprovar('A', DOC))).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_DECISAO.demandaFinal });
+    expect(await aprovacoesDo(decId)).toHaveLength(1);
+    expect(await decisoesDo(decId)).toEqual([]);
+  });
+
+  it('nos status não finais, decidir segue como antes', async () => {
+    const { decId, demandaId } = await prepararDec();
+    await alterarDemanda(deps, cto, demandaId, alterarDemandaSchema.parse({ status: 'em_analise' }));
+    expect((await registrarDecisao(deps, cto, decId, aprovar('A'))).resultado).toBe('aprovada');
+  });
+
+  it('o texto da recusa é fixo e em minúscula (a tela acrescenta o prefixo)', () => {
+    expect(MENSAGENS_DECISAO.demandaFinal).toBe('a demanda está em status final; o pacote não pode mais ser decidido.');
+  });
+});
+
 describe('Corridas da decisão que o concorrencia.test.ts não cobre', () => {
   it('CA-11.3: duas aprovações ao mesmo tempo no nível cto → uma passa, a outra 409; uma aprovação e uma decisão só', async () => {
     for (let i = 0; i < 10; i++) {

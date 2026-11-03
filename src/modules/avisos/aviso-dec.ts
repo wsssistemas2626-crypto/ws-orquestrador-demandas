@@ -12,7 +12,7 @@
 // - envio certo: `enviado`, com o id do provedor e a data;
 // - falha: conta a tentativa; antes da 3ª, lança AvisoNaoEnviado (mensagem fixa) para a fila tentar de novo (retryLimit
 //   2, ADR-07 (a)); na 3ª, `falhou`, log de erro e Sentry, sem relançar;
-// - recusa definitiva do provedor (4xx que não é 429): `falhou` na hora, com log de erro e Sentry (M-03);
+// - recusa definitiva do provedor (4xx que não é 408, 409 nem 429): `falhou` na hora, com log de erro e Sentry (M-03);
 // - erro inesperado fora do enviador: conta a tentativa numa transação própria, com a trava da linha, e segue a regra da
 //   falha; sem banco, sobe sem contar (M-03).
 // O e-mail é montado na hora, só com o id do DEC, o id da demanda e o link (CA-25.3): destinatário só da configuração e
@@ -176,8 +176,8 @@ export async function enviarAviso(deps: DepsAviso, decId: string): Promise<Resul
         await atualizar({ status: 'sem_provedor' });
         return { resultado: 'sem_provedor' };
       }
-      // M-03: a recusa definitiva (4xx que não é 429) não muda numa nova tentativa; o transitório (429, 5xx, rede, tempo
-      // limite, formato) segue tentado de novo.
+      // M-03: a recusa definitiva (4xx que não é 408, 409 nem 429) não muda numa nova tentativa; o transitório (408, 409,
+      // 429, 5xx, rede, tempo limite, formato) segue tentado de novo.
       const definitivo = e instanceof ErroEnvioEmail && e.tipo === 'recusado';
       const esgotou = definitivo || tentativa >= TENTATIVAS_AVISO;
       await atualizar({ tentativas: tentativa, status: esgotou ? 'falhou' : 'pendente' });

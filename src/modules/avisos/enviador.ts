@@ -18,8 +18,8 @@ export interface EnviadorEmail {
   enviar(e: Email): Promise<{ id: string }>;
 }
 
-// sem_provedor: não há chave nem endereços, nada foi tentado. recusado: o Resend respondeu 4xx (menos 429).
-// transitorio: rede, tempo limite, 429, 5xx ou resposta fora do formato.
+// sem_provedor: não há chave nem endereços, nada foi tentado. recusado: o Resend respondeu 4xx (menos 408, 409 e 429).
+// transitorio: rede, tempo limite, 408, 409, 429, 5xx ou resposta fora do formato.
 export type TipoErroEnvio = 'sem_provedor' | 'recusado' | 'transitorio';
 
 const MENSAGEM_ERRO: Record<TipoErroEnvio, string> = {
@@ -42,7 +42,11 @@ export const TEMPO_LIMITE_EMAIL_MS = 10_000;
 
 const respostaDoResend = z.object({ id: z.string().min(1).max(200) });
 
-const classificar = (status: number): TipoErroEnvio => (status === 429 || status >= 500 ? 'transitorio' : 'recusado');
+// 408 (tempo limite do Resend), 409 (requisição concorrente com a mesma Idempotency-Key), 429 e 5xx são passageiros. O
+// Resend também responde 409 à mesma Idempotency-Key com corpo diferente, que não é passageiro: esse caso gasta as 3
+// tentativas da fila e termina `falhou`. É limitado, e aceito (DEC-DEM-20261103-0007-v1, 02-tech-lead.md).
+const TRANSITORIOS_4XX: ReadonlySet<number> = new Set([408, 409, 429]);
+const classificar = (status: number): TipoErroEnvio => (TRANSITORIOS_4XX.has(status) || status >= 500 ? 'transitorio' : 'recusado');
 
 export class EnviadorResend implements EnviadorEmail {
   readonly #chave: string;

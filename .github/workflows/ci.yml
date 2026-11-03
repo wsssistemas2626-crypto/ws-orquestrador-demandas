@@ -2,8 +2,9 @@
 # Roda em todo pull request e é chamado pelo deploy.yml antes de publicar (push na main): nada é publicado sem estas
 # verificações verdes. Este workflow não publica imagem, não usa segredo e não chama webhook.
 #
-# Actions: ainda fixadas por versão, não por SHA. Trocar cada `@vN` pelo SHA completo do commit da versão (com a versão
-# em comentário) é pendência registrada em docs/operacao/deploy.md, seção "Pendências do pipeline".
+# Actions fixadas pelo SHA completo do commit da versão, com a versão em comentário (pedido 0007, 03/11/2026):
+# actions/checkout v5.1.0 e actions/setup-node v5.0.0. Atualizar troca o SHA e o comentário juntos, sem mudar de versão
+# maior sem revisão (docs/operacao/deploy.md, seção "Pendências do pipeline").
 name: CI
 
 on:
@@ -27,10 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5 # SHA pendente
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5 # SHA pendente
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
@@ -48,10 +49,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v5 # SHA pendente
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5 # SHA pendente
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
@@ -68,10 +69,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5 # SHA pendente
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5 # SHA pendente
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
@@ -84,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5 # SHA pendente
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -103,7 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5 # SHA pendente
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
       - run: docker build -t ws-orquestrador-demandas:ci .

@@ -208,10 +208,13 @@ describe('gerarPedidoNoPainel: a regra do servidor sem a ajuda da tela (qa-autom
     ] as const) {
       como(cookie);
       for (const decId of [devolvido, arquivado, soCto, soAdm]) {
+        // Arquivar encerra a demanda: desde a 0.1.6 (M-08), a recusa é a da demanda em status final, que vem antes do
+        // status do DEC. Continua 409, sem evento.
+        const mensagem = decId === arquivado ? MENSAGENS_PEDIDO.demandaFinal : MENSAGENS_PEDIDO.naoAprovado;
         const r = await gerarPedidoNoPainel({ decId });
-        expect(r, `${conta} ${decId}`).toEqual({ ok: false, erro: 'conflito', mensagem: MENSAGENS_PEDIDO.naoAprovado });
+        expect(r, `${conta} ${decId}`).toEqual({ ok: false, erro: 'conflito', mensagem });
         if (r.ok) continue;
-        expect(erroDoPedido(r)).toEqual({ texto: `Não foi possível concluir: ${MENSAGENS_PEDIDO.naoAprovado}`, erros: [], orientacao: null });
+        expect(erroDoPedido(r)).toEqual({ texto: `Não foi possível concluir: ${mensagem}`, erros: [], orientacao: null });
       }
     }
     for (const decId of [devolvido, arquivado, soCto, soAdm]) expect(await eventosDoPedido(decId), decId).toEqual([]);

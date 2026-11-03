@@ -119,10 +119,14 @@ describe('EnviadorResend', () => {
     [429, 'transitorio'],
     [500, 'transitorio'],
     [503, 'transitorio'],
+    // 0.1.6: o 408 (tempo limite do Resend) e o 409 (requisição concorrente com a mesma Idempotency-Key) são passageiros.
+    [408, 'transitorio'],
+    [409, 'transitorio'],
     [400, 'recusado'],
     [401, 'recusado'],
     [403, 'recusado'],
-    [409, 'recusado'],
+    [410, 'recusado'],
+    [413, 'recusado'],
     [422, 'recusado'],
   ] as const)('resposta %i → ErroEnvioEmail %s, com mensagem fixa e sem o corpo da resposta', async (status, tipo) => {
     const { fetchFalso } = fetchQueResponde(() => respostaJson(status, { message: SENTINELAS.texto, to: SENTINELAS.email }));

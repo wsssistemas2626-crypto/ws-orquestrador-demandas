@@ -2,12 +2,13 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.5: recusa em status final e citação do DEC da consolidação) |
+| Atualizado em | 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-08 a RF-14 |
 | Fontes no código | `src/modules/especificacoes/`, `src/modules/pareceres-risco/`, `src/modules/pacotes-decisao/` (`criar.ts`, `decidir.ts`, `desatualizado.ts`, `consultas.ts`, `schemas.ts`), `src/modules/versoes.ts`, `drizzle/0003_rls_privilegios_dominio.sql` |
 
-Toda gravação de ESP, RSK ou DEC é uma versão nova. Criar e decidir fazem `SELECT … FOR UPDATE` na linha da demanda:
+Toda gravação de ESP, RSK ou DEC é uma versão nova. Criar, decidir e gerar o Pedido fazem `SELECT … FOR UPDATE` na
+linha da demanda:
 isso serializa a versão N e fecha a corrida entre uma aprovação e uma ESP nova (C-13). Cada criação conta no limite de
 60 versões por hora por ator (ESP, RSK e DEC somados); acima, 429.
 
@@ -83,7 +84,8 @@ RSK gravado numa demanda que já tem ESP dispara o agente `consolidacao`, se lig
 - Na mesma transação: a demanda vai a `pronta_para_decisao` (ator `sistema`) e o aviso por e-mail fica pendente, com
   o job ([cap. 07](07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail)).
 - Demanda em status final: 409 antes de gravar (início deste capítulo; M-02, corrigido na 0.1.5 para a criação).
-  Decidir um DEC já existente e gerar o Pedido dele não conferem o status da demanda (pendência da 0.1.5).
+  Decidir um DEC já existente (RF-13) e gerar o Pedido dele ([cap. 05](05-pedido-de-construcao.md)) também dão 409
+  desde a 0.1.6 (M-08).
 
 ## RF-11. Imutabilidade
 
@@ -122,14 +124,23 @@ Não existe opção C ou D: recusar as duas opções é `devolvida` ou `arquivad
 Conferências, nesta ordem, dentro de uma transação:
 
 1. o DEC existe (senão 404) e a demanda é travada;
-2. já tem decisão → 409 "este pacote já tem decisão registrada.";
-3. não é o DEC mais novo da demanda → 409 "a demanda tem um pacote mais novo; só o mais novo pode ser decidido."
+2. demanda `entregue` ou `encerrada` (`ehStatusFinal`) → 409 "a demanda está em status final; o pacote não pode mais
+   ser decidido." (`MENSAGENS_DECISAO.demandaFinal`; M-08, desde a 0.1.6). Vem antes de ler o DEC: vale para aprovar,
+   devolver e arquivar, para o DEC já decidido e para a segunda aprovação de um DEC `cto_e_administradora`. Nada é
+   gravado em `aprovacao`, `decisao` nem `evento`;
+3. já tem decisão → 409 "este pacote já tem decisão registrada.";
+4. não é o DEC mais novo da demanda → 409 "a demanda tem um pacote mais novo; só o mais novo pode ser decidido."
    (A-01 da 08);
-4. aprovar com outro DEC da demanda já aprovado → 409 "outro pacote desta demanda já está aprovado." (A-02 da 08);
-5. aprovar DEC desatualizado → 409;
-6. o DEC cita rascunho de agente e `revisouRascunhosDeAgente` não é `true` → 400 no campo;
-7. `devolvida` ou `arquivada`: grava a decisão, e a demanda muda pelo ator `sistema` (`em_analise` ou `encerrada`);
-8. `aprovada`: as regras de papel e nível abaixo.
+5. aprovar com outro DEC da demanda já aprovado → 409 "outro pacote desta demanda já está aprovado." (A-02 da 08);
+6. aprovar DEC desatualizado → 409;
+7. o DEC cita rascunho de agente e `revisouRascunhosDeAgente` não é `true` → 400 no campo;
+8. `devolvida` ou `arquivada`: grava a decisão, e a demanda muda pelo ator `sistema` (`em_analise` ou `encerrada`);
+9. `aprovada`: as regras de papel e nível abaixo.
+
+A matriz vem antes de tudo isso (`autorizar`): token de agente recebe 403 e quem não tem credencial recebe 401, também
+numa demanda final. Depois de "Arquivar", que leva a demanda a `encerrada`, decidir de novo o mesmo DEC recebe o 409 do
+passo 2, e não o do passo 3. O texto do passo 2 foi escrito na triagem e espera a revisão da `ux-ui-design` (B-4 da
+0.1.6).
 
 Regras de papel e nível:
 

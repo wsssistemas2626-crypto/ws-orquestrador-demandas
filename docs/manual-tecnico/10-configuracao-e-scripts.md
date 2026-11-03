@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 02/11/2026 |
+| Atualizado em | 03/11/2026 (0.1.6: guarda do seed pelo `BETTER_AUTH_URL` no loopback) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RNF-13, RNF-14 |
 | Fontes no código | `src/lib/env.ts`, `src/lib/env-worker.ts`, `.env.example`, `scripts/` |
@@ -17,7 +17,7 @@ repositório, no log ou na tela. Onde cada uma vale em produção está em
 |---|---|---|
 | `DATABASE_URL` | app, worker, scripts | obrigatória; papel `orquestrador_app` |
 | `BETTER_AUTH_SECRET` | app, worker, scripts | obrigatória; 32 bytes ou mais |
-| `BETTER_AUTH_URL` | app, worker, scripts | obrigatória; http ou https; em produção, http só no loopback |
+| `BETTER_AUTH_URL` | app, worker, scripts | obrigatória; http ou https; em produção, http só no loopback; o seed fictício só roda com ela no loopback |
 | `CABECALHO_IP_CLIENTE` | app, worker | opcional; nome de cabeçalho (letras, números e hífen); padrão `x-real-ip` |
 | `RETENCAO_TEXTO_BRUTO_DIAS` | app, worker | opcional; inteiro de 1 a 365; padrão 90 |
 | `LOG_LEVEL` | app, worker | opcional; padrão `info` |
@@ -47,10 +47,28 @@ serviço `app` no Easypanel). Aceitam só `--nome valor` ou `--nome=valor`; argu
 | `criar-token-servico.ts` | `--agente orquestrador\|insumo_tecnico\|risco\|consolidacao` | cria um token `wsod_` e escreve uma vez o token e o prefixo. O banco guarda só o hash |
 | `revogar-token-servico.ts` | `--prefixo <8 caracteres depois de wsod_>` | revoga o token; código de saída 1 se não havia token ativo com o prefixo |
 | `definir-preco-modelo.ts` | `--modelo <id> --entradaPorMilhao <US$> --saidaPorMilhao <US$>` | grava uma vigência nova de preço (até 6 casas). A anterior fica, porque o custo já registrado saiu dela. É o único jeito de gravar preço |
-| `seed-ficticio.ts` | `SEED_FICTICIO=1` no ambiente | cria as quatro contas de `CONTAS_FICTICIAS`, o preço do modelo fictício e 14 demandas fictícias: 5 da conta `cto` e 9 próprias do e2e (`TITULOS_DO_E2E`), da conta `sem2fa`, para o e2e não gastar o limite de demandas por hora. Recusa banco que já tem demanda ou conta |
+| `seed-ficticio.ts` | `SEED_FICTICIO=1` no ambiente | cria as quatro contas de `CONTAS_FICTICIAS`, o preço do modelo fictício e 14 demandas fictícias: 5 da conta `cto` e 9 próprias do e2e (`TITULOS_DO_E2E`), da conta `sem2fa`, para o e2e não gastar o limite de demandas por hora. Recusa banco que já tem demanda ou conta, e recusa `BETTER_AUTH_URL` fora do loopback (abaixo) |
 | `migrate.ts` | `pnpm db:migrate` | migrations e filas do pg-boss com `DATABASE_URL_MIGRATOR` |
 | `start-hml.ts` | `pnpm start:hml` | homologação: migrate, seed e `pnpm start` sem `DATABASE_URL_MIGRATOR` |
 
 O seed cria contas com senha e segredo TOTP que estão no git, de propósito, para a homologação e o e2e. Por isso
-`SEED_FICTICIO` nunca entra no serviço de produção (M-07, controle operacional em
-[deploy.md, seção 7](../operacao/deploy.md)).
+`SEED_FICTICIO` nunca entra no serviço de produção (controle operacional em
+[deploy.md, seção 7](../operacao/deploy.md)), e o `seedFicticio` tem três guardas, nesta ordem
+(`scripts/seed-ficticio.ts`):
+
+1. `SEED_FICTICIO` igual a `1`. Senão, resultado `recusado`;
+2. desde a 0.1.6 (M-07), o host da origem validada do `BETTER_AUTH_URL` (`config.urlBase`) é `127.0.0.1`, `localhost`
+   ou `[::1]`, por igualdade exata (`ehLoopback`, `src/lib/env.ts`, a mesma lista do cookie `Secure`). Prefixo e sufixo
+   não valem: `127.0.0.1.exemplo.test` e `localhost.exemplo.test` são recusados. Senão, resultado `recusado_producao`,
+   antes de abrir conexão com o banco;
+3. banco sem nenhuma demanda e sem nenhuma conta. Senão, `recusado`.
+
+Na recusa, nada é gravado e o código de saída é 1. A mensagem é fixa e cita só nomes de variável, nunca o valor:
+
+```text
+Seed fictício não rodou: BETTER_AUTH_URL não aponta para o loopback (127.0.0.1, localhost ou [::1]), e o seed só roda fora da produção. Nada foi alterado.
+```
+
+O log grava `seed_ficticio` com `status: "recusado_producao"` e `codigoErro: "url_fora_do_loopback"`. No
+`pnpm start:hml`, a recusa imprime "Seed fictício não rodou (BETTER_AUTH_URL fora do loopback)." e a subida continua.
+A homologação (`127.0.0.1:3200`), o e2e (`127.0.0.1:3101`) e o desenvolvimento (`127.0.0.1:3101`) passam pela guarda.
