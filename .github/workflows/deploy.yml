@@ -9,7 +9,8 @@
 #   EASYPANEL_WEBHOOK_WORKER  URL do webhook de deploy do serviço worker no Easypanel
 #   GITHUB_TOKEN              automático; publica no GHCR e apaga versões antigas
 #
-# Actions ainda por versão, não por SHA: pendência em docs/operacao/deploy.md.
+# Actions fixadas pelo SHA completo do commit da versão, com a versão em comentário (actions/checkout v5.1.0), como no
+# ci.yml.
 name: Deploy
 
 on:
@@ -39,7 +40,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5 # SHA pendente
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           persist-credentials: false

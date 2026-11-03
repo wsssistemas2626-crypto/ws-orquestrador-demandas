@@ -181,6 +181,14 @@ anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaur
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
 
+A 0.1.6 não traz migration: `drizzle/` não muda em relação à 0.1.5, e o journal é o mesmo da 0.1.5 à 0.1.0. Ela não
+grava valor novo no banco: as recusas novas (409 de demanda em status final e o seed fora do loopback) não escrevem
+nada, e o 408 e o 409 do Resend só reaproveitam o estado `pendente` do aviso, que a 0.1.5 já conhece. A volta da 0.1.6 é
+o caminho A, para `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:e0d5f4c39740275c31e4f4de55874128adb52e78`
+(a `v0.1.5`, commit de merge do PR #7 na `main`). Antes de voltar, confirme a tag em Packages. Ao voltar, o agente volta
+a ler `solicitanteNome`, anexos e o nome da conta pela API (M-06), e o console do app volta a levar a mensagem de erro
+(M-05): a volta é só para indisponibilidade, e a correção vem logo depois. O ensaio é o `ensaiar-rollback` da Parada 3.
+
 A 0.1.5 não traz migration: o journal dela é o mesmo da 0.1.4 à 0.1.0, e o `/api/saude` da 0.1.4 responde 200 sobre o
 mesmo banco. O único dado novo é o motivo `demanda_final` no `jsonb` do evento `agente_ignorado`, que a 0.1.4 lê sem
 restrição de valor (o histórico mostra "Agente … não rodou" nas duas versões). A volta da 0.1.5 é o caminho A, para
@@ -245,11 +253,15 @@ O monitor externo da saúde ainda não existe: até lá, a conferência é a da 
 
 ## 10. Pendências do pipeline
 
-- **Actions por SHA:** `actions/checkout@v5` e `actions/setup-node@v5` estão por versão. Trocar cada uma pelo SHA
-  completo do commit da versão, com a versão em comentário (`uses: actions/checkout@<sha> # v5.x.y`).
+- [x] **Actions por SHA (feita em 03/11/2026, na 0.1.6):** as 9 linhas `uses:` dos dois workflows estão fixadas pelo
+  SHA completo do commit da versão, com a versão em comentário, sem troca de versão maior:
+  `actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0` (5 no `ci.yml` e 1 no `deploy.yml`) e
+  `actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0` (3 no `ci.yml`). Os SHAs foram conferidos na
+  API do GitHub em 03/11/2026, e o CI do PR da 0.1.6 é a prova de que resolvem. Para atualizar uma action, troque o SHA e
+  o comentário juntos, pelo commit da tag nova; mudar de versão maior (v6) pede revisão do `devops-sre`.
 - [x] **Imagem do gitleaks por digest (feita em 31/10/2026):** o CI usa
   `ghcr.io/gitleaks/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854`, o digest
-  que o próprio CI baixou para a tag. As actions por SHA (item acima) continuam pendentes.
+  que o próprio CI baixou para a tag.
 - **Primeira execução do gitleaks:** o repositório tem senhas fictícias de propósito (homologação, seed, e2e). Se o
   gitleaks acusar alguma, a triagem é do `seguranca-aplicacao`; nada entra em lista de exceção sem essa revisão.
 - **Tamanho da imagem:** cerca de 1,74 GB em disco (426 MB comprimidos), porque o worker, a migration e os scripts rodam
