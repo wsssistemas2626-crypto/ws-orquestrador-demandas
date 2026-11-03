@@ -3,7 +3,8 @@
 // sobre o serviço: autorização, Zod e erro ficam em rota(); a autoria vem só do ator (C-11). O id da demanda passa pela
 // regex antes de qualquer consulta (C-17).
 import { paramId, rota } from '../../../../../lib/rota';
-import { listarPacotesDaDemanda } from '../../../../../modules/pacotes-decisao/consultas';
+// M-2 do 0008: no GET, cada item segue vistaDoPacotePara.
+import { listarPacotesDaDemanda, vistaDoPacotePara } from '../../../../../modules/pacotes-decisao/consultas';
 import { criarPacoteDecisao } from '../../../../../modules/pacotes-decisao/criar';
 import { criarPacoteDecisaoSchema } from '../../../../../modules/pacotes-decisao/schemas';
 
@@ -14,5 +15,5 @@ export const POST = rota(
 
 export const GET = rota(
   { acao: 'ler_pacote_decisao', rota: '/api/demandas/[id]/pacotes-decisao', params: paramId.demanda },
-  async ({ deps, params }) => ({ json: { itens: await listarPacotesDaDemanda(deps.db, params.id) } }),
+  async ({ deps, ator, params }) => ({ json: { itens: (await listarPacotesDaDemanda(deps.db, params.id)).map((v) => vistaDoPacotePara(ator, v)) } }),
 );

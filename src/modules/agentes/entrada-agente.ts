@@ -10,7 +10,7 @@ import type { Db } from '../../db';
 import { demanda, entradaPendente, especificacaoTecnica, parecerRisco } from '../../db/schema';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import type { Agente } from '../acesso/ator';
-import { minimizar } from '../dados-pessoais/minimizar';
+import { minimizar, minimizarValor } from '../dados-pessoais/minimizar';
 import { RE_ID_DEMANDA } from '../demandas/gerar-id';
 
 export const CAMPOS_DA_DEMANDA = [
@@ -122,12 +122,6 @@ export function delimitarComoDado(dados: unknown): string {
 // Só as colunas pedidas entram no SELECT.
 function colunas<T extends object, K extends keyof T>(tabela: T, campos: readonly K[]): Pick<T, K> {
   return Object.fromEntries(campos.map((c) => [c, tabela[c]])) as Pick<T, K>;
-}
-
-function minimizarValor(v: unknown, nomes: readonly string[]): unknown {
-  if (typeof v === 'string') return minimizar(v, { nomes });
-  if (Array.isArray(v)) return v.map((i) => minimizarValor(i, nomes));
-  return v;
 }
 
 // Só os campos da lista, na ordem dela; vazio (nulo) não vai.

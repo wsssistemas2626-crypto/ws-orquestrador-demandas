@@ -39,6 +39,7 @@ export async function onRequestError(err: unknown, request: RequisicaoDoNext, co
   if (typeof digest === 'string' && CONTROLE_DO_NEXT.test(digest)) return;
   const { log, FORMATO_ERRO_ID } = await import('./lib/log');
   const { capturarErro } = await import('./lib/sentry');
+  const { reduzirErro } = await import('./lib/reduzir-erro');
   const metodo = texto(request?.method, FORMATO_METODO);
   const rota = texto(context?.routePath, FORMATO_ROTA);
   const erroId = texto(digest, FORMATO_ERRO_ID);
@@ -48,7 +49,8 @@ export async function onRequestError(err: unknown, request: RequisicaoDoNext, co
     ...(rota ? { rota } : {}),
     codigoErro: 'erro_interno',
     ...(erroId ? { erroId } : {}),
-    erro: err,
+    // B-1 (0008): o erro já reduzido; valor que não é Error não atravessa o log como objeto.
+    erro: reduzirErro(err),
   });
   capturarErro(err, { evento: 'erro_requisicao' });
 }

@@ -410,6 +410,101 @@ describe('M-06: minimização da leitura de demanda para quem não é pessoa', (
   });
 });
 
+// M-1 (DEC-DEM-20261103-0008-v1, RF-20): para quem não é pessoa, o texto livre da demanda sai pelo mesmo `minimizar` da
+// entrada do agente, com o nome do solicitante da própria demanda; a pessoa lê o original. Dados fictícios da 01.
+describe('M-1: texto livre da demanda minimizado para quem não é pessoa', () => {
+  const NOME = 'Maria Ficticia Teste';
+  const T = 'Falar com Maria Ficticia Teste, maria.teste@exemplo.invalid, CPF 123.456.789-09, tel (11) 90000-0000';
+  const T_MIN = 'Falar com [nome removido], [e-mail removido], CPF [CPF removido], tel [telefone removido]';
+  const VALORES = ['Maria Ficticia Teste', 'maria.teste@exemplo.invalid', '123.456.789-09', '(11) 90000-0000'];
+  const CAMPOS = ['titulo', 'justificativaUrgencia', 'contexto', 'descricaoProblema', 'impactoPercebido'] as const;
+  const corpoT = { titulo: T, tipo: 'bug', solicitanteNome: NOME, urgencia: 'alta', justificativaUrgencia: T, contexto: T, descricaoProblema: T, impactoPercebido: T };
+
+  // Conta própria do bloco: as criações daqui não gastam o limite de requisições da conta do resto do arquivo.
+  let cookieM1 = '';
+  const p = (): Credencial => ({ cookie: cookieM1 });
+  beforeAll(async () => {
+    cookieM1 = (await criarPessoa(deps, { papel: 'cto' })).cookie;
+  });
+
+  const semValores = (texto: string) => {
+    for (const v of VALORES) expect(texto).not.toContain(v);
+  };
+
+  async function demandaComT(): Promise<string> {
+    const d = await criarOk(corpoT, p());
+    await b.poolMigrator.query('update demanda set duvidas_entrada = $2::jsonb where id = $1', [d.id, JSON.stringify([T, 'Dúvida sem dado'])]);
+    return d.id;
+  }
+
+  it('GET /api/demandas/:id com token de agente: os seis campos minimizados; nada dos quatro valores no corpo', async () => {
+    const id = await demandaComT();
+    for (const bearer of [tokenRisco, tokenOrquestrador]) {
+      const texto = await (await obter(id, { bearer })).text();
+      semValores(texto);
+      const v = JSON.parse(texto) as Record<string, unknown>;
+      for (const c of CAMPOS) expect(v[c], c).toBe(T_MIN);
+      expect(v.duvidasEntrada).toEqual([T_MIN, 'Dúvida sem dado']);
+    }
+  });
+
+  it('GET /api/demandas/:id com a pessoa: o texto original, sem marcador', async () => {
+    const id = await demandaComT();
+    const v = (await (await obter(id, p())).json()) as Record<string, unknown>;
+    for (const c of CAMPOS) expect(v[c], c).toBe(T);
+    expect(v.duvidasEntrada).toEqual([T, 'Dúvida sem dado']);
+    expect(JSON.stringify(v)).not.toContain('removido]');
+  });
+
+  it('POST /api/demandas: o 201 do orquestrador sai minimizado; o da pessoa, original', async () => {
+    const r = await criar(corpoT, { bearer: tokenOrquestrador });
+    expect(r.status).toBe(201);
+    const texto = await r.text();
+    semValores(texto);
+    const v = JSON.parse(texto) as Record<string, unknown>;
+    for (const c of CAMPOS) expect(v[c], c).toBe(T_MIN);
+    const daPessoa = await criarOk(corpoT, p());
+    for (const c of CAMPOS) expect(daPessoa[c], c).toBe(T);
+  });
+
+  it('campo nulo segue null para o agente, sem sumir a chave', async () => {
+    const d = await criarOk({ solicitanteNome: NOME }, p());
+    const v = (await (await obter(d.id, { bearer: tokenRisco })).json()) as Record<string, unknown>;
+    for (const c of ['justificativaUrgencia', 'contexto', 'descricaoProblema', 'impactoPercebido']) expect(v[c], c).toBeNull();
+    expect(v.duvidasEntrada).toEqual([]);
+  });
+
+  it('GET /api/demandas: título minimizado só para o agente, com o nome do próprio solicitante; sem solicitanteNome nos dois', async () => {
+    const a = await criarOk({ tipo: 'estudo', titulo: 'Pedido de Ana Exemplo Lima, falar com Bruno Exemplo Rocha', solicitanteNome: 'Ana Exemplo Lima' }, p());
+    const c = await criarOk({ tipo: 'estudo', titulo: 'Pedido de Ana Exemplo Lima, falar com Bruno Exemplo Rocha', solicitanteNome: 'Bruno Exemplo Rocha' }, p());
+    const t = await criarOk({ tipo: 'estudo', titulo: T, solicitanteNome: NOME }, p());
+    const titulos = async (cred: Credencial) => {
+      const texto = await (await listar('?tipo=estudo&limit=100', cred)).text();
+      const { itens } = JSON.parse(texto) as { itens: Array<Record<string, unknown>> };
+      for (const i of itens) expect(Object.keys(i)).not.toContain('solicitanteNome');
+      return { texto, porId: new Map(itens.map((i) => [i.id as string, i.titulo])) };
+    };
+    const agente = await titulos({ bearer: tokenRisco });
+    semValores(agente.texto);
+    expect(agente.porId.get(a.id)).toBe('Pedido de [nome removido], falar com Bruno Exemplo Rocha');
+    expect(agente.porId.get(c.id)).toBe('Pedido de Ana Exemplo Lima, falar com [nome removido]');
+    expect(agente.porId.get(t.id)).toBe(T_MIN);
+    const pessoa = await titulos(p());
+    expect(pessoa.porId.get(a.id)).toBe('Pedido de Ana Exemplo Lima, falar com Bruno Exemplo Rocha');
+    expect(pessoa.porId.get(t.id)).toBe(T);
+  });
+
+  it('vistaDaDemandaPara: o ator sistema recebe o texto minimizado; a pessoa, a mesma vista', async () => {
+    const id = await demandaComT();
+    const vista = await obterDemanda(deps.db, id);
+    const sistema = vistaDaDemandaPara({ tipo: 'sistema' }, vista) as Record<string, unknown>;
+    for (const c of CAMPOS) expect(sistema[c], c).toBe(T_MIN);
+    semValores(JSON.stringify(sistema));
+    const pessoa: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-x', nome: 'Pessoa Ficticia', papel: 'cto' };
+    expect(vistaDaDemandaPara(pessoa, vista)).toBe(vista);
+  });
+});
+
 describe('PATCH /api/demandas/:id', () => {
   it('CA-06.4: muda a linha de serviço, devolve a vista e grava o evento com antes, depois e a pessoa', async () => {
     const d = await criarOk();

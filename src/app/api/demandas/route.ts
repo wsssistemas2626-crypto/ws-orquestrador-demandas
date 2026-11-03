@@ -3,7 +3,7 @@
 // ficam em rota(); a autoria vem só do ator (C-11), e o id só é gerado depois do Zod (C-36).
 // M-06 (C-10, RF-20): a resposta do POST segue vistaDaDemandaPara, o mesmo contrato do GET por id para o agente.
 import { rota } from '../../../lib/rota';
-import { listarDemandas, vistaDaDemandaPara } from '../../../modules/demandas/consultas';
+import { listarDemandasPara, vistaDaDemandaPara } from '../../../modules/demandas/consultas';
 import { criarDemandaSchema, filtroDemandasSchema } from '../../../modules/demandas/schemas';
 import { criarDemanda } from '../../../modules/demandas/servico';
 
@@ -12,6 +12,6 @@ export const POST = rota({ acao: 'criar_demanda', rota: '/api/demandas', corpo: 
   json: vistaDaDemandaPara(ator, await criarDemanda(deps, ator, corpo)),
 }));
 
-export const GET = rota({ acao: 'listar_demandas', rota: '/api/demandas', query: filtroDemandasSchema }, async ({ deps, query }) => ({
-  json: await listarDemandas(deps.db, query),
+export const GET = rota({ acao: 'listar_demandas', rota: '/api/demandas', query: filtroDemandasSchema }, async ({ deps, ator, query }) => ({
+  json: await listarDemandasPara(deps.db, query, ator),
 }));

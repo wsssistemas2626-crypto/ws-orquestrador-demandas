@@ -1,0 +1,176 @@
+// M-2 (DEC-DEM-20261103-0008-v1): nas sete rotas de leitura de ESP, RSK e DEC, quem não é pessoa não recebe nome de
+// pessoa (autor, aprovadores, decididaPor) nem referenciaDocumento; a autoria de pessoa vira só o tipo, a de agente fica
+// igual. A pessoa lê tudo como antes. Banco, Better Auth e tokens reais (Testcontainers); dados só fictícios (01 do 0008).
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { novoBanco, type BancoDeTeste } from '../../../test/banco';
+import { criarDepsDeTeste } from '../../../test/deps';
+import { chamarRota, type OpRequisicao } from '../../../test/requisicao';
+import { criarPessoa } from '../../../test/sessao';
+import { comTransacao } from '../../db/transacao';
+import { definirDepsParaTeste, type Deps } from '../../lib/deps';
+import { substituirDestinoDoLog } from '../../lib/log';
+import type { HandlerRota } from '../../lib/rota';
+import type { AtorAgente, AtorPessoa } from '../../modules/acesso/ator';
+import { criarTokenServico } from '../../modules/acesso/tokens-servico';
+import { criarDemandaSchema } from '../../modules/demandas/schemas';
+import { criarDemanda } from '../../modules/demandas/servico';
+import { criarEspecificacaoSchema } from '../../modules/especificacoes/schemas';
+import { criarEspecificacao } from '../../modules/especificacoes/servico';
+import { criarPacoteDecisao } from '../../modules/pacotes-decisao/criar';
+import { criarPacoteDecisaoSchema } from '../../modules/pacotes-decisao/schemas';
+import { criarParecerRiscoSchema } from '../../modules/pareceres-risco/schemas';
+import { criarParecerRisco } from '../../modules/pareceres-risco/servico';
+import { GET as GET_ESPS } from './demandas/[id]/especificacoes/route';
+import { GET as GET_DECS } from './demandas/[id]/pacotes-decisao/route';
+import { GET as GET_RSKS } from './demandas/[id]/pareceres-risco/route';
+import { GET as GET_ESP } from './especificacoes/[espId]/route';
+import { GET as GET_DEC } from './pacotes-decisao/[decId]/route';
+import { GET as GET_FILA } from './pacotes-decisao/route';
+import { GET as GET_RSK } from './pareceres-risco/[rskId]/route';
+
+const CONTA = 'Carlos Exemplo CTO';
+const APROVADORA = 'Joana Exemplo Silva';
+const REFERENCIA = 'ATA-FICTICIA-001';
+const PROIBIDOS = [CONTA, APROVADORA, REFERENCIA];
+
+let b: BancoDeTeste;
+let deps: Deps;
+let cookie: string;
+let tokenRisco: string;
+let pessoa: AtorPessoa;
+type Credencial = Pick<OpRequisicao, 'cookie' | 'bearer'>;
+type Obj = Record<string, unknown>;
+
+const insumo: AtorAgente = { tipo: 'agente', agente: 'insumo_tecnico', prefixoToken: null };
+const risco: AtorAgente = { tipo: 'agente', agente: 'risco', prefixoToken: null };
+const consolidacao: AtorAgente = { tipo: 'agente', agente: 'consolidacao', prefixoToken: null };
+
+const ESP = criarEspecificacaoSchema.parse({
+  descricaoObjetiva: 'Corrigir pedidos duplicados',
+  escopoInclui: ['Importação'],
+  sistemaAlvo: 'meu-sistema',
+  repositorioDestino: 'wsssistemas2626-crypto/meu-sistema',
+  criteriosAceitePreliminares: ['Critério fictício'],
+  definicaoDePronto: ['pnpm test verde'],
+});
+const RSK = criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' });
+const DEC = criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo fictício', opcaoA: { descricao: 'A' }, opcaoB: { descricao: 'B' }, nivelAprovacaoRequerido: 'cto' });
+
+type Cenario = { id: string; espId: string; rskId: string; decId: string; decSemDecisao: string | null };
+let dePessoa: Cenario;
+let deAgente: Cenario;
+
+async function lerTexto(handler: HandlerRota, caminho: string, params: Record<string, string>, cred: Credencial) {
+  const r = await chamarRota(handler, { caminho, params, ...cred });
+  expect(r.status, caminho).toBe(200);
+  return r.text();
+}
+
+// As sete leituras, cada uma com o corpo em texto (para a busca dos nomes) e as vistas de ESP, RSK e DEC encontradas.
+async function lerTudo(c: Cenario, cred: Credencial) {
+  const textos: string[] = [];
+  const ler = async (h: HandlerRota, caminho: string, params: Record<string, string> = {}) => {
+    const t = await lerTexto(h, caminho, params, cred);
+    textos.push(t);
+    return JSON.parse(t) as Obj;
+  };
+  const esp = await ler(GET_ESP, `/api/especificacoes/${c.espId}`, { espId: c.espId });
+  const esps = ((await ler(GET_ESPS, `/api/demandas/${c.id}/especificacoes`, { id: c.id })).itens as Obj[]);
+  const rsk = await ler(GET_RSK, `/api/pareceres-risco/${c.rskId}`, { rskId: c.rskId });
+  const rsks = ((await ler(GET_RSKS, `/api/demandas/${c.id}/pareceres-risco`, { id: c.id })).itens as Obj[]);
+  const dec = await ler(GET_DEC, `/api/pacotes-decisao/${c.decId}`, { decId: c.decId });
+  const decs = ((await ler(GET_DECS, `/api/demandas/${c.id}/pacotes-decisao`, { id: c.id })).itens as Obj[]);
+  const fila = ((await ler(GET_FILA, '/api/pacotes-decisao?limit=100')).itens as Obj[]).filter((i) => i.demandaId === c.id);
+  return { texto: textos.join('\n'), esp, esps, rsk, rsks, dec, decs, fila };
+}
+
+beforeAll(async () => {
+  substituirDestinoDoLog({ write: () => undefined });
+  b = await novoBanco();
+  deps = await criarDepsDeTeste(b);
+  definirDepsParaTeste(deps);
+  const p = await criarPessoa(deps, { papel: 'cto' });
+  cookie = p.cookie;
+  await b.poolMigrator.query('update "user" set name = $2 where id = $1', [p.usuarioId, CONTA]);
+  pessoa = { tipo: 'pessoa', usuarioId: p.usuarioId, nome: CONTA, papel: 'cto' };
+  tokenRisco = (await comTransacao(b.poolApp, (t) => criarTokenServico(t, 'risco', deps.relogio))).token;
+
+  // Autoria pessoa: ESP, RSK e dois DEC; o v1 com aprovação da administradora e decisão, o v2 sem nenhuma.
+  const id1 = (await criarDemanda(deps, pessoa, criarDemandaSchema.parse({ titulo: 'Pedidos duplicados', tipo: 'bug', solicitanteNome: 'Maria Ficticia Teste' }))).id;
+  const esp1 = await criarEspecificacao(deps, pessoa, id1, ESP);
+  const rsk1 = await criarParecerRisco(deps, pessoa, id1, RSK);
+  const dec1 = await criarPacoteDecisao(deps, pessoa, id1, DEC);
+  const dec2 = await criarPacoteDecisao(deps, pessoa, id1, DEC);
+  await b.poolMigrator.query(
+    `insert into aprovacao (pacote_decisao_id, papel_aprovacao, nome_aprovador, registrada_por, opcao, referencia_documento, data_documento, registrada_em)
+     values ($1, 'administradora', $2, $3, 'A', $4, '2026-11-03', now())`,
+    [dec1.id, APROVADORA, p.usuarioId, REFERENCIA],
+  );
+  await b.poolMigrator.query(
+    `insert into decisao (pacote_decisao_id, status_decisao, opcao_escolhida, decidida_por, decidida_em) values ($1, 'aprovada', 'A', $2, now())`,
+    [dec1.id, p.usuarioId],
+  );
+  dePessoa = { id: id1, espId: esp1.id, rskId: rsk1.id, decId: dec1.id, decSemDecisao: dec2.id };
+
+  // Autoria agente: ESP do insumo técnico, RSK do risco e DEC da consolidação.
+  const id2 = (await criarDemanda(deps, pessoa, criarDemandaSchema.parse({ titulo: 'Relatório lento', tipo: 'melhoria', solicitanteNome: 'Pessoa Ficticia' }))).id;
+  const esp2 = await criarEspecificacao(deps, insumo, id2, ESP);
+  const rsk2 = await criarParecerRisco(deps, risco, id2, RSK);
+  const dec3 = await criarPacoteDecisao(deps, consolidacao, id2, DEC);
+  deAgente = { id: id2, espId: esp2.id, rskId: rsk2.id, decId: dec3.id, decSemDecisao: null };
+});
+
+afterAll(async () => {
+  definirDepsParaTeste(null);
+  substituirDestinoDoLog(null);
+  await deps.fila.parar();
+  await b.fechar();
+});
+
+describe('M-2: leituras de ESP, RSK e DEC para quem não é pessoa', () => {
+  it('agente, autoria pessoa: autor só { tipo: pessoa }, aprovadores sem nome e referenciaDocumento, decisão sem decididaPor', async () => {
+    const r = await lerTudo(dePessoa, { bearer: tokenRisco });
+    for (const v of [r.esp, ...r.esps, r.rsk, ...r.rsks, r.dec, ...r.decs, ...r.fila]) expect(v.autor, String(v.id)).toEqual({ tipo: 'pessoa' });
+    const decsV1 = [r.dec, ...r.decs, ...r.fila].filter((d) => d.id === dePessoa.decId);
+    expect(decsV1).toHaveLength(3);
+    for (const d of decsV1) {
+      const aprovadores = d.aprovadores as Obj[];
+      expect(aprovadores).toHaveLength(1);
+      expect(Object.keys(aprovadores[0]!).sort()).toEqual(['dataDocumento', 'opcao', 'papel', 'registradaEm']);
+      expect(aprovadores[0]).toMatchObject({ papel: 'administradora', opcao: 'A', dataDocumento: '2026-11-03' });
+      const decisao = d.decisao as Obj;
+      expect(Object.keys(decisao)).not.toContain('decididaPor');
+      expect(decisao).toMatchObject({ opcaoEscolhida: 'A' });
+      expect(d.statusDecisao).toBe('aprovada');
+    }
+    for (const nome of PROIBIDOS) expect(r.texto).not.toContain(nome);
+    // O que a leitura precisa continua lá.
+    expect(r.esp).toMatchObject({ id: dePessoa.espId, descricaoObjetiva: 'Corrigir pedidos duplicados', versaoMaisNova: dePessoa.espId });
+    expect(r.rsk).toMatchObject({ id: dePessoa.rskId, riscoTecnicoNivel: 'baixo', versaoMaisNova: dePessoa.rskId, especificacaoMaisNova: dePessoa.espId });
+  });
+
+  it('agente: DEC sem decisão e sem aprovadores sai com decisao null e aprovadores []', async () => {
+    const r = await lerTudo(dePessoa, { bearer: tokenRisco });
+    const v2 = [...r.decs, ...r.fila].filter((d) => d.id === dePessoa.decSemDecisao);
+    expect(v2).toHaveLength(2);
+    for (const d of v2) expect(d).toMatchObject({ decisao: null, aprovadores: [], statusDecisao: 'pendente', autor: { tipo: 'pessoa' } });
+  });
+
+  it('agente, autoria agente: autor { tipo: agente, agente } como antes', async () => {
+    const r = await lerTudo(deAgente, { bearer: tokenRisco });
+    for (const v of [r.esp, ...r.esps]) expect(v.autor).toEqual({ tipo: 'agente', agente: 'insumo_tecnico' });
+    for (const v of [r.rsk, ...r.rsks]) expect(v.autor).toEqual({ tipo: 'agente', agente: 'risco' });
+    for (const v of [r.dec, ...r.decs, ...r.fila]) expect(v.autor).toEqual({ tipo: 'agente', agente: 'consolidacao' });
+  });
+
+  it('pessoa: tudo como antes, com o nome do autor, do aprovador, a referência e decididaPor', async () => {
+    const r = await lerTudo(dePessoa, { cookie });
+    for (const v of [r.esp, ...r.esps, r.rsk, ...r.rsks, r.dec, ...r.decs, ...r.fila]) expect(v.autor).toEqual({ tipo: 'pessoa', nome: CONTA });
+    for (const d of [r.dec, ...r.decs, ...r.fila].filter((x) => x.id === dePessoa.decId)) {
+      expect(d.aprovadores).toEqual([
+        { papel: 'administradora', nome: APROVADORA, opcao: 'A', registradaEm: expect.any(String), referenciaDocumento: REFERENCIA, dataDocumento: '2026-11-03' },
+      ]);
+      expect(d.decisao).toMatchObject({ opcaoEscolhida: 'A', decididaPor: CONTA });
+    }
+  });
+});

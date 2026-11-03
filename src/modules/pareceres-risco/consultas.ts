@@ -4,7 +4,8 @@ import { desc, eq, max, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { demanda, especificacaoTecnica, parecerRisco, user } from '../../db/schema';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import { contaDoAutor, responsavelDe, type Responsavel } from '../demandas/consultas';
+import type { Ator } from '../acesso/ator';
+import { contaDoAutor, responsavelDe, responsavelMinimo, type Responsavel, type ResponsavelMinimo } from '../demandas/consultas';
 import { idVersao } from '../versoes';
 import type { Nivel } from './schemas';
 
@@ -50,6 +51,35 @@ function vistaDe({ r, nome }: Linha): ParecerRiscoVista {
     autor: responsavelDe(r.autorTipo, r.autorId, nome),
     rascunhoAgente: r.rascunhoAgente,
     criadaEm: r.criadaEm,
+  };
+}
+
+// M-2 do 0008 (C-10, RF-20): a vista para quem não é pessoa, aplicada na rota. Lista de permissão: só pessoa vê a vista
+// inteira; para qualquer outro ator o objeto é montado chave a chave, com a autoria de pessoa só pelo tipo.
+type Extras = { versaoMaisNova?: string; especificacaoMaisNova?: string | null };
+export type ParecerRiscoVistaMinima = Omit<ParecerRiscoVista, 'autor'> & { autor: ResponsavelMinimo } & Extras;
+
+export function vistaDoParecerPara(ator: Ator, v: ParecerRiscoVista & Extras): ParecerRiscoVista | ParecerRiscoVistaMinima {
+  if (ator.tipo === 'pessoa') return v;
+  return {
+    id: v.id,
+    demandaId: v.demandaId,
+    versao: v.versao,
+    resumo: v.resumo,
+    riscoTecnicoNivel: v.riscoTecnicoNivel,
+    riscoTecnicoComentario: v.riscoTecnicoComentario,
+    riscoOperacionalNivel: v.riscoOperacionalNivel,
+    riscoOperacionalComentario: v.riscoOperacionalComentario,
+    riscoJuridicoNivel: v.riscoJuridicoNivel,
+    riscoJuridicoComentario: v.riscoJuridicoComentario,
+    recomendacoesMitigacao: v.recomendacoesMitigacao,
+    preCondicoes: v.preCondicoes,
+    envolverJuridicoOuAdministradoraQuando: v.envolverJuridicoOuAdministradoraQuando,
+    autor: responsavelMinimo(v.autor),
+    rascunhoAgente: v.rascunhoAgente,
+    criadaEm: v.criadaEm,
+    ...(v.versaoMaisNova === undefined ? {} : { versaoMaisNova: v.versaoMaisNova }),
+    ...(v.especificacaoMaisNova === undefined ? {} : { especificacaoMaisNova: v.especificacaoMaisNova }),
   };
 }
 

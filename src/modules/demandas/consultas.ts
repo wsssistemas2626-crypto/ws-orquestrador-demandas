@@ -7,6 +7,7 @@ import { decisao, demanda, especificacaoTecnica, execucaoAgente, pacoteDecisao, 
 import type { Anexo, LinhaServico, PapelSolicitante, Urgencia } from '../../db/schema/demandas';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import { AGENTES, type Agente, type Ator } from '../acesso/ator';
+import { minimizarValor } from '../dados-pessoais/minimizar';
 import { expressaoDesatualizado } from '../pacotes-decisao/desatualizado';
 import type { FiltroDemandas, Status, Tipo } from './schemas';
 
@@ -184,7 +185,14 @@ export type DemandaVistaMinima = Omit<DemandaVista, 'solicitanteNome' | 'anexos'
   pacotesDecisao: PacoteResumoMinimo[];
 };
 
-const responsavelMinimo = (r: Responsavel): ResponsavelMinimo => (r.tipo === 'pessoa' ? { tipo: 'pessoa' } : { tipo: 'agente', agente: r.agente });
+// Exportada para as vistas mínimas de ESP, RSK e DEC (M-2 do 0008): uma regra só de autoria para quem não é pessoa.
+export const responsavelMinimo = (r: Responsavel): ResponsavelMinimo => (r.tipo === 'pessoa' ? { tipo: 'pessoa' } : { tipo: 'agente', agente: r.agente });
+
+// M-1 do 0008 (RF-20): o texto livre passa pelo mesmo `minimizar` da entrada do agente, com o nome do solicitante da
+// própria demanda. Nulo continua nulo.
+const nomesDoSolicitante = (nome: string | null): string[] => (nome === null ? [] : [nome]);
+const textoMinimo = (s: string, nomes: readonly string[]): string => minimizarValor(s, nomes) as string;
+const textoMinimoOuNulo = (s: string | null, nomes: readonly string[]): string | null => (s === null ? null : textoMinimo(s, nomes));
 
 const versaoMinima = (v: VersaoResumo): VersaoResumoMinima => ({
   id: v.id,
@@ -198,19 +206,20 @@ const versaoMinima = (v: VersaoResumo): VersaoResumoMinima => ({
 // novo da vista não sai para o agente sem entrar aqui.
 export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | DemandaVistaMinima {
   if (ator.tipo === 'pessoa') return d;
+  const nomes = nomesDoSolicitante(d.solicitanteNome);
   return {
     id: d.id,
-    titulo: d.titulo,
+    titulo: textoMinimo(d.titulo, nomes),
     tipo: d.tipo,
     status: d.status,
     solicitantePapel: d.solicitantePapel,
     linhaServicoProvavel: d.linhaServicoProvavel,
     urgencia: d.urgencia,
-    justificativaUrgencia: d.justificativaUrgencia,
-    contexto: d.contexto,
-    descricaoProblema: d.descricaoProblema,
-    impactoPercebido: d.impactoPercebido,
-    duvidasEntrada: d.duvidasEntrada,
+    justificativaUrgencia: textoMinimoOuNulo(d.justificativaUrgencia, nomes),
+    contexto: textoMinimoOuNulo(d.contexto, nomes),
+    descricaoProblema: textoMinimoOuNulo(d.descricaoProblema, nomes),
+    impactoPercebido: textoMinimoOuNulo(d.impactoPercebido, nomes),
+    duvidasEntrada: d.duvidasEntrada.map((x) => textoMinimo(x, nomes)),
     rascunhoAgente: d.rascunhoAgente,
     responsavel: responsavelMinimo(d.responsavel),
     criadaEm: d.criadaEm,
@@ -222,16 +231,16 @@ export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | 
   };
 }
 
-export async function listarDemandas(
-  db: Db,
-  filtro: FiltroDemandas,
-): Promise<{ itens: DemandaResumo[]; total: number; limit: number; offset: number }> {
+type PaginaDeDemandas = { itens: DemandaResumo[]; total: number; limit: number; offset: number };
+
+// Uma consulta só para o painel e para a API. O `solicitanteNome` é lido só para a troca do M-1 e nunca sai no item.
+async function paginaDeDemandas(db: Db, filtro: FiltroDemandas) {
   const onde = and(
     filtro.status ? eq(demanda.status, filtro.status) : undefined,
     filtro.tipo ? eq(demanda.tipo, filtro.tipo) : undefined,
     filtro.linhaServicoProvavel ? eq(demanda.linhaServicoProvavel, filtro.linhaServicoProvavel) : undefined,
   );
-  const itens = await db
+  const linhas = await db
     .select({
       id: demanda.id,
       titulo: demanda.titulo,
@@ -241,6 +250,7 @@ export async function listarDemandas(
       linhaServicoProvavel: demanda.linhaServicoProvavel,
       rascunhoAgente: demanda.rascunhoAgente,
       criadaEm: demanda.criadaEm,
+      solicitanteNome: demanda.solicitanteNome,
     })
     .from(demanda)
     .where(onde)
@@ -248,5 +258,32 @@ export async function listarDemandas(
     .limit(filtro.limit)
     .offset(filtro.offset);
   const [contagem] = await db.select({ n: count() }).from(demanda).where(onde);
-  return { itens, total: contagem?.n ?? 0, limit: filtro.limit, offset: filtro.offset };
+  return { linhas, total: contagem?.n ?? 0, limit: filtro.limit, offset: filtro.offset };
+}
+
+type LinhaDaPagina = Awaited<ReturnType<typeof paginaDeDemandas>>['linhas'][number];
+
+// O item é montado chave a chave: o `solicitanteNome` da linha não sai para nenhum ator.
+const resumoDe = (l: LinhaDaPagina, titulo: string): DemandaResumo => ({
+  id: l.id,
+  titulo,
+  tipo: l.tipo,
+  status: l.status,
+  urgencia: l.urgencia,
+  linhaServicoProvavel: l.linhaServicoProvavel,
+  rascunhoAgente: l.rascunhoAgente,
+  criadaEm: l.criadaEm,
+});
+
+export async function listarDemandas(db: Db, filtro: FiltroDemandas): Promise<PaginaDeDemandas> {
+  const { linhas, ...resto } = await paginaDeDemandas(db, filtro);
+  return { itens: linhas.map((l) => resumoDe(l, l.titulo)), ...resto };
+}
+
+// M-1 do 0008: a listagem da API. Lista de permissão: só pessoa vê o título original; qualquer outro ator recebe o
+// título minimizado com o nome do solicitante do próprio item.
+export async function listarDemandasPara(db: Db, filtro: FiltroDemandas, ator: Ator): Promise<PaginaDeDemandas> {
+  const { linhas, ...resto } = await paginaDeDemandas(db, filtro);
+  const ehPessoa = ator.tipo === 'pessoa';
+  return { itens: linhas.map((l) => resumoDe(l, ehPessoa ? l.titulo : textoMinimo(l.titulo, nomesDoSolicitante(l.solicitanteNome)))), ...resto };
 }

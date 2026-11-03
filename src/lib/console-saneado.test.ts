@@ -1,9 +1,24 @@
 // M-05 (c) (DEC-DEM-20261103-0007-v1, C-21): depois de instalado, console.error e console.warn só escrevem pelo log por
 // lista de permissão. O Next registra o erro de renderização pelo console; com isto, mensagem, pilha, cause e params
 // não chegam ao stdout nem ao stderr do processo. Sentinela fictício.
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as Sentry from '@sentry/node';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { desinstalarConsoleSaneado, instalarConsoleSaneado } from './console-saneado';
 import { substituirDestinoDoLog } from './log';
+import { capturarErro, iniciarSentry } from './sentry';
+
+// M-3 (0008): o capturarErro de verdade, com uma chave para o teste fazê-lo lançar (Sentry que falha).
+const falhaDoSentry = vi.hoisted(() => ({ lancar: false }));
+vi.mock('./sentry', async (original) => {
+  const real = await original<typeof import('./sentry')>();
+  return {
+    ...real,
+    capturarErro: vi.fn((...args: Parameters<typeof real.capturarErro>) => {
+      if (falhaDoSentry.lancar) throw new Error('sentry fora');
+      real.capturarErro(...args);
+    }),
+  };
+});
 
 // O mesmo objeto `console` do processo, pelo global: o teste chama os métodos trocados como o Next chama, sem desligar o
 // no-console (G3.7) neste arquivo.
@@ -147,5 +162,92 @@ describe('console saneado', () => {
       saidas.restaurar();
     }
     expect(saidas.escrito.join('')).not.toContain(SENTINELA);
+  });
+});
+
+// M-3 (DEC-DEM-20261103-0008-v1): o Error sem `digest` escrito por console.error vai ao Sentry pelo capturarErro (o com
+// `digest` já vai pelo onRequestError); console.warn fica só no log. Transporte falso, sem rede; dados fictícios.
+describe('M-3: console.error de Error sem digest vai ao Sentry', () => {
+  const EMAIL = 'maria.teste@exemplo.invalid';
+  const enviados: string[] = [];
+  const transporte = () => ({
+    send: async (env: unknown) => {
+      enviados.push(JSON.stringify(env));
+      return {};
+    },
+    flush: async () => true,
+  });
+
+  beforeAll(() => {
+    iniciarSentry({ dsn: 'https://chave@exemplo.invalid/1', transporte });
+  });
+
+  beforeEach(() => {
+    enviados.length = 0;
+    falhaDoSentry.lancar = false;
+    vi.mocked(capturarErro).mockClear();
+  });
+
+  function instalarComLog(): string[] {
+    const linhas: string[] = [];
+    substituirDestinoDoLog({ write: (l) => void linhas.push(l) });
+    instalarConsoleSaneado();
+    return linhas;
+  }
+
+  it('Error sem digest: uma linha console_erro e um envelope, com o título TypeError e sem a mensagem nem o texto solto', async () => {
+    const linhas = instalarComLog();
+    const saidas = espiarSaidas();
+    try {
+      terminal.error('falha no after', new TypeError(`falha ficticia com ${EMAIL}`));
+    } finally {
+      saidas.restaurar();
+    }
+    await Sentry.flush(2000);
+    expect(linhas).toHaveLength(1);
+    expect(JSON.parse(linhas[0]!)).toMatchObject({ evento: 'console_erro', erro: { classe: 'TypeError' } });
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]).toContain('TypeError');
+    expect(enviados[0]).toContain('console_erro');
+    for (const proibido of [EMAIL, 'falha ficticia', 'falha no after']) {
+      expect(enviados[0]).not.toContain(proibido);
+      expect(linhas[0]).not.toContain(proibido);
+    }
+    expect(saidas.escrito.join('')).not.toContain(EMAIL);
+  });
+
+  it('Error com digest (inclusive o de controle do Next): a linha do log e nenhum envelope', async () => {
+    const linhas = instalarComLog();
+    terminal.error(Object.assign(new Error('erro de página'), { digest: 'abc123' }));
+    terminal.error(Object.assign(new Error('NEXT_REDIRECT;replace;/entrar;307;'), { digest: 'NEXT_REDIRECT;replace;/entrar;307;' }));
+    await Sentry.flush(2000);
+    expect(linhas).toHaveLength(2);
+    expect(JSON.parse(linhas[0]!)).toMatchObject({ evento: 'console_erro', erroId: 'abc123' });
+    expect(capturarErro).not.toHaveBeenCalled();
+    expect(enviados).toEqual([]);
+  });
+
+  it('console.warn de Error sem digest: a linha console_aviso e nenhum envelope', async () => {
+    const linhas = instalarComLog();
+    terminal.warn(new TypeError(`aviso com ${EMAIL}`));
+    await Sentry.flush(2000);
+    expect(linhas).toHaveLength(1);
+    expect(JSON.parse(linhas[0]!)).toMatchObject({ evento: 'console_aviso', erro: { classe: 'TypeError' } });
+    expect(capturarErro).not.toHaveBeenCalled();
+    expect(enviados).toEqual([]);
+  });
+
+  it('capturarErro que lança: console.error não lança, não chama o console original e não entra em laço', () => {
+    falhaDoSentry.lancar = true;
+    const linhas = instalarComLog();
+    const saidas = espiarSaidas();
+    try {
+      expect(() => terminal.error(new Error(`falha com ${EMAIL}`))).not.toThrow();
+    } finally {
+      saidas.restaurar();
+    }
+    expect(capturarErro).toHaveBeenCalledTimes(1);
+    expect(linhas).toHaveLength(1);
+    expect(saidas.escrito).toEqual([]);
   });
 });
