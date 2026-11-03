@@ -4,7 +4,8 @@ import { desc, eq, max, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { demanda, especificacaoTecnica, user } from '../../db/schema';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import { contaDoAutor, responsavelDe, type Responsavel } from '../demandas/consultas';
+import type { Ator } from '../acesso/ator';
+import { contaDoAutor, responsavelDe, responsavelMinimo, type Responsavel, type ResponsavelMinimo } from '../demandas/consultas';
 import { idVersao } from '../versoes';
 
 export type EspecificacaoVista = {
@@ -63,6 +64,41 @@ function vistaDe({ e, nome }: Linha): EspecificacaoVista {
     autor: responsavelDe(e.autorTipo, e.autorId, nome),
     rascunhoAgente: e.rascunhoAgente,
     criadaEm: e.criadaEm,
+  };
+}
+
+// M-2 do 0008 (C-10, RF-20): a vista para quem não é pessoa, aplicada na rota. Lista de permissão: só pessoa vê a vista
+// inteira; para qualquer outro ator o objeto é montado chave a chave, com a autoria de pessoa só pelo tipo. Campo novo da
+// vista não sai sem entrar aqui.
+export type EspecificacaoVistaMinima = Omit<EspecificacaoVista, 'autor'> & { autor: ResponsavelMinimo; versaoMaisNova?: string };
+
+export function vistaDaEspecificacaoPara(ator: Ator, v: EspecificacaoVista & { versaoMaisNova?: string }): EspecificacaoVista | EspecificacaoVistaMinima {
+  if (ator.tipo === 'pessoa') return v;
+  return {
+    id: v.id,
+    demandaId: v.demandaId,
+    versao: v.versao,
+    descricaoObjetiva: v.descricaoObjetiva,
+    situacaoAtual: v.situacaoAtual,
+    situacaoDesejada: v.situacaoDesejada,
+    escopoInclui: v.escopoInclui,
+    escopoExclui: v.escopoExclui,
+    sistemasErp: v.sistemasErp,
+    sistemasEcommerceMarketplace: v.sistemasEcommerceMarketplace,
+    sistemasApisTerceiros: v.sistemasApisTerceiros,
+    sistemasServicosInternos: v.sistemasServicosInternos,
+    dadosEntidades: v.dadosEntidades,
+    dadosCamposCriticos: v.dadosCamposCriticos,
+    restricoesTecnicas: v.restricoesTecnicas,
+    duvidasEmAberto: v.duvidasEmAberto,
+    sistemaAlvo: v.sistemaAlvo,
+    repositorioDestino: v.repositorioDestino,
+    criteriosAceitePreliminares: v.criteriosAceitePreliminares,
+    definicaoDePronto: v.definicaoDePronto,
+    autor: responsavelMinimo(v.autor),
+    rascunhoAgente: v.rascunhoAgente,
+    criadaEm: v.criadaEm,
+    ...(v.versaoMaisNova === undefined ? {} : { versaoMaisNova: v.versaoMaisNova }),
   };
 }
 

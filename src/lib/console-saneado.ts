@@ -8,6 +8,7 @@
 //
 // O erro de configuração do boot sai antes da troca, legível (C-31, só o nome da variável).
 import { log } from './log';
+import { capturarErro } from './sentry';
 
 type MetodosTrocados = { error: Console['error']; warn: Console['warn'] };
 
@@ -30,6 +31,11 @@ function saneado(nivel: 'error' | 'warn'): (...args: unknown[]) => void {
     try {
       const erro = args.find((a): a is Error => a instanceof Error);
       log[nivel]({ evento, ...(erro ? { erro, erroId: digestDe(erro) } : {}) });
+      // M-3 (0008): o erro fora de requisição (uncaughtException, unhandledRejection, onError do after()) chega aqui
+      // pelo console.error e vai ao Sentry pelo mesmo saneamento das rotas. Com `digest`, o onRequestError já mandou (ou
+      // é controle do Next): não vai de novo. console.warn é aviso, não falha: fica só no log. Dentro da guarda e do try:
+      // falha do Sentry não entra em laço, não cai no console original e não derruba quem chamou.
+      if (nivel === 'error' && erro && !('digest' in erro)) capturarErro(erro, { evento });
     } catch {
       // Falha do log não derruba quem chamou e não cai no console original.
     } finally {

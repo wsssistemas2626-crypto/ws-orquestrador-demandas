@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
+| Atualizado em | 03/11/2026 (0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Fontes no código | `src/app/api/**/route.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
@@ -100,8 +100,16 @@ Authorization: Bearer wsod_<token>
 }
 ```
 
-Os campos de texto livre (`titulo`, `contexto`, `descricaoProblema` e os outros) saem como foram gravados, sem
-minimização (M-1, aberto; [CHANGELOG](../../CHANGELOG.md)).
+Desde a 0.1.7 (M-1), os campos de texto livre (`titulo`, `contexto`, `descricaoProblema`, `justificativaUrgencia`,
+`impactoPercebido` e cada item de `duvidasEntrada`) saem minimizados para o agente, na leitura, no 201 da criação e no
+`titulo` da listagem `GET /api/demandas`. Um `contexto` gravado como `Falar com Maria Ficticia Teste,
+maria.teste@exemplo.invalid, CPF 123.456.789-09, tel (11) 90000-0000` (fictício), com essa solicitante, sai como
+`Falar com [nome removido], [e-mail removido], CPF [CPF removido], tel [telefone removido]`. A pessoa recebe o original.
+
+Desde a 0.1.7 (M-2), nas leituras de ESP, RSK e DEC (as sete rotas `GET` da tabela acima), o agente recebe autor pessoa
+como `{ "tipo": "pessoa" }`, cada aprovador só com `papel`, `opcao`, `registradaEm` e `dataDocumento`, e `decisao` sem
+`decididaPor`. Ainda saem sem minimizar `demandaTitulo`, `demandaDescricao` e `decisao.comentarios` do DEC (também no
+201 do `POST /api/demandas/:id/pacotes-decisao`) e o texto de ESP e RSK (M-a, aberto; [CHANGELOG](../../CHANGELOG.md)).
 
 ## Exemplo: decidir ou gerar o Pedido numa demanda em status final
 

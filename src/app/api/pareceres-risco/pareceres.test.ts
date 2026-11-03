@@ -380,13 +380,17 @@ describe('GET /api/demandas/:id/pareceres-risco', () => {
     const id = await novaDemanda();
     await criarOk(id);
     await criarOk(id, {}, { bearer: tokenRisco });
-    for (const cred of [cto(), { bearer: tokenConsolidacao }]) {
+    // M-2 do 0008: o agente recebe a autoria de pessoa só pelo tipo; a pessoa, com o nome.
+    for (const [cred, autorPessoa] of [
+      [cto(), { tipo: 'pessoa', nome: expect.any(String) }],
+      [{ bearer: tokenConsolidacao }, { tipo: 'pessoa' }],
+    ] as const) {
       const r = await listar(id, cred);
       expect(r.status).toBe(200);
       const { itens } = (await r.json()) as { itens: Array<{ id: string; rascunhoAgente: boolean; autor: unknown }> };
       expect(itens.map((i) => [i.id, i.rascunhoAgente, i.autor])).toEqual([
         [`RSK-${id}-v2`, true, { tipo: 'agente', agente: 'risco' }],
-        [`RSK-${id}-v1`, false, { tipo: 'pessoa', nome: expect.any(String) }],
+        [`RSK-${id}-v1`, false, autorPessoa],
       ]);
     }
   });

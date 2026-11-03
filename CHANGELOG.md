@@ -3,6 +3,95 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.7 — 2026-11-03
+
+Correção do pedido `DEC-DEM-20261103-0008-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.6 (`75a2b0f`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano. **A primeira publicação continua
+bloqueada**, agora pelo médio M-a desta revisão (em "Pendências abertas").
+
+Fecha os médios M-1 (na demanda), M-2 e M-3 e o baixo B-1 da revisão da 0.1.6. Não há migration nova, coluna nova,
+dependência nova nem variável de ambiente nova. Não mudaram `src/db/`, `drizzle/`, `e2e/`, `.github/`, `Dockerfile`,
+`.env.example` nem o lockfile.
+
+### O que mudou
+
+- **M-1 (RF-20): na demanda, quem não é pessoa recebe o texto livre minimizado, na leitura, na criação e na
+  listagem.** `vistaDaDemandaPara` (`GET /api/demandas/:id` e o 201 do `POST /api/demandas`) passa `titulo`,
+  `contexto`, `descricaoProblema`, `justificativaUrgencia`, `impactoPercebido` e cada item de `duvidasEntrada` por
+  `minimizarValor`, com o nome do solicitante da própria demanda entre os nomes trocados: nome, e-mail, CPF, CNPJ e
+  telefone viram `[nome removido]`, `[e-mail removido]` e os outros marcadores. Campo nulo continua `null`, sem sumir a
+  chave. A listagem `GET /api/demandas` usa a nova `listarDemandasPara`, que troca o `titulo` de cada item com o nome do
+  solicitante daquele item; nenhum ator recebe a chave `solicitanteNome`. Só a pessoa recebe o texto original (lista de
+  permissão: o ator `sistema` também recebe o minimizado). `minimizarValor` saiu de `entrada-agente.ts` para
+  `src/modules/dados-pessoais/minimizar.ts`: a regra da entrada do agente e a da API são uma só. `listarDemandas`, usada
+  pelo painel, não mudou. **O M-1 fechou só na demanda:** o DEC ainda devolve a cópia do texto da demanda sem minimizar
+  (M-a, abaixo).
+- **M-2: as leituras de ESP, RSK e DEC não dão nome de pessoa a quem não é pessoa.** As sete rotas
+  (`GET /api/especificacoes/:espId`, `GET /api/pareceres-risco/:rskId`, `GET /api/pacotes-decisao/:decId`,
+  `GET /api/pacotes-decisao` e as três listas `GET /api/demandas/:id/especificacoes`, `.../pareceres-risco` e
+  `.../pacotes-decisao`) aplicam `vistaDaEspecificacaoPara`, `vistaDoParecerPara` e `vistaDoPacotePara`, montadas chave a
+  chave: autor pessoa vira `{ "tipo": "pessoa" }` (autor agente fica igual); cada item de `aprovadores[]` fica só com
+  `papel`, `opcao`, `registradaEm` e `dataDocumento` (somem `nome` e `referenciaDocumento`); `decisao` fica sem
+  `decididaPor`, e `decisao: null` segue `null`. A pessoa recebe a vista inteira, como antes.
+- **M-3: `console.error` de `Error` sem `digest` vai ao Sentry.** `src/lib/console-saneado.ts`, depois da linha
+  `console_erro` do log, chama `capturarErro(erro, { evento: 'console_erro' })`, dentro da mesma guarda contra
+  reentrada: falha do Sentry não entra em laço nem cai no console original. O `Error` com `digest` (inclusive os de
+  controle do Next) não vai, porque já sai pelo `onRequestError`. `console.warn` continua só no log. Nenhuma integração
+  do Sentry foi ligada (`defaultIntegrations` segue `false`).
+- **B-1: `onRequestError` grava o erro reduzido.** `src/instrumentation.ts` passa `reduzirErro(err)` ao log; valor que
+  não é `Error` vira `{ "classe": "desconhecido" }`, sem `query` nem `params`.
+- **Testes:** 6 do M-1 em `src/app/api/demandas/demandas.test.ts`, 1 do B-1 em `src/instrumentation.test.ts`, o arquivo
+  novo `src/app/api/vistas-para-agente.test.ts` (M-2, nas sete rotas, para os dois atores) e 4 do M-3 em
+  `src/lib/console-saneado.test.ts`; na regressão, mais 13 (vista do agente igual à da pessoa só com os cortes,
+  listagem e `minimizarValor`). Uma asserção existente mudou em `pareceres.test.ts`, para o contrato novo, e ficou mais
+  estrita.
+- **Versão:** o `package.json` passou de 0.1.6 para 0.1.7, e `test/estatico/projeto.test.ts` confere a versão nova.
+- **Documentação:** estas notas; a versão no `README.md`, no manual técnico e no `docs/operacao/deploy.md`; no manual,
+  cap. 02 (vista do agente nas leituras e console para o Sentry), 03 (vista mínima com texto minimizado), 06 (alcance
+  da minimização na API) e 09 (rotas e exemplo); no `deploy.md`, as seções 4 e 6 vieram da `05-devops-sre.md`.
+
+Não houve `.skip`, `.only` ou `.todo` novo, nem asserção afrouxada. O C-10, o C-21, o C-23, o C-36, a A-02 e o axe
+continuam sem exceção.
+
+### Verificações desta versão
+
+- `pnpm test`: 196 arquivos, 3.907 de 3.907 (`04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143, sem teste pulado, três vezes seguidas, cada uma com banco
+  novo. Nenhum spec precisou de ajuste: nenhum lê a API com token de agente.
+- Testes que reproduzem os defeitos da `01-qa-funcional.md`, com dados fictícios: e-mail, CPF, telefone e nome do
+  solicitante no texto livre, para agente, pessoa e `sistema`; nome da conta autora, da aprovadora e a referência do
+  documento nas sete rotas; `Error` sem e com `digest` no console; objeto simples no `onRequestError`.
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico ou alto; um médio e dois baixos (abaixo).
+- `docker build` local: 1,74 GB em disco e 426 MB de conteúdo, o mesmo da 0.1.6, nada publicado (`05-devops-sre.md`).
+- A homologação, o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam para a Parada 3.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`):
+
+- **M-a (M-1 incompleto, RF-20, dado pessoal). Continua bloqueando a primeira publicação (CA-P5-16) até o pedido
+  seguinte (0009) corrigi-lo ou até Fabiano e a `gestao-riscos` aceitarem o risco.** O DEC guarda cópia do título e da
+  descrição da demanda, e `demandaTitulo` e `demandaDescricao` saem sem minimizar para quem não é pessoa em
+  `GET /api/pacotes-decisao`, `GET /api/pacotes-decisao/:decId`, `GET /api/demandas/:id/pacotes-decisao` e no 201 do
+  `POST /api/demandas/:id/pacotes-decisao` (que não passa pela `vistaDoPacotePara`). No mesmo grupo saem sem minimizar
+  `decisao.comentarios` (texto livre de pessoa) e o texto de ESP e RSK, que a entrada do agente minimiza e a API não
+  (`src/modules/pacotes-decisao/consultas.ts`, `src/modules/especificacoes/consultas.ts`). Efeito: o token de agente lê
+  no DEC o mesmo texto que agora sai minimizado na demanda.
+- **B-a** (`src/lib/console-saneado.ts`): a não duplicação no Sentry depende de o Next não mandar o mesmo erro sem
+  `digest` ao `onRequestError` e ao `console.error`; não conferido no fonte do Next. No máximo, um evento a mais, sem
+  dado.
+- **B-b** (`src/lib/log.ts`): `normalizarErro` não reduz objeto que não é `Error`; o B-1 corrigiu só o
+  `onRequestError`. Sugestão: reduzir na própria `normalizarErro`, junto do M-a no 0009.
+
+Registradas nas outras etapas deste pedido:
+
+- **Risco que sobra no M-3, para a Parada 3:** a prova é de unidade. Não está confirmado que `uncaughtException`,
+  `unhandledRejection` e o `onError` do `after()` passam por `console.error` no runtime do Next 16; se algum for direto
+  ao `process.stderr`, não chega ao Sentry.
+- Seguem abertas as pendências da 0.1.6 que este pedido não tratou: B-2 a B-5, `erroId` fora do Sentry, o risco do M-05
+  e o teste estático das actions por SHA.
+
 ## 0.1.6 — 2026-11-03
 
 Correção do pedido `DEC-DEM-20261103-0007-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.5 (`e0d5f4c`). Ainda

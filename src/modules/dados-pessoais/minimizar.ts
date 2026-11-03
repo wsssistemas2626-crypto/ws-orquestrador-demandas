@@ -62,3 +62,11 @@ export function minimizar(texto: string, op: { nomes?: readonly string[] } = {})
   }
   return s;
 }
+
+// O texto e cada texto de uma lista passam por `minimizar`; o resto (nulo, número, booleano) sai como está. Uma regra
+// só para a entrada do agente e para a vista da API de quem não é pessoa (M-1 do 0008).
+export function minimizarValor(v: unknown, nomes: readonly string[]): unknown {
+  if (typeof v === 'string') return minimizar(v, { nomes });
+  if (Array.isArray(v)) return v.map((i) => minimizarValor(i, nomes));
+  return v;
+}

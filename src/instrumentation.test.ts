@@ -110,6 +110,21 @@ describe('instrumentation.onRequestError', () => {
     expect(linhas.join('')).not.toContain(SENTINELA);
   });
 
+  it('B-1 (0008): objeto simples com query e params vira o erro reduzido, sem query, params nem os valores', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    const linhas = capturarLog();
+    const { onRequestError } = await import('./instrumentation');
+    const falso = { message: 'x', query: 'select ... maria.teste@exemplo.invalid', params: ['Maria Ficticia Teste'] };
+    await onRequestError(falso, { method: 'GET' }, { routePath: '/demandas/[id]' });
+    expect(linhas).toHaveLength(1);
+    const linha = JSON.parse(linhas[0]!) as Record<string, unknown>;
+    expect(linha.erro).toEqual({ classe: 'desconhecido' });
+    expect(linhas[0]).not.toContain('maria.teste@exemplo.invalid');
+    expect(linhas[0]).not.toContain('Maria Ficticia Teste');
+    expect(linhas[0]).not.toContain('query');
+    expect(linhas[0]).not.toContain('params');
+  });
+
   it('redirect() e notFound() do Next não são erro: nada vai ao log nem ao Sentry', async () => {
     vi.stubEnv('NEXT_RUNTIME', 'nodejs');
     const linhas = capturarLog();

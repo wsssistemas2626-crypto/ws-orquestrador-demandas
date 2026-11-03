@@ -11,7 +11,8 @@ import type { NivelAprovacao, Opcao, OpcaoDecisao, PapelAprovacao } from '../../
 import type { TipoDemanda } from '../../db/schema/demandas';
 import type { NivelRisco } from '../../db/schema/versoes';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import { contaDoAutor, responsavelDe, type Responsavel, type StatusDecisao } from '../demandas/consultas';
+import type { Ator } from '../acesso/ator';
+import { contaDoAutor, responsavelDe, responsavelMinimo, type Responsavel, type ResponsavelMinimo, type StatusDecisao } from '../demandas/consultas';
 import { expressaoDesatualizado } from './desatualizado';
 import type { FiltroPacotes } from './schemas';
 
@@ -162,6 +163,51 @@ function vistaDe(l: Linha, aprovadores: Aprovador[]): PacoteDecisaoVista {
       definicaoDePronto: l.esp.definicaoDePronto,
     },
     niveisRisco: { tecnico: l.rsk.tecnico, operacional: l.rsk.operacional, juridico: l.rsk.juridico },
+  };
+}
+
+// M-2 do 0008 (C-10, RF-20): a vista para quem não é pessoa, aplicada na rota. Lista de permissão: só pessoa vê a vista
+// inteira; para qualquer outro ator o objeto é montado chave a chave: autoria de pessoa só pelo tipo, aprovador sem
+// `nome` e `referenciaDocumento`, decisão sem `decididaPor`. Campo novo da vista não sai sem entrar aqui.
+export type AprovadorMinimo = Omit<Aprovador, 'nome' | 'referenciaDocumento'>;
+export type DecisaoMinima = Omit<DecisaoVista, 'decididaPor'>;
+export type PacoteDecisaoVistaMinima = Omit<PacoteDecisaoVista, 'autor' | 'aprovadores' | 'decisao'> & {
+  autor: ResponsavelMinimo;
+  aprovadores: AprovadorMinimo[];
+  decisao: DecisaoMinima | null;
+};
+
+export function vistaDoPacotePara(ator: Ator, v: PacoteDecisaoVista): PacoteDecisaoVista | PacoteDecisaoVistaMinima {
+  if (ator.tipo === 'pessoa') return v;
+  return {
+    id: v.id,
+    demandaId: v.demandaId,
+    versao: v.versao,
+    especificacaoId: v.especificacaoId,
+    parecerRiscoId: v.parecerRiscoId,
+    demandaTipo: v.demandaTipo,
+    demandaTitulo: v.demandaTitulo,
+    demandaDescricao: v.demandaDescricao,
+    resumoExecutivo: v.resumoExecutivo,
+    opcaoA: v.opcaoA,
+    opcaoB: v.opcaoB,
+    recomendacao: v.recomendacao,
+    nivelAprovacaoRequerido: v.nivelAprovacaoRequerido,
+    autor: responsavelMinimo(v.autor),
+    rascunhoAgente: v.rascunhoAgente,
+    criadaEm: v.criadaEm,
+    statusDecisao: v.statusDecisao,
+    aprovadores: v.aprovadores.map((a) => ({ papel: a.papel, opcao: a.opcao, registradaEm: a.registradaEm, dataDocumento: a.dataDocumento })),
+    desatualizado: v.desatualizado,
+    decisao: v.decisao ? { opcaoEscolhida: v.decisao.opcaoEscolhida, comentarios: v.decisao.comentarios, decididaEm: v.decisao.decididaEm } : null,
+    rascunhosCitados: v.rascunhosCitados,
+    especificacaoCitada: {
+      sistemaAlvo: v.especificacaoCitada.sistemaAlvo,
+      repositorioDestino: v.especificacaoCitada.repositorioDestino,
+      criteriosAceitePreliminares: v.especificacaoCitada.criteriosAceitePreliminares,
+      definicaoDePronto: v.especificacaoCitada.definicaoDePronto,
+    },
+    niveisRisco: { tecnico: v.niveisRisco.tecnico, operacional: v.niveisRisco.operacional, juridico: v.niveisRisco.juridico },
   };
 }
 
