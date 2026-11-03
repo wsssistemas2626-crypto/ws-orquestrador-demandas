@@ -16,7 +16,7 @@ import { relogioDoSistema, type Relogio } from '../src/lib/relogio';
 import { criarAuth } from '../src/modules/acesso/auth';
 import { mensagemDeErro, type Saida } from './lib/saida';
 import { ehExecucaoDireta, migrar } from './migrate';
-import { seedFicticio } from './seed-ficticio';
+import { seedFicticio, type ResultadoSeed } from './seed-ficticio';
 
 type Ambiente = Record<string, string | undefined>;
 
@@ -49,7 +49,7 @@ const PASSOS_DE_VERDADE: PassosHml = { migrar, iniciarApp: iniciarAppDeVerdade }
 
 // O seed com as dependências do app (lerConfigApp, a mesma conferência do boot) e a fila, para o aviso do DEC fictício
 // entrar com o job. Pool e fila fecham antes de o app subir.
-async function semear(env: Ambiente, relogio: Relogio): Promise<'semeado' | 'recusado'> {
+async function semear(env: Ambiente, relogio: Relogio): Promise<ResultadoSeed> {
   const config = lerConfigApp(env);
   const pool = criarPool(config.databaseUrl, { max: 2 });
   let fila: Awaited<ReturnType<typeof criarFila>> | null = null;
@@ -87,7 +87,14 @@ export async function iniciarHomologacao(
 
   try {
     const r = await semear(env, op.relogio ?? relogioDoSistema);
-    saida.write(r === 'semeado' ? 'Dados fictícios criados.\n' : 'Seed fictício não rodou (banco já tem dados ou SEED_FICTICIO não é 1).\n');
+    // Nenhuma recusa derruba a subida. A homologação usa http://127.0.0.1:3200, e a recusa por URL nunca acontece nela.
+    saida.write(
+      r === 'semeado'
+        ? 'Dados fictícios criados.\n'
+        : r === 'recusado_producao'
+          ? 'Seed fictício não rodou (BETTER_AUTH_URL fora do loopback).\n'
+          : 'Seed fictício não rodou (banco já tem dados ou SEED_FICTICIO não é 1).\n',
+    );
   } catch (e) {
     erro.write(`${mensagemDeErro(e)} A homologação não sobe.\n`);
     return 1;

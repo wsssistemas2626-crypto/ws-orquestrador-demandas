@@ -6,7 +6,7 @@ import type { Db } from '../../db';
 import { decisao, demanda, especificacaoTecnica, execucaoAgente, pacoteDecisao, parecerRisco, user } from '../../db/schema';
 import type { Anexo, LinhaServico, PapelSolicitante, Urgencia } from '../../db/schema/demandas';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import { AGENTES, type Agente } from '../acesso/ator';
+import { AGENTES, type Agente, type Ator } from '../acesso/ator';
 import { expressaoDesatualizado } from '../pacotes-decisao/desatualizado';
 import type { FiltroDemandas, Status, Tipo } from './schemas';
 
@@ -168,6 +168,57 @@ export async function obterDemanda(db: Db, id: string): Promise<DemandaVista> {
     pareceresRisco,
     pacotesDecisao,
     agentesEmAndamento,
+  };
+}
+
+// M-06 (C-10, RF-20): a vista para quem não é pessoa. Sem solicitanteNome e anexos (as chaves somem), e a autoria de
+// pessoa sem o nome da conta, na demanda e nas versões; a autoria de agente fica igual. O mesmo critério da entrada do
+// agente (entrada-agente.ts).
+export type ResponsavelMinimo = { tipo: 'pessoa' } | { tipo: 'agente'; agente: Agente };
+export type VersaoResumoMinima = Omit<VersaoResumo, 'autor'> & { autor: ResponsavelMinimo };
+export type PacoteResumoMinimo = Omit<PacoteResumo, 'autor'> & { autor: ResponsavelMinimo };
+export type DemandaVistaMinima = Omit<DemandaVista, 'solicitanteNome' | 'anexos' | 'responsavel' | 'especificacoes' | 'pareceresRisco' | 'pacotesDecisao'> & {
+  responsavel: ResponsavelMinimo;
+  especificacoes: VersaoResumoMinima[];
+  pareceresRisco: VersaoResumoMinima[];
+  pacotesDecisao: PacoteResumoMinimo[];
+};
+
+const responsavelMinimo = (r: Responsavel): ResponsavelMinimo => (r.tipo === 'pessoa' ? { tipo: 'pessoa' } : { tipo: 'agente', agente: r.agente });
+
+const versaoMinima = (v: VersaoResumo): VersaoResumoMinima => ({
+  id: v.id,
+  versao: v.versao,
+  criadaEm: v.criadaEm,
+  autor: responsavelMinimo(v.autor),
+  rascunhoAgente: v.rascunhoAgente,
+});
+
+// Lista de permissão: só pessoa vê a vista inteira. Para qualquer outro ator, o objeto é montado chave a chave, e um campo
+// novo da vista não sai para o agente sem entrar aqui.
+export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | DemandaVistaMinima {
+  if (ator.tipo === 'pessoa') return d;
+  return {
+    id: d.id,
+    titulo: d.titulo,
+    tipo: d.tipo,
+    status: d.status,
+    solicitantePapel: d.solicitantePapel,
+    linhaServicoProvavel: d.linhaServicoProvavel,
+    urgencia: d.urgencia,
+    justificativaUrgencia: d.justificativaUrgencia,
+    contexto: d.contexto,
+    descricaoProblema: d.descricaoProblema,
+    impactoPercebido: d.impactoPercebido,
+    duvidasEntrada: d.duvidasEntrada,
+    rascunhoAgente: d.rascunhoAgente,
+    responsavel: responsavelMinimo(d.responsavel),
+    criadaEm: d.criadaEm,
+    atualizadaEm: d.atualizadaEm,
+    especificacoes: d.especificacoes.map(versaoMinima),
+    pareceresRisco: d.pareceresRisco.map(versaoMinima),
+    pacotesDecisao: d.pacotesDecisao.map((p) => ({ ...versaoMinima(p), statusDecisao: p.statusDecisao, desatualizado: p.desatualizado })),
+    agentesEmAndamento: d.agentesEmAndamento.map((a) => ({ agente: a.agente, status: a.status })),
   };
 }
 

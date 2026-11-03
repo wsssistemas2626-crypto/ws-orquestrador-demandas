@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ErroConfiguracao, lerConfigApp } from './env';
+import { ErroConfiguracao, ehLoopback, lerConfigApp } from './env';
+
+// M-07 (DEC-DEM-20261103-0007-v1): a mesma lista do cookie Secure serve à guarda do seed, por igualdade exata.
+it('ehLoopback: só 127.0.0.1, localhost e [::1], sem prefixo, sufixo nem subdomínio', () => {
+  for (const h of ['127.0.0.1', 'localhost', '[::1]']) expect(ehLoopback(h), h).toBe(true);
+  for (const h of ['127.0.0.1.exemplo.test', 'localhost.exemplo.test', 'a.localhost', '127.0.0.2', '10.0.0.5', '::1', 'LOCALHOST ', '', 'orquestrador.exemplo.test']) {
+    expect(ehLoopback(h), h).toBe(false);
+  }
+});
 
 const base = {
   BETTER_AUTH_SECRET: 'x'.repeat(48),

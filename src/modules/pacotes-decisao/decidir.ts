@@ -1,7 +1,8 @@
 // Decisão do pacote (RF-13) e dupla aprovação (RF-14). Só pessoa decide: agente e sistema recebem 403 de `autorizar`,
 // também quando o worker chama a função direto (C-12). Numa transação, nesta ordem:
 //   1. autorizar;
-//   2. o DEC e a trava da demanda, que põe em fila a decisão e a gravação de ESP ou RSK nova (C-13);
+//   2. o DEC e a trava da demanda, que põe em fila a decisão e a gravação de ESP ou RSK nova (C-13); demanda em status
+//      final → 409, antes de toda outra conferência (M-08);
 //   3. já decidido → 409 (CA-11.3);
 //   4. não é o DEC mais novo da demanda → 409, em qualquer decisão (08-correcao, A-01): decidir um DEC antigo encerrava
 //      a demanda por cima do mais novo;
@@ -24,7 +25,7 @@ import type { Ator, AtorPessoa } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { MENSAGENS_ACESSO } from '../acesso/mensagens';
 import type { DepsDemanda } from '../demandas/servico';
-import { mudarStatusPeloSistema } from '../demandas/transicoes';
+import { ehStatusFinal, mudarStatusPeloSistema } from '../demandas/transicoes';
 import { registrarEvento } from '../historico/registrar';
 import { travarDemanda } from '../versoes';
 import { obterPacoteDecisao, type PacoteDecisaoVista } from './consultas';
@@ -43,6 +44,8 @@ export const MENSAGENS_DECISAO = {
   desatualizado: 'o pacote está desatualizado e não pode ser aprovado.',
   naoEhOMaisNovo: 'a demanda tem um pacote mais novo; só o mais novo pode ser decidido.',
   outroAprovado: 'outro pacote desta demanda já está aprovado.',
+  // M-08: texto decidido na 02-triagem do DEC-DEM-20261103-0007-v1, para revisão da ux-ui-design.
+  demandaFinal: 'a demanda está em status final; o pacote não pode mais ser decidido.',
   revisarRascunhos: 'Marque que revisou os rascunhos de agente para registrar a decisão.',
   semReferencia: 'Informe o identificador do documento assinado.',
   semDataDocumento: 'Informe a data da assinatura.',
@@ -202,7 +205,10 @@ export async function registrarDecisao(
     const { tx } = tr;
     const [alvo] = await tx.select({ demandaId: pacoteDecisao.demandaId }).from(pacoteDecisao).where(eq(pacoteDecisao.id, decId));
     if (!alvo) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
-    await travarDemanda(tx, alvo.demandaId);
+    const demandaTravada = await travarDemanda(tx, alvo.demandaId);
+    // M-08: demanda em status final (fonte única: ehStatusFinal) não tem mais decisão, nem para DEC já decidido. Sob a
+    // trava e antes de ler o DEC: uma demanda encerrada ao mesmo tempo espera esta transação ou é vista já final.
+    if (ehStatusFinal(demandaTravada.status)) throw conflito(MENSAGENS_DECISAO.demandaFinal);
     // Lido depois da trava: enxerga a ESP ou o RSK que outra transação tenha gravado antes dela, e as aprovações e a
     // decisão de quem decidiu ao mesmo tempo (C-13, CA-11.3).
     const pacote = await obterPacoteDecisao(tx, decId);

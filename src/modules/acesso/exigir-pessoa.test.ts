@@ -1,7 +1,7 @@
 // exigirPessoa (C-04, a função; C-02; C-08) e os dois adaptadores do painel, com sessão falsa e relógio fixo.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { relogioFixo } from '../../lib/relogio';
-import { exigirPessoa, exigirPessoaNaPagina, exigirSessaoParaConfigurar2fa } from './exigir-pessoa';
+import { ErroLeituraSessao, exigirPessoa, exigirPessoaNaPagina, exigirSessaoParaConfigurar2fa } from './exigir-pessoa';
 
 const cabecalhosDaPagina = vi.hoisted(() => ({ atual: new Headers({ cookie: 'wsod.session_token=ficticio' }) }));
 vi.mock('next/headers', () => ({ headers: async () => cabecalhosDaPagina.atual }));
@@ -123,9 +123,60 @@ describe('exigirPessoaNaPagina', () => {
       'REDIRECIONA:/sem-permissao',
     );
   });
+  // Desde a 0.1.6 (M-05), o erro do getSession sobe saneado (ErroLeituraSessao), sem a mensagem original.
   it('erro que não é de acesso não vira redirecionamento', async () => {
     const quebrado = { api: { getSession: async () => Promise.reject(new Error('banco fora')) } } as never;
-    await expect(exigirPessoaNaPagina('/demandas', { auth: quebrado, relogio })).rejects.toThrow('banco fora');
+    const e = await exigirPessoaNaPagina('/demandas', { auth: quebrado, relogio }).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ErroLeituraSessao);
+    expect(String((e as Error).message)).not.toContain('REDIRECIONA');
+    expect(String((e as Error).message)).not.toContain('banco fora');
+  });
+});
+
+// M-05 (a) (DEC-DEM-20261103-0007-v1, C-21): o erro do getSession pode levar o token de sessão (a consulta do Drizzle
+// traz os params). lerPessoa o troca por ErroLeituraSessao: mensagem fixa, sem cause, só o code validado.
+describe('M-05 (a): erro do getSession sai saneado por todos os caminhos', () => {
+  const SENTINELA = 'token-ficticio-SENTINELA-0007';
+  const relogio = relogioFixo('2026-10-22T12:05:00Z');
+
+  function erroComToken(): Error {
+    const causa = Object.assign(new Error(`terminating connection ${SENTINELA}`), { code: '57P01' });
+    const e = new Error(`Failed query: select * from "session" where "token" = $1\nparams: ${SENTINELA}`, { cause: causa });
+    Object.assign(e, { params: [SENTINELA], query: `select ... ${SENTINELA}` });
+    e.stack = `Error: ${SENTINELA}\n    at consulta (${SENTINELA}.js:1:1)`;
+    return e;
+  }
+  const quebrado = () => ({ api: { getSession: async () => Promise.reject(erroComToken()) } }) as never;
+
+  function conferirSaneado(e: unknown): void {
+    expect(e).toBeInstanceOf(ErroLeituraSessao);
+    const x = e as ErroLeituraSessao;
+    expect(x.code).toBe('57P01');
+    expect(x.cause).toBeUndefined();
+    expect(x.name).toBe('ErroLeituraSessao');
+    for (const t of [x.message, String(x.stack), JSON.stringify(x), String(x)]) expect(t).not.toContain(SENTINELA);
+    expect(Object.keys(x).sort()).toEqual(['code']);
+  }
+
+  it('exigirPessoaNaPagina rejeita com ErroLeituraSessao e code 57P01, sem o sentinela', async () => {
+    conferirSaneado(await exigirPessoaNaPagina('/demandas', { auth: quebrado(), relogio }).catch((x: unknown) => x));
+  });
+  it('exigirPessoa (rotas e Server Actions), idem', async () => {
+    conferirSaneado(await exigirPessoa({ auth: quebrado(), relogio }, new Headers()).catch((x: unknown) => x));
+  });
+  it('exigirSessaoParaConfigurar2fa, idem', async () => {
+    conferirSaneado(await exigirSessaoParaConfigurar2fa({ auth: quebrado(), relogio }).catch((x: unknown) => x));
+  });
+  it('code fora do formato não entra; valor que não é Error também vira ErroLeituraSessao', async () => {
+    const codeRuim = { api: { getSession: async () => Promise.reject(Object.assign(new Error(SENTINELA), { code: `x ${SENTINELA}` })) } } as never;
+    const e1 = (await exigirPessoa({ auth: codeRuim, relogio }, new Headers()).catch((x: unknown) => x)) as ErroLeituraSessao;
+    expect(e1).toBeInstanceOf(ErroLeituraSessao);
+    expect(e1.code).toBeUndefined();
+    expect(JSON.stringify(e1)).not.toContain(SENTINELA);
+    const texto = { api: { getSession: async () => Promise.reject(SENTINELA) } } as never;
+    const e2 = await exigirPessoa({ auth: texto, relogio }, new Headers()).catch((x: unknown) => x);
+    expect(e2).toBeInstanceOf(ErroLeituraSessao);
+    expect(String((e2 as Error).stack)).not.toContain(SENTINELA);
   });
 });
 

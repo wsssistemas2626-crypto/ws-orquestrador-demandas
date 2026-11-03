@@ -16,7 +16,7 @@ import { substituirDestinoDoLog } from '../../lib/log';
 import { relogioFixo } from '../../lib/relogio';
 import { AGENTES, type Agente } from './ator';
 import type { Auth } from './auth';
-import { exigirPessoa } from './exigir-pessoa';
+import { ErroLeituraSessao, exigirPessoa } from './exigir-pessoa';
 import { resolverAtor } from './resolver-ator';
 import { criarTokenServico, revogarTokenServico } from './tokens-servico';
 
@@ -123,7 +123,11 @@ describe('recusa sem consultar banco nem Better Auth', () => {
   });
   it('controle: Bearer no formato certo consulta o banco, e cookie de sessão sozinho chama o Better Auth', async () => {
     await expect(resolverAtor(req({ authorization: `Bearer wsod_${'A'.repeat(43)}` }), depsQueFalham())).rejects.toThrow(USOU);
-    await expect(resolverAtor(req({ cookie: 'wsod.session_token=x' }), depsQueFalham())).rejects.toThrow(USOU);
+    // Desde a 0.1.6 (M-05), a falha do getSession sobe saneada: ErroLeituraSessao só nasce quando o Better Auth foi
+    // chamado e falhou, e a mensagem original (aqui, o sentinela) não passa.
+    const e = await resolverAtor(req({ cookie: 'wsod.session_token=x' }), depsQueFalham()).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ErroLeituraSessao);
+    expect(String((e as Error).message)).not.toContain(USOU);
   });
 });
 

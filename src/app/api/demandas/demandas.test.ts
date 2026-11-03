@@ -12,8 +12,16 @@ import { comTransacao } from '../../../db/transacao';
 import { definirDepsParaTeste, type Deps } from '../../../lib/deps';
 import { MENSAGEM_NAO_ENCONTRADO } from '../../../lib/erros';
 import { substituirDestinoDoLog } from '../../../lib/log';
+import type { AtorPessoa } from '../../../modules/acesso/ator';
 import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenServico } from '../../../modules/acesso/tokens-servico';
+import { obterDemanda, vistaDaDemandaPara } from '../../../modules/demandas/consultas';
+import { criarEspecificacaoSchema } from '../../../modules/especificacoes/schemas';
+import { criarEspecificacao } from '../../../modules/especificacoes/servico';
+import { criarPacoteDecisao } from '../../../modules/pacotes-decisao/criar';
+import { criarPacoteDecisaoSchema } from '../../../modules/pacotes-decisao/schemas';
+import { criarParecerRiscoSchema } from '../../../modules/pareceres-risco/schemas';
+import { criarParecerRisco } from '../../../modules/pareceres-risco/servico';
 import { GET as GET_HISTORICO } from './[id]/historico/route';
 import { GET as GET_DEMANDA, PATCH } from './[id]/route';
 import { GET as GET_LISTA, POST } from './route';
@@ -290,6 +298,115 @@ describe('GET /api/demandas/:id', () => {
 
   it('CA-01.3: sem sessão nem token → 401', async () => {
     expect((await obter('DEM-20261022-0001', {})).status).toBe(401);
+  });
+});
+
+// M-06 (DEC-DEM-20261103-0007-v1, C-10, RF-20): só a pessoa vê a vista inteira. Para qualquer outro ator, a leitura de
+// demanda não traz solicitanteNome, anexos nem o nome da conta autora (na demanda e nas versões).
+describe('M-06: minimização da leitura de demanda para quem não é pessoa', () => {
+  const ANEXO = { tipo: 'url', referencia: 'https://exemplo.test/anexo-ficticio-0007' } as const;
+
+  async function demandaComVersoesDePessoa(): Promise<{ id: string; nomeConta: string; decId: string }> {
+    const p = await criarPessoa(deps, { papel: 'cto' });
+    const nomeConta = (await b.poolMigrator.query<{ name: string }>('select name from "user" where id = $1', [p.usuarioId])).rows[0]!.name;
+    const pessoa: AtorPessoa = { tipo: 'pessoa', usuarioId: p.usuarioId, nome: nomeConta, papel: 'cto' };
+    const d = await criarOk({ solicitanteNome: SENTINELAS.nome, anexos: [ANEXO] }, { cookie: p.cookie });
+    await criarEspecificacao(
+      deps,
+      pessoa,
+      d.id,
+      criarEspecificacaoSchema.parse({
+        descricaoObjetiva: 'Corrigir pedidos duplicados',
+        escopoInclui: ['Importação'],
+        sistemaAlvo: 'meu-sistema',
+        repositorioDestino: 'wsssistemas2626-crypto/meu-sistema',
+        criteriosAceitePreliminares: ['Critério fictício'],
+        definicaoDePronto: ['pnpm test verde'],
+      }),
+    );
+    await criarParecerRisco(deps, pessoa, d.id, criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' }));
+    const dec = await criarPacoteDecisao(
+      deps,
+      pessoa,
+      d.id,
+      criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo fictício', opcaoA: { descricao: 'A' }, opcaoB: { descricao: 'B' }, nivelAprovacaoRequerido: 'cto' }),
+    );
+    return { id: d.id, nomeConta, decId: dec.id };
+  }
+
+  const versoes = (v: Record<string, unknown>) =>
+    [...(v.especificacoes as Array<Record<string, unknown>>), ...(v.pareceresRisco as Array<Record<string, unknown>>), ...(v.pacotesDecisao as Array<Record<string, unknown>>)];
+
+  it('GET /api/demandas/:id com token de agente: sem solicitanteNome e anexos, responsavel { tipo: pessoa } e nenhum autor.nome', async () => {
+    const { id, nomeConta, decId } = await demandaComVersoesDePessoa();
+    for (const bearer of [tokenRisco, tokenOrquestrador]) {
+      const r = await obter(id, { bearer });
+      expect(r.status).toBe(200);
+      const texto = await r.text();
+      const v = JSON.parse(texto) as Record<string, unknown>;
+      expect(Object.keys(v)).not.toContain('solicitanteNome');
+      expect(Object.keys(v)).not.toContain('anexos');
+      expect(v.responsavel).toEqual({ tipo: 'pessoa' });
+      const vs = versoes(v);
+      expect(vs).toHaveLength(3);
+      for (const x of vs) expect(x.autor).toEqual({ tipo: 'pessoa' });
+      expect((v.pacotesDecisao as Array<Record<string, unknown>>)[0]).toMatchObject({ id: decId, statusDecisao: 'pendente', desatualizado: false });
+      expect(texto).not.toContain(nomeConta);
+      expect(texto).not.toContain(ANEXO.referencia);
+      expect(contemSentinela(texto)).toBe(false);
+      // O que o agente precisa continua lá.
+      expect(v).toMatchObject({ id, titulo: MINIMA.titulo, tipo: 'bug', status: 'pronta_para_decisao' });
+    }
+  });
+
+  it('GET /api/demandas/:id com pessoa: tudo como antes, com nomes e anexos', async () => {
+    const { id, nomeConta } = await demandaComVersoesDePessoa();
+    const v = (await (await obter(id, { cookie: cookieAdm })).json()) as Record<string, unknown>;
+    expect(v).toMatchObject({ solicitanteNome: SENTINELAS.nome, anexos: [ANEXO], responsavel: { tipo: 'pessoa', nome: nomeConta } });
+    for (const x of versoes(v)) expect(x.autor).toEqual({ tipo: 'pessoa', nome: nomeConta });
+  });
+
+  it('POST /api/demandas do orquestrador: a resposta segue o mesmo contrato do agente', async () => {
+    const r = await criar({ ...MINIMA, solicitanteNome: SENTINELAS.nome, anexos: [ANEXO] }, { bearer: tokenOrquestrador });
+    expect(r.status).toBe(201);
+    const texto = await r.text();
+    const v = JSON.parse(texto) as Record<string, unknown>;
+    expect(Object.keys(v)).not.toContain('solicitanteNome');
+    expect(Object.keys(v)).not.toContain('anexos');
+    expect(v.responsavel).toEqual({ tipo: 'agente', agente: 'orquestrador' });
+    expect(contemSentinela(texto)).toBe(false);
+    // A pessoa lê a mesma demanda inteira.
+    expect(await (await obter(v.id as string)).json()).toMatchObject({ solicitanteNome: SENTINELAS.nome, anexos: [ANEXO] });
+  });
+
+  it('demanda de autor agente: o responsavel segue { tipo: agente, agente } também para o agente', async () => {
+    const d = await criarOk({}, { bearer: tokenOrquestrador });
+    expect((await (await obter(d.id, { bearer: tokenRisco })).json()).responsavel).toEqual({ tipo: 'agente', agente: 'orquestrador' });
+  });
+
+  it('a listagem, nos dois atores, só tem as chaves da fila', async () => {
+    await demandaComVersoesDePessoa();
+    for (const cred of [{ bearer: tokenRisco }, { cookie: cookieCto }]) {
+      const texto = await (await listar('?tipo=bug', cred)).text();
+      expect(contemSentinela(texto)).toBe(false);
+      const { itens } = JSON.parse(texto) as { itens: Array<Record<string, unknown>> };
+      expect(itens.length).toBeGreaterThan(0);
+      for (const i of itens) expect(Object.keys(i).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
+    }
+  });
+
+  it('vistaDaDemandaPara: lista de permissão, só pessoa vê tudo (o ator sistema também recebe a vista mínima)', async () => {
+    const { id } = await demandaComVersoesDePessoa();
+    const vista = await obterDemanda(deps.db, id);
+    const pessoa: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-x', nome: 'Pessoa Ficticia', papel: 'cto' };
+    expect(vistaDaDemandaPara(pessoa, vista)).toBe(vista);
+    const sistema = vistaDaDemandaPara({ tipo: 'sistema' }, vista) as Record<string, unknown>;
+    expect(Object.keys(sistema)).not.toContain('solicitanteNome');
+    expect(Object.keys(sistema)).not.toContain('anexos');
+    expect(sistema.responsavel).toEqual({ tipo: 'pessoa' });
+    // Campo novo da vista não vaza por omissão: a vista mínima só tem as chaves da lista.
+    const comExtra = vistaDaDemandaPara({ tipo: 'sistema' }, { ...vista, campoNovo: SENTINELAS.texto } as typeof vista) as Record<string, unknown>;
+    expect(Object.keys(comExtra)).not.toContain('campoNovo');
   });
 });
 

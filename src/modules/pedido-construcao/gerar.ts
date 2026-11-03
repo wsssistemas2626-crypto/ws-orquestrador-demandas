@@ -1,6 +1,7 @@
 // Geração do Pedido de Construção (RF-22, C-28, ADR-05). Nesta ordem:
 //   1. autorizar: só pessoa (agente e sistema recebem 403, também chamando a função direto);
-//   2. o DEC (404 se não existe) com decisão `aprovada` completa, ou 409 (CA-22.4); desatualizado → 409 (A-03);
+//   2. a demanda do DEC (404 se o DEC não existe), travada como na decisão; demanda em status final → 409 (M-08). Só
+//      depois, o DEC, lido sob a trava, com decisão `aprovada` completa, ou 409 (CA-22.4); desatualizado → 409 (A-03);
 //   3. demanda do tipo estudo, pela cópia gravada no DEC → 422 (CA-22.3);
 //   4. a montagem, só com a ESP e o RSK citados no DEC;
 //   5. e-mail, telefone ou CPF em qualquer campo → 422 com o caminho e o tipo, sem o valor (C-28);
@@ -8,17 +9,21 @@
 //   7. evento `pedido_gerado` e o JSON serializado.
 // Recusado em 2, 3, 5 ou 6, nada é entregue e nenhum evento é gravado. O mesmo DEC gera sempre o mesmo pedido
 // (CA-22.2). Aceita a transação de quem chama (G3.8).
+import { eq } from 'drizzle-orm';
+import { pacoteDecisao } from '../../db/schema';
 import { comTransacao, type Transacao } from '../../db/transacao';
-import { ErroDominio } from '../../lib/erros';
+import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import { validarPedido } from '../../vendor/construir/pedido.mjs';
 import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { encontrarDadosPessoais, type TipoDadoPessoal } from '../dados-pessoais/detectores';
 import type { DepsDemanda } from '../demandas/servico';
+import { ehStatusFinal } from '../demandas/transicoes';
 import { obterEspecificacao } from '../especificacoes/consultas';
 import { registrarEvento } from '../historico/registrar';
 import { obterPacoteDecisao } from '../pacotes-decisao/consultas';
 import { obterParecerRisco } from '../pareceres-risco/consultas';
+import { travarDemanda } from '../versoes';
 import { MENSAGEM_PEDIDO_SEM_APROVACAO, montarPedido } from './montar';
 import { serializarPedido } from './serializar';
 
@@ -27,6 +32,8 @@ import { serializarPedido } from './serializar';
 export const MENSAGENS_PEDIDO = {
   naoAprovado: MENSAGEM_PEDIDO_SEM_APROVACAO,
   desatualizado: 'o pacote está desatualizado: a demanda tem ESP ou RSK mais nova que a citada.',
+  // M-08: texto decidido na 02-triagem do DEC-DEM-20261103-0007-v1, para revisão da ux-ui-design.
+  demandaFinal: 'a demanda está em status final; o pacote não gera mais Pedido de Construção.',
   estudo: 'demanda do tipo estudo não gera Pedido de Construção',
   naoPassou: 'O pedido não passou na validação do /construir. Nada foi entregue.',
 } as const;
@@ -40,6 +47,12 @@ export async function gerarPedido(deps: DepsDemanda, ator: Ator, decId: string, 
   autorizar(ator, 'gerar_pedido_construcao');
 
   const corpo = async ({ tx }: Transacao): Promise<string> => {
+    // M-08: o mesmo padrão de registrarDecisao. A trava da demanda põe em fila o encerramento e a ESP ou o RSK novos;
+    // o DEC (e o `desatualizado`) só é lido depois dela.
+    const [alvo] = await tx.select({ demandaId: pacoteDecisao.demandaId }).from(pacoteDecisao).where(eq(pacoteDecisao.id, decId));
+    if (!alvo) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
+    const demandaTravada = await travarDemanda(tx, alvo.demandaId);
+    if (ehStatusFinal(demandaTravada.status)) throw new ErroDominio('conflito', MENSAGENS_PEDIDO.demandaFinal);
     const dec = await obterPacoteDecisao(tx, decId);
     if (dec.statusDecisao !== 'aprovada') throw new ErroDominio('conflito', MENSAGENS_PEDIDO.naoAprovado);
     // A-03 (08-correcao): ESP ou RSK gravada depois da aprovação substitui a citada; o pedido não sai com a versão velha.

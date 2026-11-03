@@ -283,12 +283,18 @@ describe('gerarPedido: recusas', () => {
     await aprovar(parcialCto.decId, cto);
     const parcialAdm = await prepararDec({ nivel: 'cto_e_administradora' });
     await aprovar(parcialAdm.decId, administradora, 'A', { referenciaDocumento: 'DOC-FICTICIO-012', dataDocumento: '2026-11-30' });
-    for (const { decId } of [pendente, devolvida, arquivada, parcialCto, parcialAdm]) {
+    for (const { decId } of [pendente, devolvida, parcialCto, parcialAdm]) {
       const e = await erroDe(gerarPedido(deps, cto, decId));
       expect(e.codigo, decId).toBe('conflito');
       expect(e.mensagem).toBe(MENSAGENS_PEDIDO.naoAprovado);
       expect(await eventosDoPedido(decId)).toEqual([]);
     }
+    // Arquivar encerra a demanda (decisao_arquivada): desde a 0.1.6 (M-08), a recusa é a da demanda em status final, que
+    // vem antes do status do DEC. Continua 409, sem evento.
+    const e = await erroDe(gerarPedido(deps, cto, arquivada.decId));
+    expect(e.codigo).toBe('conflito');
+    expect(e.mensagem).toBe(MENSAGENS_PEDIDO.demandaFinal);
+    expect(await eventosDoPedido(arquivada.decId)).toEqual([]);
   });
 
   it('CA-22.4 vem antes do estudo: estudo pendente → 409', async () => {
@@ -355,6 +361,42 @@ describe('gerarPedido: recusas', () => {
 
   it('DEC que não existe → 404', async () => {
     expect((await erroDe(gerarPedido(deps, cto, 'DEC-DEM-20261022-9999-v1'))).codigo).toBe('nao_encontrado');
+  });
+
+  // M-08 (DEC-DEM-20261103-0007-v1): DEC aprovado de demanda em status final não gera Pedido; a recusa vem sob a trava da
+  // demanda, antes de ler o DEC, sem o evento pedido_gerado.
+  it('M-08: DEC aprovado em demanda entregue (pelo caminho real) → 409 demandaFinal, sem evento', async () => {
+    const { demandaId, decId } = await prepararAprovado();
+    for (const status of ['aprovada', 'em_construcao', 'entregue'] as const) await alterarDemanda(deps, cto, demandaId, alterarDemandaSchema.parse({ status }));
+    const e = await erroDe(gerarPedido(deps, cto, decId));
+    expect(e.codigo).toBe('conflito');
+    expect(e.mensagem).toBe(MENSAGENS_PEDIDO.demandaFinal);
+    expect(await eventosDoPedido(decId)).toEqual([]);
+  });
+
+  it('M-08: DEC aprovado em demanda encerrada → 409 demandaFinal, sem evento; vem antes do desatualizado e do estudo', async () => {
+    const { demandaId, decId } = await prepararAprovado({ tipo: 'estudo' });
+    await alterarDemanda(deps, cto, demandaId, alterarDemandaSchema.parse({ status: 'encerrada' }));
+    const e = await erroDe(gerarPedido(deps, administradora, decId));
+    expect(e.codigo).toBe('conflito');
+    expect(e.mensagem).toBe(MENSAGENS_PEDIDO.demandaFinal);
+    expect(e.mensagem).toBe('a demanda está em status final; o pacote não gera mais Pedido de Construção.');
+    expect(await eventosDoPedido(decId)).toEqual([]);
+  });
+
+  it('M-08: DEC pendente em demanda encerrada → 409 demandaFinal (a demanda vem antes do status do DEC)', async () => {
+    const { demandaId, decId } = await prepararDec();
+    await alterarDemanda(deps, cto, demandaId, alterarDemandaSchema.parse({ status: 'encerrada' }));
+    expect((await erroDe(gerarPedido(deps, cto, decId))).mensagem).toBe(MENSAGENS_PEDIDO.demandaFinal);
+  });
+
+  it('M-08: nos status não finais (aprovada e em_construcao), gera como antes', async () => {
+    const { demandaId, decId } = await prepararAprovado();
+    await alterarDemanda(deps, cto, demandaId, alterarDemandaSchema.parse({ status: 'aprovada' }));
+    expect(validarPedido(JSON.parse((await gerarPedido(deps, cto, decId)).json)).ok).toBe(true);
+    await alterarDemanda(deps, cto, demandaId, alterarDemandaSchema.parse({ status: 'em_construcao' }));
+    expect(validarPedido(JSON.parse((await gerarPedido(deps, cto, decId)).json)).ok).toBe(true);
+    expect(await eventosDoPedido(decId)).toHaveLength(2);
   });
 });
 

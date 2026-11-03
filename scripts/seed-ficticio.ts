@@ -4,7 +4,8 @@
 //   SEED_FICTICIO=1 pnpm tsx scripts/seed-ficticio.ts
 //
 // Guardas (02, seção 2): só com SEED_FICTICIO=1 e com o banco sem nenhuma demanda. Esta versão também recusa banco que
-// já tem conta: o seed cria contas de senha conhecida, e elas nunca podem nascer ao lado de uma conta real. Tudo numa
+// já tem conta: o seed cria contas de senha conhecida, e elas nunca podem nascer ao lado de uma conta real. Desde a 0.1.6
+// (M-07), também recusa a configuração fora do loopback (BETTER_AUTH_URL), antes de abrir a transação. Tudo numa
 // transação só, sob trava consultiva: duas subidas ao mesmo tempo semeiam uma vez, e uma falha no meio não deixa meio
 // seed.
 //
@@ -23,6 +24,7 @@ import { PROMPTS } from '../src/agents';
 import { demanda, twoFactor, user } from '../src/db/schema';
 import { comTransacao, type Transacao } from '../src/db/transacao';
 import type { Deps } from '../src/lib/deps';
+import { ehLoopback } from '../src/lib/env';
 import { log } from '../src/lib/log';
 import type { AtorAgente, AtorPessoa, Papel } from '../src/modules/acesso/ator';
 import { criarDemandaSchema, type CriarDemanda } from '../src/modules/demandas/schemas';
@@ -218,7 +220,19 @@ const SISTEMA = { tipo: 'sistema' } as const;
 const agente = (a: AtorAgente['agente']): AtorAgente => ({ tipo: 'agente', agente: a, prefixoToken: null });
 
 export type DepsDoSeed = DepsDoScript & Partial<Pick<Deps, 'fila'>>;
-export type ResultadoSeed = 'semeado' | 'recusado';
+// recusado: sem SEED_FICTICIO=1 ou banco com dados. recusado_producao: a configuração não aponta para o loopback (M-07).
+export type ResultadoSeed = 'semeado' | 'recusado' | 'recusado_producao';
+
+// M-07 (C-37): segunda guarda, independente do SEED_FICTICIO e do banco vazio. Lê config.urlBase (a origin do
+// BETTER_AUTH_URL validada por lerConfigApp), que os três caminhos montam: homologação, e2e e script direto. O e2e passa
+// um env só com SEED_FICTICIO, por isso a guarda não lê o env.
+function configEmLoopback(urlBase: string): boolean {
+  try {
+    return ehLoopback(new URL(urlBase).hostname);
+  } catch {
+    return false;
+  }
+}
 
 // Dez códigos de recuperação aleatórios no formato do plugin (xxxxx-xxxxx), só para a linha ficar completa: ninguém os
 // vê. Cifrados com o mesmo segredo do Better Auth que o plugin usa (C-33).
@@ -291,6 +305,11 @@ export async function seedFicticio(deps: DepsDoSeed, env: Record<string, string 
     log.info({ evento: 'seed_ficticio', status: 'recusado', codigoErro: 'sem_seed_ficticio' });
     return 'recusado';
   }
+  // Antes de abrir a transação: nada é lido nem gravado, e a trava consultiva nem é pedida. O log não leva a URL.
+  if (!configEmLoopback(deps.config.urlBase)) {
+    log.info({ evento: 'seed_ficticio', status: 'recusado_producao', codigoErro: 'url_fora_do_loopback' });
+    return 'recusado_producao';
+  }
   const resultado = await comTransacao(deps.pool, async (t): Promise<{ status: ResultadoSeed; demandas: number }> => {
     await t.tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'seed_ficticio'}, 0))`);
     const [d] = await t.tx.select({ n: count() }).from(demanda);
@@ -309,16 +328,19 @@ export async function seedFicticio(deps: DepsDoSeed, env: Record<string, string 
   return resultado.status;
 }
 
-const MENSAGENS: Record<ResultadoSeed, string> = {
+// Textos fixos: citam só nomes de variável, nunca o valor (a URL pode ter dado da produção).
+export const MENSAGENS_SEED: Readonly<Record<ResultadoSeed, string>> = Object.freeze({
   semeado: `Dados fictícios criados: quatro contas @ficticio.test, o preço do modelo fictício e ${TOTAL_DEMANDAS_DO_SEED} demandas.\n`,
   recusado: 'Seed fictício não rodou: ele exige SEED_FICTICIO=1 e um banco sem nenhuma demanda e sem nenhuma conta. Nada foi alterado.\n',
-};
+  recusado_producao:
+    'Seed fictício não rodou: BETTER_AUTH_URL não aponta para o loopback (127.0.0.1, localhost ou [::1]), e o seed só roda fora da produção. Nada foi alterado.\n',
+});
 
 // O `main` do script, exportado para teste. Não aceita argumento.
 export async function executarSeed(deps: DepsDoSeed, argv: readonly string[], saida: Saida, env: Record<string, string | undefined> = process.env): Promise<number> {
   lerArgumentos(z.strictObject({}), argv);
   const r = await seedFicticio(deps, env);
-  saida.write(MENSAGENS[r]);
+  saida.write(MENSAGENS_SEED[r]);
   return r === 'semeado' ? 0 : 1;
 }
 

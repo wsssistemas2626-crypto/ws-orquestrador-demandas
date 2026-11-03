@@ -21,7 +21,12 @@ export const CAMPOS_PERMITIDOS = [
   'quantidade',
   'instancia',
   'erro',
+  // M-05: o identificador do erro (o `digest` do Next), que casa a linha do log com o evento no Sentry e com a tela 2.8.
+  // Sem conteúdo: só sai no formato FORMATO_ERRO_ID.
+  'erroId',
 ] as const;
+
+export const FORMATO_ERRO_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 type CampoPermitido = (typeof CAMPOS_PERMITIDOS)[number];
 export type CamposLog = { evento: string } & Partial<Record<CampoPermitido, unknown>>;
@@ -59,6 +64,11 @@ function filtrar(c: Record<string, unknown>): Record<string, unknown> {
   const saida: Record<string, unknown> = {};
   for (const k of CAMPOS_PERMITIDOS) {
     if (!Object.prototype.hasOwnProperty.call(c, k)) continue;
+    if (k === 'erroId') {
+      const v = c[k];
+      if (typeof v === 'string' && FORMATO_ERRO_ID.test(v)) saida[k] = v;
+      continue;
+    }
     saida[k] = k === 'erro' ? normalizarErro(c[k]) : c[k];
   }
   return saida;

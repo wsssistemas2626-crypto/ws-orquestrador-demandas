@@ -148,6 +148,44 @@ describe('log por lista de permissão (C-21)', () => {
     expect(Object.keys(JSON.parse(linhas[0]!) as object).sort()).toEqual(['evento', 'level', 'time']);
   });
 
+  // M-05 (DEC-DEM-20261103-0007-v1): `erroId` entra na lista, só com o formato do digest do Next.
+  it('a lista de permissão é exatamente esta, com erroId desde a 0.1.6', () => {
+    expect([...CAMPOS_PERMITIDOS]).toEqual([
+      'evento',
+      'metodo',
+      'rota',
+      'status',
+      'ms',
+      'atorTipo',
+      'codigoErro',
+      'fila',
+      'jobId',
+      'agente',
+      'execucaoId',
+      'demandaId',
+      'tentativa',
+      'quantidade',
+      'instancia',
+      'erro',
+      'erroId',
+    ]);
+  });
+
+  it('erroId só sai no formato /^[A-Za-z0-9_-]{1,64}$/; fora dele, ou que não é texto, é descartado', () => {
+    const { linhas, destino } = capturar();
+    const logger = criarLogger(destino);
+    logger.error({ evento: 'ok', erroId: '1234567890' });
+    logger.error({ evento: 'ok2', erroId: 'Ab_9-x' });
+    for (const ruim of [`id ${SENTINELAS.token}`, 'x'.repeat(65), '', 'a;b', 'NEXT_REDIRECT;replace;/entrar;307;', 42, { id: SENTINELAS.texto }]) {
+      logger.error({ evento: 'ruim', erroId: ruim });
+    }
+    const registros = linhas.map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(registros[0]).toMatchObject({ erroId: '1234567890' });
+    expect(registros[1]).toMatchObject({ erroId: 'Ab_9-x' });
+    for (const r of registros.slice(2)) expect(Object.keys(r)).not.toContain('erroId');
+    expect(contemSentinela(linhas.join(''))).toBe(false);
+  });
+
   it('o log padrão escreve no destino trocado pelo teste, com o mesmo filtro', () => {
     const { linhas, destino } = capturar();
     substituirDestinoDoLog(destino);

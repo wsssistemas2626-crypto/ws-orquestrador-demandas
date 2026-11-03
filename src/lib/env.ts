@@ -45,10 +45,17 @@ const ESQUEMA = z.object({
 
 // 08-correcao: o cookie Secure segue o protocolo do BETTER_AUTH_URL (auth.ts). Em produção, http só no loopback, que
 // não passa pela rede (o e2e com `next start` em http://127.0.0.1:3101); fora dele, a produção exige https.
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const LOOPBACK: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+// O `hostname` de uma URL (o de `new URL(...)`, com o IPv6 entre colchetes) é do loopback? Igualdade exata, sem prefixo
+// nem sufixo. A mesma lista vale para o cookie Secure e para a guarda do seed fictício (M-07, C-37).
+export function ehLoopback(hostname: string): boolean {
+  return LOOPBACK.has(hostname);
+}
+
 const httpForaDoLoopback = (url: string): boolean => {
   const u = new URL(url);
-  return u.protocol === 'http:' && !LOOPBACK.has(u.hostname);
+  return u.protocol === 'http:' && !ehLoopback(u.hostname);
 };
 
 export class ErroConfiguracao extends Error {

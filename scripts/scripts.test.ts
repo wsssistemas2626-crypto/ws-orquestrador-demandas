@@ -25,7 +25,7 @@ import { argumentosDefinirPreco, definirPrecoModelo, executarDefinirPreco } from
 import { lerArgumentos } from './lib/argumentos';
 import { mensagemDeErro } from './lib/saida';
 import { argumentosRevogarToken, executarRevogarToken, revogarTokenPorScript } from './revogar-token-servico';
-import { CONTAS_FICTICIAS, executarSeed, seedFicticio, TITULOS_DO_E2E, TOTAL_DEMANDAS_DO_SEED } from './seed-ficticio';
+import { CONTAS_FICTICIAS, executarSeed, MENSAGENS_SEED, seedFicticio, TITULOS_DO_E2E, TOTAL_DEMANDAS_DO_SEED } from './seed-ficticio';
 import { iniciarHomologacao } from './start-hml';
 
 // Saída padrão de mentira: guarda tudo o que o script escreveu.
@@ -286,7 +286,62 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     }
   });
 
+  // M-07 (DEC-DEM-20261103-0007-v1): segunda guarda, independente do SEED_FICTICIO e do banco vazio. A URL da configuração
+  // (config.urlBase, a origin do BETTER_AUTH_URL validada por lerConfigApp) tem de estar no loopback, por igualdade exata.
+  it.each([
+    'https://orquestrador.exemplo.test',
+    'http://127.0.0.1.exemplo.test',
+    'https://localhost.exemplo.test',
+    'http://10.0.0.5:3101',
+  ])('M-07: com SEED_FICTICIO=1, banco vazio e urlBase %s → recusado_producao, código 1, mensagem fixa sem a URL, nenhuma conta', async (url) => {
+    const depsProducao = { ...deps, config: { ...deps.config, urlBase: new URL(url).origin } };
+    const inicio = linhasDoLog.length;
+    expect(await seedFicticio(depsProducao, { SEED_FICTICIO: '1' })).toBe('recusado_producao');
+    const s = saidaDeTeste();
+    expect(await executarSeed(depsProducao, [], s, { SEED_FICTICIO: '1' })).toBe(1);
+    expect(s.texto()).toBe(MENSAGENS_SEED.recusado_producao);
+    expect(s.texto()).toContain('BETTER_AUTH_URL');
+    expect(s.texto()).not.toContain(new URL(url).hostname);
+    const doTeste = linhasDoLog.slice(inicio).join('');
+    expect(doTeste).toContain('url_fora_do_loopback');
+    expect(doTeste).not.toContain(new URL(url).hostname);
+    for (const tabela of ['"user"', 'demanda', 'preco_modelo', 'evento']) expect(await contar(b, `select count(*)::int as n from ${tabela}`), tabela).toBe(0);
+  });
+
+  it('M-07: a recusa por URL vem antes de abrir a transação (nem a trava consultiva é pedida)', async () => {
+    let conexoes = 0;
+    const poolEspiao = new Proxy(deps.pool, {
+      get(alvo, prop, receptor) {
+        if (prop === 'connect') conexoes += 1;
+        const v = Reflect.get(alvo, prop, receptor) as unknown;
+        return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(alvo) : v;
+      },
+    });
+    const depsProducao = { ...deps, pool: poolEspiao, config: { ...deps.config, urlBase: 'https://orquestrador.exemplo.test' } };
+    expect(await seedFicticio(depsProducao, { SEED_FICTICIO: '1' })).toBe('recusado_producao');
+    expect(conexoes).toBe(0);
+  });
+
+  it('M-07: sem SEED_FICTICIO=1, a recusa segue a de antes, mesmo com a URL fora do loopback', async () => {
+    const depsProducao = { ...deps, config: { ...deps.config, urlBase: 'https://orquestrador.exemplo.test' } };
+    expect(await seedFicticio(depsProducao, {})).toBe('recusado');
+  });
+
+  it.each(['http://localhost:3101', 'http://[::1]:3101'])('M-07: urlBase %s (loopback) → semeia', async (url) => {
+    const outro = await novoBanco();
+    const depsOutro = await criarDepsDeTeste(outro);
+    try {
+      expect(await seedFicticio({ ...depsOutro, config: { ...depsOutro.config, urlBase: new URL(url).origin } }, { SEED_FICTICIO: '1' })).toBe('semeado');
+      expect(await contar(outro, 'select count(*)::int as n from "user"')).toBe(4);
+    } finally {
+      await depsOutro.fila.parar();
+      await outro.fechar();
+    }
+  });
+
   it('seed cria contas com e-mail .test e 2FA ativo, e a demanda de rascunho de agente', async () => {
+    // O deps deste bloco usa CONFIG_TESTE: http://127.0.0.1:3101, o caso de loopback do e2e.
+    expect(new URL(deps.config.urlBase).hostname).toBe('127.0.0.1');
     const inicio = linhasDoLog.length;
     expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('semeado');
 
