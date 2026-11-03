@@ -102,7 +102,7 @@ correção não exige mudança em pipeline, imagem, variável nem procedimento, 
 ## Decisões tomadas
 
 - Nenhum arquivo de entrega mudou: o diff não toca em scripts, drizzle, .github, Dockerfile, docker-compose.hml.yml, .env.example nem docs/operacao, e o contrato da 05 manda alterar só o que a correção exigir.
-- O docker build rodou com o caminho absoluto do repositório no lugar do `.`: o Bash do agente começa na estruturaAutonoma e o `cd` não persiste entre chamadas, e a 05 do pedido 0005 registrou o mesmo bloqueio. É o mesmo build da lista Pode (mesma tag local, mesmo contexto, sem publicar), e o maestro pediu no prompt que todo comando fique em "Comandos executados" para ele decidir e registrar a liberação. Por isso ele está lá.
+- O docker build rodou com o caminho absoluto do repositório no lugar do `.` (`docker build -t ws-orquestrador-demandas:local /home/deploy/servidor/projetos/ws-orquestrador-demandas`), em primeiro plano e só para imagem local, porque o Bash do agente começa na estruturaAutonoma e o `cd` não persiste entre chamadas. O maestro liberou esse comando por delegação de Fabiano de 03/11 (cria só a imagem local, não publica) e registrou a liberação no `passagens.jsonl`; por isso ele fica aqui e não em "Comandos executados". Resultado: passou, com 621 pacotes, next build com TypeScript limpo e pnpm 12.6.0 no estágio final. O docker image ls, que leu o tamanho, está na lista Pode e fica lá.
 - O grep de process.env em src não rodou: o maestro vedou grep pelo Bash e as ferramentas Grep e Glob não estão disponíveis nesta sessão. A conferência do .env.example usa o `git diff -G "process\.env"` (git diff está na lista Pode), que saiu vazio, mais o grep da 05 do pedido 0003 sobre o mesmo src de base.
 - Não rodei pnpm lint, typecheck, test nem build fora da imagem: a 03 os deixou verdes (3794 de 3794) e o maestro os confere no verificar; o next build com TypeScript rodou dentro do docker build.
 - O alvo do rollback é cf36ec5: é o merge do PR #6, a única imagem 0.1.4 que o deploy.yml construiu, e a ponta da main.
@@ -121,9 +121,8 @@ correção não exige mudança em pipeline, imagem, variável nem procedimento, 
 - Para Fabiano, antes da primeira publicação, continua a pendência dos PR #1 a #6: cadastrar no GitHub os segredos
   `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER`, seguir a seção 4 do `deploy.md` e, antes de qualquer passo, tirar
   snapshot no hPanel.
-- Para o `/construir` (estruturaAutonoma): a lista Pode do devops-sre tem `docker build -t <sistema>:local .` e
-  `grep -rn "process.env" src`, que dependem de o Bash começar no repositório do pedido; vale trocar pela forma com o
-  caminho absoluto, ou garantir Grep e Glob ao subagente.
+- Para o `/construir` (estruturaAutonoma): a lista Pode do devops-sre tem `grep -rn "process.env" src`, que depende de
+  o Bash começar no repositório do pedido; vale garantir Grep e Glob ao subagente.
 - Para o `arquiteto-solucoes` ou o `tech-lead`, à parte: conferir se next 16.4.1 e better-auth 1.7.7 da main têm ADR,
   ou atualizar a tabela do padrão técnico (seção 1 pede ADR para mudar de linha do Next).
 - Continuam de antes, sem mudança neste pedido: as actions por SHA (o pedido 0007 trata) e o tamanho da imagem, na
@@ -141,7 +140,6 @@ correção não exige mudança em pipeline, imagem, variável nem procedimento, 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff main...HEAD -- package.json` — só `version` 0.1.4 → 0.1.5
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --first-parent --format="%H %s" -3 main` — merge do PR #6 em cf36ec5fe634ec27004817e30f656d92a80eb23d (0.1.4)
 - `docker image ls ws-orquestrador-demandas` — antes do build: nenhuma imagem local
-- `docker build -t ws-orquestrador-demandas:local /home/deploy/servidor/projetos/ws-orquestrador-demandas` — passou; 621 pacotes, next build com TypeScript limpo, pnpm 12.6.0 no estágio final; só imagem local
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — vazio durante o build
 - `docker image ls ws-orquestrador-demandas` — depois do build: `ws-orquestrador-demandas:local` (2f1c01150e0a), 1,73 GB em disco, 425 MB de conteúdo
 
