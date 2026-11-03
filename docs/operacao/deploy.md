@@ -7,7 +7,7 @@
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 03/11/2026 (`devops-sre`: actions por SHA na seção 10 e rollback da 0.1.6 na seção 6; `documentacao-tecnica`: versão 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 03/11/2026 (`devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -103,8 +103,12 @@ as mesmas 7 migrations da 0.1.0.
 
 **A primeira publicação está bloqueada pelo M-1 da 0.1.6** (CA-P5-16): a leitura de demanda pela API entrega ao token
 de agente o texto livre sem minimização, e um dado pessoal escrito ali sai inteiro
-([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6). Só comece o passo 1 depois de o pedido seguinte (0008)
-corrigi-lo e ser mergeado, ou de Fabiano e a `gestao-riscos` aceitarem o risco por escrito.
+([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6). **A 0.1.7 (pedido 0008) fecha o M-1 na demanda, mas não
+desbloqueia a publicação:** pelo achado M-a da revisão do 0008, o DEC ainda entrega ao token de agente, sem minimizar,
+a cópia do título e da descrição da demanda (`demandaTitulo` e `demandaDescricao`, inclusive no 201 do
+`POST /api/demandas/:id/pacotes-decisao`), os `comentarios` da decisão e o texto da ESP e do RSK. Só comece o passo 1
+depois de um pedido seguinte (0009) corrigir o M-a e ser mergeado, ou de Fabiano e a `gestao-riscos` aceitarem o risco
+por escrito.
 
 1. Snapshot no hPanel.
 2. Criar o projeto e o serviço `db` (Postgres 16). O usuário criado pelo Easypanel é o **migrator** (dono do banco).
@@ -185,6 +189,16 @@ na homologação por `construir.mjs ensaiar-rollback <DEC-id>` antes de cada PR 
 anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaurar`, e as 7 migrations novas não alteram
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
+
+A 0.1.7 não traz migration: `drizzle/` não muda em relação à 0.1.6, e o journal é o mesmo da 0.1.6 à 0.1.0. Ela não
+grava valor novo no banco: a minimização do texto livre da demanda e o corte de nome em ESP, RSK e DEC são só na
+resposta da API ao ator que não é pessoa, e o envio do `console.error` ao Sentry não escreve no banco. A volta da 0.1.7
+é o caminho A, para `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:75a2b0ff2e4c59b462ab0b3700e6a543886d8c48`
+(a `v0.1.6`, commit de merge do PR #8 na `main`). Antes de voltar, confirme a tag em Packages. Ao voltar, o token de
+agente volta a receber o texto livre da demanda sem minimizar e o nome de pessoa nas leituras de ESP, RSK e DEC (M-1 e
+M-2 do pedido 0008), e o erro fora de requisição deixa de ir ao Sentry (M-3): a volta é só para indisponibilidade, e a
+correção vem logo depois. Se a 0.1.7 for a primeira publicação (seção 4), não há versão no ar para onde voltar: a
+volta é parar `app` e `worker` no Easypanel. O ensaio é o `ensaiar-rollback` da Parada 3.
 
 A 0.1.6 não traz migration: `drizzle/` não muda em relação à 0.1.5, e o journal é o mesmo da 0.1.5 à 0.1.0. Ela não
 grava valor novo no banco: as recusas novas (409 de demanda em status final e o seed fora do loopback) não escrevem
