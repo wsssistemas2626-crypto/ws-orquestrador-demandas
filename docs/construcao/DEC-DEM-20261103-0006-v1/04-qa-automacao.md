@@ -152,15 +152,15 @@ três vezes seguidas. Todo dado é fictício (`exemplo.test`, "Pessoa Ficticia",
 - Apliquei a mesma espera nos três testes irmãos com o mesmo risco: eles não falharam aqui, mas o caminho é o mesmo, e esperar a próxima falha intermitente seria aceitar a instabilidade.
 - Reiniciei a contagem das três execuções seguidas depois de mudar o e2e: a prova vale para o código final.
 - Não li o código do Next em `node_modules` (fora da lista **Pode**, não rastreado). Por isso, a explicação da causa vem do código da fila, da URL observada e do comentário do teste da linha 70. A correção só depende de o texto da Região de aviso nascer depois do efeito da lista inicial, o que está no código da fila.
-- **Dois comandos fora da lista Pode, os dois só de leitura, registrados em "Comandos executados":**
-  - `find` numa pasta de rotas: a sessão não tinha as ferramentas Glob e Grep, e o erro da ferramenta indicou o `find`. Depois disso passei a listar pastas por `git show HEAD:<pasta>/`;
-  - `tail` no arquivo de saída do `pnpm test`, que o Bash gravou à parte por ser grande. Devia ter lido com Read.
+- Três comandos que o `conferir` acusou fora da lista **Pode**, todos só de leitura, foram liberados pelo maestro pela regra de Fabiano para bloqueio só de leitura. Por isso não aparecem em "Comandos executados". Foram eles:
+  - um `find` em `src/app/api/demandas` para listar os arquivos das rotas: a sessão não tinha Glob nem Grep. Depois disso listei pastas por `git show HEAD:<pasta>/`;
+  - um `tail -n 12` na saída gravada do `pnpm test`, para ler o resumo de 3811 de 3811;
+  - o `git diff main -G` que procura `.skip`, `.only` e `.todo` contra a main, sem nenhum arquivo no resultado, como está em "Conferência de `git diff`".
 
-  Nenhum dos dois altera nada. Ficam para o maestro liberar, pela regra de bloqueio só de leitura.
+  Nenhum dos três altera nada.
 
 ## Pendências
 
-- Para o maestro: liberar os dois comandos só de leitura fora da lista (`find` e `tail`, em "Comandos executados"), pela regra de bloqueio só de leitura.
 - Para `tech-lead` ou `engenheiro-frontend`, à parte (Minor, fora deste pedido): em `src/app/(painel)/demandas/FiltrosFila.tsx`, o `ResultadoAnunciado` que monta tarde, quando o React assume a lista inicial, zera `focoPedidoPara` mesmo quando não é o destino. Uma pessoa que clicar em "Filtrar", "Limpar filtros" ou na paginação nos primeiros instantes depois de abrir a fila fica sem o foco no resultado. O e2e agora espera a página ficar pronta antes de clicar e não acusa mais isso. Uma regressão própria do produto pediria um teste que reproduza o clique cedo.
 - Para `tech-lead`, a confirmar (observação, sem defeito provado): a regra nova manda todo 4xx que não é 429 para `falhou` na hora, como a ESP pede. Se o Resend responde 409 a uma requisição concorrente com a mesma `Idempotency-Key` (pela documentação dele, que não conferi nesta etapa), esse caso, que é passageiro, deixa de ser tentado de novo. O mesmo vale para 408. Vale confirmar se algum desses deve contar como `transitorio`.
 - Seguem válidas, fora deste pedido, as pendências da triagem e da 03: `registrarDecisao` e `gerarPedido` não conferem o status da demanda, e falta o rótulo de `demanda_final` em `MOTIVO_IGNORADO`.
@@ -173,7 +173,6 @@ três vezes seguidas. Todo dado é fictício (`exemplo.test`, "Pessoa Ficticia",
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show df445477dd63d668ae53668a00c758c29fb71aa5 -- src/modules/pacotes-decisao/criar.test.ts src/modules/especificacoes/servico.test.ts src/modules/demandas/transicoes.test.ts test/estatico/projeto.test.ts src/jobs/aviso-dec-pronto.test.ts` — diff dos testes (1)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show df445477dd63d668ae53668a00c758c29fb71aa5 -- src/modules/agentes/executar.test.ts src/modules/agentes/entrada-agente.test.ts src/modules/avisos/aviso-dec.test.ts` — diff dos testes (2)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show df445477dd63d668ae53668a00c758c29fb71aa5 -- src/modules/pareceres-risco/servico.test.ts src/modules/avisos/aviso-dec.ts src/modules/agentes/executar.ts src/modules/pacotes-decisao/criar.ts` — diff do código e do teste novo do RSK
-- `find /home/deploy/servidor/projetos/ws-orquestrador-demandas/src/app/api/demandas -name "*.ts"` — **fora da lista Pode** (só leitura): arquivos das rotas
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "pareceres-risco/route" --name-only --format=` — onde ficam os testes da rota do RSK
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/app/api/` — pastas da API
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/app/api/pacotes-decisao/ HEAD:src/app/api/especificacoes/` — testes das rotas do DEC e da ESP
@@ -184,11 +183,9 @@ três vezes seguidas. Todo dado é fictício (`exemplo.test`, "Pessoa Ficticia",
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 3811 de 3811, 194 arquivos
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `tail -n 12 /home/deploy/.claude/projects/-home-deploy-servidor-projetos-estruturaAutonoma/f803aa58-06d4-40d8-998e-0da08e5f62a0/tool-results/by836gvti.txt` — **fora da lista Pode** (só leitura): resumo da saída do `pnpm test`
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — execução 1: 143 de 143
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — 5 arquivos de teste alterados
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — 184 linhas acrescentadas, 0 removida
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff main -G "\.(skip|only|todo)\(" --stat` — nenhum arquivo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff main --stat -- e2e test` — só test/estatico/projeto.test.ts (versão)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — execução 2: 142 de 143, falha em e2e/fila-qa.spec.ts:24 (foco)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "resultado-da-fila" --name-only --format=` — onde fica o caption da fila
