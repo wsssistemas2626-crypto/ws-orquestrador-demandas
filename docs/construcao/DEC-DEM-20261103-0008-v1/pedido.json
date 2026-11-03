@@ -1,0 +1,38 @@
+{
+  "pedido": "DEC-DEM-20261103-0008-v1",
+  "demanda": {
+    "id": "DEM-20261103-0008",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.7: médios M-1, M-2 e M-3 da revisão do pedido 0007 (minimização para o agente e diagnóstico)",
+    "descricao": "Na 04-revisao do pedido DEC-DEM-20261103-0007-v1 (docs/construcao/DEC-DEM-20261103-0007-v1/04-maestro.md, seção Médio) ficaram três médios, e o M-1 bloqueia a primeira publicação (CA-P5-16, CA-P5-20). (M-1, RF-20, dado pessoal) src/modules/demandas/consultas.ts:199-222 (vistaDaDemandaPara) e :225 (listarDemandas): a vista para quem não é pessoa tira solicitanteNome, anexos e o nome da conta autora, mas devolve titulo, contexto, descricaoProblema, justificativaUrgencia, impactoPercebido e duvidasEntrada sem minimizar, e o titulo da listagem GET /api/demandas também; a entrada do agente (src/modules/agentes/entrada-agente.ts) troca nome, e-mail, CPF, CNPJ e telefone por marcadores. (M-2) src/modules/especificacoes/consultas.ts:63, src/modules/pareceres-risco/consultas.ts e src/modules/pacotes-decisao/consultas.ts:148-155: as leituras de ESP, RSK e DEC pela API dão ao token de agente autor.nome, aprovadores[].nome, referenciaDocumento e decididaPor. (M-3) src/lib/console-saneado.ts:31-32: erro fora de requisição (uncaughtException, unhandledRejection, onError do after()) perde a pilha e não vai ao Sentry, que roda com defaultIntegrations false. (B-1) src/instrumentation.ts:51 passa erro: err cru ao log. Base: main (75a2b0f, versão 0.1.6)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261103-0008-v1",
+    "conteudo": "(M-1) Para ator que não é pessoa, todo campo de texto livre da demanda devolvido pela API (titulo, contexto, descricaoProblema, justificativaUrgencia, impactoPercebido, duvidasEntrada e o titulo de cada item da listagem GET /api/demandas) passa pelo mesmo minimizar da entrada do agente, com o nome do solicitante entre os nomes trocados; a pessoa continua vendo o texto original; teste de contrato com e-mail, CPF, telefone e o nome do solicitante no texto, para os dois atores, na leitura, na criação e na listagem. (M-2) Para ator que não é pessoa, as leituras de ESP, RSK e DEC pela API não devolvem o nome de pessoa em autor, aprovadores e decididaPor, nem referenciaDocumento: a autoria de pessoa vira só o tipo, como na vista mínima da demanda da 0.1.6; a autoria de agente fica igual; teste de contrato para os dois atores. (M-3) O console saneado manda ao Sentry, por capturarErro, o Error sem digest (o com digest já vai pelo onRequestError, sem duplicar), mantendo o log por lista de permissão; teste. (B-1) onRequestError passa o erro reduzido (reduzirErro) ao log. Nenhum controle é afrouxado (C-10, C-21, C-23, A-02, axe, C-36). Sem migration. Mudam src/, os testes, package.json (versão 0.1.7) e CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261103-0008-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe na API lida por agente e no envio de erro ao Sentry, com dados fictícios. Riscos: minimizar também para a pessoa por engano (o teste cobre os dois atores); um agente depender do nome do autor (a entrada do agente já não recebe); o Sentry receber erro em dobro ou com dado (o saneamento é o mesmo do capturarErro das rotas). Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261103-0008-v1",
+    "opcaoEscolhida": "Corrigir M-1, M-2, M-3 e B-1 da revisão do 0007 num pedido de correção (cadeia curta) sobre a main, antes da primeira publicação",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-03"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Ator agente recebe o texto livre da demanda minimizado na leitura, na criação e na listagem; a pessoa recebe o original",
+    "Ator agente não recebe nome de pessoa nem referenciaDocumento nas leituras de ESP, RSK e DEC; a pessoa recebe",
+    "Error sem digest no console saneado vai ao Sentry sem duplicar o que o onRequestError já manda",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.7",
+    "PR com CI verde"
+  ]
+}
