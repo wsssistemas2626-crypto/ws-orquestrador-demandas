@@ -10,14 +10,17 @@ import { comTransacao } from '../../db/transacao';
 import { definirDepsParaTeste, type Deps } from '../../lib/deps';
 import { substituirDestinoDoLog } from '../../lib/log';
 import type { HandlerRota } from '../../lib/rota';
-import type { AtorAgente, AtorPessoa } from '../../modules/acesso/ator';
+import type { AtorAgente, AtorPessoa, AtorSistema } from '../../modules/acesso/ator';
 import { criarTokenServico } from '../../modules/acesso/tokens-servico';
 import { criarDemandaSchema } from '../../modules/demandas/schemas';
 import { criarDemanda } from '../../modules/demandas/servico';
+import { vistaDaEspecificacaoPara } from '../../modules/especificacoes/consultas';
 import { criarEspecificacaoSchema } from '../../modules/especificacoes/schemas';
 import { criarEspecificacao } from '../../modules/especificacoes/servico';
+import { vistaDoPacotePara } from '../../modules/pacotes-decisao/consultas';
 import { criarPacoteDecisao } from '../../modules/pacotes-decisao/criar';
 import { criarPacoteDecisaoSchema } from '../../modules/pacotes-decisao/schemas';
+import { vistaDoParecerPara } from '../../modules/pareceres-risco/consultas';
 import { criarParecerRiscoSchema } from '../../modules/pareceres-risco/schemas';
 import { criarParecerRisco } from '../../modules/pareceres-risco/servico';
 import { GET as GET_ESPS } from './demandas/[id]/especificacoes/route';
@@ -172,5 +175,76 @@ describe('M-2: leituras de ESP, RSK e DEC para quem não é pessoa', () => {
       ]);
       expect(d.decisao).toMatchObject({ opcaoEscolhida: 'A', decididaPor: CONTA });
     }
+  });
+});
+
+// 04-regressao do 0008 (qa-automacao): a vista do agente é exatamente a da pessoa com os três cortes do M-2 (autor de
+// pessoa só pelo tipo, aprovador sem nome e referenciaDocumento, decisão sem decididaPor). Nenhuma outra chave some,
+// nenhuma sobra e nenhum valor muda: a montagem chave a chave não pode perder campo que o agente lia na 0.1.6.
+// A expectativa é montada aqui, no teste, a partir da leitura da pessoa.
+function comOsCortesDoM2(v: Obj): Obj {
+  const r: Obj = { ...v };
+  if ((v.autor as Obj).tipo === 'pessoa') r.autor = { tipo: 'pessoa' };
+  if (Array.isArray(v.aprovadores)) {
+    r.aprovadores = (v.aprovadores as Obj[]).map((a) => {
+      const copia = { ...a };
+      delete copia.nome;
+      delete copia.referenciaDocumento;
+      return copia;
+    });
+  }
+  if (v.decisao) {
+    const decisao = { ...(v.decisao as Obj) };
+    delete decisao.decididaPor;
+    r.decisao = decisao;
+  }
+  return r;
+}
+
+describe('M-2 (04-regressao): o agente recebe a vista da pessoa só com os cortes, nada a mais nem a menos', () => {
+  for (const [nome, cenario] of [
+    ['autoria pessoa', () => dePessoa],
+    ['autoria agente', () => deAgente],
+  ] as const) {
+    it(`${nome}: nas sete rotas, leitura do agente = leitura da pessoa com os cortes do M-2`, async () => {
+      const c = cenario();
+      const daPessoa = await lerTudo(c, { cookie });
+      const doAgente = await lerTudo(c, { bearer: tokenRisco });
+      for (const chave of ['esp', 'rsk', 'dec'] as const) expect(doAgente[chave], chave).toEqual(comOsCortesDoM2(daPessoa[chave]));
+      for (const chave of ['esps', 'rsks', 'decs'] as const) expect(doAgente[chave].length, chave).toBeGreaterThan(0);
+      for (const chave of ['esps', 'rsks', 'decs', 'fila'] as const) expect(doAgente[chave], chave).toEqual(daPessoa[chave].map(comOsCortesDoM2));
+    });
+  }
+
+  it('lista de permissão: o ator sistema recebe a mesma vista mínima do agente nas três funções', async () => {
+    const daPessoa = await lerTudo(dePessoa, { cookie });
+    const doAgente = await lerTudo(dePessoa, { bearer: tokenRisco });
+    const sistema: AtorSistema = { tipo: 'sistema' };
+    expect(vistaDaEspecificacaoPara(sistema, daPessoa.esp as never)).toEqual(doAgente.esp);
+    expect(vistaDoParecerPara(sistema, daPessoa.rsk as never)).toEqual(doAgente.rsk);
+    expect(vistaDoPacotePara(sistema, daPessoa.dec as never)).toEqual(doAgente.dec);
+    for (const v of [vistaDaEspecificacaoPara(sistema, daPessoa.esp as never), vistaDoPacotePara(sistema, daPessoa.dec as never)]) {
+      for (const proibido of PROIBIDOS) expect(JSON.stringify(v)).not.toContain(proibido);
+    }
+  });
+
+  it('conta de autor e de quem decidiu sem nome (nulo): o agente segue com { tipo: pessoa } e sem decididaPor', async () => {
+    const daPessoa = await lerTudo(dePessoa, { cookie });
+    const semConta = { ...daPessoa.dec, autor: { tipo: 'pessoa', nome: null }, decisao: { ...(daPessoa.dec.decisao as Obj), decididaPor: null } };
+    const v = vistaDoPacotePara(risco, semConta as never) as unknown as Obj;
+    expect(v.autor).toEqual({ tipo: 'pessoa' });
+    expect(Object.keys(v.decisao as Obj)).not.toContain('decididaPor');
+    expect(v).toEqual(comOsCortesDoM2(semConta));
+    const esp = vistaDaEspecificacaoPara(risco, { ...daPessoa.esp, autor: { tipo: 'pessoa', nome: null } } as never) as unknown as Obj;
+    expect(esp.autor).toEqual({ tipo: 'pessoa' });
+    const rsk = vistaDoParecerPara(risco, { ...daPessoa.rsk, autor: { tipo: 'pessoa', nome: null } } as never) as unknown as Obj;
+    expect(rsk.autor).toEqual({ tipo: 'pessoa' });
+  });
+
+  it('a pessoa recebe a própria vista, sem cópia nem corte, nas três funções', async () => {
+    const daPessoa = await lerTudo(dePessoa, { cookie });
+    expect(vistaDaEspecificacaoPara(pessoa, daPessoa.esp as never)).toBe(daPessoa.esp);
+    expect(vistaDoParecerPara(pessoa, daPessoa.rsk as never)).toBe(daPessoa.rsk);
+    expect(vistaDoPacotePara(pessoa, daPessoa.dec as never)).toBe(daPessoa.dec);
   });
 });

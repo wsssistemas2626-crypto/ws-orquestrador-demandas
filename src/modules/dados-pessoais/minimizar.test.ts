@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { SENTINELAS } from '../../../test/sentinelas';
 import { DETECTORES, encontrarDadosPessoais, type TipoDadoPessoal } from './detectores';
-import { CABECALHOS_DE_EMAIL, MARCADOR_NOME, MARCADORES, minimizar } from './minimizar';
+import { CABECALHOS_DE_EMAIL, MARCADOR_NOME, MARCADORES, minimizar, minimizarValor } from './minimizar';
 
 const TIPOS: TipoDadoPessoal[] = ['e-mail', 'telefone', 'CPF', 'CNPJ'];
 
@@ -220,5 +220,44 @@ describe('minimizar: nome conhecido do solicitante (RF-20)', () => {
   it('texto que só tem marcadores, com o nome igual a palavra de marcador, passa igual', () => {
     const t = `${MARCADOR_NOME}${MARCADORES['e-mail']}${MARCADORES.CPF}`;
     expect(minimizar(t, { nomes: ['removido', 'nome removido'] })).toBe(t);
+  });
+});
+
+// 04-regressao do DEC-DEM-20261103-0008-v1 (qa-automacao): `minimizarValor` saiu da entrada do agente e passou a ser a
+// regra única também da vista da API para quem não é pessoa (M-1). Dados fictícios da 01 do 0008.
+describe('minimizarValor: a regra única da entrada do agente e da vista da API (M-1 do 0008)', () => {
+  const NOME = 'Maria Ficticia Teste';
+  const T = 'Falar com Maria Ficticia Teste, maria.teste@exemplo.invalid, CPF 123.456.789-09, tel (11) 90000-0000';
+  const T_MIN = 'Falar com [nome removido], [e-mail removido], CPF [CPF removido], tel [telefone removido]';
+
+  it('texto: o mesmo resultado de minimizar com os nomes', () => {
+    expect(minimizarValor(T, [NOME])).toBe(T_MIN);
+    expect(minimizarValor(T, [NOME])).toBe(minimizar(T, { nomes: [NOME] }));
+  });
+
+  it('lista, inclusive aninhada: cada texto minimizado, na mesma ordem; o que não é texto fica', () => {
+    expect(minimizarValor([T, 'Dúvida sem dado', [T], 7, null], [NOME])).toEqual([T_MIN, 'Dúvida sem dado', [T_MIN], 7, null]);
+    expect(minimizarValor([], [NOME])).toEqual([]);
+  });
+
+  it('nulo, número, booleano e indefinido saem como estão', () => {
+    for (const v of [null, undefined, 0, 42, true, false]) expect(minimizarValor(v, [NOME])).toBe(v);
+  });
+
+  it('sem nome na lista, só os detectores: o nome do solicitante fica, e-mail, CPF e telefone saem', () => {
+    expect(minimizarValor(T, [])).toBe('Falar com Maria Ficticia Teste, [e-mail removido], CPF [CPF removido], tel [telefone removido]');
+  });
+
+  it('o nome de outro solicitante não troca o nome deste (cada item da listagem usa o seu)', () => {
+    expect(minimizarValor('Pedido de Ana Exemplo Lima', ['Bruno Exemplo Rocha'])).toBe('Pedido de Ana Exemplo Lima');
+  });
+
+  it('nome com menos de 3 letras não é trocado; com espaço duplo e caixa diferente, é', () => {
+    expect(minimizarValor('Eu e a casa', ['Eu'])).toBe('Eu e a casa');
+    expect(minimizarValor('falar com MARIA  FICTICIA   TESTE', [NOME])).toBe('falar com [nome removido]');
+  });
+
+  it('é idempotente: o texto já minimizado passa igual', () => {
+    expect(minimizarValor(T_MIN, [NOME])).toBe(T_MIN);
   });
 });

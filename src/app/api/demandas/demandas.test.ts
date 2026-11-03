@@ -503,6 +503,27 @@ describe('M-1: texto livre da demanda minimizado para quem não é pessoa', () =
     const pessoa: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-x', nome: 'Pessoa Ficticia', papel: 'cto' };
     expect(vistaDaDemandaPara(pessoa, vista)).toBe(vista);
   });
+
+  // 04-regressao (qa-automacao): a listagem do agente só difere da da pessoa no título; nenhuma chave some ou sobra.
+  it('04-regressao: na listagem, o item do agente tem as mesmas chaves e valores do da pessoa, menos o título', async () => {
+    await criarOk({ tipo: 'estudo', titulo: T, solicitanteNome: NOME }, p());
+    type Pagina = { itens: Array<Record<string, unknown>>; total: number; limit: number; offset: number };
+    const pagina = async (cred: Credencial) => (await (await listar('?tipo=estudo&limit=100', cred)).json()) as Pagina;
+    const daPessoa = await pagina(p());
+    const doAgente = await pagina({ bearer: tokenRisco });
+    expect({ ...doAgente, itens: null }).toEqual({ ...daPessoa, itens: null });
+    const porId = new Map(daPessoa.itens.map((i) => [i.id, i]));
+    let comparados = 0;
+    for (const item of doAgente.itens) {
+      const original = porId.get(item.id);
+      if (!original) continue;
+      comparados += 1;
+      expect(Object.keys(item).sort()).toEqual(Object.keys(original).sort());
+      expect({ ...item, titulo: '' }).toEqual({ ...original, titulo: '' });
+      semValores(String(item.titulo));
+    }
+    expect(comparados).toBeGreaterThan(0);
+  });
 });
 
 describe('PATCH /api/demandas/:id', () => {
