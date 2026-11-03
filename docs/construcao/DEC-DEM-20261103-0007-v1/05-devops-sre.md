@@ -76,10 +76,15 @@ São 9 linhas `uses:` ao todo, e nenhuma ficou por tag nem com "SHA pendente" (c
   a seção só ia até a 0.1.5. O alvo é o merge do PR #7 (`e0d5f4c`), lido no `git log main`.
 - Não mexi no cabeçalho do `deploy.md` (versão 0.1.5 e "Atualizado em") nem na seção 4 (primeira publicação com a
   0.1.5): a troca da versão no manual é da `06-documentacao`, como nos pedidos anteriores.
-- O `docker build` usou o caminho do repositório como contexto, em vez de `.`, porque o Bash desta sessão não fica na
-  pasta do repositório e o `cd ... &&` está vetado. É o mesmo comando da lista **Pode**, com o contexto explícito.
-- O `grep -rn "process.env" src` rodou primeiro como está na lista e falhou, porque a sessão começa na
-  estruturaAutonoma. Rodei de novo com o caminho absoluto do `src` do repositório do pedido.
+- Dois comandos rodaram com o caminho absoluto do repositório do pedido no lugar do relativo da lista **Pode**, porque
+  o Bash desta sessão começa na estruturaAutonoma e o `cd ... &&` está vetado. O maestro liberou os dois e os registrou
+  no `passagens.jsonl`, e por isso eles ficam fora de "Comandos executados":
+  - o `docker build -t ws-orquestrador-demandas:local` com o caminho do repositório como contexto (código 0), por
+    delegação de Fabiano de 03/11. Ele só cria a imagem local e não publica nada;
+  - o `grep -rn "process.env"` no `src` do repositório, pela regra de Fabiano de 25/10 sobre comando só de leitura.
+    Achou `NODE_ENV`, `NEXT_RUNTIME`, `SENTRY_DSN` e `LOG_LEVEL` lidos direto, e o resto por `lerConfigApp` e
+    `lerConfigWorker`.
+- O `grep -rn "process.env" src` rodou antes como está na lista e falhou, porque a sessão não está no repositório.
 - A 1ª rodada do `pnpm test` disputou CPU e disco com o `docker build`, e as 6 falhas foram todas por tempo, em testes
   de banco e de concorrência. Por isso rodei os 4 arquivos sozinhos e a suíte inteira de novo, em vez de devolver.
 - As ferramentas Grep e Glob não estão disponíveis nesta sessão. Li tudo com a ferramenta Read e conferi que não
@@ -103,10 +108,8 @@ São 9 linhas `uses:` ao todo, e nenhuma ficou por tag nem com "SHA pendente" (c
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat main...HEAD -- drizzle Dockerfile .dockerignore docker-entrypoint.sh docker-compose.hml.yml .env.example` — sem saída: nada disso mudou em relação à main
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -3 --format="%H %ci %s" main` — merge do PR #7 em e0d5f4c39740275c31e4f4de55874128adb52e78 (0.1.5)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -- .github` — 9 linhas `uses:` trocadas e 2 cabeçalhos
-- `docker build -t ws-orquestrador-demandas:local /home/deploy/servidor/projetos/ws-orquestrador-demandas` — código 0
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 3873 de 3879, 6 por tempo em 4 arquivos, junto com o build
 - `grep -rn "process.env" src` — falhou: a sessão não está no repositório (`src: No such file or directory`)
-- `grep -rn "process.env" /home/deploy/servidor/projetos/ws-orquestrador-demandas/src` — NODE_ENV, NEXT_RUNTIME, SENTRY_DSN e LOG_LEVEL diretos; o resto por lerConfigApp e lerConfigWorker
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat main...HEAD -- src/lib/env.ts src/lib/env-worker.ts` — só `env.ts`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff main...HEAD -- src/lib/env.ts` — só exporta `ehLoopback`, sem variável nova
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — 3 alterados (`ci.yml`, `deploy.yml`, `deploy.md`) e esta entrega
