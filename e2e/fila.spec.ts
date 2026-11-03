@@ -56,6 +56,9 @@ test('CA-26.1: 5 demandas com status diferentes, filtro aguardando_informacao mo
   expect(esperadas).toBeLessThanOrEqual(20);
 
   await page.goto('/demandas');
+  // O texto da Região de aviso só chega depois que o React assume a lista inicial: antes disso, o pedido de foco do
+  // "Filtrar" pode ser consumido pelo efeito atrasado dela (04-regressao do DEC-DEM-20261103-0006-v1, fila-qa.spec.ts).
+  await expect(regiaoDeAviso(page)).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
   await page.getByLabel('Status').selectOption({ label: 'Aguardando informação' });
   await expect(page).not.toHaveURL(/status=/); // não aplica ao mudar a seleção (WCAG 3.2.2)
   await page.getByRole('button', { name: 'Filtrar' }).click();
@@ -96,6 +99,8 @@ test('paginação: Anterior desabilitado na página 1; Próxima leva à página 
   await expect(paginacao.getByText('Página 1')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('main tbody tr')).toHaveCount(20);
   const primeiraDaPagina1 = await page.locator('main tbody tr td:first-child').first().innerText();
+  // Lista inicial já assumida pelo React antes do clique que pede o foco (ver o teste CA-26.1).
+  await expect(regiaoDeAviso(page)).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
 
   await paginacao.getByRole('link', { name: 'Próxima' }).click();
   await expect(page).toHaveURL(/offset=20/);

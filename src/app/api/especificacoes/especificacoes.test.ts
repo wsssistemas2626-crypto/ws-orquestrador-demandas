@@ -17,6 +17,7 @@ import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenServico } from '../../../modules/acesso/tokens-servico';
 import { criarDemandaSchema, type Status, type Tipo } from '../../../modules/demandas/schemas';
 import { criarDemanda } from '../../../modules/demandas/servico';
+import { MENSAGEM_DEMANDA_FINAL } from '../../../modules/demandas/transicoes';
 import { MENSAGEM_LIMITE } from '../../../modules/limites';
 import * as rotaDaVersao from './[espId]/route';
 import { GET as GET_VERSAO } from './[espId]/route';
@@ -378,6 +379,38 @@ describe('bordas pela rota (06-T18-testes)', () => {
     const depois = (await (await obter(v1.id)).json()) as Record<string, unknown>;
     expect({ ...depois, versaoMaisNova: null }).toEqual({ ...antes, versaoMaisNova: null });
     expect(depois.versaoMaisNova).toBe(`ESP-${id}-v2`);
+  });
+});
+
+// 04-regressao (qa-automacao, DEC-DEM-20261103-0006-v1): M-02 pela rota, o contrato que a interface e os agentes
+// recebem. Demanda em status final → 409 com o corpo exato, pela pessoa e pelo token do agente, e nada gravado. As
+// demandas deste bloco são criadas pela administradora, que não cria demanda no resto do arquivo: o limite por hora
+// (C-36) da CTO fica como os outros testes esperam, em qualquer ordem.
+describe('demanda em status final pela rota (M-02, 04-regressao)', () => {
+  const demandaEm = async (status: Status): Promise<string> => {
+    const adm: AtorPessoa = { tipo: 'pessoa', usuarioId: usuarioAdm, nome: 'Pessoa Ficticia', papel: 'administradora' };
+    const d = await criarDemanda(deps, adm, criarDemandaSchema.parse({ titulo: 'Pedidos duplicados', tipo: 'bug', solicitanteNome: 'Pessoa Ficticia' }));
+    await b.poolMigrator.query('update demanda set status = $2 where id = $1', [d.id, status]);
+    return d.id;
+  };
+
+  it.each([
+    ['entregue', 'pessoa'],
+    ['encerrada', 'pessoa'],
+    ['entregue', 'agente'],
+    ['encerrada', 'agente'],
+  ] as const)('POST em demanda %s, pelo ator %s → 409 conflito com a mensagem fixa, e nada gravado', async (status, quem) => {
+    const id = await demandaEm(status);
+    const r = await criar(id, { ...VALIDA, duvidasEmAberto: ['Dúvida fictícia'] }, quem === 'pessoa' ? cto() : { bearer: tokenInsumo });
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual({ erro: 'conflito', mensagem: MENSAGEM_DEMANDA_FINAL });
+    expect(await contarEsp(id)).toBe(0);
+    expect(await statusDa(id)).toBe(status);
+  });
+
+  it('a demanda aberta aceita a ESP pela rota (controle): em_construcao → 201', async () => {
+    const id = await demandaEm('em_construcao');
+    expect((await criarOk(id)).id).toBe(`ESP-${id}-v1`);
   });
 });
 

@@ -444,6 +444,32 @@ describe('enviarAviso: recusa definitiva, falha passageira e erro inesperado (M-
     expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: 3 });
   });
 
+  // 04-regressao (qa-automacao): a contagem do erro inesperado sob concorrência. Quatro jobs do mesmo DEC ao mesmo tempo
+  // (reenvio manual sem singletonKey, ou um job atrasado): a trava da linha faz cada um contar uma vez, sem perder nem
+  // repetir contagem, e o 4º encontra o aviso já falhou. O resultado não depende da ordem em que as quatro rodam.
+  it('quatro execuções simultâneas com erro inesperado → exatamente 3 tentativas, falhou, Sentry uma vez e duas novas tentativas pedidas', async () => {
+    const { decId } = await decPronto();
+    const quebrada = depsAviso({ config: { ...CONFIG_TESTE, urlBase: 'ftp://orquestrador.exemplo.test', emailRemetente: REMETENTE, emailAvisoDecisao: DESTINATARIO } });
+    const linhas = capturar();
+    let resultados: PromiseSettledResult<string>[];
+    try {
+      resultados = await Promise.allSettled([1, 2, 3, 4].map(() => enviarAviso(quebrada, decId)));
+    } finally {
+      substituirDestinoDoLog(null);
+    }
+    expect(await linhaAviso(decId)).toMatchObject({ status: 'falhou', tentativas: 3, enviado_em: null });
+    const rejeitados = resultados.filter((r): r is PromiseRejectedResult => r.status === 'rejected').map((r) => r.reason as unknown);
+    for (const e of rejeitados) expect(e).toBeInstanceOf(AvisoNaoEnviado);
+    expect(rejeitados.map((e) => (e as AvisoNaoEnviado).tentativa).sort()).toEqual([1, 2]);
+    expect(resultados.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map((r) => r.value)).toEqual(['falhou', 'falhou']);
+    expect(enviador.chamadas).toBe(0);
+    await Sentry.flush(2000);
+    expect(eventosSentry).toHaveLength(1);
+    expect(eventosSentry[0]).toContain('aviso_email_falhou');
+    const eventos = linhas.map((l) => (JSON.parse(l) as Record<string, unknown>).evento).sort();
+    expect(eventos).toEqual(['aviso_email_falha', 'aviso_email_falha', 'aviso_email_falhou']);
+  });
+
   it('erro inesperado com o aviso já enviado → ja_enviado, sem contar', async () => {
     const { decId } = await decPronto();
     expect(await enviarAviso(depsAviso(), decId)).toBe('enviado');

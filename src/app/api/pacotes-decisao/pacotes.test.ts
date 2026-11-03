@@ -21,6 +21,7 @@ import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenServico } from '../../../modules/acesso/tokens-servico';
 import { criarDemandaSchema } from '../../../modules/demandas/schemas';
 import { criarDemanda } from '../../../modules/demandas/servico';
+import { MENSAGEM_DEMANDA_FINAL } from '../../../modules/demandas/transicoes';
 import { criarEspecificacaoSchema } from '../../../modules/especificacoes/schemas';
 import { criarEspecificacao } from '../../../modules/especificacoes/servico';
 import { MENSAGEM_LIMITE } from '../../../modules/limites';
@@ -440,6 +441,66 @@ describe('GET /api/pacotes-decisao?statusDecisao', () => {
 
   it('CA-01.3: sem sessão nem token → 401', async () => {
     expect((await filtrar('?statusDecisao=aprovada', {})).status).toBe(401);
+  });
+});
+
+// 04-regressao (qa-automacao, DEC-DEM-20261103-0006-v1): M-02 e M-01 pela rota.
+// - M-02: demanda em status final → 409 com o corpo exato, pela pessoa e pelo token da consolidação, sem DEC nem aviso.
+// - M-01 com C-11: o serviço passou a aceitar especificacaoId e parecerRiscoId nos extras do worker. Pela rota, esses
+//   campos no corpo continuam descartados, mesmo apontando para versões que existem: a rota cita sempre as mais novas.
+// As demandas deste bloco são de uma pessoa só dele: o limite por hora (C-36) da CTO fica como os outros testes esperam.
+describe('M-02 e M-01 pela rota (04-regressao)', () => {
+  let dono: AtorPessoa;
+  beforeAll(async () => {
+    const p = await criarPessoa(deps, { papel: 'administradora' });
+    dono = { tipo: 'pessoa', usuarioId: p.usuarioId, nome: 'Pessoa Ficticia', papel: 'administradora' };
+  });
+  const prontaDoBloco = async (): Promise<string> => {
+    const id = (await criarDemanda(deps, dono, criarDemandaSchema.parse({ titulo: 'Pedidos duplicados', tipo: 'bug', solicitanteNome: 'Pessoa Ficticia' }))).id;
+    await criarEspecificacao(deps, insumo, id, espDaRota('x'));
+    await criarParecerRisco(deps, risco, id, criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' }));
+    return id;
+  };
+  const levarA = (id: string, status: string) => b.poolMigrator.query('update demanda set status = $2 where id = $1', [id, status]);
+  const avisosDa = async (demandaId: string) =>
+    Number((await b.poolMigrator.query<{ n: string }>('select count(*)::text as n from aviso_email where pacote_decisao_id like $1', [`DEC-${demandaId}-%`])).rows[0]!.n);
+
+  it.each([
+    ['entregue', 'pessoa'],
+    ['encerrada', 'pessoa'],
+    ['entregue', 'agente'],
+    ['encerrada', 'agente'],
+  ] as const)('POST em demanda %s, pelo ator %s → 409 conflito com a mensagem fixa, sem DEC e sem aviso', async (status, quem) => {
+    const id = await prontaDoBloco();
+    await levarA(id, status);
+    const r = await criar(id, VALIDO, quem === 'pessoa' ? cto() : { bearer: tokenConsolidacao });
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual({ erro: 'conflito', mensagem: MENSAGEM_DEMANDA_FINAL });
+    expect(await contarDec(id)).toBe(0);
+    expect(await avisosDa(id)).toBe(0);
+    expect(await statusDa(id)).toBe(status);
+  });
+
+  it('M-01 e C-11: especificacaoId e parecerRiscoId de versões antigas (que existem) no corpo são descartados; pessoa e token da consolidação citam as mais novas', async () => {
+    const id = await prontaDoBloco();
+    const outra = await prontaDoBloco();
+    await criarEspecificacao(deps, insumo, id, espDaRota('ESP v2'));
+    await criarParecerRisco(deps, risco, id, criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'alto', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' }));
+    const antigos = { especificacaoId: `ESP-${id}-v1`, parecerRiscoId: `RSK-${id}-v1` };
+    const pelaPessoa = await criarOk(id, antigos);
+    expect(pelaPessoa).toMatchObject({ id: `DEC-${id}-v1`, especificacaoId: `ESP-${id}-v2`, parecerRiscoId: `RSK-${id}-v2`, desatualizado: false });
+    const peloAgente = await criarOk(id, { ...antigos, execucaoAgenteId: '00000000-0000-4000-8000-000000000041' }, { bearer: tokenConsolidacao });
+    expect(peloAgente).toMatchObject({ id: `DEC-${id}-v2`, especificacaoId: `ESP-${id}-v2`, parecerRiscoId: `RSK-${id}-v2`, desatualizado: false });
+    // Ids de outra demanda no corpo também não entram: nem 404, nem citação cruzada.
+    const cruzado = await criarOk(id, { especificacaoId: `ESP-${outra}-v1`, parecerRiscoId: `RSK-${outra}-v1` });
+    expect(cruzado).toMatchObject({ id: `DEC-${id}-v3`, especificacaoId: `ESP-${id}-v2`, parecerRiscoId: `RSK-${id}-v2` });
+    const linhas = (
+      await b.poolMigrator.query<{ especificacao_id: string; parecer_risco_id: string; execucao_agente_id: string | null }>(
+        'select especificacao_id, parecer_risco_id, execucao_agente_id from pacote_decisao where demanda_id = $1 order by versao',
+        [id],
+      )
+    ).rows;
+    expect(linhas).toEqual(Array.from({ length: 3 }, () => ({ especificacao_id: `ESP-${id}-v2`, parecer_risco_id: `RSK-${id}-v2`, execucao_agente_id: null })));
   });
 });
 
