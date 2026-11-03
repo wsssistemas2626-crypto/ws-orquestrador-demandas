@@ -100,6 +100,39 @@ describe('console saneado', () => {
     expect(terminal.warn).toBe(originais.warn);
   });
 
+  // 04-regressao (qa-automacao): os casos exploratórios da 01 (D-01). O sentinela vai em todo lugar onde um erro leva
+  // texto: name livre, cause em dois níveis, code fora do formato, digest fora do formato, AggregateError e o texto de
+  // formatação do console (%s, %o). Nada disso pode chegar ao stdout, ao stderr nem à linha do log.
+  it('erro com name livre, cause em dois níveis, code e digest fora do formato, AggregateError e %s/%o: nada do texto sai', () => {
+    const linhas: string[] = [];
+    substituirDestinoDoLog({ write: (l) => void linhas.push(l) });
+    instalarConsoleSaneado();
+    const saidas = espiarSaidas();
+    const fundo = Object.assign(new Error(`fundo ${SENTINELA}`), { code: '57P01', params: [SENTINELA] });
+    const meio = new Error(`meio ${SENTINELA}`, { cause: fundo });
+    const nomeLivre = Object.assign(new Error(`topo ${SENTINELA}`, { cause: meio }), {
+      name: `Erro ${SENTINELA}`,
+      digest: `digest ${SENTINELA}`,
+      code: `code ${SENTINELA}`,
+    });
+    const agregado = new AggregateError([new Error(SENTINELA), meio], `agregado ${SENTINELA}`);
+    try {
+      terminal.error(nomeLivre);
+      terminal.error('%s falhou: %o', SENTINELA, agregado);
+      terminal.warn('%o', { cause: meio, token: SENTINELA });
+    } finally {
+      saidas.restaurar();
+    }
+    expect(saidas.escrito.join('')).not.toContain(SENTINELA);
+    expect(linhas).toHaveLength(3);
+    expect(linhas.join('')).not.toContain(SENTINELA);
+    const r = linhas.map((l) => JSON.parse(l) as Record<string, unknown>);
+    // name livre vira 'Error'; o code do próprio erro está fora do formato, e o do cause direto não existe: sem code.
+    expect(r[0]).toEqual({ level: 50, time: expect.anything(), evento: 'console_erro', erro: { classe: 'Error' } });
+    expect(r[1]).toEqual({ level: 50, time: expect.anything(), evento: 'console_erro', erro: { classe: 'AggregateError' } });
+    expect(r[2]).toEqual({ level: 40, time: expect.anything(), evento: 'console_aviso' });
+  });
+
   it('falha do próprio log não derruba quem chamou nem cai no console original', () => {
     substituirDestinoDoLog({
       write: () => {

@@ -18,11 +18,12 @@ import { substituirDestinoDoLog } from '../../../lib/log';
 import { AGENTES, type Agente, type AtorAgente, type AtorPessoa } from '../../../modules/acesso/ator';
 import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenServico } from '../../../modules/acesso/tokens-servico';
-import { criarDemandaSchema } from '../../../modules/demandas/schemas';
-import { criarDemanda } from '../../../modules/demandas/servico';
+import { alterarDemandaSchema, criarDemandaSchema } from '../../../modules/demandas/schemas';
+import { alterarDemanda, criarDemanda } from '../../../modules/demandas/servico';
 import { criarEspecificacaoSchema } from '../../../modules/especificacoes/schemas';
 import { criarEspecificacao } from '../../../modules/especificacoes/servico';
 import { criarPacoteDecisao } from '../../../modules/pacotes-decisao/criar';
+import { MENSAGENS_DECISAO } from '../../../modules/pacotes-decisao/decidir';
 import { criarPacoteDecisaoSchema } from '../../../modules/pacotes-decisao/schemas';
 import { criarParecerRiscoSchema } from '../../../modules/pareceres-risco/schemas';
 import { criarParecerRisco } from '../../../modules/pareceres-risco/servico';
@@ -329,6 +330,73 @@ describe('PATCH /api/pacotes-decisao/:decId/decisao: acesso', () => {
     const metodos = Object.keys(rotaDaDecisao as Record<string, unknown>).filter((k) => /^[A-Z]+$/.test(k));
     expect(metodos).toEqual(['PATCH']);
     expect(PATCH.meta).toMatchObject({ acao: 'registrar_decisao', rota: '/api/pacotes-decisao/[decId]/decisao' });
+  });
+});
+
+// M-08 pela rota (DEC-DEM-20261103-0007-v1, 04-regressao): o contrato HTTP da recusa por demanda em status final. A
+// regra do domínio está em decidir-bordas.test.ts; aqui, o corpo exato do 409, a ordem em relação à matriz e a cena da
+// tela (arquivar encerra a demanda, e decidir de novo nela passa a dar a recusa nova).
+describe('PATCH /api/pacotes-decisao/:decId/decisao: demanda em status final (M-08)', () => {
+  const encerrar = (demandaId: string) => alterarDemanda(deps, novaAutora(), demandaId, alterarDemandaSchema.parse({ status: 'encerrada' }));
+  const RECUSA = { erro: 'conflito', mensagem: MENSAGENS_DECISAO.demandaFinal };
+
+  it.each([
+    ['aprovar', APROVAR_A],
+    ['devolver', { statusDecisao: 'devolvida' }],
+    ['arquivar', { statusDecisao: 'arquivada' }],
+  ] as const)('%s um DEC pendente de demanda encerrada à mão → 409 com a mensagem fixa, nada gravado, a demanda segue encerrada', async (_acao, corpo) => {
+    const { decId, demandaId } = await prepararDec();
+    await encerrar(demandaId);
+    const r = await decidir(decId, corpo);
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual(RECUSA);
+    await semMudanca(decId);
+    expect(await statusDa(demandaId)).toBe('encerrada');
+  });
+
+  it('a cena da tela: arquivar encerra a demanda; decidir de novo o mesmo DEC → 409 da demanda final, não o do jaDecidido', async () => {
+    const { decId, demandaId } = await prepararDec();
+    expect((await decidir(decId, { statusDecisao: 'arquivada' })).status).toBe(200);
+    expect(await statusDa(demandaId)).toBe('encerrada');
+    for (const corpo of [APROVAR_A, { statusDecisao: 'devolvida' }, { statusDecisao: 'arquivada' }]) {
+      const r = await decidir(decId, corpo);
+      expect(r.status).toBe(409);
+      expect(await r.json()).toEqual(RECUSA);
+    }
+    expect(await contar('decisao', decId)).toBe(1);
+    expect(await statusDa(demandaId)).toBe('encerrada');
+  });
+
+  it('dupla aprovação: só o CTO aprovou e a demanda foi encerrada → a administradora recebe 409, sem segunda aprovação nem decisão', async () => {
+    const { decId, demandaId } = await prepararDec({ nivel: 'cto_e_administradora' });
+    expect((await decidir(decId, APROVAR_A)).status).toBe(200);
+    await encerrar(demandaId);
+    const r = await decidir(decId, { ...APROVAR_A, ...DOC }, adm());
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual(RECUSA);
+    expect(await contar('aprovacao', decId)).toBe(1);
+    expect(await contar('decisao', decId)).toBe(0);
+  });
+
+  it('a matriz vem antes do status: token de agente e pessoa sem 2FA seguem 403, e sem credencial 401, mesmo em demanda encerrada', async () => {
+    const { decId, demandaId } = await prepararDec();
+    await encerrar(demandaId);
+    for (const agente of AGENTES) {
+      const r = await decidir(decId, APROVAR_A, { bearer: tokens[agente] });
+      expect(r.status, agente).toBe(403);
+      expect(await r.json()).toEqual({ erro: 'sem_permissao', mensagem: MENSAGENS_ACESSO.sem_permissao });
+    }
+    expect((await decidir(decId, APROVAR_A, { cookie: cookieCtoSem2fa })).status).toBe(403);
+    expect((await decidir(decId, APROVAR_A, {})).status).toBe(401);
+    await semMudanca(decId);
+  });
+
+  it('controle: demanda em status não final (em_analise) decide como antes, pela rota', async () => {
+    const { decId, demandaId } = await prepararDec();
+    await alterarDemanda(deps, novaAutora(), demandaId, alterarDemandaSchema.parse({ status: 'em_analise' }));
+    const r = await decidir(decId, APROVAR_A);
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { resultado: string }).resultado).toBe('aprovada');
   });
 });
 

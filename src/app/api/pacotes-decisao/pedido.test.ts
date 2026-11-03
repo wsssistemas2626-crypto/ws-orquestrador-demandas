@@ -19,8 +19,8 @@ import { validarPedido } from '../../../vendor/construir/pedido.mjs';
 import { AGENTES, type Agente, type AtorPessoa } from '../../../modules/acesso/ator';
 import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenServico } from '../../../modules/acesso/tokens-servico';
-import { criarDemandaSchema, type Tipo } from '../../../modules/demandas/schemas';
-import { criarDemanda } from '../../../modules/demandas/servico';
+import { alterarDemandaSchema, criarDemandaSchema, type Tipo } from '../../../modules/demandas/schemas';
+import { alterarDemanda, criarDemanda } from '../../../modules/demandas/servico';
 import { criarEspecificacaoSchema } from '../../../modules/especificacoes/schemas';
 import { criarEspecificacao } from '../../../modules/especificacoes/servico';
 import { criarPacoteDecisao } from '../../../modules/pacotes-decisao/criar';
@@ -205,6 +205,59 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: recusas', () => {
       consultas.mockRestore();
       conexoes.mockRestore();
     }
+  });
+});
+
+// M-08 pela rota (DEC-DEM-20261103-0007-v1, 04-regressao): DEC aprovado de demanda em status final não gera Pedido. O
+// corpo exato do 409, sem download nem evento; a matriz vem antes; nos status não finais, gera como antes.
+describe('POST /api/pacotes-decisao/:decId/pedido-construcao: demanda em status final (M-08)', () => {
+  const levar = async (demandaId: string, status: Array<'aprovada' | 'em_construcao' | 'entregue' | 'encerrada'>) => {
+    for (const s of status) await alterarDemanda(deps, novaAutora(), demandaId, alterarDemandaSchema.parse({ status: s }));
+  };
+  const RECUSA = { erro: 'conflito', mensagem: MENSAGENS_PEDIDO.demandaFinal };
+
+  it.each([
+    ['entregue', ['aprovada', 'em_construcao', 'entregue']],
+    ['encerrada', ['encerrada']],
+  ] as const)('DEC aprovado em demanda %s → 409 com a mensagem fixa, sem download nem evento pedido_gerado', async (_final, caminho) => {
+    const { decId, demandaId } = await prepararDec();
+    await levar(demandaId, [...caminho]);
+    for (const cred of [cto(), adm()]) {
+      const r = await gerar(decId, cred);
+      expect(r.status).toBe(409);
+      expect(r.headers.get('content-disposition')).toBeNull();
+      expect(await r.json()).toEqual(RECUSA);
+    }
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+
+  it('DEC pendente em demanda encerrada → 409 da demanda final (a demanda vem antes do status do DEC)', async () => {
+    const { decId, demandaId } = await prepararDec({ aprovar: false });
+    await levar(demandaId, ['encerrada']);
+    const r = await gerar(decId);
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual(RECUSA);
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+
+  it('a matriz vem antes do status: token de agente segue 403 em demanda encerrada, sem evento', async () => {
+    const { decId, demandaId } = await prepararDec();
+    await levar(demandaId, ['encerrada']);
+    for (const agente of AGENTES) {
+      const r = await gerar(decId, { bearer: tokens[agente] });
+      expect(r.status, agente).toBe(403);
+      expect(await r.json()).toEqual({ erro: 'sem_permissao', mensagem: MENSAGENS_ACESSO.sem_permissao });
+    }
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+
+  it('controle: em aprovada e em_construcao, gera pela rota como antes (um evento por geração)', async () => {
+    const { decId, demandaId } = await prepararDec();
+    await levar(demandaId, ['aprovada']);
+    expect((await gerar(decId)).status).toBe(200);
+    await levar(demandaId, ['em_construcao']);
+    expect((await gerar(decId)).status).toBe(200);
+    expect(await eventosDoPedido(decId)).toBe(2);
   });
 });
 
