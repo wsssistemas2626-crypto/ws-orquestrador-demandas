@@ -135,17 +135,10 @@ nem de resultado.
 - `versaoMaisNova` e `especificacaoMaisNova` entram na vista mínima só quando existem: a leitura única leva esses campos e a lista não, como antes.
 - O `evento` enviado ao Sentry pelo console é `console_erro`, o mesmo nome da linha do log, para cruzar as duas fontes.
 - No teste do M-3, o `vi.mock('./sentry')` envolve o `capturarErro` real com uma chave para fazê-lo lançar: o envelope vem do saneamento de verdade, e o caso "Sentry que falha" fica testável sem rede.
+- Rodei três comandos fora da lista Pode, e o maestro liberou os três e registrou a liberação no `passagens.jsonl`. O primeiro foi um `python3 -c` que trocou texto em `src/app/api/demandas/demandas.test.ts`: mudou o tipo de demanda (`incidente`/`consultoria` para `bug`/`estudo`) e o parâmetro jsonb de `duvidas_entrada`. Ele foi liberado por delegação de Fabiano de 03/11, e a mudança passa pela 04-revisao. Os outros dois foram um `git -C` com `ls-files` no repositório do pedido, para listar os testes de DEC, ESP e RSK porque o Glob não estava disponível, e um `tail -n 8` na saída da minha própria suíte, no scratchpad. Esses dois só leem e foram liberados pela regra de 25/10.
 
 ## Pendências
 
-- Comandos fora da lista **Pode** executados nesta etapa, declarados abaixo para o maestro decidir:
-  - `python3 -c` foi usado uma vez para trocar texto no meu próprio arquivo de teste. Corrigiu o tipo de demanda
-    (`incidente`/`consultoria` para `bug`/`estudo`) e o parâmetro jsonb de `duvidas_entrada`. O efeito é o mesmo de um
-    Edit em `src/`.
-  - `tail -n 8` foi usado uma vez para ler o fim da saída da minha suíte, no arquivo de tarefa do scratchpad.
-  - `git -C … ls-files` foi usado uma vez para listar os testes de DEC, ESP e RSK, porque o Glob não estava disponível
-    nesta sessão.
-  - Nenhum desses comandos tocou em segredo, `.env`, banco de produção nem arquivo fora da lista **Pode**.
 - Continua valendo a pendência da 02 (achado novo, fora deste pedido): o DEC ainda devolve ao agente `demandaTitulo`, `demandaDescricao` e `decisao.comentarios` sem minimizar, e o texto de ESP e RSK também sai cru. Depois do M-1, o mesmo título sai minimizado na demanda e cru no DEC. Entrar neste pedido precisa do aceite de Fabiano.
 - Para a `04-regressao`: algum spec e2e que leia pela API com token de agente e espere texto livre original da demanda, nome de autor, aprovador, `referenciaDocumento` ou `decididaPor` vai precisar do contrato novo. Os testes de unidade e de integração já foram ajustados.
 - O risco do M-3 que a 02 apontou continua: a prova é de unidade. Não foi confirmado que `uncaughtException`, `unhandledRejection` e o `onError` do `after()` passam por `console.error` no runtime do Next 16.
@@ -153,11 +146,9 @@ nem de resultado.
 ## Comandos executados
 
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/demandas/demandas.test.ts -t M-1` — 4 falharam e 2 passaram (vermelho do M-1)
-- `python3 -c "<troca de texto em src/app/api/demandas/demandas.test.ts>"` — fora da lista Pode, ver Pendências
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/demandas/demandas.test.ts src/modules/agentes src/modules/dados-pessoais` — 3 falharam (429 do limite da conta do arquivo) e 469 passaram; corrigido com uma conta própria no bloco M-1
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/demandas/demandas.test.ts src/instrumentation.test.ts` — 1 falhou (vermelho do B-1) e 62 passaram; demandas.test.ts inteiro verde
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — conferência dos arquivos
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files src/app/api/pacotes-decisao src/modules/pacotes-decisao src/app/api/especificacoes src/app/api/pareceres-risco test` — fora da lista Pode, ver Pendências
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/vistas-para-agente.test.ts src/instrumentation.test.ts test/estatico/projeto.test.ts` — 1 falhou (vermelho do M-2) e 27 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api` — 1 falhou (asserção do contrato antigo em pareceres.test.ts) e 298 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/lib/console-saneado.test.ts` — 2 falharam (vermelho do M-3) e 7 passaram
@@ -169,8 +160,6 @@ nem de resultado.
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/lib src/instrumentation.test.ts src/modules/dados-pessoais` — 475 de 475
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/vistas-para-agente.test.ts src/app/api/pareceres-risco/pareceres.test.ts` — 50 de 50
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff src/modules/demandas/consultas.ts src/lib/console-saneado.ts src/instrumentation.ts` — revisão do diff
-- `tail -n 8 /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/f803aa58-06d4-40d8-998e-0da08e5f62a0/tasks/bu04qgm0c.output` — fora da lista Pode, ver Pendências
-
 ## Critério de pronto atendido
 
 - [x] o teste foi escrito antes do código e visto falhando (comando e trecho da saída na entrega; a exceção da versão está nos desvios)
