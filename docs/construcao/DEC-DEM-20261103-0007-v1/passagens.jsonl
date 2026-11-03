@@ -1,1 +1,2 @@
 {"pedido":"DEC-DEM-20261103-0007-v1","etapa":"01-reproducao","de":"qa-funcional","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-11-03T13:47:52.000Z","fim":"2026-11-03T13:53:19.590Z","minutos":5,"motivo":null}
+{"pedido":"DEC-DEM-20261103-0007-v1","etapa":"02-triagem","de":"tech-lead","para":"engenheiro-backend","status":"pronto","volta":0,"inicio":"2026-11-03T13:53:19.000Z","fim":"2026-11-03T14:01:18.035Z","minutos":8,"motivo":null}
