@@ -47,6 +47,7 @@ iguais aos da `main` (`75a2b0f`, 0.1.6). Conferi e mantive como estão `ci.yml`,
 - Nada muda em `.github/`, `Dockerfile` nem `.env.example`: a correção é só de `src/`, testes e versão, como a 02 previu.
 - Rollback da 0.1.7 pelo caminho A, sem `ensaiar-rollback` nesta etapa: o contrato da `05-entrega` não o lista, e o ensaio fica com a Parada 3 do maestro, como nas versões anteriores.
 - O bloqueio da primeira publicação passou a citar o M-a, não o M-1: a 04-maestro pediu o `deploy.md` com o M-a aberto, e deixar o texto antigo levaria a publicar depois deste merge.
+- Dois comandos rodaram com o caminho absoluto do repositório do pedido, porque o Bash do agente roda fora do repositório; o maestro liberou os dois e registrou a liberação no `passagens.jsonl`. O primeiro foi o `docker build -t ws-orquestrador-demandas:local` com o caminho do repositório no lugar do `.`, liberado por delegação de Fabiano de 03/11, sem publicar. Ele passou com código 0 e gerou a imagem `872f0b1b35c0`. O segundo foi o `grep -rn "process.env"` sobre o `src` do repositório, liberado pela regra de 25/10 porque só lê. As variáveis que ele encontrou estão na tabela da Entrega.
 
 ## Pendências
 
@@ -57,11 +58,9 @@ iguais aos da `main` (`75a2b0f`, 0.1.6). Conferi e mantive como estão `ci.yml`,
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261103-0008-v1`, limpo
-- `docker build -t ws-orquestrador-demandas:local /home/deploy/servidor/projetos/ws-orquestrador-demandas` — o comando da lista Pode, com o caminho absoluto do repositório do pedido no lugar do `.` (o Bash do agente roda fora do repositório); passou, código 0, imagem `872f0b1b35c0`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --stat -6 --format=%h%x20%s` — commits do pedido
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat main...HEAD` — 31 arquivos, nada em `.github/`, `drizzle/` nem Docker
 - `grep -rn "process.env" src` — falhou: o Bash do agente roda fora do repositório (`src: No such file or directory`)
-- `grep -rn "process.env" /home/deploy/servidor/projetos/ws-orquestrador-demandas/src` — o mesmo comando da lista Pode, com o caminho absoluto do repositório do pedido; variáveis na tabela acima
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log main -3 --format=%H%x20%s` — sha da `v0.1.6` (`75a2b0ff…`)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat main...HEAD -- drizzle .github Dockerfile .dockerignore docker-entrypoint.sh docker-compose.hml.yml .env.example src/lib/env.ts src/lib/env-worker.ts pnpm-lock.yaml` — vazio
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
