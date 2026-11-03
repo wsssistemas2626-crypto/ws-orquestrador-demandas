@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
+| Atualizado em | 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -120,9 +120,11 @@ Esta minimização vale para a entrada que o worker monta. Desde a 0.1.7 (M-1), 
 de agente usa a mesma regra: `minimizarValor` saiu de `entrada-agente.ts` para `src/modules/dados-pessoais/minimizar.ts`
 e é usada pelos dois. A vista mínima ([cap. 03](03-demandas.md#rf-06-consultar-e-alterar)) tira `solicitanteNome`,
 `anexos` e o nome da conta e passa o texto livre da demanda (e o `titulo` da listagem) pela minimização, com o nome do
-solicitante entre os trocados. Fora da demanda, a API ainda não minimiza: `demandaTitulo`, `demandaDescricao` e
-`decisao.comentarios` do DEC e o texto de ESP e RSK chegam ao token de agente como foram gravados (M-a, aberto;
-bloqueia a primeira publicação, [CHANGELOG](../../CHANGELOG.md)).
+solicitante entre os trocados. Desde a 0.1.8 (M-a), a regra vale também fora da demanda: as leituras e o 201 da
+criação de DEC, ESP e RSK passam o texto livre pela mesma minimização para o token de agente, com o nome do solicitante
+da demanda ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)). Limite que sobra (M-1 da revisão do
+0009, risco residual, não bloqueia): só o nome atual e completo do solicitante é trocado; nome antigo ou parcial em
+texto já gravado chega ao agente em claro ([CHANGELOG](../../CHANGELOG.md)).
 
 ## Pré-condições para ligar qualquer agente em produção
 

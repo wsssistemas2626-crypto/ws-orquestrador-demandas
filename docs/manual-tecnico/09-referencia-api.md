@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
+| Atualizado em | 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Fontes no código | `src/app/api/**/route.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
@@ -31,13 +31,13 @@ Base: a origem do `BETTER_AUTH_URL`. Toda rota abaixo, menos `/api/auth/*` e `/a
 | `GET /api/demandas/:id` | pessoa, os 4 agentes | — | demanda com versões e `agentesEmAndamento`; ao agente, a vista mínima ([cap. 03](03-demandas.md#rf-06-consultar-e-alterar)) |
 | `PATCH /api/demandas/:id` | pessoa | `alterarDemandaSchema` (campos e `status`) | demanda |
 | `GET /api/demandas/:id/historico` | pessoa | — | eventos |
-| `POST /api/demandas/:id/especificacoes` | pessoa, `insumo_tecnico` | `criarEspecificacaoSchema` | 201 com a ESP |
+| `POST /api/demandas/:id/especificacoes` | pessoa, `insumo_tecnico` | `criarEspecificacaoSchema` | 201 com a ESP (ao agente, a vista mínima) |
 | `GET /api/demandas/:id/especificacoes` | pessoa, os 4 agentes | — | versões |
 | `GET /api/especificacoes/:espId` | pessoa, os 4 agentes | — | ESP |
-| `POST /api/demandas/:id/pareceres-risco` | pessoa, `risco` | `criarParecerRiscoSchema` | 201 com o RSK |
+| `POST /api/demandas/:id/pareceres-risco` | pessoa, `risco` | `criarParecerRiscoSchema` | 201 com o RSK (ao agente, a vista mínima) |
 | `GET /api/demandas/:id/pareceres-risco` | pessoa, os 4 agentes | — | versões |
 | `GET /api/pareceres-risco/:rskId` | pessoa, os 4 agentes | — | RSK |
-| `POST /api/demandas/:id/pacotes-decisao` | pessoa, `consolidacao` | `criarPacoteDecisaoSchema` | 201 com o DEC |
+| `POST /api/demandas/:id/pacotes-decisao` | pessoa, `consolidacao` | `criarPacoteDecisaoSchema` | 201 com o DEC (ao agente, a vista mínima) |
 | `GET /api/demandas/:id/pacotes-decisao` | pessoa, os 4 agentes | — | versões |
 | `GET /api/pacotes-decisao` | pessoa, os 4 agentes | `statusDecisao`, `limit`, `offset` | lista |
 | `GET /api/pacotes-decisao/:decId` | pessoa, os 4 agentes | — | DEC com `statusDecisao`, `desatualizado`, aprovadores |
@@ -108,8 +108,24 @@ maria.teste@exemplo.invalid, CPF 123.456.789-09, tel (11) 90000-0000` (fictício
 
 Desde a 0.1.7 (M-2), nas leituras de ESP, RSK e DEC (as sete rotas `GET` da tabela acima), o agente recebe autor pessoa
 como `{ "tipo": "pessoa" }`, cada aprovador só com `papel`, `opcao`, `registradaEm` e `dataDocumento`, e `decisao` sem
-`decididaPor`. Ainda saem sem minimizar `demandaTitulo`, `demandaDescricao` e `decisao.comentarios` do DEC (também no
-201 do `POST /api/demandas/:id/pacotes-decisao`) e o texto de ESP e RSK (M-a, aberto; [CHANGELOG](../../CHANGELOG.md)).
+`decididaPor`.
+
+Desde a 0.1.8 (M-a), essas sete leituras e o 201 dos três `POST` de criação (`.../especificacoes`,
+`.../pareceres-risco` e `.../pacotes-decisao`) passam o texto livre pela mesma minimização da demanda, com o nome do
+solicitante da demanda entre os trocados (na lista `GET /api/pacotes-decisao`, o de cada DEC):
+
+- DEC: `demandaTitulo`, `demandaDescricao`, `resumoExecutivo`, `recomendacao`, `opcaoA` e `opcaoB` subcampo a subcampo
+  (`descricao`, `vantagens`, `desvantagens`, `quandoEscolher`; subcampo ausente continua ausente),
+  `decisao.comentarios` e as listas `criteriosAceitePreliminares` e `definicaoDePronto` da ESP citada;
+- ESP: os 15 campos de texto e de lista (descrição, situação atual e desejada, escopo, sistemas, dados, restrições,
+  dúvidas, critérios e definição de pronto);
+- RSK: `resumo`, os três `risco*Comentario`, `recomendacoesMitigacao`, `preCondicoes` e
+  `envolverJuridicoOuAdministradoraQuando`.
+
+Campo nulo continua `null` e lista nula continua nula. Ids, `sistemaAlvo`, `repositorioDestino`, níveis,
+`statusDecisao` e datas saem iguais para os dois atores. A pessoa recebe o original, e o Pedido de Construção
+(`POST .../pedido-construcao`) continua gerado com o texto original. Limite: só o nome atual e completo do solicitante é
+trocado (M-1 da revisão do 0009, risco residual; [CHANGELOG](../../CHANGELOG.md)).
 
 ## Exemplo: decidir ou gerar o Pedido numa demanda em status final
 

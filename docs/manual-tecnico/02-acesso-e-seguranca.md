@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
+| Atualizado em | 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-01, RF-02, RNF-10, RNF-12, RNF-13; controles C-01 a C-21 de `04-seguranca-aplicacao.md` |
 | Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `bloqueio-verificacao.ts`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
@@ -72,9 +72,11 @@ demanda, sem `solicitanteNome`, `anexos` e nome de conta ([cap. 03](03-demandas.
 desde a 0.1.6), e, desde a 0.1.7, com o texto livre minimizado (M-1). Desde a 0.1.7 (M-2), as sete rotas de leitura de
 ESP, RSK e DEC também cortam para quem não é pessoa, por lista de permissão (`vistaDaEspecificacaoPara`,
 `vistaDoParecerPara`, `vistaDoPacotePara`): autor pessoa vira `{ "tipo": "pessoa" }`, os aprovadores saem sem `nome` e
-`referenciaDocumento`, e a decisão sem `decididaPor`. Ainda saem sem minimizar para o agente `demandaTitulo`,
-`demandaDescricao` e `decisao.comentarios` do DEC e o texto de ESP e RSK (M-a, aberto, bloqueia a primeira publicação;
-[CHANGELOG](../../CHANGELOG.md)).
+`referenciaDocumento`, e a decisão sem `decididaPor`. Desde a 0.1.8 (M-a), as mesmas três vistas também passam o texto
+livre de DEC, ESP e RSK por `minimizarValor`, com o nome do solicitante da demanda entre os trocados, nas sete leituras e
+no 201 dos três `POST` de criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)). Limite que
+sobra (M-1 da revisão do 0009, risco residual para Fabiano e a `gestao-riscos`): só o nome atual e completo do
+solicitante é trocado; nome antigo ou parcial em texto já gravado sai em claro ([CHANGELOG](../../CHANGELOG.md)).
 
 ## Proteção das rotas
 
@@ -99,7 +101,10 @@ com a mensagem genérica, sem texto do Postgres, do Drizzle nem do Zod. Os códi
   proibido em `src/` pelo ESLint. Nível por `LOG_LEVEL` (padrão `info`).
 - Uma linha por requisição: método, padrão da rota (nunca o caminho com o id nem a query), status, ms, tipo de ator e
   código do erro.
-- Erro do Postgres vai ao log reduzido a classe e código. O logger do Better Auth foi trocado por um evento fixo, sem
+- Erro do Postgres vai ao log reduzido a classe e código. Desde a 0.1.8 (B-b), `normalizarErro` (`src/lib/log.ts`)
+  reduz também o valor em `erro` que não é `Error`: sai `{ "classe": "desconhecido" }`, com `code` só quando passa no
+  formato de `lerCode` (`src/lib/reduzir-erro.ts`). A exceção é o erro que já chega reduzido, na forma exata
+  `{ classe, code? }` com a classe no formato de identificador (`erroJaReduzido`), como o do `onRequestError`. O logger do Better Auth foi trocado por um evento fixo, sem
   mensagem nem argumentos.
 - Sentry só com `SENTRY_DSN`; sem ela, desligado. Erro 5xx vai reduzido, sem dado pessoal.
 - Teste transversal com sentinelas confere que texto bruto, e-mail, telefone, token, senha, cookie e conteúdo de IA não
@@ -127,7 +132,10 @@ com a mensagem genérica, sem texto do Postgres, do Drizzle nem do Zod. Os códi
     fica só no log. `defaultIntegrations` continua `false`.
   - Desde a 0.1.7 (B-1), o `onRequestError` grava `reduzirErro(err)`: valor que não é `Error` vira
     `{ "classe": "desconhecido" }`.
-- Limites conhecidos ([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6 e da 0.1.7):
+- Limites conhecidos ([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6 à 0.1.8):
+  - o `code` aceito no erro reduzido pode ser só de dígitos, e `erroJaReduzido` aceita como classe um nome de uma
+    palavra: um CPF ou telefone sem máscara passado como `code` sairia no log (B-1 da revisão do 0009, aberto; depende
+    de quem chama o log passar esse valor);
   - a prova do console é de unidade: se o Next escrever direto no `process.stderr` ou guardar a referência do
     `console.error` antes do `register()`, a troca não pega (B-2), e só a `ErroLeituraSessao` e o `erro_requisicao`
     seguem garantidos;
