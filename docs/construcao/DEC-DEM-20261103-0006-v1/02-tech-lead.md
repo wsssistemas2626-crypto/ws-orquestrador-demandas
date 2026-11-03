@@ -410,6 +410,7 @@ junto.
 - O 4xx definitivo marca `falhou` na 1.ª pelo `tipo` que o `EnviadorResend` já classifica, sem mexer em `enviador.ts`.
 - `engenheiro-backend` numa correção só: tudo está em `src/`, `test/` e `package.json`, todos na lista **Pode** dele, e os três defeitos mexem nos mesmos módulos de domínio.
 - Sem migration: não há coluna nova, e o motivo novo vai no `jsonb` do evento.
+- Na primeira versão desta entrega, listei a pasta do pedido pelo Bash. É um comando que só lê e não está na minha lista **Pode**. O maestro liberou essa listagem pela regra de Fabiano para bloqueio só de leitura, por isso ela não aparece em "Comandos executados". Todo o resto foi lido pela ferramenta Read e pelo `git show`.
 
 ## Pendências
 
@@ -417,11 +418,9 @@ junto.
 - Para o `ux-ui-design`, à parte: a tela de detalhe da demanda em status final pode continuar mostrando as ações de nova ESP, RSK ou DEC. Com esta correção, a pessoa recebe a mensagem fixa do 409. Esconder a ação é decisão de interface, fora deste pedido.
 - Para a `03-correcao`: se a interface do painel tiver uma tabela de rótulos para os motivos de `agente_ignorado`, o `demanda_final` precisa entrar nela. Se isso exigir mudar tela, registre na entrega e devolva para a triagem; não invente texto de interface.
 - Para a `04-regressao`: o `decisao.spec.ts` rodado de novo no mesmo banco passa a receber 409 depois do "Arquivar" (ver acima). Isso é esperado, e a prova vale com banco novo a cada execução.
-- Para o maestro: rodei por engano um `ls -la` da pasta do pedido pelo Bash antes de ler o contrato. Ele não está na minha lista **Pode**. Foi só leitura de diretório, sem efeito, e está declarado abaixo. Todo o resto foi lido pelas ferramentas Read e pelo `git show`.
 
 ## Comandos executados
 
-- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261103-0006-v1` — fora da lista Pode, rodado por engano; só leitura (ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/db/schema/` — lista dos arquivos de schema
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/modules/limites.ts` — conferirLimite só conta e trava, não grava
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/modules/historico/registrar.ts` — motivo do evento vai em jsonb, sem enumeração no banco
