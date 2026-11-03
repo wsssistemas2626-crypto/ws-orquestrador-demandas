@@ -56,8 +56,69 @@ describe('log por lista de permissão (C-21)', () => {
 
   it('redact continua como segunda barreira para campo permitido com objeto', () => {
     const { linhas, destino } = capturar();
-    criarLogger(destino).info({ evento: 'x', erro: { senha: SENTINELAS.senha, token: SENTINELAS.token } } as never);
+    criarLogger(destino).info({ evento: 'x', instancia: { senha: SENTINELAS.senha, token: SENTINELAS.token } } as never);
     expect(contemSentinela(linhas.join(''))).toBe(false);
+  });
+
+  // B-b (DEC-DEM-20261103-0009-v1): objeto que não é Error também é reduzido; nenhuma chave dele sai, nem as que o
+  // `redact` não cobre (motivo, cpf). Só o `code`, e só no formato curto.
+  it('erro em objeto simples vira { classe: desconhecido }, sem nenhuma chave do objeto', () => {
+    const { linhas, destino } = capturar();
+    criarLogger(destino).error({ evento: 'falha', erro: { motivo: 'falha para joana.ficticia@exemplo.invalid', cpf: '000.000.001-91' } });
+    expect(JSON.parse(linhas[0]!).erro).toEqual({ classe: 'desconhecido' });
+    expect(linhas.join('')).not.toContain('joana.ficticia@exemplo.invalid');
+    expect(linhas.join('')).not.toContain('000.000.001-91');
+  });
+
+  it('erro em objeto simples com code no formato leva só o code', () => {
+    const { linhas, destino } = capturar();
+    const logger = criarLogger(destino);
+    logger.error({ evento: 'falha', erro: { motivo: 'falha para joana.ficticia@exemplo.invalid', cpf: '000.000.001-91', code: '23505' } });
+    logger.error({ evento: 'falha', erro: { motivo: 'x', code: 'código com espaço 000.000.001-91' } });
+    logger.error({ evento: 'falha', erro: { code: 23505 } });
+    expect(linhas.map((l) => JSON.parse(l).erro)).toEqual([{ classe: 'desconhecido', code: '23505' }, { classe: 'desconhecido' }, { classe: 'desconhecido' }]);
+    expect(linhas.join('')).not.toContain('000.000.001-91');
+  });
+
+  // instrumentation.ts passa `reduzirErro(err)`: o erro que já chega na forma exata { classe, code? } mantém a classe.
+  it('erro que já chega reduzido mantém a classe; chave a mais ou classe fora do formato vira desconhecido', () => {
+    const { linhas, destino } = capturar();
+    const logger = criarLogger(destino);
+    logger.error({ evento: 'falha', erro: { classe: 'ErroEnvioEmail', code: 'recusado' } });
+    logger.error({ evento: 'falha', erro: { classe: 'Error' } });
+    logger.error({ evento: 'falha', erro: { classe: 'Error', code: 'código com espaço' } });
+    logger.error({ evento: 'falha', erro: { classe: 'Error', motivo: 'falha para joana.ficticia@exemplo.invalid' } });
+    logger.error({ evento: 'falha', erro: { classe: 'Joana Fictícia Teste' } });
+    expect(linhas.map((l) => JSON.parse(l).erro)).toEqual([
+      { classe: 'ErroEnvioEmail', code: 'recusado' },
+      { classe: 'Error' },
+      { classe: 'Error' },
+      { classe: 'desconhecido' },
+      { classe: 'desconhecido' },
+    ]);
+    expect(linhas.join('')).not.toContain('joana.ficticia@exemplo.invalid');
+    expect(linhas.join('')).not.toContain('Joana Fictícia Teste');
+  });
+
+  // 04-regressao do 0009 (qa-automacao): bordas do B-b. Objeto com cara de Error (name, message, stack, cause) que não é
+  // instância de Error, lista, objeto vazio, objeto sem protótipo e objeto com chave só herdada não atravessam o log; o
+  // `code` da `cause` de um objeto simples não é lido (só o de Error real).
+  it('erro parecido com Error, lista, objeto vazio, sem protótipo ou com chave herdada vira { classe: desconhecido }', () => {
+    const { linhas, destino } = capturar();
+    const logger = criarLogger(destino);
+    const semPrototipo = Object.assign(Object.create(null) as object, { motivo: 'falha para joana.ficticia@exemplo.invalid' });
+    const herdado = Object.create({ motivo: 'falha para joana.ficticia@exemplo.invalid' }) as object;
+    const parecidoComErro = {
+      name: 'TypeError',
+      message: 'falha para joana.ficticia@exemplo.invalid',
+      stack: 'TypeError: 000.000.001-91',
+      cause: { code: '23505', detail: '000.000.001-91' },
+    };
+    for (const erro of [parecidoComErro, ['joana.ficticia@exemplo.invalid'], {}, semPrototipo, herdado]) logger.error({ evento: 'falha', erro });
+    expect(linhas.map((l) => JSON.parse(l).erro)).toEqual(Array.from({ length: 5 }, () => ({ classe: 'desconhecido' })));
+    expect(linhas.join('')).not.toContain('joana.ficticia@exemplo.invalid');
+    expect(linhas.join('')).not.toContain('000.000.001-91');
+    expect(linhas.join('')).not.toContain('TypeError');
   });
 
   // Testes acrescentados na 06-T02-testes (qa-automacao).
@@ -104,10 +165,11 @@ describe('log por lista de permissão (C-21)', () => {
     'detail',
     'stack',
   ])('segunda barreira: a chave %s dentro de campo permitido sai como [removido]', (chave) => {
+    // Desde o B-b do 0009, `erro` em objeto é reduzido antes do pino; a barreira é conferida noutro campo permitido.
     const { linhas, destino } = capturar();
-    criarLogger(destino).info({ evento: 'redact', erro: { [chave]: `${SENTINELAS.texto} ${SENTINELAS.email}` } } as never);
+    criarLogger(destino).info({ evento: 'redact', instancia: { [chave]: `${SENTINELAS.texto} ${SENTINELAS.email}` } } as never);
     expect(contemSentinela(linhas.join(''))).toBe(false);
-    expect(JSON.parse(linhas[0]!).erro[chave]).toBe('[removido]');
+    expect(JSON.parse(linhas[0]!).instancia[chave]).toBe('[removido]');
   });
 
   it('erro de consulta do Drizzle com causa do Postgres sai só com a classe e o code da causa', () => {

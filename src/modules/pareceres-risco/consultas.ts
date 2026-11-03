@@ -5,7 +5,15 @@ import type { Db } from '../../db';
 import { demanda, especificacaoTecnica, parecerRisco, user } from '../../db/schema';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
-import { contaDoAutor, responsavelDe, responsavelMinimo, type Responsavel, type ResponsavelMinimo } from '../demandas/consultas';
+import {
+  contaDoAutor,
+  listaMinima,
+  responsavelDe,
+  responsavelMinimo,
+  textoMinimoOuNulo,
+  type Responsavel,
+  type ResponsavelMinimo,
+} from '../demandas/consultas';
 import { idVersao } from '../versoes';
 import type { Nivel } from './schemas';
 
@@ -59,22 +67,24 @@ function vistaDe({ r, nome }: Linha): ParecerRiscoVista {
 type Extras = { versaoMaisNova?: string; especificacaoMaisNova?: string | null };
 export type ParecerRiscoVistaMinima = Omit<ParecerRiscoVista, 'autor'> & { autor: ResponsavelMinimo } & Extras;
 
-export function vistaDoParecerPara(ator: Ator, v: ParecerRiscoVista & Extras): ParecerRiscoVista | ParecerRiscoVistaMinima {
+// M-a do 0009 (RF-20): o texto livre e as listas de texto passam pelo mesmo `minimizar` da entrada do agente, com
+// `nomes`, o nome do solicitante da demanda (nomesDosSolicitantes). Os níveis e os ids citados ficam iguais.
+export function vistaDoParecerPara(ator: Ator, v: ParecerRiscoVista & Extras, nomes: readonly string[]): ParecerRiscoVista | ParecerRiscoVistaMinima {
   if (ator.tipo === 'pessoa') return v;
   return {
     id: v.id,
     demandaId: v.demandaId,
     versao: v.versao,
-    resumo: v.resumo,
+    resumo: textoMinimoOuNulo(v.resumo, nomes),
     riscoTecnicoNivel: v.riscoTecnicoNivel,
-    riscoTecnicoComentario: v.riscoTecnicoComentario,
+    riscoTecnicoComentario: textoMinimoOuNulo(v.riscoTecnicoComentario, nomes),
     riscoOperacionalNivel: v.riscoOperacionalNivel,
-    riscoOperacionalComentario: v.riscoOperacionalComentario,
+    riscoOperacionalComentario: textoMinimoOuNulo(v.riscoOperacionalComentario, nomes),
     riscoJuridicoNivel: v.riscoJuridicoNivel,
-    riscoJuridicoComentario: v.riscoJuridicoComentario,
-    recomendacoesMitigacao: v.recomendacoesMitigacao,
-    preCondicoes: v.preCondicoes,
-    envolverJuridicoOuAdministradoraQuando: v.envolverJuridicoOuAdministradoraQuando,
+    riscoJuridicoComentario: textoMinimoOuNulo(v.riscoJuridicoComentario, nomes),
+    recomendacoesMitigacao: listaMinima(v.recomendacoesMitigacao, nomes),
+    preCondicoes: listaMinima(v.preCondicoes, nomes),
+    envolverJuridicoOuAdministradoraQuando: textoMinimoOuNulo(v.envolverJuridicoOuAdministradoraQuando, nomes),
     autor: responsavelMinimo(v.autor),
     rascunhoAgente: v.rascunhoAgente,
     criadaEm: v.criadaEm,

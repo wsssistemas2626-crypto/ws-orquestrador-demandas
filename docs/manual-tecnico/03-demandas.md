@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09 |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
@@ -79,10 +79,15 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
   quem não é pessoa recebe o `titulo` de cada item minimizado com o nome do solicitante daquele item, e nenhum ator
   recebe a chave `solicitanteNome`. O painel segue com `listarDemandas`, sem mudança. Só a pessoa recebe o texto
   original; o ator `sistema` também recebe o minimizado.
-- Limite conhecido (pendências da 0.1.7 no [CHANGELOG](../../CHANGELOG.md)):
-  - **M-a, aberto, bloqueia a primeira publicação:** o M-1 fechou só na demanda. O DEC guarda cópia do título e da
-    descrição da demanda, e `demandaTitulo`, `demandaDescricao`, `decisao.comentarios` e o texto de ESP e RSK saem sem
-    minimizar para o token de agente ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)).
+- Desde a 0.1.8 (M-a), a cópia do título e da descrição da demanda que o DEC guarda (`demandaTitulo`,
+  `demandaDescricao`) e o texto livre de DEC, ESP e RSK também saem minimizados para quem não é pessoa, com o nome do
+  solicitante desta demanda entre os trocados ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)).
+  Os utilitários (`nomesDoSolicitante`, `textoMinimo`, `textoMinimoOuNulo`, `listaMinima`, `listaMinimaOuNula`,
+  `nomesDosSolicitantes`, `nomesDaDemanda`) ficam em `consultas.ts` e são usados pelas três vistas, sem cópia.
+- Limite conhecido (pendências da 0.1.8 no [CHANGELOG](../../CHANGELOG.md)):
+  - **M-1 da revisão do 0009, risco residual, não bloqueia:** só o nome atual e completo do solicitante é trocado. O
+    `solicitanteNome` pode ser editado, e o DEC, a ESP e o RSK guardam texto do momento da criação: nome antigo ou
+    escrito pela metade sai em claro para o token de agente. Aceite do risco é de Fabiano e da `gestao-riscos`.
 
 ## RF-07. Status e transições
 

@@ -2,7 +2,7 @@
 // descartado antes do pino. O `redact` do pino fica como segunda barreira para campo permitido que traga objeto.
 // Único ponto de log de `src/` (G3.7): `console.*` é proibido pelo ESLint.
 import pino from 'pino';
-import { reduzirErro } from './reduzir-erro';
+import { erroJaReduzido, lerCode, reduzirErro, type ErroReduzido } from './reduzir-erro';
 
 export const CAMPOS_PERMITIDOS = [
   'evento',
@@ -52,11 +52,18 @@ const REDACT = [
   '*.stack',
 ];
 
-// `erro` sempre sai como { classe, code }: Error vira reduzirErro; texto ou número solto vira 'desconhecido'.
-// Objeto simples passa, sob o `redact`.
-function normalizarErro(valor: unknown): unknown {
+// `erro` sempre sai como { classe, code }: Error vira reduzirErro; texto ou número solto vira 'desconhecido'. B-b do
+// 0009: objeto que não é Error também vira 'desconhecido', com o `code` só quando passa no formato de reduzirErro;
+// nenhuma outra chave dele sai (o `redact` de um nível não cobre todo nome de chave). A exceção é o erro que já chega
+// reduzido, na forma exata { classe, code? } (erroJaReduzido), que mantém a classe.
+function normalizarErro(valor: unknown): ErroReduzido {
   if (valor instanceof Error) return reduzirErro(valor);
-  if (valor !== null && typeof valor === 'object') return valor;
+  if (valor !== null && typeof valor === 'object') {
+    const reduzido = erroJaReduzido(valor);
+    if (reduzido) return reduzido;
+    const code = lerCode(valor);
+    return code ? { classe: 'desconhecido', code } : { classe: 'desconhecido' };
+  }
   return reduzirErro(valor);
 }
 

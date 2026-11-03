@@ -3,6 +3,97 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.8 — 2026-11-03
+
+Correção do pedido `DEC-DEM-20261103-0009-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.7 (`3c8a942`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano. **Fecha o M-a da revisão da
+0.1.7, que bloqueava a primeira publicação (CA-P5-16, CA-P5-21): a primeira publicação passa a exigir a 0.1.8 ou
+posterior na `main`** (a 0.1.6 e a 0.1.7 não podem ser a primeira; `docs/operacao/deploy.md`, seção 4). O M-1 desta
+revisão fica como risco residual, sem bloquear (em "Pendências abertas").
+
+Fecha o médio M-a e o baixo B-b da revisão da 0.1.7. Não há migration nova, coluna nova, dependência nova nem variável
+de ambiente nova. Não mudaram `src/db/`, `drizzle/`, `e2e/`, `scripts/`, `.github/`, `Dockerfile`, `.env.example` nem
+o lockfile.
+
+### O que mudou
+
+- **M-a (RF-20): o texto livre de DEC, ESP e RSK sai minimizado para quem não é pessoa, na leitura, na listagem e no
+  201 da criação.** `vistaDoPacotePara`, `vistaDaEspecificacaoPara` e `vistaDoParecerPara` recebem, como terceiro
+  parâmetro obrigatório, os nomes do solicitante da demanda, e passam por `minimizarValor`:
+  - no DEC, `demandaTitulo`, `demandaDescricao`, `resumoExecutivo`, `recomendacao`, `opcaoA` e `opcaoB` subcampo a
+    subcampo (subcampo ausente continua ausente), `decisao.comentarios` e as listas `criteriosAceitePreliminares` e
+    `definicaoDePronto` da ESP citada;
+  - na ESP, os 15 campos de texto e de lista;
+  - no RSK, `resumo`, os três `risco*Comentario`, `recomendacoesMitigacao`, `preCondicoes` e
+    `envolverJuridicoOuAdministradoraQuando`.
+
+  Campo nulo continua `null` e lista nula continua nula; ids, `sistemaAlvo`, `repositorioDestino`, níveis,
+  `statusDecisao`, datas e `rascunhosCitados` não mudam. Valem as sete leituras (`GET /api/especificacoes/:espId`,
+  `GET /api/pareceres-risco/:rskId`, `GET /api/pacotes-decisao/:decId`, `GET /api/pacotes-decisao` e as três listas de
+  `GET /api/demandas/:id/...`) e o 201 dos três `POST` de criação (`especificacoes`, `pareceres-risco` e
+  `pacotes-decisao`), que antes devolviam o retorno do serviço sem a vista do ator. Na lista `GET /api/pacotes-decisao`,
+  cada DEC é minimizado com o nome do solicitante da própria demanda (`nomesDosSolicitantes`, uma consulta só para a
+  página). A pessoa recebe o original, e o Pedido de Construção continua gerado do banco, com o texto original. Os
+  utilitários de `src/modules/demandas/consultas.ts` passaram a ser exportados e reaproveitados nas três vistas, sem
+  cópia.
+- **B-b: `normalizarErro` reduz o erro em objeto que não é `Error`.** `src/lib/log.ts` grava `{ "classe":
+  "desconhecido" }`, com `code` só quando passa no formato de `lerCode` (agora exportada de `src/lib/reduzir-erro.ts`).
+  A exceção é o erro que já chega reduzido, na forma exata `{ classe, code? }` com a classe no formato de identificador
+  (`erroJaReduzido`): o `onRequestError` já entrega `reduzirErro(err)` e mantém a classe. O retorno de `reduzirErro`
+  não mudou.
+- **Testes:** describe "M-a" em `src/app/api/vistas-para-agente.test.ts` (sete leituras e 201 dos três `POST`, dois
+  atores, cenário com lista nula e subcampo ausente, fila cruzando duas demandas, CNPJ fictício e `opcaoA` com
+  `quandoEscolher`), um teste em `src/app/api/pacotes-decisao/pedido.test.ts` (o Pedido mantém o texto original) e
+  quatro em `src/lib/log.test.ts` (objeto simples, `code` no formato e fora dele, erro já reduzido, bordas como objeto
+  com cara de `Error`, lista, `{}` e objeto sem protótipo). As duas verificações da segunda barreira do `redact` em
+  `log.test.ts` passaram do campo `erro` para o campo `instancia`, sem afrouxar.
+- **Versão:** o `package.json` passou de 0.1.7 para 0.1.8, e `test/estatico/projeto.test.ts` confere a versão nova.
+- **Documentação:** estas notas; a versão no `README.md`, no manual técnico e no `docs/operacao/deploy.md`; no manual,
+  cap. 02 (vista do agente e `normalizarErro`), 03 (M-a fechado e utilitários), 06 (alcance da minimização na API) e
+  09 (201 dos `POST` e campos minimizados de DEC, ESP e RSK); no `deploy.md`, as seções 4 e 6 vieram da
+  `05-devops-sre.md`.
+
+Não houve `.skip`, `.only` ou `.todo` novo, nem asserção afrouxada. O C-10, o C-21, o C-23, o C-36, a A-02 e o axe
+continuam sem exceção.
+
+### Verificações desta versão
+
+- `pnpm test`: 3.918 de 3.918 (`04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143, três vezes seguidas.
+- Testes que reproduzem os defeitos da `01-qa-funcional.md`, com dados fictícios (nome, e-mail, CPF, telefone e CNPJ
+  em todo texto de DEC, ESP e RSK e no comentário da decisão; objeto com `motivo` e `cpf` no log), vistos falhando na
+  0.1.7.
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico ou alto; um médio (risco residual) e dois
+  baixos abertos (abaixo); o B-2 fechou na própria regressão.
+- `pnpm build` passou (34 rotas). `docker build` não rodou na `05-entrega`: as entradas da imagem são as da 0.1.7, salvo
+  `src/` e `package.json`, e a imagem é construída na homologação e no CI do PR (`05-devops-sre.md`).
+- A homologação, o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam para a Parada 3. O rollback
+  é o caminho A, só troca de imagem para a `v0.1.7` (`deploy.md`, seção 6).
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`):
+
+- **M-1 (risco residual de RF-20, dado pessoal), para Fabiano e a `gestao-riscos` aceitarem ou não antes da primeira
+  publicação.** Só o nome atual e completo do solicitante é trocado. O `solicitanteNome` pode ser editado, e DEC, ESP e
+  RSK guardam texto do momento da criação: nome antigo, ou escrito pela metade ("a Joana pediu…"), sai em claro para o
+  token de agente. Não é regressão. Opções para pedido futuro: (a) guardar o nome anterior numa coluna só para
+  minimizar, com o mesmo expurgo; (b) trocar cada parte do nome com 3 letras ou mais, com custo de falso positivo.
+- **B-1** (`src/lib/reduzir-erro.ts`): `FORMATO_CODE` aceita CPF ou telefone só de dígitos, e `erroJaReduzido` aceita
+  como classe um nome de uma palavra; depende de quem chama o log passar esse valor. Sugestão: recusar `code` só de
+  dígitos com 10 ou mais e aceitar só classe terminada em `Error` ou de lista conhecida.
+- **B-3** (`src/app/api/demandas/[id]/{especificacoes,pareceres-risco,pacotes-decisao}/route.ts`): nos três `POST`, os
+  nomes são lidos depois de gravar; se essa leitura falhar, o artefato fica gravado, o agente recebe 500 genérico e
+  pode repetir, criando versão duplicada. Sem vazamento. Sugestão: ler os nomes antes de chamar o serviço.
+
+Registradas nas outras etapas deste pedido:
+
+- Campo de texto novo numa das três vistas só fica coberto pelo teste "nenhum dos fragmentos" se o cenário o preencher
+  com o dado fictício; o tipo obriga a montar o campo na vista mínima, não a minimizá-lo (`04-qa-automacao.md`).
+- Seguem abertas as pendências da 0.1.7 que este pedido não tratou: B-a, o risco do M-3 para a Parada 3 e, da 0.1.6,
+  B-2 a B-5, `erroId` fora do Sentry, o risco do M-05 e o teste estático das actions por SHA.
+
 ## 0.1.7 — 2026-11-03
 
 Correção do pedido `DEC-DEM-20261103-0008-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.6 (`75a2b0f`). Ainda

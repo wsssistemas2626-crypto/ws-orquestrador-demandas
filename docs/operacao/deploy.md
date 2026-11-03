@@ -2,12 +2,12 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.7 |
+| Versão | 0.1.8 |
 | Imagem | `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas` (privada) |
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 03/11/2026 (`devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -101,14 +101,18 @@ A produção ainda não tem versão no ar, então não há para onde voltar. A 0
 GHCR, mas os serviços do Easypanel não foram criados. Depois do merge da 0.1.6, a `:latest` passa a ser a 0.1.6, com
 as mesmas 7 migrations da 0.1.0.
 
-**A primeira publicação está bloqueada pelo M-1 da 0.1.6** (CA-P5-16): a leitura de demanda pela API entrega ao token
-de agente o texto livre sem minimização, e um dado pessoal escrito ali sai inteiro
-([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6). **A 0.1.7 (pedido 0008) fecha o M-1 na demanda, mas não
-desbloqueia a publicação:** pelo achado M-a da revisão do 0008, o DEC ainda entrega ao token de agente, sem minimizar,
-a cópia do título e da descrição da demanda (`demandaTitulo` e `demandaDescricao`, inclusive no 201 do
-`POST /api/demandas/:id/pacotes-decisao`), os `comentarios` da decisão e o texto da ESP e do RSK. Só comece o passo 1
-depois de um pedido seguinte (0009) corrigir o M-a e ser mergeado, ou de Fabiano e a `gestao-riscos` aceitarem o risco
-por escrito.
+**Bloqueio de dado pessoal (CA-P5-16, CA-P5-21): sai com a 0.1.8.** A 0.1.6 tinha o M-1 (texto livre da demanda sem
+minimizar para o token de agente), que a 0.1.7 (pedido 0008) fechou na demanda; o M-a da revisão do 0008 mantinha o
+bloqueio, porque o DEC, a ESP e o RSK ainda entregavam texto livre sem minimizar. A 0.1.8 (pedido 0009) fecha o M-a:
+para o ator que não é pessoa, todo texto livre de DEC (inclusive `demandaTitulo`, `demandaDescricao` e
+`decisao.comentarios`), ESP e RSK passa pela mesma minimização da demanda, na leitura, na listagem e no 201 da criação.
+Por isso, **só comece o passo 1 com a 0.1.8 ou posterior mergeada na `main`**: a 0.1.6 e a 0.1.7 não podem ser a
+primeira publicação.
+
+Fica um **risco residual (M-1 da revisão do 0009)**, para aceite de Fabiano e da `gestao-riscos`: só o nome **atual e
+completo** do solicitante é trocado. O nome antigo (antes de uma edição da demanda) ou escrito pela metade em texto
+guardado no DEC, na ESP ou no RSK sai em claro para o agente. Não é regressão e não bloqueia a publicação; o tratamento,
+se houver, vem num pedido futuro (opções na 04-maestro do pedido 0009).
 
 1. Snapshot no hPanel.
 2. Criar o projeto e o serviço `db` (Postgres 16). O usuário criado pelo Easypanel é o **migrator** (dono do banco).
@@ -118,7 +122,7 @@ por escrito.
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
 5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
    - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
-   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.6, que não mudam `drizzle/`): roda o passo "Disparar o
+   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.8, que não mudam `drizzle/`): roda o passo "Disparar o
      Easypanel".
      - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
        EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
@@ -189,6 +193,17 @@ na homologação por `construir.mjs ensaiar-rollback <DEC-id>` antes de cada PR 
 anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaurar`, e as 7 migrations novas não alteram
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
+
+A 0.1.8 não traz migration: `drizzle/` não muda em relação à 0.1.7, e o journal é o mesmo da 0.1.7 à 0.1.0. Ela não
+grava valor novo no banco: a minimização do texto livre de DEC, ESP e RSK é só na resposta da API ao ator que não é
+pessoa (o Pedido de Construção continua lendo o banco, com o texto original), e a redução do erro em objeto simples é
+só no log. A volta da 0.1.8 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:3c8a942f48011aadc093afc92b88dd774f0242d8` (a `v0.1.7`,
+commit de merge do PR #9 na `main`). Antes de voltar, confirme a tag em Packages. Ao voltar, o token de agente volta a
+receber sem minimizar o texto livre de DEC, ESP e RSK (M-a do pedido 0008), e o log volta a gravar o erro em objeto
+simples como veio (B-b): a volta é só para indisponibilidade, e a correção vem logo depois. Se a 0.1.8 for a primeira
+publicação (seção 4), não há versão no ar para onde voltar: a volta é parar `app` e `worker` no Easypanel, e não
+publicar a 0.1.7 no lugar dela. O ensaio é o `ensaiar-rollback` da Parada 3.
 
 A 0.1.7 não traz migration: `drizzle/` não muda em relação à 0.1.6, e o journal é o mesmo da 0.1.6 à 0.1.0. Ela não
 grava valor novo no banco: a minimização do texto livre da demanda e o corte de nome em ESP, RSK e DEC são só na

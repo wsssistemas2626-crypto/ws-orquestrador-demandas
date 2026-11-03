@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.7 (muda quatro comportamentos: texto livre da demanda minimizado para quem não é pessoa, leituras de ESP, RSK e DEC sem nome de pessoa para quem não é pessoa, `console.error` de erro sem `digest` no Sentry e erro reduzido no `onRequestError`; ver o [CHANGELOG](../../CHANGELOG.md)) |
+| Versão do sistema | 0.1.8 (muda dois comportamentos: texto livre de DEC, ESP e RSK minimizado para quem não é pessoa, na leitura, na listagem e no 201 da criação, e `normalizarErro` reduzindo a `{ classe: "desconhecido" }` o erro em objeto que não é `Error`; ver o [CHANGELOG](../../CHANGELOG.md)) |
 | Atualizado em | 03/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
@@ -78,7 +78,7 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Aprovação | Registro de uma pessoa (papel `cto` ou `administradora`) aprovando uma opção do DEC |
 | Pedido de Construção | JSON gerado de um DEC aprovado, no formato que o `validarPedido` do `/construir` aceita |
 | Ator | Quem faz a ação: `pessoa` (sessão com 2FA), `agente` (token de serviço ou job do worker) ou `sistema` (mudança automática) |
-| Vista mínima | O que a leitura de demanda pela API devolve a quem não é pessoa: sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) |
+| Vista mínima | O que a leitura de demanda pela API devolve a quem não é pessoa: sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) e, desde a 0.1.8, com o texto livre minimizado também nelas e no 201 da criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)) |
 | Rascunho de agente | ESP, RSK ou DEC gravado por um agente; a decisão exige confirmar que foi revisado |
 | Texto bruto | O texto colado na entrada (e-mail, mensagem). Dado pessoal de terceiro; guardado à parte e expurgado no prazo |
 | Entrada pendente | Texto enviado ao agente orquestrador antes de a demanda existir |

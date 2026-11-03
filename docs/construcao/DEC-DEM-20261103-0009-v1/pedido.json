@@ -1,0 +1,38 @@
+{
+  "pedido": "DEC-DEM-20261103-0009-v1",
+  "demanda": {
+    "id": "DEM-20261103-0009",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.8: M-a da revisão do pedido 0008 (texto livre de DEC, ESP e RSK minimizado para o agente) e B-b",
+    "descricao": "Na 04-revisao do pedido DEC-DEM-20261103-0008-v1 (docs/construcao/DEC-DEM-20261103-0008-v1/04-maestro.md, seção Médio) ficou o M-a, que bloqueia a primeira publicação (CA-P5-16, CA-P5-21). (M-a, RF-20, dado pessoal) O DEC guarda cópia do título e da descrição da demanda (src/modules/pacotes-decisao/criar.ts:122-123), e src/modules/pacotes-decisao/consultas.ts:189-190 (vistaDoPacotePara) devolve demandaTitulo e demandaDescricao sem minimizar para quem não é pessoa em GET /api/pacotes-decisao, GET /api/pacotes-decisao/:decId e GET /api/demandas/:id/pacotes-decisao; o 201 do POST /api/demandas/:id/pacotes-decisao (src/app/api/demandas/[id]/pacotes-decisao/route.ts:13) nem passa pela vistaDoPacotePara. No mesmo grupo saem sem minimizar decisao.comentarios (:202), o texto livre do DEC (resumoExecutivo, opcaoA, opcaoB, recomendacao) e o texto livre da ESP (vistaDaEspecificacaoPara, src/modules/especificacoes/consultas.ts:75) e do RSK (vistaDoParecerPara, src/modules/pareceres-risco/consultas.ts:62), inclusive no 201 da criação de cada um, que a entrada do agente (src/modules/agentes/entrada-agente.ts) minimiza e a API não. A demanda já minimiza na 0.1.7 (vistaDaDemandaPara, src/modules/demandas/consultas.ts:207, com minimizarValor de src/modules/dados-pessoais/minimizar.ts e o nome do solicitante entre os trocados). (B-b) src/lib/log.ts:59 (normalizarErro) devolve objeto que não é Error sem reduzir. Base: main (3c8a942, versão 0.1.7)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261103-0009-v1",
+    "conteudo": "(M-a) Para ator que não é pessoa, todo campo de texto livre de DEC, ESP e RSK devolvido pela API passa pelo mesmo minimizarValor da demanda, com o nome do solicitante da demanda entre os nomes trocados: no DEC, demandaTitulo, demandaDescricao, resumoExecutivo, opcaoA, opcaoB, recomendacao e decisao.comentarios; na ESP e no RSK, todo campo de texto e de lista de texto da vista. Vale para leitura por id, listagens e o 201 de criação de DEC, ESP e RSK (o 201 passa pela vista do ator). A pessoa continua vendo o original. A regra é por lista de permissão: campo de texto novo da vista não sai para o agente sem passar pela minimização. Campos de código e enumerados (ids, sistemaAlvo, repositorioDestino, níveis de risco, status) ficam iguais. Teste de contrato com e-mail, CPF, telefone e o nome do solicitante no texto, para os dois atores, em cada rota. (B-b) normalizarErro reduz também o objeto que não é Error a { classe, code }; teste. Nenhum controle é afrouxado (C-10, C-21, C-23, A-02, axe, C-36). Sem migration. Mudam src/, os testes, package.json (versão 0.1.8) e CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261103-0009-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe na API lida por agente, com dados fictícios. Riscos: minimizar também para a pessoa por engano (o teste cobre os dois atores); um agente depender do texto original de DEC, ESP ou RSK pela API (a entrada do agente já recebe minimizado, então o efeito é o mesmo); o Pedido de Construção gerado a partir do DEC passar a sair minimizado por engano (o gerar lê o banco, não a vista; teste deve conferir); log de erro perder diagnóstico com o B-b (classe e code continuam). Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261103-0009-v1",
+    "opcaoEscolhida": "Corrigir o M-a e o B-b da revisão do 0008 num pedido de correção (cadeia curta) sobre a main, antes da primeira publicação",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-03"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Ator agente recebe o texto livre de DEC, ESP e RSK minimizado na leitura, na listagem e no 201 da criação; a pessoa recebe o original",
+    "O Pedido de Construção gerado a partir do DEC continua com o texto original",
+    "normalizarErro reduz objeto que não é Error",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.8",
+    "PR com CI verde"
+  ]
+}
