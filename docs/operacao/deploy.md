@@ -7,7 +7,7 @@
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 04/11/2026 (`devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -122,7 +122,7 @@ se houver, vem num pedido futuro (opções na 04-maestro do pedido 0009).
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
 5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
    - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
-   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.8, que não mudam `drizzle/`): roda o passo "Disparar o
+   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.9, que não mudam `drizzle/`): roda o passo "Disparar o
      Easypanel".
      - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
        EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
@@ -193,6 +193,21 @@ na homologação por `construir.mjs ensaiar-rollback <DEC-id>` antes de cada PR 
 anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaurar`, e as 7 migrations novas não alteram
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
+
+A 0.1.9 não traz migration: `drizzle/` não muda em relação à 0.1.8, e o journal é o mesmo da 0.1.8 à 0.1.0. Ela não
+grava valor novo no banco: o filtro de classe e de `code` do erro é só no log e no título do Sentry, o envio único ao
+Sentry por objeto de erro não escreve no banco, o rótulo de `demanda_final` é só texto da tela (o motivo já é gravado
+desde a 0.1.5), e os 3 POST de ESP, RSK e DEC só passam a ler os nomes da demanda antes de gravar, com as mesmas linhas
+gravadas. A volta da 0.1.9 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:1d6d8976f6ca317fe33caf6a8358f37d8b5c0c1d` (a `v0.1.8`,
+commit de merge do PR #10 na `main`), sem restaurar backup. Antes de voltar, confirme a tag em Packages. Ao voltar, o
+log e o título do Sentry voltam a aceitar `code` com 10 ou mais dígitos e qualquer identificador como classe (B-1 do
+0009), a falha ao ler os nomes depois de gravar volta a responder 500 com o artefato gravado, e a nova tentativa do
+agente cria versão duplicada (B-3 do 0009), o mesmo erro de route handler pode ir duas vezes ao Sentry (B-a do 0008), e
+o histórico volta a mostrar só "Agente … não rodou" para `demanda_final`: a volta é só para indisponibilidade, e a
+correção vem logo depois. Se a 0.1.9 for a primeira publicação (seção 4), não há versão no ar para onde voltar: a volta
+é parar `app` e `worker` no Easypanel, e não publicar a 0.1.8 no lugar dela. O ensaio é o `ensaiar-rollback` da
+Parada 3.
 
 A 0.1.8 não traz migration: `drizzle/` não muda em relação à 0.1.7, e o journal é o mesmo da 0.1.7 à 0.1.0. Ela não
 grava valor novo no banco: a minimização do texto livre de DEC, ESP e RSK é só na resposta da API ao ator que não é
@@ -269,7 +284,10 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
    erro de página ou layout aparece como `erro_requisicao`, com `rota`, `erro` (classe e código) e `erroId`, e erro que
    chega ao console como `console_erro` ou `console_aviso`. No Sentry, o mesmo erro tem a tag `evento` igual a
    `erro_requisicao` e o título `<classe> <code>`, sem o `erroId`: case pela hora, pela classe e pelo código
-   ([manual, cap. 02](../manual-tecnico/02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).
+   ([manual, cap. 02](../manual-tecnico/02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)). Desde a 0.1.9, a
+   classe só aparece quando termina em `Error` ou `Exception` ou é uma classe do projeto (fora disso, `Error` no Sentry
+   e `desconhecido` no log), o `code` com 10 ou mais dígitos seguidos não aparece, e o mesmo objeto de erro vai uma vez
+   só ao Sentry, mesmo que chegue ao gancho e ao console; cada `console.error` continua deixando a sua linha no log.
 3. Em `/configuracao/agentes`, batimento do worker com menos de 5 minutos e uma instância só.
 4. Entrar com uma conta real (senha e 2FA) e abrir a fila de demandas.
 
