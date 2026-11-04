@@ -209,6 +209,33 @@ describe('B-a do 0008: um envio por objeto de erro', () => {
   });
 });
 
+// 04-regressao do DEC-DEM-20261104-0010-v1 (qa-automacao), B-1 do 0009 no título do Sentry, a outra saída além do log:
+// code com 10 ou mais dígitos (CPF e celular fictícios), no erro ou na cause, e classe que é um nome de pessoa não vão
+// ao envelope; o título fica só 'Error'. O code do Postgres continua no título.
+describe('04-regressao do 0010: B-1 do 0009 no título do Sentry', () => {
+  it.each(['00000000191', '11900000000', '1234567890'])('code %s não vai ao envelope, nem do erro nem da cause', async (code) => {
+    const doErro = await enviar(Object.assign(new Error('x'), { code }));
+    expect(doErro).not.toContain(code);
+    expect(doErro).toContain('"value":"Error"');
+    enviados.length = 0;
+    const daCausa = await enviar(new Error('x', { cause: Object.assign(new Error('y'), { code }) }));
+    expect(daCausa).not.toContain(code);
+    expect(daCausa).toContain('"value":"Error"');
+  });
+
+  it('classe Joana não vai ao envelope; DrizzleQueryError com code 23505 continua no título', async () => {
+    const nome = new Error('x');
+    nome.name = 'Joana';
+    const saida = await enviar(nome);
+    expect(saida).not.toContain('Joana');
+    expect(saida).toContain('"value":"Error"');
+    enviados.length = 0;
+    const banco = Object.assign(new Error('x'), { code: '23505' });
+    banco.name = 'DrizzleQueryError';
+    expect(await enviar(banco)).toContain('DrizzleQueryError 23505');
+  });
+});
+
 it('stack que não começa pelo cabeçalho atual do erro não manda quadro nenhum, só o título', async () => {
   const erro = new Error(`falhou\n    at ${SENTINELAS.texto}`);
   void erro.stack; // o V8 monta o stack com a mensagem de agora
