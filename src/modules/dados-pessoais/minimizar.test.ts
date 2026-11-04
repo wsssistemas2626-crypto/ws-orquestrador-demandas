@@ -584,3 +584,45 @@ describe('B-1 do 0011: nome grudado', () => {
     expect(performance.now() - inicio).toBeLessThan(1000);
   });
 });
+
+// 04-regressao do 0012 (qa-automacao): o que a 0.1.10 trocava continua trocado, e a borda nova do nome não estraga texto
+// comum (sigla, palavra que contém a parte, identificador com "_"). Todos os nomes e e-mails são fictícios.
+describe('M-a e B-1 do 0011 (04-regressao do 0012): sem perda em relação à 0.1.10', () => {
+  const E = MARCADORES['e-mail'];
+  const M = MARCADOR_NOME;
+
+  // A 0.1.10 trocava os dois (ou os três) e-mails: o seguinte começava logo depois do fim do anterior.
+  it.each([
+    ['joana.ficticia@exemplo.test+pedro.ficticio@exemplo.test', 'pedro'],
+    ['joana.ficticia@exemplo.test_pedro.ficticio@exemplo.test', 'pedro'],
+    ['joana.ficticia@exemplo.test-pedro@exemplo.test', 'pedro'],
+    ['joana.ficticia@exemplo.test2pedro@exemplo.test', 'pedro'],
+    ['ana@exemplo.test-bia@exemplo.test-caio@exemplo.test', 'bia'],
+  ])('e-mails colados %j: nenhum usuário nem "@" sobra', (t, usuario) => {
+    const s = minimizar(`Contatos: ${t}.`);
+    expect(s).not.toContain('@');
+    expect(s).not.toContain(usuario);
+    expect(s.startsWith(`Contatos: ${E}`)).toBe(true);
+    expect(minimizar(s)).toBe(s);
+  });
+
+  it.each<[string, string]>([
+    ['Ana Ficticia', 'A ANAC, a ANATEL e o ANALISTA aprovaram.'],
+    ['Ana Ficticia', 'Mariana, Anabela, Banana, Ananias e ANAlise.'],
+    ['Ana Ficticia', 'campo_analise, tabela_ANALISE e var_Analise'],
+    ['Ana Ficticia', 'MARIANA e Mariana'.normalize('NFD')],
+    ['Carla Rosa Campos', 'ROSACEA, Rosado, Camposanto e CAMPOSINHO'],
+    ['Joana Ficticia', 'Joanasilva, JOANASILVA, joanasilva e FICTICIAS'],
+  ])('nome %j: texto comum %j fica igual', (nome, t) => {
+    expect(minimizar(t, { nomes: [nome] })).toBe(t);
+  });
+
+  it('tempo: "Ana" repetido 33.333 vezes vira 33.333 marcadores, em menos de 1 s', () => {
+    const t = 'Ana'.repeat(33_333);
+    const inicio = performance.now();
+    const s = minimizar(t, { nomes: ['Ana Ficticia'] });
+    const ms = performance.now() - inicio;
+    expect(s).toBe(M.repeat(33_333));
+    expect(ms).toBeLessThan(1000);
+  });
+});
