@@ -9,3 +9,4 @@
 {"pedido":"DEC-DEM-20261104-0010-v1","etapa":"04-revisao","de":"maestro","para":"devops-sre","status":"pronto","volta":0,"inicio":"2026-11-04T10:50:34.000Z","fim":"2026-11-04T10:50:34.285Z","minutos":0,"motivo":null}
 {"pedido":"DEC-DEM-20261104-0010-v1","etapa":"05-entrega","de":"devops-sre","para":"documentacao-tecnica","status":"pronto","volta":0,"inicio":"2026-11-04T10:50:40.000Z","fim":"2026-11-04T10:52:56.151Z","minutos":2,"motivo":null}
 {"pedido":"DEC-DEM-20261104-0010-v1","etapa":"06-documentacao","de":"documentacao-tecnica","para":"maestro","status":"pronto","volta":0,"inicio":"2026-11-04T10:53:00.000Z","fim":"2026-11-04T11:00:13.651Z","minutos":7,"motivo":null}
+{"pedido":"DEC-DEM-20261104-0010-v1","etapa":"P3","de":"maestro","para":null,"status":"pronto","volta":0,"inicio":"2026-11-04T11:00:20.000Z","fim":"2026-11-04T11:27:42.413Z","minutos":27,"motivo":"PR https://github.com/wsssistemas2626-crypto/ws-orquestrador-demandas/pull/11 com CI verde"}
