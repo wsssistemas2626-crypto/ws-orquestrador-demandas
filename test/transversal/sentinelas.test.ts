@@ -427,7 +427,12 @@ it(
 
     // RNF-10: conteúdo de prompt também não vai ao log nem ao Sentry. O texto sentinela chegou mesmo ao provedor (a
     // asserção acima não é vazia), e nenhum trecho do prompt de sistema aparece nas saídas.
-    expect(JSON.stringify(provedor.chamadas)).toContain(SENTINELAS.texto);
+    // M-1 do 0009 (DEC-DEM-20261104-0011-v1): o solicitante é SENTINELAS.nome ('Pessoa Ficticia Sentinela'), e a parte
+    // 'Sentinela' troca o começo de 'SENTINELA-TEXTO-7f3a', que começa por maiúscula. O texto chega ao provedor como
+    // '[nome removido]-TEXTO-7f3a', e é esse trecho que não pode aparecer em nenhuma saída.
+    const TRECHO_DO_TEXTO = SENTINELAS.texto.replace(/^SENTINELA/, '');
+    expect(JSON.stringify(provedor.chamadas)).toContain(`[nome removido]${TRECHO_DO_TEXTO}`);
+    expect(todasAsSaidas.includes(TRECHO_DO_TEXTO), 'texto enviado ao provedor numa saída').toBe(false);
     for (const c of provedor.chamadas) {
       expect(c.sistema.length).toBeGreaterThan(60);
       expect(todasAsSaidas.includes(c.sistema.slice(0, 60)), 'prompt de sistema numa saída').toBe(false);

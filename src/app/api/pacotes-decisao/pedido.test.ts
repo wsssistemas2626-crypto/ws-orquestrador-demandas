@@ -338,6 +338,54 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: texto original (M-
     expect(p.criterios_aceite_preliminares).toEqual([trecho]);
     expect(p.risco.conteudo).not.toContain('[nome removido]');
   });
+
+  // M-1 do 0009 (DEC-DEM-20261104-0011-v1, contraprova do CA 3): a parte do nome sozinha também sai como gravada.
+  it('M-1 do 0009: com "A Joana pediu" no texto, o pedido leva o original, sem marcador', async () => {
+    const trecho = 'A Joana pediu o relatório mensal.';
+    const autora = novaAutora();
+    const d = await criarDemanda(
+      deps,
+      autora,
+      criarDemandaSchema.parse({ titulo: 'Relatório da Joana', tipo: 'bug', solicitanteNome: 'Joana Ficticia', contexto: trecho }),
+    );
+    await criarEspecificacao(
+      deps,
+      autora,
+      d.id,
+      criarEspecificacaoSchema.parse({
+        descricaoObjetiva: trecho,
+        escopoInclui: [trecho],
+        sistemaAlvo: 'meu-sistema',
+        repositorioDestino: 'wsssistemas2626-crypto/meu-sistema',
+        criteriosAceitePreliminares: [trecho],
+        definicaoDePronto: ['p'],
+      }),
+    );
+    await criarParecerRisco(
+      deps,
+      autora,
+      d.id,
+      criarParecerRiscoSchema.parse({ resumo: trecho, riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo', preCondicoes: [trecho] }),
+    );
+    const dec = await criarPacoteDecisao(
+      deps,
+      autora,
+      d.id,
+      criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo', opcaoA: { descricao: trecho }, opcaoB: { descricao: 'Opção B' }, nivelAprovacaoRequerido: 'cto' }),
+    );
+    await registrarDecisao(deps, decisora, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }));
+    const r = await gerar(dec.id);
+    expect(r.status).toBe(200);
+    const texto = await r.text();
+    const p = JSON.parse(texto);
+    expect(p.demanda).toMatchObject({ titulo: 'Relatório da Joana', descricao: `Contexto: ${trecho}` });
+    expect(p.especificacao.conteudo).toBe(`Descrição objetiva: ${trecho}\n\nEscopo inclui:\n- ${trecho}`);
+    expect(p.risco.conteudo).toContain(`Resumo: ${trecho}`);
+    expect(p.risco.conteudo).toContain(`Pré-condições:\n- ${trecho}`);
+    expect(p.decisao.opcaoEscolhida).toBe(`A: ${trecho}`);
+    expect(p.criterios_aceite_preliminares).toEqual([trecho]);
+    expect(texto).not.toContain('[nome removido]');
+  });
 });
 
 describe('log da rota do pedido (C-21)', () => {

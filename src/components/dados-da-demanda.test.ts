@@ -51,8 +51,12 @@ describe('textos da 03, T04 e T06', () => {
   it('alertas de modo, aviso de minimização e dicas', () => {
     expect(TEXTOS_DEMANDA.desligado).toBe('Agente orquestrador desligado. Preencha os campos abaixo.');
     expect(TEXTOS_DEMANDA.suspenso).toBe('Agentes suspensos pelo teto de gasto. Preencha os campos abaixo.');
+    // M-1 do 0009 (DEC-DEM-20261104-0011-v1, D-2): o aviso e a dica não prometem mais do que a minimização faz.
     expect(TEXTOS_DEMANDA.avisoMinimizacao).toBe(
-      'O agente recebe só o texto, sem o nome do solicitante, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. Você revisa a proposta antes de qualquer decisão.',
+      'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante e cada parte dele escrita com inicial maiúscula também viram marcador; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
+    );
+    expect(TEXTOS_DEMANDA.dicaNome).toBe(
+      'O campo não vai ao agente de IA. Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas.',
     );
     expect(TEXTOS_DEMANDA.dicaTexto).toBe(
       'Cole o e-mail, a mensagem ou o formulário como chegou. Este texto é dado pessoal de terceiro: fica guardado por 90 dias e depois é apagado.',
@@ -60,6 +64,13 @@ describe('textos da 03, T04 e T06', () => {
     expect(TEXTOS_DEMANDA.avisoEdicao).toBe(
       'As alterações ficam no histórico, com o valor de antes e o de depois. Os pacotes de decisão já criados guardam uma cópia dos dados e não mudam.',
     );
+  });
+
+  it('M-1 do 0009 (D-2): nem a dica do nome nem o aviso dizem que o nome nunca chega ao agente', () => {
+    for (const texto of [TEXTOS_DEMANDA.dicaNome, TEXTOS_DEMANDA.avisoMinimizacao]) {
+      expect(texto).not.toContain('não é enviado ao agente');
+      expect(texto).not.toContain('sem o nome do solicitante');
+    }
   });
 
   it('sucessos e avisos do endereço', () => {

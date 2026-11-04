@@ -5,7 +5,9 @@
 // insert com a cópia da demanda (RF-22) e a autoria só do ator (C-11) → evento sem texto livre (C-30) → a demanda vai a
 // pronta_para_decisao pelo ator sistema (RF-07) → aviso por e-mail pendente e o job dele (RF-25, T30). Aceita a
 // transação de quem chama (G3.8): o worker grava a versão, a execução e o job juntos (ADR-02, ADR-06). A entrada já
-// chega validada pelo Zod (rota, Server Action ou job).
+// chega validada pelo Zod (rota, Server Action ou job). B-3 do 0010: os nomes do solicitante da vista do 201 saem da
+// linha travada, no fim da mesma transação; a rota usa criarPacoteDecisaoComNomes e não lê mais os nomes fora da trava.
+// Se essa conta falhar, a transação inteira volta (nem versão, nem status, nem aviso).
 import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { especificacaoTecnica, pacoteDecisao, parecerRisco } from '../../db/schema';
@@ -15,6 +17,7 @@ import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { agendarAviso } from '../avisos/aviso-dec';
+import { nomesDoSolicitante } from '../demandas/consultas';
 import { autoriaDo, type DepsComFila } from '../demandas/servico';
 import { mudarStatusPeloSistema, recusarSeDemandaFinal } from '../demandas/transicoes';
 import { registrarEvento } from '../historico/registrar';
@@ -88,11 +91,33 @@ export async function criarPacoteDecisao(
   t?: Transacao,
   extras: ExtrasDoPacote = {},
 ): Promise<PacoteDecisaoVista> {
+  return (await criarComNomes(deps, ator, demandaId, entrada, t, extras)).vista;
+}
+
+// B-3 do 0010: para a rota. Quatro argumentos, sem `t` nem `extras` (C-11, C-25): a rota não tem como citar ESP ou RSK
+// nem passar transação. A guarda test/estatico/pacote-sem-extras.test.ts cobre esta função também.
+export async function criarPacoteDecisaoComNomes(
+  deps: DepsComFila,
+  ator: Ator,
+  demandaId: string,
+  entrada: CriarPacoteDecisao,
+): Promise<{ vista: PacoteDecisaoVista; nomes: string[] }> {
+  return criarComNomes(deps, ator, demandaId, entrada);
+}
+
+async function criarComNomes(
+  deps: DepsComFila,
+  ator: Ator,
+  demandaId: string,
+  entrada: CriarPacoteDecisao,
+  t?: Transacao,
+  extras: ExtrasDoPacote = {},
+): Promise<{ vista: PacoteDecisaoVista; nomes: string[] }> {
   autorizar(ator, 'criar_pacote_decisao');
   const autoria = autoriaDo(ator);
   const rascunhoAgente = autoria.autorTipo === 'agente';
   const nivelAprovacaoRequerido = rascunhoAgente ? NIVEL_DO_DEC_DE_AGENTE : entrada.nivelAprovacaoRequerido;
-  const corpo = async (tr: Transacao): Promise<string> => {
+  const corpo = async (tr: Transacao): Promise<{ id: string; nomes: string[] }> => {
     const { tx } = tr;
     const d = await travarDemanda(tx, demandaId);
     recusarSeDemandaFinal(d.status);
@@ -148,8 +173,9 @@ export async function criarPacoteDecisao(
     await mudarStatusPeloSistema(tr, deps, demandaId, 'dec_criado');
     // RF-25: um aviso por DEC, na mesma transação; o rollback leva o aviso e o job junto.
     await agendarAviso(tr, deps, id);
-    return id;
+    // B-3 do 0010: o nome da linha travada, que nenhuma renomeação muda até o commit.
+    return { id, nomes: nomesDoSolicitante(d.solicitanteNome) };
   };
-  const id = t ? await corpo(t) : await comTransacao(deps.pool, corpo);
-  return obterPacoteDecisao(t?.tx ?? deps.db, id);
+  const { id, nomes } = t ? await corpo(t) : await comTransacao(deps.pool, corpo);
+  return { vista: await obterPacoteDecisao(t?.tx ?? deps.db, id), nomes };
 }

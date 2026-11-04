@@ -3,6 +3,8 @@
 // Action, página) chama a função com mais de 4 argumentos, com argumento espalhado ou por uma referência que não seja a
 // chamada direta (variável, bind, call, apply). Lê pela AST do TypeScript: quebra de linha e vírgula dentro de objeto
 // ou de chamada aninhada não contam, e o import renomeado ou por namespace é seguido. Cresce sozinho.
+// B-3 do 0010 (DEC-DEM-20261104-0011-v1): a rota passou a chamar criarPacoteDecisaoComNomes, com 4 argumentos e sem `t`
+// nem `extras`. A varredura cobre as duas funções do módulo criar, com o mesmo máximo e as mesmas regras de referência.
 import { globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -13,7 +15,7 @@ const arquivosDeApp = globSync('src/app/**/*.{ts,tsx}', { cwd: raiz })
   .filter((a) => !/\.test\.tsx?$/.test(a))
   .sort();
 
-const FUNCAO = 'criarPacoteDecisao';
+const FUNCOES: ReadonlySet<string> = new Set(['criarPacoteDecisao', 'criarPacoteDecisaoComNomes']);
 const MAX_ARGUMENTOS = 4;
 const doModuloCriar = (especificador: string) => /(^|\/)pacotes-decisao\/criar(\.ts)?$/.test(especificador);
 
@@ -27,13 +29,13 @@ function chamadasComExtras(fonte: string, arquivo = 'exemplo.ts'): string[] {
     const ligacoes = d.importClause?.namedBindings;
     if (!ligacoes) continue;
     if (ts.isNamespaceImport(ligacoes)) namespaces.add(ligacoes.name.text);
-    else for (const e of ligacoes.elements) if ((e.propertyName ?? e.name).text === FUNCAO) nomesLocais.add(e.name.text);
+    else for (const e of ligacoes.elements) if (FUNCOES.has((e.propertyName ?? e.name).text)) nomesLocais.add(e.name.text);
   }
   const acusados: string[] = [];
   const linha = (n: ts.Node) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
   const ehReferencia = (n: ts.Node): boolean =>
     (ts.isIdentifier(n) && nomesLocais.has(n.text)) ||
-    (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && namespaces.has(n.expression.text) && n.name.text === FUNCAO) ||
+    (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && namespaces.has(n.expression.text) && FUNCOES.has(n.name.text)) ||
     (ts.isElementAccessExpression(n) && ts.isIdentifier(n.expression) && namespaces.has(n.expression.text));
   const visitar = (n: ts.Node): void => {
     if (ts.isImportDeclaration(n)) return;
@@ -102,14 +104,39 @@ describe('B-1 do 0006: a leitura das chamadas pela AST', () => {
 
   it('não acusa função de mesmo nome que não vem do módulo criar', () => {
     expect(chamadasComExtras("import { criarPacoteDecisao } from './outro';\ncriarPacoteDecisao(a, b, c, d, e, f);")).toEqual([]);
+    expect(chamadasComExtras("import { criarPacoteDecisaoComNomes } from './outro';\ncriarPacoteDecisaoComNomes(a, b, c, d, e, f);")).toEqual([]);
+  });
+
+  // B-3 do 0010: as mesmas regras para criarPacoteDecisaoComNomes.
+  it('acusa criarPacoteDecisaoComNomes com 5 argumentos, renomeada, por namespace, espalhada e fora da chamada', () => {
+    const IMPORT_NOVA = "import { criarPacoteDecisaoComNomes } from '../../../../../modules/pacotes-decisao/criar';\n";
+    expect(chamadasComExtras(`${IMPORT_NOVA}await criarPacoteDecisaoComNomes(deps, ator, id, corpo, t);`)).toEqual(['exemplo.ts:2 5 argumentos']);
+    expect(chamadasComExtras("import { criarPacoteDecisaoComNomes as c } from '@/modules/pacotes-decisao/criar';\nc(deps, ator, id, corpo, t, extras);")).toEqual([
+      'exemplo.ts:2 6 argumentos',
+    ]);
+    expect(chamadasComExtras("import * as m from '../modules/pacotes-decisao/criar';\nm.criarPacoteDecisaoComNomes(deps, ator, id, corpo, t);")).toEqual([
+      'exemplo.ts:2 5 argumentos',
+    ]);
+    expect(chamadasComExtras(`${IMPORT_NOVA}criarPacoteDecisaoComNomes(...args);`)).toEqual(['exemplo.ts:2 argumento espalhado']);
+    expect(chamadasComExtras(`${IMPORT_NOVA}const f = criarPacoteDecisaoComNomes;\nf(deps, ator, id, corpo, t, extras);`)).toEqual([
+      'exemplo.ts:2 referência fora da chamada direta',
+    ]);
+    expect(chamadasComExtras(`${IMPORT_NOVA}criarPacoteDecisaoComNomes.apply(null, [deps, ator, id, corpo, t, extras]);`)).toEqual([
+      'exemplo.ts:2 referência fora da chamada direta',
+    ]);
+    expect(chamadasComExtras(`${IMPORT_NOVA}const { vista, nomes } = await criarPacoteDecisaoComNomes(deps, ator, params.id, corpo);`)).toEqual([]);
   });
 });
 
 describe('B-1 do 0006: nenhum arquivo de src/app/ passa extras a criarPacoteDecisao', () => {
+  // B-3 do 0010: a rota chama criarPacoteDecisaoComNomes; a Server Action segue com criarPacoteDecisao.
   it('a varredura enxerga os dois chamadores de hoje (falha se o glob ou a leitura quebrarem)', () => {
-    const chamadores = arquivosDeApp.filter((a) => readFileSync(`${raiz}${a}`, 'utf8').includes(`${FUNCAO}(`));
-    expect(chamadores).toEqual(
-      expect.arrayContaining(['src/app/api/demandas/[id]/pacotes-decisao/route.ts', 'src/app/(painel)/demandas/[id]/pacotes-decisao/novo/acoes.ts']),
+    const chama = (a: string, f: string) => readFileSync(`${raiz}${a}`, 'utf8').includes(`${f}(`);
+    expect(arquivosDeApp.filter((a) => chama(a, 'criarPacoteDecisaoComNomes'))).toEqual(
+      expect.arrayContaining(['src/app/api/demandas/[id]/pacotes-decisao/route.ts']),
+    );
+    expect(arquivosDeApp.filter((a) => chama(a, 'criarPacoteDecisao'))).toEqual(
+      expect.arrayContaining(['src/app/(painel)/demandas/[id]/pacotes-decisao/novo/acoes.ts']),
     );
   });
 

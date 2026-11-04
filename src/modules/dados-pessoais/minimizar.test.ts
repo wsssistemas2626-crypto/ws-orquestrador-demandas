@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { SENTINELAS } from '../../../test/sentinelas';
 import { DETECTORES, encontrarDadosPessoais, type TipoDadoPessoal } from './detectores';
-import { CABECALHOS_DE_EMAIL, MARCADOR_NOME, MARCADORES, minimizar, minimizarValor } from './minimizar';
+import { CABECALHOS_DE_EMAIL, MARCADOR_NOME, MARCADORES, PARTICULAS_DO_NOME, minimizar, minimizarValor, partesDoNome } from './minimizar';
 
 const TIPOS: TipoDadoPessoal[] = ['e-mail', 'telefone', 'CPF', 'CNPJ'];
 
@@ -201,7 +201,8 @@ describe('minimizar: nome conhecido do solicitante (RF-20)', () => {
   it.each<[string[], string]>([
     [['Pessoa Ficticia', 'nome'], `${MARCADOR_NOME} assinou; ${MARCADOR_NOME} também.`],
     [['nome', 'Pessoa Ficticia'], `${MARCADOR_NOME} assinou; ${MARCADOR_NOME} também.`],
-    [['Pessoa Ficticia', 'nome removido', 'removido'], `${MARCADOR_NOME} assinou; Nome também.`],
+    // M-1 do 0009 (DEC-DEM-20261104-0011-v1): a parte "nome" de "nome removido" troca "Nome", que começa por maiúscula.
+    [['Pessoa Ficticia', 'nome removido', 'removido'], `${MARCADOR_NOME} assinou; ${MARCADOR_NOME} também.`],
   ])('vários nomes (%j): o marcador posto por um não é estragado pelo seguinte', (nomes, esperado) => {
     const s = minimizar('Pessoa Ficticia assinou; Nome também.', { nomes });
     expect(s).toBe(esperado);
@@ -248,8 +249,10 @@ describe('minimizarValor: a regra única da entrada do agente e da vista da API 
     expect(minimizarValor(T, [])).toBe('Falar com Maria Ficticia Teste, [e-mail removido], CPF [CPF removido], tel [telefone removido]');
   });
 
-  it('o nome de outro solicitante não troca o nome deste (cada item da listagem usa o seu)', () => {
-    expect(minimizarValor('Pedido de Ana Exemplo Lima', ['Bruno Exemplo Rocha'])).toBe('Pedido de Ana Exemplo Lima');
+  // M-1 do 0009 (DEC-DEM-20261104-0011-v1, decisão 3 do maestro): a parte em comum ("Exemplo") também sai; o resto do
+  // nome do outro fica.
+  it('o nome de outro solicitante não troca o nome deste (cada item da listagem usa o seu), salvo a parte em comum', () => {
+    expect(minimizarValor('Pedido de Ana Exemplo Lima', ['Bruno Exemplo Rocha'])).toBe('Pedido de Ana [nome removido] Lima');
   });
 
   it('nome com menos de 3 letras não é trocado; com espaço duplo e caixa diferente, é', () => {
@@ -259,5 +262,134 @@ describe('minimizarValor: a regra única da entrada do agente e da vista da API 
 
   it('é idempotente: o texto já minimizado passa igual', () => {
     expect(minimizarValor(T_MIN, [NOME])).toBe(T_MIN);
+  });
+});
+
+// M-1 do 0009 (DEC-DEM-20261104-0011-v1, D-1): além do nome completo, cada parte do nome do solicitante com 3 letras ou
+// mais vira marcador, se no texto começar por maiúscula; partícula e sufixo de parentesco ficam; sem diferença de acento
+// nos dois sentidos. Casos da 01 e da 02 do pedido; todos os nomes são fictícios.
+describe('M-1 do 0009: cada parte do nome', () => {
+  const M = MARCADOR_NOME;
+  const NFD = (s: string) => s.normalize('NFD');
+
+  const CASOS: [string, string, string][] = [
+    // Tabela do D-1 da 01.
+    ['Joana Ficticia', 'Joana Ficticia confirmou', `${M} confirmou`],
+    ['Ana dos Santos', 'A Ana pediu os dados dos clientes; Santos aprovou.', `A ${M} pediu os dados dos clientes; ${M} aprovou.`],
+    ['Bruno Dias Lima', 'Prazo de 30 dias; suco de lima; Lima aprovou.', `Prazo de 30 dias; suco de lima; ${M} aprovou.`],
+    ['Bruno Dias Lima', 'Dias depois o Bruno ligou.', `${M} depois o ${M} ligou.`],
+    [
+      'Carla Rosa Campos',
+      'camisa rosa, os campos do formulário; Rosa e Campos assinaram',
+      `camisa rosa, os campos do formulário; ${M} e ${M} assinaram`,
+    ],
+    ['Joana Ficticia', 'JOANA pediu', `${M} pediu`],
+    ['Joana Ficticia', 'a joana pediu', 'a joana pediu'],
+    ['Joana Ficticia', 'Escreva para joana.ficticia@exemplo.test ou Joana@exemplo.test', 'Escreva para [e-mail removido] ou [e-mail removido]'],
+    ['Joana Conceição Ficticia', 'a Conceição pediu; CONCEIÇÃO aprovou', `a ${M} pediu; ${M} aprovou`],
+    ['Joana Conceição Ficticia', 'a Conceicao pediu', `a ${M} pediu`],
+    ['Removido Ficticia', '[e-mail removido] Removido', `[e-mail removido] ${M}`],
+    ['Joana Ficticia', 'Joanabela e Ficticias', 'Joanabela e Ficticias'],
+    // Casos da 02.
+    [
+      'Joana Ficticia',
+      'A Joana pediu o relatório. Falei com a Ficticia ontem. Joana Ficticia confirmou.',
+      `A ${M} pediu o relatório. Falei com a ${M} ontem. ${M} confirmou.`,
+    ],
+    ['Joana Conceicao Ficticia', 'a Conceição pediu; CONCEIÇÃO aprovou', `a ${M} pediu; ${M} aprovou`],
+    ['Joana Conceição Ficticia', 'joana conceicao ficticia ligou', `${M} ligou`],
+    ['Joana Conceição Ficticia', NFD('a Conceição pediu'), `a ${M} pediu`],
+    ['Érica Ícaro Ficticia', 'a Érica e o ÍCARO', `a ${M} e o ${M}`],
+    ["Ana-Clara D'Ávila", "a Clara e a Ávila; D'Ávila assinou", `a ${M} e a ${M}; D'${M} assinou`],
+    ['Carlos Ficticio Neto', 'o Neto do cliente e o Carlos', `o Neto do cliente e o ${M}`],
+    ['Ana dos Santos', 'Dos Santos e Da Silva', `Dos ${M} e Da Silva`],
+    // Bordas a mais: nome em NFD com texto em NFC, sufixo com acento, nome completo em NFD no texto.
+    [NFD('Joana Conceição Ficticia'), 'a Conceição pediu', `a ${M} pediu`],
+    ['Carlos Ficticio Júnior', 'o Júnior e o Junior; Carlos ligou', `o Júnior e o Junior; ${M} ligou`],
+    ['Joana Conceição Ficticia', NFD('JOANA CONCEIÇÃO FICTICIA ligou'), `${M} ligou`],
+  ];
+
+  it.each(CASOS)('nome %j, texto %j', (nome, texto, esperado) => {
+    const op = { nomes: [nome] };
+    const s = minimizar(texto, op);
+    expect(s).toBe(esperado);
+    expect(minimizar(s, op)).toBe(s);
+  });
+
+  it('o resto do texto não é normalizado: o acento decomposto fora do nome fica como veio', () => {
+    const t = NFD('Conceição pediu a revisão da ação');
+    const s = minimizar(t, { nomes: ['Joana Conceição Ficticia'] });
+    expect(s).toBe(`${M}${NFD(' pediu a revisão da ação')}`);
+  });
+
+  it('PARTICULAS_DO_NOME é a lista fechada da triagem, minúscula e sem acento', () => {
+    expect([...PARTICULAS_DO_NOME].sort()).toEqual(
+      [
+        'da',
+        'das',
+        'de',
+        'do',
+        'dos',
+        'du',
+        'del',
+        'della',
+        'di',
+        'van',
+        'von',
+        'der',
+        'den',
+        'le',
+        'la',
+        'e',
+        'y',
+        'filho',
+        'filha',
+        'neto',
+        'neta',
+        'junior',
+        'sobrinho',
+      ].sort(),
+    );
+  });
+
+  it.each<[string, string[]]>([
+    ['Ana dos Santos Filho', ['Ana', 'Santos']],
+    ['Joana Ficticia', ['Joana', 'Ficticia']],
+    ["Ana-Clara D'Ávila", ['Ana', 'Clara', 'Ávila']],
+    ['Pessoa (Ficticia)', ['Pessoa', 'Ficticia']],
+    ['Ana Ana ANA', ['Ana']],
+    ['Eu a', []],
+    ['  ', []],
+    ['Carlos Van Der Berg Júnior', ['Carlos', 'Berg']],
+    ['Joana  Ficticia‐Teste’Lima', ['Joana', 'Ficticia', 'Teste', 'Lima']],
+  ])('partesDoNome(%j) é %j', (nome, partes) => {
+    expect(partesDoNome(nome)).toEqual(partes);
+  });
+
+  it('vários nomes: todos os nomes completos antes das partes, e um marcador por nome completo', () => {
+    const op = { nomes: ['Ana Exemplo Lima', 'Bruno Exemplo Rocha'] };
+    const s = minimizar('Ana Exemplo Lima falou com Bruno Exemplo Rocha; Exemplo e Rocha assinaram.', op);
+    expect(s).toBe(`${M} falou com ${M}; ${M} e ${M} assinaram.`);
+    expect(minimizar(s, op)).toBe(s);
+  });
+
+  it('as partes "Nome" e "Removido" não estragam nenhum marcador', () => {
+    const op = { nomes: ['Nome Removido Telefone'] };
+    const t = 'Fale com contato@exemplo.test, (11) 90000-0000, CPF 123.456.789-09; Nome e Removido e Telefone.';
+    const s = minimizar(t, op);
+    expect(s).toBe(`Fale com [e-mail removido], [telefone removido], CPF [CPF removido]; ${M} e ${M} e ${M}.`);
+    expect(minimizar(s, op)).toBe(s);
+  });
+
+  it('tempo: nome de 200 caracteres com muitas partes, sobre texto de 100.000 caracteres, em menos de 1 s', () => {
+    const letras = 'bcdfghjklmnpqrstvz';
+    const partes: string[] = [];
+    for (let i = 0; partes.join(' ').length < 196; i++) partes.push(`A${letras[i % letras.length]}${letras[Math.floor(i / letras.length) % letras.length]}`);
+    const nome = partes.join(' ').slice(0, 200);
+    const t = 'Texto fictício com palavras Comuns e Abc minúsculas, Conceição e ação; '.repeat(1500).slice(0, 100_000);
+    expect(t.length).toBe(100_000);
+    const inicio = performance.now();
+    minimizar(t, { nomes: [nome] });
+    expect(performance.now() - inicio).toBeLessThan(1000);
   });
 });

@@ -7,16 +7,16 @@ import { nomesDaDemanda } from '../../../../../modules/demandas/consultas';
 // minimizado para quem não é pessoa, com o nome do solicitante da demanda do caminho.
 import { listarEspecificacoes, vistaDaEspecificacaoPara } from '../../../../../modules/especificacoes/consultas';
 import { criarEspecificacaoSchema } from '../../../../../modules/especificacoes/schemas';
-import { criarEspecificacao } from '../../../../../modules/especificacoes/servico';
+import { criarEspecificacaoComNomes } from '../../../../../modules/especificacoes/servico';
 
 export const POST = rota(
   { acao: 'criar_especificacao', rota: '/api/demandas/[id]/especificacoes', params: paramId.demanda, corpo: criarEspecificacaoSchema },
   async ({ deps, ator, params, corpo }) => {
-    // B-3 do 0009: os nomes antes de gravar. Se a leitura falhar, nada foi gravado e a nova tentativa não duplica a
-    // versão. Demanda que não existe devolve [] aqui, e o 404 continua vindo do serviço.
-    const nomes = await nomesDaDemanda(deps.db, params.id);
-    const v = await criarEspecificacao(deps, ator, params.id, corpo);
-    return { status: 201, json: vistaDaEspecificacaoPara(ator, v, nomes) };
+    // B-3 do 0010: os nomes vêm do serviço, tirados da linha da demanda travada, na mesma transação da gravação. Uma
+    // renomeação no meio não sai em claro no 201, e se a conta falhar nada foi gravado (B-3 do 0009). Demanda que não
+    // existe continua com o 404 do serviço.
+    const { vista, nomes } = await criarEspecificacaoComNomes(deps, ator, params.id, corpo);
+    return { status: 201, json: vistaDaEspecificacaoPara(ator, vista, nomes) };
   },
 );
 

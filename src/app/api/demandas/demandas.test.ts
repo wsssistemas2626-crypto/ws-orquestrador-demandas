@@ -486,8 +486,9 @@ describe('M-1: texto livre da demanda minimizado para quem não é pessoa', () =
     };
     const agente = await titulos({ bearer: tokenRisco });
     semValores(agente.texto);
-    expect(agente.porId.get(a.id)).toBe('Pedido de [nome removido], falar com Bruno Exemplo Rocha');
-    expect(agente.porId.get(c.id)).toBe('Pedido de Ana Exemplo Lima, falar com [nome removido]');
+    // M-1 do 0009 (DEC-DEM-20261104-0011-v1): a parte em comum ("Exemplo") também sai do nome do outro.
+    expect(agente.porId.get(a.id)).toBe('Pedido de [nome removido], falar com Bruno [nome removido] Rocha');
+    expect(agente.porId.get(c.id)).toBe('Pedido de Ana [nome removido] Lima, falar com [nome removido]');
     expect(agente.porId.get(t.id)).toBe(T_MIN);
     const pessoa = await titulos(p());
     expect(pessoa.porId.get(a.id)).toBe('Pedido de Ana Exemplo Lima, falar com Bruno Exemplo Rocha');
@@ -523,6 +524,25 @@ describe('M-1: texto livre da demanda minimizado para quem não é pessoa', () =
       semValores(String(item.titulo));
     }
     expect(comparados).toBeGreaterThan(0);
+  });
+
+  // M-1 do 0009 (DEC-DEM-20261104-0011-v1, D-1): o primeiro nome sozinho, com inicial maiúscula, também sai como marcador
+  // para o agente, no GET da demanda e na listagem; a pessoa lê o original. Nome fictício.
+  it('M-1 do 0009: "a Joana pediu" sai com o marcador para o agente, e original para a pessoa', async () => {
+    const titulo = 'Relatório da Joana';
+    const contexto = 'A Joana pediu o relatório mensal.';
+    const d = await criarOk({ tipo: 'estudo', titulo, contexto, solicitanteNome: 'Joana Ficticia' }, p());
+    const doAgente = (await (await obter(d.id, { bearer: tokenRisco })).json()) as Record<string, unknown>;
+    expect(doAgente.titulo).toBe('Relatório da [nome removido]');
+    expect(doAgente.contexto).toBe('A [nome removido] pediu o relatório mensal.');
+    const lista = (await (await listar('?tipo=estudo&limit=100', { bearer: tokenRisco })).json()) as { itens: Array<Record<string, unknown>> };
+    expect(lista.itens.find((i) => i.id === d.id)?.titulo).toBe('Relatório da [nome removido]');
+    expect(JSON.stringify(doAgente)).not.toContain('Joana');
+    const daPessoa = (await (await obter(d.id, p())).json()) as Record<string, unknown>;
+    expect(daPessoa.titulo).toBe(titulo);
+    expect(daPessoa.contexto).toBe(contexto);
+    const listaPessoa = (await (await listar('?tipo=estudo&limit=100', p())).json()) as { itens: Array<Record<string, unknown>> };
+    expect(listaPessoa.itens.find((i) => i.id === d.id)?.titulo).toBe(titulo);
   });
 });
 

@@ -53,7 +53,10 @@ export function erroJaReduzido(x: object): ErroReduzido | null {
 
 export function reduzirErro(e: unknown): ErroReduzido {
   if (!(e instanceof Error)) return { classe: 'desconhecido' };
-  const classe = classeAceita(e.name) ? e.name : 'Error';
+  // B-2 do 0010: o `name` é lido uma vez só e usado só se for texto aceito. Ler de novo deixaria um getter devolver na
+  // segunda leitura o que não passou na primeira; um objeto ou array passaria pela conversão a texto da regex.
+  const nome: unknown = e.name;
+  const classe = typeof nome === 'string' && classeAceita(nome) ? nome : 'Error';
   const code = lerCode(e) ?? lerCode((e as { cause?: unknown }).cause);
   return code ? { classe, code } : { classe };
 }
