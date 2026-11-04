@@ -647,6 +647,26 @@ describe('gerarPedido: nome do solicitante no texto (D1 do 0013)', () => {
     await recusaComNome(decId, ['risco.conteudo: telefone', 'demanda.titulo: nome']);
   });
 
+  // 04-regressao do 0013 (qa-automacao): os quatro tipos ao mesmo tempo, em campos diferentes, num 422 só; a lista do C-28
+  // na ordem das chaves do pedido, depois os caminhos com o nome, na ordem de textosDoPedido; nenhum valor na resposta.
+  it('14b: e-mail, telefone, CPF e nome (primeiro nome e nome grudado) em campos diferentes → um 422 só, com todos os tipos', async () => {
+    const { decId } = await prepararAprovado({
+      demanda: { solicitanteNome: JOANA, contexto: 'A Joana pediu a correção' },
+      esp: { ...ESP_COMPLETA, situacaoAtual: 'Falar com contato@exemplo.test', criteriosAceitePreliminares: ['ok', 'Cadastro 123.456.789-09 recebe uma vez'] },
+      rsk: { ...RSK_PADRAO, riscoOperacionalComentario: 'Ligar (11) 90000-0000' },
+      opcoes: { opcaoA: { descricao: 'Enviar para JoanaFicticia' } },
+    });
+    await recusaComNome(decId, [
+      'especificacao.conteudo: e-mail',
+      'risco.conteudo: telefone',
+      'criterios_aceite_preliminares[1]: CPF',
+      'demanda.descricao: nome',
+      'decisao.opcaoEscolhida: nome',
+    ]);
+    const e = await erroDe(gerarPedido(deps, cto, decId, CONFIRMADO));
+    expect(JSON.stringify(e.extras)).not.toMatch(/exemplo\.test|90000|456\.789/);
+  });
+
   it('15: o nome conferido é o atual da demanda travada: renomear o solicitante depois pode recusar um DEC aceito antes (E6)', async () => {
     const { demandaId, decId } = await prepararAprovado();
     await gera(decId);
