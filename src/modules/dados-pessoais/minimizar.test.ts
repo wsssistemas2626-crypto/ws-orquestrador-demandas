@@ -626,3 +626,22 @@ describe('M-a e B-1 do 0011 (04-regressao do 0012): sem perda em relação à 0.
     expect(ms).toBeLessThan(1000);
   });
 });
+
+// 03-correcao do 0012, 2ª volta: a cadeia longa de e-mails colados vira um marcador por e-mail, sem sobrar usuário, e
+// continua linear. Só valores fictícios, no domínio reservado exemplo.test.
+describe('M-a do 0011 (03-correcao do 0012, 2ª volta): cadeia de e-mails colados em minimizar', () => {
+  const E = MARCADORES['e-mail'];
+
+  it.each(['+', '_', '-', '%'])('20 mil e-mails colados por %j viram 20 mil marcadores, em menos de 200 ms', (sep) => {
+    const t = `ana@exemplo.test${sep}`.repeat(20_000);
+    const inicio = performance.now();
+    const s = minimizar(t);
+    const ms = performance.now() - inicio;
+    expect(s).toBe(E.repeat(20_000) + sep);
+    expect(ms).toBeLessThan(200);
+  });
+
+  it('e-mail colado com letra acentuada no começo do usuário seguinte vira um marcador por e-mail', () => {
+    expect(minimizar('ana@exemplo.testébia@exemplo.test')).toBe(E + E);
+  });
+});

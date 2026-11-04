@@ -320,6 +320,31 @@ describe('B-3 do 0011: o erro com getter que lança chega ao Sentry', () => {
   });
 });
 
+// B-2 da revisão de segurança da 04 do 0012: o `stack` é lido uma vez só. Um getter que devolve outro valor a cada
+// leitura não passa na conferência do cabeçalho com um valor e entrega outro aos quadros. Valores fictícios.
+it('getter de stack que muda a cada leitura: só a primeira leitura vale, e a mensagem da outra não vai', async () => {
+  const erro = new Error('x');
+  const bom = `${Error.prototype.toString.call(erro)}\n    at quadroFicticio (arquivo-ficticio.js:1:1)`;
+  const ruim = `${'-'.repeat(40)}\n    at ${SENTINELAS.texto}\n    at ${SENTINELAS.email}`;
+  let leituras = 0;
+  Object.defineProperty(erro, 'stack', { configurable: true, get: () => (leituras++ === 0 ? bom : ruim) });
+  const saida = await enviar(erro);
+  expect(leituras).toBe(1);
+  expect(contemSentinela(saida)).toBe(false);
+  expect(saida).toContain('arquivo-ficticio');
+});
+
+it('getter de stack que devolve o cabeçalho certo nas duas primeiras leituras e outro texto depois: a outra não vai', async () => {
+  const erro = new Error('x');
+  const bom = `${Error.prototype.toString.call(erro)}\n    at quadroFicticio (arquivo-ficticio.js:1:1)`;
+  const ruim = `${'-'.repeat(40)}\n    at ${SENTINELAS.texto}`;
+  let leituras = 0;
+  Object.defineProperty(erro, 'stack', { configurable: true, get: () => (leituras++ < 2 ? bom : ruim) });
+  const saida = await enviar(erro);
+  expect(contemSentinela(saida)).toBe(false);
+  expect(saida).toContain('arquivo-ficticio');
+});
+
 it('stack que não começa pelo cabeçalho atual do erro não manda quadro nenhum, só o título', async () => {
   const erro = new Error(`falhou\n    at ${SENTINELAS.texto}`);
   void erro.stack; // o V8 monta o stack com a mensagem de agora

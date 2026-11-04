@@ -286,3 +286,61 @@ describe('M-a do 0011 (04-regressao do 0012): nada que a regex de antes cobria f
     expect(ms).toBeLessThan(LIMITE_MS);
   });
 });
+
+// 03-correcao do 0012, 2ª volta: o e-mail colado no fim de outro é tentado logo no fim do anterior, como a regex de antes
+// fazia, sem perder o custo linear. Cadeias longas de e-mails colados, e o casamento seguinte que falha logo depois de
+// cada e-mail. Só valores fictícios, no domínio reservado exemplo.test.
+describe('M-a do 0011 (03-correcao do 0012, 2ª volta): e-mail colado no fim de outro', () => {
+  const ANTIGA = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+  const LIMITE_MS = 200;
+  const casamentos = (t: string, re: RegExp) => [...t.matchAll(re)].map((m) => [m.index, m.index + m[0].length]);
+
+  it.each([
+    ['"+" entre os e-mails', 'ana@exemplo.test+'],
+    ['"_" entre os e-mails', 'ana@exemplo.test_'],
+    ['"-" entre os e-mails', 'ana@exemplo.test-'],
+    ['"%" entre os e-mails', 'ana@exemplo.test%'],
+  ])('cadeia de 20 mil e-mails colados com %s: os mesmos casamentos da regex de antes, em menos de 200 ms', (_nome, pedaco) => {
+    const t = pedaco.repeat(20_000);
+    const inicio = performance.now();
+    const depois = casamentos(t, DETECTORES['e-mail']);
+    const ms = performance.now() - inicio;
+    expect(depois).toHaveLength(20_000);
+    expect(depois).toEqual(casamentos(t, ANTIGA));
+    expect(ms).toBeLessThan(LIMITE_MS);
+  });
+
+  it.each([
+    ['e-mail seguido de 1.000 caracteres de usuário sem "@", 100 vezes', ('a@b.cc+' + 'x'.repeat(1_000) + ' ').repeat(100)],
+    ['e-mail seguido de "+a@b" repetido 25 mil vezes', 'a@b.cc' + '+a@b'.repeat(25_000)],
+    ['e-mail seguido de 100 mil letras sem "@"', 'a@b.cc' + 'x'.repeat(100_000)],
+    ['"a@b.cc" colado em "a@b.cc" 15 mil vezes', 'a@b.cc'.repeat(15_000)],
+  ])('tempo: %s, em menos de 200 ms', (_nome, t) => {
+    const inicio = performance.now();
+    const depois = casamentos(t, DETECTORES['e-mail']);
+    const ms = performance.now() - inicio;
+    expect(depois.length).toBeGreaterThan(0);
+    expect(ms).toBeLessThan(LIMITE_MS);
+  });
+
+  it('a busca ("tem?") continua começando do zero e não muda o lastIndex', () => {
+    const re = DETECTORES['e-mail'];
+    expect('x ana@exemplo.test+bia@exemplo.test'.search(re)).toBe(2);
+    expect(re.lastIndex).toBe(0);
+    expect('nada aqui'.search(re)).toBe(-1);
+    expect(re.lastIndex).toBe(0);
+  });
+
+  it('a troca de todas as ocorrências deixa o lastIndex em zero', () => {
+    const re = DETECTORES['e-mail'];
+    expect('ana@exemplo.test+bia@exemplo.test'.replace(re, '[x]')).toBe('[x][x]');
+    expect(re.lastIndex).toBe(0);
+  });
+
+  it('o detector continua sendo um RegExp global e Unicode, com o padrão ancorado', () => {
+    const re = DETECTORES['e-mail'];
+    expect(re).toBeInstanceOf(RegExp);
+    expect(re.flags).toBe('gu');
+    expect(re.source.startsWith('(?<!')).toBe(true);
+  });
+});

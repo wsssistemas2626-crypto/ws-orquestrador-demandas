@@ -31,7 +31,7 @@ export const TEXTOS_DEMANDA = {
   // revisão do 0011 (DEC-DEM-20261104-0012-v1): e dizem os limites da troca da parte (MINIMO_NOME, PARTICULAS_DO_NOME e
   // a inicial maiúscula, em modules/dados-pessoais/minimizar.ts).
   avisoMinimizacao:
-    'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante também vira marcador, e cada parte com 3 letras ou mais, fora partículas como da, dos e Júnior, quando escrita com inicial maiúscula; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
+    'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante também vira marcador, e cada parte com 3 letras ou mais, fora partículas como dos, das e Júnior, quando escrita com inicial maiúscula; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
   dicaTexto:
     'Cole o e-mail, a mensagem ou o formulário como chegou. Este texto é dado pessoal de terceiro: fica guardado por 90 dias e depois é apagado.',
   dicaReferenciaOrigem: 'Um identificador da mensagem, sem endereço de e-mail.',

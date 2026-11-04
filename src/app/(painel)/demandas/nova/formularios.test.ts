@@ -121,7 +121,7 @@ describe('T04 Nova demanda: agente orquestrador ligado', () => {
   it('aviso de minimização e o botão "Enviar ao agente"', () => {
     const p = nova({ estado: 'disponivel' });
     expect(p).toContain(
-      'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante também vira marcador, e cada parte com 3 letras ou mais, fora partículas como da, dos e Júnior, quando escrita com inicial maiúscula; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
+      'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante também vira marcador, e cada parte com 3 letras ou mais, fora partículas como dos, das e Júnior, quando escrita com inicial maiúscula; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
     );
     expect(p).not.toContain('sem o nome do solicitante');
     expect(p).toMatch(/<button type="submit"[^>]*>Enviar ao agente<\/button>/);
