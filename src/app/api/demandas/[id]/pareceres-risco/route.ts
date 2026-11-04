@@ -12,8 +12,11 @@ import { criarParecerRisco } from '../../../../../modules/pareceres-risco/servic
 export const POST = rota(
   { acao: 'criar_parecer_risco', rota: '/api/demandas/[id]/pareceres-risco', params: paramId.demanda, corpo: criarParecerRiscoSchema },
   async ({ deps, ator, params, corpo }) => {
+    // B-3 do 0009: os nomes antes de gravar. Se a leitura falhar, nada foi gravado e a nova tentativa não duplica a
+    // versão. Demanda que não existe devolve [] aqui, e o 404 continua vindo do serviço.
+    const nomes = await nomesDaDemanda(deps.db, params.id);
     const v = await criarParecerRisco(deps, ator, params.id, corpo);
-    return { status: 201, json: vistaDoParecerPara(ator, v, await nomesDaDemanda(deps.db, params.id)) };
+    return { status: 201, json: vistaDoParecerPara(ator, v, nomes) };
   },
 );
 

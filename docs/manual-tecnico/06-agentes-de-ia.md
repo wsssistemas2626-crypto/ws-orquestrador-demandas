@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
+| Atualizado em | 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -51,8 +51,10 @@ do job leva só o id da execução (C-22). A execução (`executar.ts`) segue es
 
 Motivos do evento `agente_ignorado` (`MotivoIgnorada` em `executar.ts`; enumeração fechada, sem texto da entrada nem da
 saída): `desligado`, `sem_preco`, `sem_provedor` e `demanda_final`. O `suspensao_por_teto` leva o motivo `teto`. No
-histórico do painel, `demanda_final` ainda não tem rótulo (`MOTIVO_IGNORADO` em `src/components/rotulos.ts`) e aparece
-como "Agente … não rodou", sem o motivo (B-5 da 0.1.5).
+histórico do painel, cada motivo tem rótulo em `MOTIVO_IGNORADO` (`src/components/rotulos.ts`): "agente desligado",
+"modelo sem preço vigente", "provedor de IA não configurado" e, desde a 0.1.9 (B-5 do 0006), "demanda já entregue ou
+encerrada". O evento aparece como "Agente de consolidação não rodou: demanda já entregue ou encerrada". Motivo sem
+rótulo aparece só como "Agente … não rodou".
 
 Novas tentativas (P1-e, `espera.ts`): **3 no total**, com espera de 30 s antes da 2ª e de 2 min antes da 3ª. Na 3ª
 falha, `falhou` e evento `falha_agente`, sem conteúdo. Credencial recusada (401 ou 403 do provedor) falha na hora.

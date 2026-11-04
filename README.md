@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.8 (`package.json`) |
-| Atualizado em | 03/11/2026 |
+| Versão | 0.1.9 (`package.json`) |
+| Atualizado em | 04/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
 | Repositório | `wsssistemas2626-crypto/ws-orquestrador-demandas` (privado) |
@@ -136,6 +136,10 @@ Scripts de operação (contas, tokens de agente, preço de modelo, seed) estão 
 
 - Segredo só por variável de ambiente, citada pelo nome. `.env` e `.env.*` não entram no git.
 - Só dado fictício em código, teste, fixture e log (JUR-2026-002, 7.4).
+- Classe de erro nova com `name` próprio: termine o nome em `Error` ou `Exception`, ou acrescente o nome a
+  `CLASSES_DO_PROJETO` (`src/lib/reduzir-erro.ts`). Fora dessa regra, a classe sai como `Error` no log e no Sentry, e
+  o `test/estatico/classes-de-erro.test.ts` reprova
+  ([manual, cap. 02](docs/manual-tecnico/02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).
 - Migration de esquema só por `pnpm db:generate`; SQL à mão só em migration custom `rls_<nome>`; migration commitada
   não se edita.
 - Migration em produção nunca roda pelo `/construir`: é passo de Fabiano, na ordem backup → migrate → deploy

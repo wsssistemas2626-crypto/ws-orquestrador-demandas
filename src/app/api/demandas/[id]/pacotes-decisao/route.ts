@@ -13,8 +13,11 @@ import { criarPacoteDecisaoSchema } from '../../../../../modules/pacotes-decisao
 export const POST = rota(
   { acao: 'criar_pacote_decisao', rota: '/api/demandas/[id]/pacotes-decisao', params: paramId.demanda, corpo: criarPacoteDecisaoSchema },
   async ({ deps, ator, params, corpo }) => {
+    // B-3 do 0009: os nomes antes de gravar. Se a leitura falhar, nada foi gravado (nem o status, nem o aviso) e a nova
+    // tentativa não duplica a versão. Demanda que não existe devolve [] aqui, e o 404 continua vindo do serviço.
+    const nomes = await nomesDaDemanda(deps.db, params.id);
     const v = await criarPacoteDecisao(deps, ator, params.id, corpo);
-    return { status: 201, json: vistaDoPacotePara(ator, v, await nomesDaDemanda(deps.db, params.id)) };
+    return { status: 201, json: vistaDoPacotePara(ator, v, nomes) };
   },
 );
 

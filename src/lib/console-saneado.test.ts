@@ -237,6 +237,34 @@ describe('M-3: console.error de Error sem digest vai ao Sentry', () => {
     expect(enviados).toEqual([]);
   });
 
+  // B-a do 0008 (DEC-DEM-20261104-0010-v1): se o mesmo Error sem digest chegar ao onRequestError (que chama capturarErro)
+  // e ao console.error, em qualquer ordem, sai um envelope só. Dois erros distintos com a mesma mensagem saem os dois.
+  it('B-a: capturarErro(e) e console.error(e) do mesmo erro sem digest, nas duas ordens, geram um envelope cada par', async () => {
+    const linhas = instalarComLog();
+    const antes = new TypeError('falha fictícia antes');
+    capturarErro(antes, { evento: 'erro_requisicao' });
+    terminal.error(antes);
+    await Sentry.flush(2000);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]).toContain('erro_requisicao');
+
+    enviados.length = 0;
+    const depois = new TypeError('falha fictícia depois');
+    terminal.error(depois);
+    capturarErro(depois, { evento: 'erro_requisicao' });
+    await Sentry.flush(2000);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]).toContain('console_erro');
+    // O log não é deduplicado: cada console.error deixa a linha dele.
+    expect(linhas).toHaveLength(2);
+
+    enviados.length = 0;
+    terminal.error(new TypeError('mesma mensagem fictícia'));
+    terminal.error(new TypeError('mesma mensagem fictícia'));
+    await Sentry.flush(2000);
+    expect(enviados).toHaveLength(2);
+  });
+
   it('capturarErro que lança: console.error não lança, não chama o console original e não entra em laço', () => {
     falhaDoSentry.lancar = true;
     const linhas = instalarComLog();

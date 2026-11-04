@@ -1,0 +1,40 @@
+{
+  "pedido": "DEC-DEM-20261104-0010-v1",
+  "demanda": {
+    "id": "DEM-20261104-0010",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.9: baixos B-1 e B-3 do 0009, B-a do 0008 e B-1 e B-5 do 0006",
+    "descricao": "Baixos deixados nas revisões dos pedidos 0006, 0008 e 0009 (docs/construcao/<pedido>/04-maestro.md, seção Baixo), todos do lado servidor. (B-1 do 0009) src/lib/reduzir-erro.ts:6,8: FORMATO_CODE aceita um código só de dígitos de qualquer tamanho (um CPF ou telefone, se quem chama o log passar esse valor como code), e FORMATO_CLASSE aceita qualquer identificador como classe em erroJaReduzido e em reduzirErro (um nome de uma palavra, como 'Joana'). (B-3 do 0009) src/app/api/demandas/[id]/{especificacoes,pareceres-risco,pacotes-decisao}/route.ts: no POST, nomesDaDemanda é lido depois de gravar; se essa leitura falhar, o artefato fica gravado, o agente recebe 500 e a nova tentativa cria versão duplicada. (B-a do 0008) src/lib/console-saneado.ts:38: a não duplicação no Sentry depende de o Next não mandar o mesmo erro sem digest ao onRequestError e ao console.error; não foi conferido no fonte do Next instalado. (B-1 do 0006) src/modules/pacotes-decisao/criar.ts:81: a regra de que especificacaoId e parecerRiscoId (5º e 6º argumentos, extras) só vêm do worker não tem teste; uma rota futura que repasse o corpo como extras não seria barrada. (B-5 do 0006) o motivo demanda_final (src/modules/agentes/executar.ts:67) não tem rótulo em src/components/rotulos.ts; o histórico mostra só 'Agente X não rodou'. Fica fora o B-4 do 0006 (foco da fila antes da hidratação), que é de interface e vai num pedido próprio. Base: main (1d6d897, versão 0.1.8)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261104-0010-v1",
+    "conteudo": "(B-1) lerCode recusa código só de dígitos com 10 ou mais dígitos (o code de 5 dígitos do Postgres continua aceito); a classe reconhecida em erroJaReduzido e devolvida por reduzirErro é só 'desconhecido' ou um identificador terminado em Error ou Exception; outro nome vira 'Error' em reduzirErro e não é reconhecido em erroJaReduzido. O instrumentation.test.ts e os testes do log continuam verdes. (B-3) Nos 3 POST, nomesDaDemanda é lido antes de chamar o serviço de criação; falha nessa leitura não grava nada. (B-a) Conferir no fonte do Next instalado (node_modules/next) se o mesmo erro sem digest chega ao onRequestError e ao console.error; se chegar, não mandar o segundo ao Sentry (por exemplo, marca em WeakSet do erro já enviado), com teste; se não chegar, registrar a evidência (arquivo e linha) no comentário e na entrega. (B-1 do 0006) Teste estático: nada em src/app/ chama criarPacoteDecisao com 5º ou 6º argumento. (B-5) Rótulo para demanda_final em rotulos.ts ('não rodou: demanda já encerrada' ou equivalente), com teste. Nenhum controle é afrouxado (C-10, C-21, C-23, A-02, axe, C-36). Sem migration. Mudam src/, os testes, package.json (versão 0.1.9) e CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261104-0010-v1",
+    "nivel": "baixo",
+    "conteudo": "Ajustes pequenos, com dados fictícios. Riscos: o filtro de classe derrubar um nome de erro legítimo que não termina em Error (perde só diagnóstico; classe e code continuam no log); ler os nomes antes de gravar mudar a ordem de um erro de 404 (a demanda inexistente deve continuar 404, não 500); a deduplicação do Sentry esconder um erro distinto (a marca é por objeto de erro, não por mensagem). Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261104-0010-v1",
+    "opcaoEscolhida": "Corrigir os baixos que sobraram das revisões do 0006, 0008 e 0009 do lado servidor num pedido de correção (cadeia curta) sobre a main",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-03"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "lerCode recusa código só de dígitos com 10 ou mais; a classe do erro reduzido é 'desconhecido' ou termina em Error ou Exception",
+    "Nos 3 POST, falha ao ler os nomes não grava artefato, e demanda inexistente continua 404",
+    "A duplicação no Sentry do B-a está conferida no fonte do Next e, se existir, evitada com teste",
+    "Teste estático barra rota que passe extras a criarPacoteDecisao",
+    "demanda_final tem rótulo no histórico",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.9",
+    "PR com CI verde"
+  ]
+}

@@ -35,6 +35,13 @@ function saneado(nivel: 'error' | 'warn'): (...args: unknown[]) => void {
       // pelo console.error e vai ao Sentry pelo mesmo saneamento das rotas. Com `digest`, o onRequestError já mandou (ou
       // é controle do Next): não vai de novo. console.warn é aviso, não falha: fica só no log. Dentro da guarda e do try:
       // falha do Sentry não entra em laço, não cai no console original e não derruba quem chamou.
+      // B-a do 0008, conferido no fonte do Next 16.4.1 (node_modules/next/dist):
+      // - página, layout e Server Component: o erro ganha `digest` antes de ir ao gancho e ao console
+      //   (server/app-render/create-error-handler.js:100-103 e 125 no RSC, 165-167 e 186 no SSR); a guarda abaixo basta;
+      // - route handler: o erro que escapa vai ao onRequestError sem `digest` (build/templates/app-route.js:335-346), e
+      //   RouteModule.onRequestError escreve console.error(err) e chama o gancho com o mesmo objeto
+      //   (server/route-modules/route-module.js:320-328). As rotas daqui passam por rota(), que trata o erro; o que
+      //   escapar (Better Auth, por exemplo) seria enviado duas vezes. Quem evita é a marca por objeto em capturarErro.
       if (nivel === 'error' && erro && !('digest' in erro)) capturarErro(erro, { evento });
     } catch {
       // Falha do log não derruba quem chamou e não cai no console original.

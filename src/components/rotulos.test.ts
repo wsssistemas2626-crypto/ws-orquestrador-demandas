@@ -217,6 +217,20 @@ describe('textoDoEvento (03, T05, tabela "Histórico")', () => {
     );
   });
 
+  // B-5 do 0006 (DEC-DEM-20261104-0010-v1): o motivo demanda_final (executar.ts) tem rótulo; os status finais são
+  // entregue e encerrada. Motivo desconhecido continua só "não rodou".
+  it('agente que não rodou porque a demanda já é final', () => {
+    const sistema = { tipo: 'sistema' } as const;
+    for (const agente of ['consolidacao', 'risco'] as const) {
+      expect(textoDoEvento(ev({ acao: 'agente_ignorado', ator: sistema, depois: { agente, motivo: 'demanda_final' } }))).toBe(
+        `${NOME_AGENTE[agente]} não rodou: demanda já entregue ou encerrada`,
+      );
+    }
+    expect(textoDoEvento(ev({ acao: 'agente_ignorado', ator: sistema, depois: { agente: 'consolidacao', motivo: 'demanda_finalizada' } }))).toBe(
+      `${NOME_AGENTE.consolidacao} não rodou`,
+    );
+  });
+
   it('pedido gerado e expurgo (retenção configurável, 90 por padrão)', () => {
     expect(textoDoEvento(ev({ acao: 'pedido_gerado', entidade: 'pacote_decisao', entidadeId: 'DEC-DEM-20261022-0042-v1' }))).toBe(
       'Gerou o Pedido de Construção de DEC-DEM-20261022-0042-v1',

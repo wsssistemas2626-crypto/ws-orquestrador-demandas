@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
+| Atualizado em | 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Fontes no código | `src/app/api/**/route.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
@@ -126,6 +126,10 @@ Campo nulo continua `null` e lista nula continua nula. Ids, `sistemaAlvo`, `repo
 `statusDecisao` e datas saem iguais para os dois atores. A pessoa recebe o original, e o Pedido de Construção
 (`POST .../pedido-construcao`) continua gerado com o texto original. Limite: só o nome atual e completo do solicitante é
 trocado (M-1 da revisão do 0009, risco residual; [CHANGELOG](../../CHANGELOG.md)).
+
+Desde a 0.1.9 (B-3 do 0009), os três `POST` leem esses nomes antes de gravar. Se a leitura falhar, a resposta é 500
+`erro_interno` e nada fica gravado, então repetir o `POST` cria uma versão só. Os outros códigos não mudam
+([cap. 04](04-versoes-e-decisao.md)).
 
 ## Exemplo: decidir ou gerar o Pedido numa demanda em status final
 

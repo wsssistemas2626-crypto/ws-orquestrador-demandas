@@ -12,8 +12,11 @@ import { criarEspecificacao } from '../../../../../modules/especificacoes/servic
 export const POST = rota(
   { acao: 'criar_especificacao', rota: '/api/demandas/[id]/especificacoes', params: paramId.demanda, corpo: criarEspecificacaoSchema },
   async ({ deps, ator, params, corpo }) => {
+    // B-3 do 0009: os nomes antes de gravar. Se a leitura falhar, nada foi gravado e a nova tentativa não duplica a
+    // versão. Demanda que não existe devolve [] aqui, e o 404 continua vindo do serviço.
+    const nomes = await nomesDaDemanda(deps.db, params.id);
     const v = await criarEspecificacao(deps, ator, params.id, corpo);
-    return { status: 201, json: vistaDaEspecificacaoPara(ator, v, await nomesDaDemanda(deps.db, params.id)) };
+    return { status: 201, json: vistaDaEspecificacaoPara(ator, v, nomes) };
   },
 );
 

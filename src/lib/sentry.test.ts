@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/node';
-import { beforeAll, beforeEach, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SENTINELAS, contemSentinela } from '../../test/sentinelas';
 import { capturarErro, iniciarSentry, limparEvento } from './sentry';
 
@@ -64,7 +64,22 @@ it('linha da mensagem que começa por "    at " não vira quadro de pilha no Sen
   expect(saida).toContain('sentry.test');
 });
 
+// B-1 do 0009 (DEC-DEM-20261104-0010-v1): a classe de exemplo passou de ErroDeConsulta a ConsultaError. Pela regra nova
+// (reduzir-erro.ts), só sai a classe terminada em Error ou Exception, ou uma das CLASSES_DO_PROJETO; a outra vira 'Error'.
 it('subclasse que troca o name no construtor mantém os quadros e não vaza a mensagem', async () => {
+  class ConsultaError extends Error {
+    constructor(mensagem: string) {
+      super(mensagem);
+      this.name = 'ConsultaError';
+    }
+  }
+  const saida = await enviar(new ConsultaError(`falhou\n    at ${SENTINELAS.nome}`));
+  expect(contemSentinela(saida)).toBe(false);
+  expect(saida).toContain('ConsultaError');
+  expect(saida).toContain('sentry.test');
+});
+
+it('B-1 do 0009: subclasse com name fora da regra sai como Error, com os quadros e sem o name', async () => {
   class ErroDeConsulta extends Error {
     constructor(mensagem: string) {
       super(mensagem);
@@ -73,7 +88,8 @@ it('subclasse que troca o name no construtor mantém os quadros e não vaza a me
   }
   const saida = await enviar(new ErroDeConsulta(`falhou\n    at ${SENTINELAS.nome}`));
   expect(contemSentinela(saida)).toBe(false);
-  expect(saida).toContain('ErroDeConsulta');
+  expect(saida).not.toContain('ErroDeConsulta');
+  expect(saida).toContain('"value":"Error"');
   expect(saida).toContain('sentry.test');
 });
 
@@ -147,6 +163,77 @@ it('erro com cause encadeada não leva a mensagem nem a pilha da causa', async (
   const saida = await enviar(erro);
   expect(contemSentinela(saida)).toBe(false);
   expect(saida).toContain('DrizzleQueryError 23514');
+});
+
+// B-a do 0008 (DEC-DEM-20261104-0010-v1): o mesmo objeto de erro vai ao Sentry uma vez só, venha ele do onRequestError
+// ou do console saneado, em qualquer ordem. A marca é por objeto, não por mensagem: erros distintos com a mesma mensagem
+// vão os dois, e valor que não é objeto vai toda vez.
+describe('B-a do 0008: um envio por objeto de erro', () => {
+  const contarEnvios = async (passos: () => void): Promise<number> => {
+    enviados.length = 0;
+    passos();
+    await Sentry.flush(2000);
+    return enviados.length;
+  };
+
+  it('o mesmo objeto passado duas vezes gera um envio', async () => {
+    const e = new TypeError('falha fictícia');
+    expect(
+      await contarEnvios(() => {
+        capturarErro(e, { evento: 'erro_requisicao' });
+        capturarErro(e, { evento: 'console_erro' });
+      }),
+    ).toBe(1);
+    // Depois de enviado, continua marcado.
+    expect(await contarEnvios(() => capturarErro(e))).toBe(0);
+  });
+
+  it('dois objetos distintos com a mesma mensagem geram dois envios', async () => {
+    expect(
+      await contarEnvios(() => {
+        capturarErro(new Error('mesma mensagem'));
+        capturarErro(new Error('mesma mensagem'));
+      }),
+    ).toBe(2);
+  });
+
+  it('valor que não é objeto vai toda vez', async () => {
+    expect(
+      await contarEnvios(() => {
+        capturarErro('falha em texto');
+        capturarErro('falha em texto');
+        capturarErro(42);
+        capturarErro(42);
+      }),
+    ).toBe(4);
+  });
+});
+
+// 04-regressao do DEC-DEM-20261104-0010-v1 (qa-automacao), B-1 do 0009 no título do Sentry, a outra saída além do log:
+// code com 10 ou mais dígitos (CPF e celular fictícios), no erro ou na cause, e classe que é um nome de pessoa não vão
+// ao envelope; o título fica só 'Error'. O code do Postgres continua no título.
+describe('04-regressao do 0010: B-1 do 0009 no título do Sentry', () => {
+  it.each(['00000000191', '11900000000', '1234567890'])('code %s não vai ao envelope, nem do erro nem da cause', async (code) => {
+    const doErro = await enviar(Object.assign(new Error('x'), { code }));
+    expect(doErro).not.toContain(code);
+    expect(doErro).toContain('"value":"Error"');
+    enviados.length = 0;
+    const daCausa = await enviar(new Error('x', { cause: Object.assign(new Error('y'), { code }) }));
+    expect(daCausa).not.toContain(code);
+    expect(daCausa).toContain('"value":"Error"');
+  });
+
+  it('classe Joana não vai ao envelope; DrizzleQueryError com code 23505 continua no título', async () => {
+    const nome = new Error('x');
+    nome.name = 'Joana';
+    const saida = await enviar(nome);
+    expect(saida).not.toContain('Joana');
+    expect(saida).toContain('"value":"Error"');
+    enviados.length = 0;
+    const banco = Object.assign(new Error('x'), { code: '23505' });
+    banco.name = 'DrizzleQueryError';
+    expect(await enviar(banco)).toContain('DrizzleQueryError 23505');
+  });
 });
 
 it('stack que não começa pelo cabeçalho atual do erro não manda quadro nenhum, só o título', async () => {
