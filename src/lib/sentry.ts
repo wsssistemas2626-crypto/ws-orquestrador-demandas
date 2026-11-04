@@ -37,7 +37,17 @@ function quadrosDaPilha(e: unknown): string[] {
   }
 }
 
+// B-a do 0008: o mesmo objeto de erro vai ao Sentry uma vez só. No Next 16.4.1, o erro que escapa de um route handler
+// chega sem `digest` ao console.error e ao onRequestError, o mesmo objeto nos dois (ver console-saneado.ts). A marca é
+// por objeto, e não por mensagem: dois erros distintos com a mesma mensagem vão os dois. Valor que não é objeto não é
+// marcado e vai toda vez. WeakSet: a marca some com o erro, sem segurar memória.
+const jaEnviados = new WeakSet<object>();
+
 export function capturarErro(e: unknown, contexto?: { evento: string }): void {
+  if (e !== null && (typeof e === 'object' || typeof e === 'function')) {
+    if (jaEnviados.has(e)) return;
+    jaEnviados.add(e);
+  }
   const { classe, code } = reduzirErro(e);
   const titulo = `${classe}${code ? ` ${code}` : ''}`;
   const enviado = new Error(titulo);

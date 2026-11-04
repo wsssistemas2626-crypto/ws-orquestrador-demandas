@@ -159,11 +159,13 @@ const ARTEFATO_DO_AGENTE: Readonly<Record<Agente, string>> = {
   consolidacao: 'o pacote de decisão',
 };
 
-// Motivo de `agente_ignorado` (T27), que a 03 não descreve.
+// Motivo de `agente_ignorado` (T27), que a 03 não descreve. B-5 do 0006: `demanda_final` (executar.ts) vale para os
+// dois status finais, entregue e encerrada.
 const MOTIVO_IGNORADO: Readonly<Record<string, string>> = {
   desligado: 'agente desligado',
   sem_preco: 'modelo sem preço vigente',
   sem_provedor: 'provedor de IA não configurado',
+  demanda_final: 'demanda já entregue ou encerrada',
 };
 
 const ROTULO_DECISAO_NO_HISTORICO: Readonly<Record<string, string>> = {

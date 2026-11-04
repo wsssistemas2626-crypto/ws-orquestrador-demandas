@@ -1,2 +1,3 @@
 {"pedido":"DEC-DEM-20261104-0010-v1","etapa":"01-reproducao","de":"qa-funcional","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-11-04T10:03:35.000Z","fim":"2026-11-04T10:07:30.523Z","minutos":4,"motivo":null}
 {"pedido":"DEC-DEM-20261104-0010-v1","etapa":"02-triagem","de":"tech-lead","para":"engenheiro-backend","status":"pronto","volta":0,"inicio":"2026-11-04T10:07:40.000Z","fim":"2026-11-04T10:11:09.464Z","minutos":3,"motivo":null}
+{"pedido":"DEC-DEM-20261104-0010-v1","etapa":"03-correcao","de":"engenheiro-backend","para":"engenheiro-backend","status":"bloqueado","volta":0,"inicio":"2026-11-04T10:11:20.000Z","fim":"2026-11-04T10:26:37.643Z","minutos":15,"motivo":"comando fora da lista Pode: git -C <repo> ls-files (4 vezes) (só leitura)"}

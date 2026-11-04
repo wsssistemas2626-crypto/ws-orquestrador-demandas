@@ -100,6 +100,20 @@ describe('log por lista de permissão (C-21)', () => {
     expect(linhas.join('')).not.toContain('Joana Fictícia Teste');
   });
 
+  // B-1 do 0009 (DEC-DEM-20261104-0010-v1): classe de uma palavra que não é de erro (um nome) e code com 11 dígitos (no
+  // formato de CPF sem pontos, fictício) não atravessam o log, nem no erro já reduzido nem no Error.
+  it('B-1 do 0009: classe Joana e code de 11 dígitos não saem no log', () => {
+    const { linhas, destino } = capturar();
+    const logger = criarLogger(destino);
+    logger.error({ evento: 'falha', erro: { classe: 'Joana', code: '00000000191' } });
+    logger.error({ evento: 'falha', erro: Object.assign(new Error('x'), { name: 'Joana', code: '00000000191' }) });
+    logger.error({ evento: 'falha', erro: { classe: 'Error', code: '11900000000' } });
+    expect(linhas.map((l) => JSON.parse(l).erro)).toEqual([{ classe: 'desconhecido' }, { classe: 'Error' }, { classe: 'Error' }]);
+    expect(linhas.join('')).not.toContain('Joana');
+    expect(linhas.join('')).not.toContain('00000000191');
+    expect(linhas.join('')).not.toContain('11900000000');
+  });
+
   // 04-regressao do 0009 (qa-automacao): bordas do B-b. Objeto com cara de Error (name, message, stack, cause) que não é
   // instância de Error, lista, objeto vazio, objeto sem protótipo e objeto com chave só herdada não atravessam o log; o
   // `code` da `cause` de um objeto simples não é lido (só o de Error real).
