@@ -7,7 +7,7 @@
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 04/11/2026 (`devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -109,10 +109,13 @@ para o ator que não é pessoa, todo texto livre de DEC (inclusive `demandaTitul
 Por isso, **só comece o passo 1 com a 0.1.8 ou posterior mergeada na `main`**: a 0.1.6 e a 0.1.7 não podem ser a
 primeira publicação.
 
-Fica um **risco residual (M-1 da revisão do 0009)**, para aceite de Fabiano e da `gestao-riscos`: só o nome **atual e
-completo** do solicitante é trocado. O nome antigo (antes de uma edição da demanda) ou escrito pela metade em texto
-guardado no DEC, na ESP ou no RSK sai em claro para o agente. Não é regressão e não bloqueia a publicação; o tratamento,
-se houver, vem num pedido futuro (opções na 04-maestro do pedido 0009).
+Fica um **risco residual (M-1 da revisão do 0009)**, para aceite de Fabiano e da `gestao-riscos`. Até a 0.1.9, só o
+nome **atual e completo** do solicitante era trocado. A 0.1.10 (pedido 0011, opção (b) refinada decidida por Fabiano
+em 04/11) troca também cada parte do nome atual com 3 letras ou mais, quando no texto ela começa por maiúscula, sem
+diferença de acento, com as partículas e os sufixos de parentesco de fora. Continuam saindo em claro para o agente: o
+nome escrito todo em minúscula (`joana pediu`, aceito no RSK do 0011), o nome grudado em número, `_` ou CamelCase
+(`Joana2`, `Joana_Ficticia`, B-1 da revisão do 0011), o nome antigo de antes de uma edição da demanda (a troca usa o
+nome atual) e nomes de outras pessoas. Não é regressão e não bloqueia a publicação.
 
 1. Snapshot no hPanel.
 2. Criar o projeto e o serviço `db` (Postgres 16). O usuário criado pelo Easypanel é o **migrator** (dono do banco).
@@ -122,7 +125,7 @@ se houver, vem num pedido futuro (opções na 04-maestro do pedido 0009).
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
 5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
    - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
-   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.9, que não mudam `drizzle/`): roda o passo "Disparar o
+   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.10, que não mudam `drizzle/`): roda o passo "Disparar o
      Easypanel".
      - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
        EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
@@ -193,6 +196,24 @@ na homologação por `construir.mjs ensaiar-rollback <DEC-id>` antes de cada PR 
 anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaurar`, e as 7 migrations novas não alteram
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
+
+A 0.1.10 não traz migration: `drizzle/` não muda em relação à 0.1.9, e o journal é o mesmo da 0.1.9 à 0.1.0. Ela não
+grava valor novo no banco: a troca de cada parte do nome do solicitante é só no texto que vai ao agente (entrada do
+worker) e na resposta da API ao ator que não é pessoa (o Pedido de Construção e a pessoa continuam com o original), a
+dica e o aviso são só texto da tela, os 3 POST de ESP, RSK e DEC gravam as mesmas linhas e só passam a ler os nomes da
+linha travada, dentro da transação, e as mudanças em `reduzirErro` e `capturarErro` são só no log e no envio ao Sentry.
+O que o agente escreveu com a 0.1.10 pode trazer `[nome removido]` no texto, como já trazia na 0.1.9 para o nome
+completo, e a 0.1.9 lê esse texto sem diferença. A volta da 0.1.10 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:fb675ee1df144b52a01d0baa4b20df5d8edc367f` (a `v0.1.9`,
+commit de merge do PR #11 na `main`), sem restaurar backup. Antes de voltar, confirme a tag em Packages. Ao voltar, o
+primeiro nome, o sobrenome ou outra parte do nome do solicitante voltam a sair em claro para o agente e na API de quem
+não é pessoa (M-1 do 0009), a dica do campo de nome e o aviso de minimização voltam a prometer que o nome não chega ao
+agente, uma renomeação do solicitante no meio de um POST de ESP, RSK ou DEC volta a poder sair no 201 com o nome novo
+(B-3 do 0010), o `name` que não é texto ou que muda entre leituras volta a poder ir ao log e ao título do Sentry (B-2 do
+0010), e uma falha na redução volta a deixar o erro marcado sem ter ido ao Sentry (B-4 do 0010): a volta é só para
+indisponibilidade, e a correção vem logo depois. Se a 0.1.10 for a primeira publicação (seção 4), não há versão no ar
+para onde voltar: a volta é parar `app` e `worker` no Easypanel, e não publicar a 0.1.9 no lugar dela. O ensaio é o
+`ensaiar-rollback` da Parada 3.
 
 A 0.1.9 não traz migration: `drizzle/` não muda em relação à 0.1.8, e o journal é o mesmo da 0.1.8 à 0.1.0. Ela não
 grava valor novo no banco: o filtro de classe e de `code` do erro é só no log e no título do Sentry, o envio único ao
@@ -288,7 +309,9 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
    classe só aparece quando termina em `Error` ou `Exception` ou é uma classe do projeto (fora disso, sai `Error` no log
    e no Sentry, ou `desconhecido` no log quando o erro já chega reduzido), o `code` com 10 ou mais dígitos seguidos não
    aparece, e o mesmo objeto de erro vai uma vez só ao Sentry, mesmo que chegue ao gancho e ao console; cada
-   `console.error` continua deixando a sua linha no log.
+   `console.error` continua deixando a sua linha no log. Desde a 0.1.10, o `name` do erro só vira classe quando é texto
+   (fora disso, sai `Error`), e o objeto só conta como enviado depois que o Sentry o recebe: se a redução do erro falhar
+   na primeira vez, a próxima chegada do mesmo objeto ainda gera um evento.
 3. Em `/configuracao/agentes`, batimento do worker com menos de 5 minutos e uma instância só.
 4. Entrar com uma conta real (senha e 2FA) e abrir a fila de demandas.
 
