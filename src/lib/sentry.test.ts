@@ -1,7 +1,25 @@
 import * as Sentry from '@sentry/node';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SENTINELAS, contemSentinela } from '../../test/sentinelas';
 import { capturarErro, iniciarSentry, limparEvento } from './sentry';
+
+// B-3 da revisão do 0011 (DEC-DEM-20261104-0012-v1): com reduzirErro total, só o envio pode fazer capturarErro lançar.
+// Para o teste do B-4 do 0010 seguir provando que a marca vem depois do envio, a falha é injetada no `captureException`,
+// armada uma vez; o resto do @sentry/node é o original.
+const falhaNoEnvio = vi.hoisted(() => ({ armada: false }));
+vi.mock('@sentry/node', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@sentry/node')>();
+  return {
+    ...original,
+    captureException: (...a: Parameters<typeof original.captureException>) => {
+      if (falhaNoEnvio.armada) {
+        falhaNoEnvio.armada = false;
+        throw new Error('falha fictícia no envio');
+      }
+      return original.captureException(...a);
+    },
+  };
+});
 
 // Um transporte falso para o arquivo todo: o Sentry é iniciado uma vez só.
 const enviados: string[] = [];
@@ -259,27 +277,46 @@ describe('B-2 do 0010: o título do Sentry não usa name que muda nem name que n
 });
 
 // B-4 do 0010 (DEC-DEM-20261104-0011-v1, D-5): o objeto só fica marcado como enviado depois de o envio voltar. Uma falha
-// no meio (aqui, o getter de `code` que lança dentro de reduzirErro) não deixa o erro marcado sem ter ido.
+// no meio não deixa o erro marcado sem ter ido. Desde o B-3 da revisão do 0011, a falha injetada é a do próprio envio
+// (`captureException` que lança uma vez, no vi.mock do topo): o getter de `code` que lança não faz mais capturarErro
+// lançar (ver o bloco do B-3 abaixo).
 describe('B-4 do 0010: a marca de enviado vem depois do envio', () => {
   it('a primeira chamada lança e não envia; a segunda envia um evento só', async () => {
-    const e = new Error('x');
-    let falhar = true;
-    Object.defineProperty(e, 'code', {
-      get() {
-        if (falhar) throw new Error('falha fictícia na leitura do code');
-        return '23505';
-      },
-    });
+    const e = Object.assign(new Error('x'), { code: '23505' });
     enviados.length = 0;
-    expect(() => capturarErro(e)).toThrow();
+    falhaNoEnvio.armada = true;
+    expect(() => capturarErro(e)).toThrow('falha fictícia no envio');
     await Sentry.flush(2000);
     expect(enviados.length).toBe(0);
-    falhar = false;
     capturarErro(e);
     capturarErro(e);
     await Sentry.flush(2000);
     expect(enviados.length).toBe(1);
     expect(enviados.join('')).toContain('Error 23505');
+  });
+});
+
+// B-3 da revisão do 0011 (DEC-DEM-20261104-0012-v1): getter que lança e Proxy não fazem capturarErro lançar; o evento
+// sai com o título Error. Erros e armadilhas fictícios.
+describe('B-3 do 0011: o erro com getter que lança chega ao Sentry', () => {
+  const lanca = () => {
+    throw new Error('getter fictício');
+  };
+
+  it('Error com getter de name que lança: não lança e envia um evento com o título Error', async () => {
+    const e = Object.defineProperty(new Error('falha fictícia'), 'name', { get: lanca });
+    expect(() => capturarErro(e)).not.toThrow();
+    await Sentry.flush(2000);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]).toContain('"value":"Error"');
+  });
+
+  it('Proxy com get que lança: não lança e envia um evento com o título Error', async () => {
+    const p = new Proxy(new Error('falha fictícia'), { get: lanca });
+    expect(() => capturarErro(p)).not.toThrow();
+    await Sentry.flush(2000);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]).toContain('"value":"Error"');
   });
 });
 

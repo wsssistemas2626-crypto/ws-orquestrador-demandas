@@ -2,9 +2,12 @@
 // para o texto bruto. Em ordem:
 // 1. as linhas de cabeçalho de e-mail encaminhado saem inteiras, com a quebra de linha;
 // 2. e-mail, CNPJ, CPF e telefone viram marcadores, pelos mesmos detectores do Pedido de Construção (T22);
-// 3. o nome completo de cada solicitante informado vira marcador, sem diferença de caixa nem de acento;
+// 3. o nome completo de cada solicitante informado vira marcador, sem diferença de caixa nem de acento, com espaço ou
+//    "_" entre os pedaços; a borda é qualquer coisa que não seja letra nem marca (número e "_" colados também são);
 // 4. depois, cada parte de todos esses nomes (M-1 do 0009), com 3 letras ou mais e fora de PARTICULAS_DO_NOME, vira
-//    marcador quando, no texto, começa por letra maiúscula; o resto da parte é sem diferença de caixa nem de acento.
+//    marcador quando, no texto, começa por letra maiúscula e tem fronteira nas duas pontas (`haFronteira`): o que não é
+//    letra, a passagem de minúscula para maiúscula (CamelCase) e o fim de uma sigla ("Joana2", "Joana_x",
+//    "JoanaFicticia", "JOANAFicticia", B-1 da revisão do 0011); o resto da parte é sem diferença de caixa nem de acento.
 // O cabeçalho sai primeiro para que nome e e-mail da linha "De:" não sobrem nem como marcador. O CNPJ vem antes do CPF,
 // e os dois antes do telefone, para o número mais longo ganhar o marcador certo. Os detectores vêm antes do nome: o nome
 // trocado primeiro desmontaria o e-mail "nome@dominio" (o "]" do marcador não casa no usuário do e-mail) e deixaria o
@@ -93,16 +96,18 @@ function dobrarTexto(s: string): string {
 // em NFD).
 const padraoDoPedaco = (pedaco: string): string => [...semAcento(pedaco)].map((c) => `${escaparRegex(c)}\\p{M}*`).join('');
 
-// Sem ser pedaço de outra palavra: nem letra, nem marca, nem número, nem "_" colados.
-const ANTES = '(?<![\\p{L}\\p{M}\\p{N}_])';
-const DEPOIS = '(?![\\p{L}\\p{M}\\p{N}_])';
+// B-1 da revisão do 0011: borda do nome completo é só letra e marca. Número e "_" colados viram borda ("Joana Ficticia2",
+// "x_Joana Ficticia").
+const ANTES = '(?<![\\p{L}\\p{M}])';
+const DEPOIS = '(?![\\p{L}\\p{M}])';
 
-// O nome inteiro, sem diferença de caixa nem de acento, com qualquer espaço entre os pedaços e sem ser pedaço de outra
-// palavra.
+// O nome inteiro, sem diferença de caixa nem de acento, com qualquer espaço ou "_" entre os pedaços ("Joana_Ficticia",
+// B-1 da revisão do 0011) e sem ser pedaço de outra palavra. Sem separador entre os pedaços não casa: "Ana Lise" não
+// pode trocar "análise".
 function padraoDoNome(nome: string): RegExp | null {
   const pedacos = nome.trim().split(/\s+/).filter((p) => p !== '');
   if (pedacos.join(' ').length < MINIMO_NOME) return null;
-  return new RegExp(`${ANTES}${pedacos.map(padraoDoPedaco).join('\\s+')}${DEPOIS}`, 'giu');
+  return new RegExp(`${ANTES}${pedacos.map(padraoDoPedaco).join('[\\s_]+')}${DEPOIS}`, 'giu');
 }
 
 // M-1 do 0009: as partes do nome. O nome é cortado em espaço, hífen e apóstrofo; cada pedaço perde as pontas que não são
@@ -122,7 +127,8 @@ export function partesDoNome(nome: string): string[] {
   return partes;
 }
 
-// Todas as partes numa regex só, em alternância, da mais longa para a mais curta.
+// Todas as partes numa regex só, em alternância, da mais longa para a mais curta. Sem borda na regex (B-1 da revisão do
+// 0011): quem decide a borda é `haFronteira`, no `aceitar`, sobre o texto original.
 function padraoDasPartes(nomes: readonly string[]): RegExp | null {
   const vistas = new Set<string>();
   const padroes: { tamanho: number; padrao: string }[] = [];
@@ -136,7 +142,7 @@ function padraoDasPartes(nomes: readonly string[]): RegExp | null {
   }
   if (padroes.length === 0) return null;
   padroes.sort((a, b) => b.tamanho - a.tamanho);
-  return new RegExp(`${ANTES}(?:${padroes.map((p) => p.padrao).join('|')})${DEPOIS}`, 'giu');
+  return new RegExp(`(?:${padroes.map((p) => p.padrao).join('|')})`, 'giu');
 }
 
 // Qualquer marcador, num grupo de captura: `split` devolve os marcadores nas posições ímpares, e o texto entre eles nas
@@ -144,26 +150,90 @@ function padraoDasPartes(nomes: readonly string[]): RegExp | null {
 const RE_MARCADOR = new RegExp(`(${[...Object.values(MARCADORES), MARCADOR_NOME].map(escaparRegex).join('|')})`);
 
 // A parte só é trocada se o trecho original começar por maiúscula. A conferência fica fora da regex com a flag `i`: com
-// `iu`, `\p{Lu}` casa letra minúscula também.
+// `iu`, `\p{Lu}` casa letra minúscula também. Pelo mesmo motivo, as regex de caixa abaixo não têm `i`.
 const RE_COMECA_MAIUSCULA = /^\p{Lu}/u;
+const RE_LETRA = /^\p{L}$/u;
+const RE_MINUSCULA = /^\p{Ll}$/u;
+const RE_MAIUSCULA = /^\p{Lu}$/u;
+const RE_MARCA = /^\p{M}$/u;
+
+// O code point que começa em `i` (par substituto inteiro) e o que termina logo antes de `i`.
+function codePointEm(s: string, i: number): string | undefined {
+  const c = s.codePointAt(i);
+  return c === undefined ? undefined : String.fromCodePoint(c);
+}
+function codePointAntes(s: string, i: number): string | undefined {
+  if (i <= 0) return undefined;
+  const baixo = s.charCodeAt(i - 1);
+  if (i >= 2 && baixo >= 0xdc00 && baixo <= 0xdfff) {
+    const alto = s.charCodeAt(i - 2);
+    if (alto >= 0xd800 && alto <= 0xdbff) return s.slice(i - 2, i);
+  }
+  return s.charAt(i - 1);
+}
+
+// B-1 da revisão do 0011: há fronteira de palavra em `pos` (entre o que vem antes e o que começa ali)? Com `x` o último
+// caractere antes de `pos` que não é marca, `y` o caractere em `pos` e `z` o seguinte a `y`, pulando as marcas de `y`:
+// - sem `x` ou sem `y` (começo ou fim do trecho), ou um dos dois não é letra (número, "_", pontuação, espaço): é;
+// - `x` minúscula e `y` maiúscula (CamelCase, "Joana|Ficticia"): é;
+// - `x` e `y` maiúsculas e `z` minúscula (fim de sigla, "X|Ficticia", "JOANA|Ficticia"): é;
+// - o resto não é ("Ana|bela", "ANA|TEL", "Ana|é").
+// A mesma função vale para a borda direita de uma parte e a esquerda da seguinte, no mesmo `pos`: o que a primeira
+// chamada de `minimizar` deixa, a segunda também deixa. Exportada para teste.
+export function haFronteira(s: string, pos: number): boolean {
+  let i = pos;
+  let x = codePointAntes(s, i);
+  while (x !== undefined && RE_MARCA.test(x)) {
+    i -= x.length;
+    x = codePointAntes(s, i);
+  }
+  const y = codePointEm(s, pos);
+  if (x === undefined || y === undefined) return true;
+  if (!RE_LETRA.test(x) || !RE_LETRA.test(y)) return true;
+  if (RE_MINUSCULA.test(x) && RE_MAIUSCULA.test(y)) return true;
+  if (RE_MAIUSCULA.test(x) && RE_MAIUSCULA.test(y)) {
+    let j = pos + y.length;
+    let z = codePointEm(s, j);
+    while (z !== undefined && RE_MARCA.test(z)) {
+      j += z.length;
+      z = codePointEm(s, j);
+    }
+    return z !== undefined && RE_MINUSCULA.test(z);
+  }
+  return false;
+}
+
+type Aceitar = (trecho: string, inicio: number, fim: number) => boolean;
 
 // Troca no trecho (fora de marcador) as faixas que a regex casa no texto dobrado e que `aceitar` deixa, mantendo o
-// resto do trecho original como está.
-function trocarNoTrecho(trecho: string, re: RegExp, aceitar: (casado: string) => boolean): string {
+// resto do trecho original como está. Casamento recusado não pula para o fim dele: a busca recomeça um code point depois
+// do início, para não esconder um casamento bom que começa dentro do recusado ("AnAna" com a parte "Ana"). Cada posição
+// é tentada no máximo uma vez a mais: continua linear.
+function trocarNoTrecho(trecho: string, re: RegExp, aceitar: Aceitar): string {
+  const dobrado = dobrarTexto(trecho);
   let saida = '';
   let ultimo = 0;
-  for (const m of dobrarTexto(trecho).matchAll(re)) {
+  re.lastIndex = 0;
+  for (let m = re.exec(dobrado); m !== null; m = re.exec(dobrado)) {
     const inicio = m.index;
     const fim = inicio + m[0].length;
-    if (!aceitar(trecho.slice(inicio, fim))) continue;
+    if (!aceitar(trecho, inicio, fim)) {
+      re.lastIndex = inicio + (codePointEm(dobrado, inicio)?.length ?? 1);
+      continue;
+    }
     saida += trecho.slice(ultimo, inicio) + MARCADOR_NOME;
     ultimo = fim;
   }
   return ultimo === 0 ? trecho : saida + trecho.slice(ultimo);
 }
 
-// Troca o nome só no texto fora dos marcadores. A borda do nome não muda: o "[" e o "]" dos marcadores não são letra.
-function trocarNome(s: string, re: RegExp, aceitar: (casado: string) => boolean = () => true): string {
+// A parte do nome: começa por maiúscula no texto original e tem fronteira nas duas pontas.
+const aceitarParte: Aceitar = (trecho, inicio, fim) =>
+  RE_COMECA_MAIUSCULA.test(trecho.slice(inicio, fim)) && haFronteira(trecho, inicio) && haFronteira(trecho, fim);
+
+// Troca o nome só no texto fora dos marcadores. O começo e o fim do trecho são borda: o "[" e o "]" dos marcadores não
+// são letra.
+function trocarNome(s: string, re: RegExp, aceitar: Aceitar = () => true): string {
   return s
     .split(RE_MARCADOR)
     .map((parte, i) => (i % 2 === 1 ? parte : trocarNoTrecho(parte, re, aceitar)))
@@ -181,7 +251,7 @@ export function minimizar(texto: string, op: { nomes?: readonly string[] } = {})
     if (re) s = trocarNome(s, re);
   }
   const partes = padraoDasPartes(nomes);
-  if (partes) s = trocarNome(s, partes, (casado) => RE_COMECA_MAIUSCULA.test(casado));
+  if (partes) s = trocarNome(s, partes, aceitarParte);
   return s;
 }
 

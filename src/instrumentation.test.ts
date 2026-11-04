@@ -136,6 +136,26 @@ describe('instrumentation.onRequestError', () => {
     expect(sentry.capturados).toEqual([]);
   });
 
+  // B-3 da revisão do 0011 (DEC-DEM-20261104-0012-v1): o Proxy com armadilha `has` que lança (o `'digest' in err`)
+  // não faz o gancho rejeitar; a linha sai com o erro reduzido e o erro vai ao Sentry. Armadilha fictícia.
+  it('B-3 do 0011: Proxy com has que lança: grava a linha erro_requisicao e chama capturarErro, sem rejeitar', async () => {
+    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
+    const linhas = capturarLog();
+    const { onRequestError } = await import('./instrumentation');
+    const p = new Proxy(new Error('falha fictícia'), {
+      has: () => {
+        throw new Error('armadilha fictícia');
+      },
+    });
+    await expect(onRequestError(p, { method: 'GET' }, { routePath: '/demandas/[id]' })).resolves.toBeUndefined();
+    expect(linhas).toHaveLength(1);
+    expect(JSON.parse(linhas[0]!)).toMatchObject({ evento: 'erro_requisicao', rota: '/demandas/[id]', erro: { classe: 'Error' } });
+    expect(Object.keys(JSON.parse(linhas[0]!) as object)).not.toContain('erroId');
+    expect(sentry.capturados).toHaveLength(1);
+    expect(sentry.capturados[0]!.erro === p).toBe(true);
+    expect(sentry.capturados[0]!.contexto).toEqual({ evento: 'erro_requisicao' });
+  });
+
   it('fora do runtime Node, não faz nada', async () => {
     vi.stubEnv('NEXT_RUNTIME', 'edge');
     const linhas = capturarLog();

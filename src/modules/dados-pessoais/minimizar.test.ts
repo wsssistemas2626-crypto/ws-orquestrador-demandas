@@ -3,7 +3,16 @@
 import { describe, expect, it } from 'vitest';
 import { SENTINELAS } from '../../../test/sentinelas';
 import { DETECTORES, encontrarDadosPessoais, type TipoDadoPessoal } from './detectores';
-import { CABECALHOS_DE_EMAIL, MARCADOR_NOME, MARCADORES, PARTICULAS_DO_NOME, minimizar, minimizarValor, partesDoNome } from './minimizar';
+import {
+  CABECALHOS_DE_EMAIL,
+  MARCADOR_NOME,
+  MARCADORES,
+  PARTICULAS_DO_NOME,
+  haFronteira,
+  minimizar,
+  minimizarValor,
+  partesDoNome,
+} from './minimizar';
 
 const TIPOS: TipoDadoPessoal[] = ['e-mail', 'telefone', 'CPF', 'CNPJ'];
 
@@ -66,6 +75,54 @@ describe('minimizar: dado pessoal vira marcador', () => {
 
   it('texto vazio continua vazio', () => {
     expect(minimizar('')).toBe('');
+  });
+});
+
+// M-a e B-2 da revisão do 0011 (DEC-DEM-20261104-0012-v1): o e-mail é trocado em tempo linear e, com acento no usuário,
+// vira um marcador só. Só valores fictícios, no domínio reservado exemplo.test.
+describe('M-a e B-2 do 0011: e-mail linear e com acento no usuário', () => {
+  const E = MARCADORES['e-mail'];
+
+  it.each([
+    ['100 mil letras de usuário sem @', 'a'.repeat(100_000)],
+    ['50 mil de usuário, @ e domínio de 49.999 sem ponto', 'a'.repeat(50_000) + '@' + 'b'.repeat(49_999)],
+  ])('tempo: %s passa igual, em menos de 200 ms', (_nome, t) => {
+    const inicio = performance.now();
+    const s = minimizar(t);
+    const ms = performance.now() - inicio;
+    expect(s).toBe(t);
+    expect(ms).toBeLessThan(200);
+  });
+
+  it.each([
+    'joão.ficticia@exemplo.test',
+    'conceição.ficticia@exemplo.test',
+    'érica@exemplo.test',
+    'JOÃO.FICTICIO@exemplo.test',
+    'joão.ficticia@exemplo.test'.normalize('NFD'),
+    'contato.ficticio.departamento.de.atendimento.ao.cliente.exemplo.2026@exemplo.test',
+    'nome.sobrenome@empresa.exemplo.test',
+    'pessoa.ficticia+demanda@sub.exemplo.test',
+    'n_s-1@exemplo.test',
+    'a@b.co',
+  ])('%j vira um marcador só', (v) => {
+    expect(minimizar(`Antes ${v} depois.`)).toBe(`Antes ${E} depois.`);
+  });
+
+  it.each([
+    ['<x@exemplo.test>', `<${E}>`],
+    ['mailto:x@exemplo.test', `mailto:${E}`],
+    ['x@exemplo.test.', `${E}.`],
+    // Como antes: o primeiro "x@" não forma e-mail; o e-mail é o que vem depois do segundo "@".
+    ['x@y@exemplo.test', `x@${E}`],
+    // Como antes: o separador colado ao e-mail faz parte da sequência do usuário; com espaço antes, ele fica.
+    ['-'.repeat(70) + 'joana.ficticia@exemplo.test', E],
+    ['_'.repeat(70) + 'joana.ficticia@exemplo.test', E],
+    ['-'.repeat(70) + ' joana.ficticia@exemplo.test', `${'-'.repeat(70)} ${E}`],
+    ['_'.repeat(70) + ' joana.ficticia@exemplo.test', `${'_'.repeat(70)} ${E}`],
+  ])('%j vira %j', (t, esperado) => {
+    expect(minimizar(t)).toBe(esperado);
+    expect(minimizar(esperado)).toBe(esperado);
   });
 });
 
@@ -143,9 +200,11 @@ describe('minimizar: nome conhecido do solicitante (RF-20)', () => {
     expect(minimizar('Anabela e Ana e Banana', { nomes: ['Ana'] })).toBe(`Anabela e ${MARCADOR_NOME} e Banana`);
   });
 
+  // B-1 da revisão do 0011 (DEC-DEM-20261104-0012-v1): "PessoaXFicticia" tem duas bordas de CamelCase ("Pessoa|X" e
+  // "X|Ficticia", fim de sigla), e as duas partes do nome viram marcador; o nome completo continua literal.
   it('caractere especial do nome é literal, não regex', () => {
     expect(minimizar('Fale com Pessoa (Ficticia) e PessoaXFicticia', { nomes: ['Pessoa (Ficticia)'] })).toBe(
-      `Fale com ${MARCADOR_NOME} e PessoaXFicticia`,
+      `Fale com ${MARCADOR_NOME} e ${MARCADOR_NOME}X${MARCADOR_NOME}`,
     );
     expect(minimizar('a.b e axb', { nomes: ['a.b'] })).toBe(`${MARCADOR_NOME} e axb`);
   });
@@ -164,8 +223,10 @@ describe('minimizar: nome conhecido do solicitante (RF-20)', () => {
     expect(minimizar('Falei com PESSOA FICTÍCIA ontem', { nomes: ['Pessoa Fictícia'] })).toBe(`Falei com ${MARCADOR_NOME} ontem`);
   });
 
-  it('letra acentuada colada ao nome conta como parte de outra palavra', () => {
-    expect(minimizar('Ana, éAna e Anaé', { nomes: ['Ana'] })).toBe(`${MARCADOR_NOME}, éAna e Anaé`);
+  // B-1 da revisão do 0011: "é|Ana" é borda de CamelCase (minúscula seguida de maiúscula) e a parte sai; "Ana|é" não é
+  // borda (minúscula depois da parte), e "Anaé" fica.
+  it('letra acentuada colada ao nome: depois do nome é outra palavra; antes, em CamelCase, é borda', () => {
+    expect(minimizar('Ana, éAna e Anaé', { nomes: ['Ana'] })).toBe(`${MARCADOR_NOME}, é${MARCADOR_NOME} e Anaé`);
   });
 
   it('regressão RF-20: e-mail cujo usuário é o nome do solicitante vira o marcador de e-mail, sem sobrar o domínio', () => {
@@ -396,7 +457,8 @@ describe('M-1 do 0009: cada parte do nome', () => {
 
 // 04-regressao do 0011 (qa-automacao): bordas da regra das partes que os casos da 01 e da 02 não cobrem. A regra da
 // maiúscula vale para o texto, não para o campo do nome; partícula com maiúscula no começo da frase fica; pontuação é
-// borda, número e "_" colados não são; o resto do texto em NFD não é normalizado. Todos os nomes são fictícios.
+// borda, e número e "_" colados também (B-1 da revisão do 0011); o resto do texto em NFD não é normalizado. Todos os
+// nomes são fictícios.
 describe('M-1 do 0009 (04-regressao do 0011): bordas das partes do nome', () => {
   const M = MARCADOR_NOME;
   const NFD = (s: string) => s.normalize('NFD');
@@ -409,9 +471,9 @@ describe('M-1 do 0009 (04-regressao do 0011): bordas das partes do nome', () => 
     ['Carlos Van Der Berg', 'Van Der Berg ligou; o Carlos e a Berg', `Van Der ${M} ligou; o ${M} e a ${M}`],
     ['Ana de Souza', 'De acordo com a Ana, a Souza assina.', `De acordo com a ${M}, a ${M} assina.`],
     ['Ana dos Santos', 'DOS SANTOS aprovou', `DOS ${M} aprovou`],
-    // Pontuação é borda; número e "_" colados não são.
+    // Pontuação é borda; desde o B-1 da revisão do 0011, número e "_" colados também são.
     ['Joana Ficticia', '(Joana), "Joana", Joana. Joana!', `(${M}), "${M}", ${M}. ${M}!`],
-    ['Joana Ficticia', 'Joana2 e Joana_x e x_Joana e 2Joana', 'Joana2 e Joana_x e x_Joana e 2Joana'],
+    ['Joana Ficticia', 'Joana2 e Joana_x e x_Joana e 2Joana', `${M}2 e ${M}_x e x_${M} e 2${M}`],
     // Começa por minúscula: fica, mesmo com o resto em maiúscula (risco que sobra, aceito no RSK).
     ['Joana Ficticia', 'jOANA pediu', 'jOANA pediu'],
     // Nome completo com quebra de linha e tab entre os pedaços: um marcador só.
@@ -450,5 +512,75 @@ describe('M-1 do 0009 (04-regressao do 0011): bordas das partes do nome', () => 
     expect(minimizar(t)).toBe(t);
     expect(minimizar(t, { nomes: [] })).toBe(t);
     expect(minimizarValor(t, [])).toBe(t);
+  });
+});
+
+// B-1 da revisão do 0011 (DEC-DEM-20261104-0012-v1): a parte do nome também sai grudada em número, em "_" e em
+// CamelCase (minúscula seguida de maiúscula, ou fim de sigla: maiúscula seguida de maiúscula e minúscula); o nome
+// completo aceita "_" entre os pedaços. Continua a regra da inicial maiúscula, e o pedaço do meio de outra palavra fica.
+// Cada caso confere também que a segunda chamada não muda nada. Todos os nomes são fictícios.
+describe('B-1 do 0011: nome grudado', () => {
+  const M = MARCADOR_NOME;
+  const JF = 'Joana Ficticia';
+
+  const CASOS: [string, string, string][] = [
+    [JF, 'A Joana2 pediu', `A ${M}2 pediu`],
+    [JF, 'Usuário Joana_Ficticia aprovou', `Usuário ${M} aprovou`],
+    [JF, 'Usuário joana_ficticia aprovou', `Usuário ${M} aprovou`],
+    [JF, 'Siga @JoanaFicticia', `Siga @${M}${M}`],
+    [JF, 'Falei com JoanaFicticia', `Falei com ${M}${M}`],
+    [JF, 'ContatoJoana e 2Joana e x_Joana', `Contato${M} e 2${M} e x_${M}`],
+    [JF, 'JOANA2 e JOANA_X', `${M}2 e ${M}_X`],
+    [JF, 'JoanaSilva ligou', `${M}Silva ligou`],
+    [JF, 'JOANAFicticia', `${M}${M}`],
+    [JF, 'JOANAFICTICIA e joana2 e jOANA', 'JOANAFICTICIA e joana2 e jOANA'],
+    ['Ana Ficticia', 'A Mariana pediu', 'A Mariana pediu'],
+    ['Ana Ficticia', 'ANATEL e ANABELA', 'ANATEL e ANABELA'],
+    ['Ana Ficticia', 'AnAna', `An${M}`],
+    ['Ana Ficticia', 'MariAna', `Mari${M}`],
+    ['Carla Rosa Campos', 'RosaTech', `${M}Tech`],
+    [JF, 'a Joana_Ficticia_2', `a ${M}_2`],
+  ];
+
+  it.each(CASOS)('nome %j, texto %j', (nome, texto, esperado) => {
+    const op = { nomes: [nome] };
+    const s = minimizar(texto, op);
+    expect(s).toBe(esperado);
+    expect(minimizar(s, op)).toBe(s);
+  });
+
+  it.each<[string, number, boolean]>([
+    ['Joana', 0, true],
+    ['Joana', 5, true],
+    ['Joana2', 5, true],
+    ['Joana_x', 5, true],
+    ['x_Joana', 2, true],
+    ['JoanaFicticia', 5, true],
+    ['JOANAFicticia', 5, true],
+    ['JOANAFICTICIA', 5, false],
+    ['Anabela', 3, false],
+    ['ANATEL', 3, false],
+    ['Anaé', 3, false],
+    ['éAna', 1, true],
+    ['(Ana)', 1, true],
+    // Texto em NFD: a marca do "e" não conta como caractere; o que vale é a letra antes dela.
+    ['éAna'.normalize('NFD'), 2, true],
+    ['éana'.normalize('NFD'), 2, false],
+    // Fim de sigla com marca combinante depois da maiúscula: "z" pula a marca.
+    ['JOANAÉrica'.normalize('NFD'), 5, true],
+  ])('haFronteira(%j, %i) é %s', (s, pos, esperado) => {
+    expect(haFronteira(s, pos)).toBe(esperado);
+  });
+
+  it.each([
+    ['ANA', 'ANA'.repeat(33_334).slice(0, 100_000)],
+    ['AnA', 'AnA'.repeat(33_334).slice(0, 100_000)],
+    ['Ana', 'Ana'.repeat(33_334).slice(0, 100_000)],
+    ['anaAna ', 'anaAna '.repeat(14_286).slice(0, 100_000)],
+  ])('tempo: %j repetido até 100.000 caracteres, com o nome Ana Ficticia, em menos de 1 s', (_padrao, t) => {
+    expect(t.length).toBe(100_000);
+    const inicio = performance.now();
+    minimizar(t, { nomes: ['Ana Ficticia'] });
+    expect(performance.now() - inicio).toBeLessThan(1000);
   });
 });

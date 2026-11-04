@@ -5,8 +5,16 @@ export type TipoDadoPessoal = 'e-mail' | 'telefone' | 'CPF' | 'CNPJ';
 
 // Globais, para a T24 trocar todas as ocorrências. Aqui só se pergunta "tem?", por `search`, que ignora e preserva o
 // `lastIndex`: uma chamada não muda o resultado da seguinte.
+//
+// E-mail (M-a e B-2 da revisão do 0011): o usuário aceita letra, marca combinante (texto em NFD) e número de qualquer
+// alfabeto, além de `._%+-`; o domínio e o TLD seguem ASCII. O início é ancorado: o lookbehind só deixa começar no
+// primeiro caractere de uma sequência de usuário. Sem a âncora, cada posição de uma sequência longa sem "@" tentava de
+// novo até o fim (custo quadrático: 100 mil caracteres em ~20 s). Com ela, cada sequência e cada "@" são tentados uma vez
+// só, e o custo é linear sem limite de tamanho; por isso não há `{1,64}` no usuário, que deixaria de detectar o usuário
+// mais longo. A classe nova contém a antiga e o casamento termina no mesmo lugar: nenhum e-mail detectado antes deixa
+// de ser. Flag `u` obrigatória: sem ela, `\p{L}` seria a classe dos caracteres "p{L}".
 export const DETECTORES: Record<TipoDadoPessoal, RegExp> = {
-  'e-mail': /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
+  'e-mail': /(?<![\p{L}\p{M}\p{N}._%+-])[\p{L}\p{M}\p{N}._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/gu,
   telefone: /(?:\+55\s?)?(?:\(\d{2}\)|\b\d{2})\s?9?\d{4}[-\s]\d{4}\b/g,
   CPF: /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b|\b\d{11}\b/g,
   CNPJ: /\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b|\b\d{14}\b/g,

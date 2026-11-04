@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SENTINELAS } from '../../test/sentinelas';
-import { CLASSES_DO_PROJETO, classeAceita, erroJaReduzido, lerCode, reduzirErro } from './reduzir-erro';
+import { CLASSES_DO_PROJETO, classeAceita, ehErro, erroJaReduzido, lerCode, lerDigest, reduzirErro } from './reduzir-erro';
 
 it('tira mensagem e detail do Postgres', () => {
   const e = Object.assign(new Error(`duplicate key (${SENTINELAS.email})`), {
@@ -165,5 +165,72 @@ describe('B-2 do 0010: name que não é texto, ou que muda entre leituras, vira 
     });
     expect(reduzirErro(e)).toEqual({ classe: 'TypeError' });
     expect(leituras).toBe(1);
+  });
+});
+
+// B-3 da revisão do 0011 (DEC-DEM-20261104-0012-v1): reduzirErro, lerCode, erroJaReduzido, ehErro e lerDigest nunca
+// lançam. Exceção ao ler name, code ou cause de um Error sai { classe: 'Error' }; o que não dá para saber se é Error
+// (Proxy com getPrototypeOf que lança) sai { classe: 'desconhecido' }. Erros e armadilhas fictícios.
+describe('B-3 do 0011: getter que lança e Proxy não fazem reduzirErro lançar', () => {
+  const lanca = () => {
+    throw new Error('getter fictício');
+  };
+  const comGetter = (prop: string, base: object = new Error('falha fictícia')) => Object.defineProperty(base, prop, { get: lanca, configurable: true });
+  const proxyGet = () => new Proxy(new Error('falha fictícia'), { get: lanca });
+  const proxyHas = () => new Proxy(new Error('falha fictícia'), { has: lanca });
+  const proxyPrototipo = () => new Proxy(new Error('falha fictícia'), { getPrototypeOf: lanca });
+  const proxyOwnKeys = () => new Proxy({ classe: 'Error' }, { ownKeys: lanca });
+
+  it('getter de name que lança: Error', () => {
+    expect(reduzirErro(comGetter('name'))).toEqual({ classe: 'Error' });
+  });
+
+  it('getter de code que lança, com name TypeError válido: Error (não TypeError)', () => {
+    const e = new TypeError('falha fictícia');
+    expect(e.name).toBe('TypeError');
+    expect(reduzirErro(comGetter('code', e))).toEqual({ classe: 'Error' });
+  });
+
+  it('getter de cause que lança: Error', () => {
+    expect(reduzirErro(comGetter('cause'))).toEqual({ classe: 'Error' });
+  });
+
+  it('Proxy com get que lança e Proxy com has que lança: Error', () => {
+    expect(reduzirErro(proxyGet())).toEqual({ classe: 'Error' });
+    expect(reduzirErro(proxyHas())).toEqual({ classe: 'Error' });
+  });
+
+  it('Proxy com getPrototypeOf que lança: desconhecido', () => {
+    expect(reduzirErro(proxyPrototipo())).toEqual({ classe: 'desconhecido' });
+  });
+
+  it('lerCode e erroJaReduzido: getter de code que lança e Proxy com ownKeys que lança', () => {
+    expect(lerCode(comGetter('code', {}))).toBeUndefined();
+    expect(lerCode(proxyOwnKeys())).toBeUndefined();
+    expect(lerCode(proxyHas())).toBeUndefined();
+    expect(erroJaReduzido(comGetter('code', { classe: 'Error' }))).toBeNull();
+    expect(erroJaReduzido(proxyOwnKeys())).toBeNull();
+  });
+
+  it('ehErro e lerDigest não lançam com os mesmos Proxys', () => {
+    for (const p of [proxyGet(), proxyHas(), proxyPrototipo(), proxyOwnKeys(), comGetter('digest', {})]) {
+      expect(() => ehErro(p)).not.toThrow();
+      expect(() => lerDigest(p)).not.toThrow();
+      expect(lerDigest(p)).toBeUndefined();
+    }
+    expect(ehErro(proxyGet())).toBe(true);
+    expect(ehErro(proxyPrototipo())).toBe(false);
+  });
+
+  it('ehErro e lerDigest no caso comum', () => {
+    expect(ehErro(new TypeError('x'))).toBe(true);
+    expect(ehErro({ name: 'Error', message: 'x' })).toBe(false);
+    expect(ehErro('x')).toBe(false);
+    expect(ehErro(null)).toBe(false);
+    expect(lerDigest(Object.assign(new Error('x'), { digest: 'abc123' }))).toBe('abc123');
+    expect(lerDigest(Object.assign(() => undefined, { digest: 'abc123' }))).toBe('abc123');
+    expect(lerDigest(new Error('x'))).toBeUndefined();
+    expect(lerDigest('abc123')).toBeUndefined();
+    expect(lerDigest(null)).toBeUndefined();
   });
 });

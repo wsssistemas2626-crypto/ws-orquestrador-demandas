@@ -41,8 +41,9 @@ function quadrosDaPilha(e: unknown): string[] {
 // chega sem `digest` ao console.error e ao onRequestError, o mesmo objeto nos dois (ver console-saneado.ts). A marca é
 // por objeto, e não por mensagem: dois erros distintos com a mesma mensagem vão os dois. Valor que não é objeto não é
 // marcado e vai toda vez. WeakSet: a marca some com o erro, sem segurar memória.
-// B-4 do 0010: a marca só é posta depois de `captureException` voltar. Se `reduzirErro` ou o envio lançam, o objeto
-// fica sem marca, e a próxima chamada com ele tenta de novo.
+// B-4 do 0010: a marca só é posta depois de `captureException` voltar. Se o envio lança, o objeto fica sem marca, e a
+// próxima chamada com ele tenta de novo. Desde o B-3 da revisão do 0011, `reduzirErro` não lança (getter que lança e
+// Proxy saem { classe: 'Error' } ou 'desconhecido'); só o envio pode lançar.
 const jaEnviados = new WeakSet<object>();
 
 export function capturarErro(e: unknown, contexto?: { evento: string }): void {

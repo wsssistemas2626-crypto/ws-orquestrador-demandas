@@ -8,6 +8,7 @@
 //
 // O erro de configuração do boot sai antes da troca, legível (C-31, só o nome da variável).
 import { log } from './log';
+import { ehErro, lerDigest } from './reduzir-erro';
 import { capturarErro } from './sentry';
 
 type MetodosTrocados = { error: Console['error']; warn: Console['warn'] };
@@ -20,8 +21,6 @@ function trocar(m: MetodosTrocados): void {
   [console.error, console.warn] = [m.error, m.warn];
 }
 
-const digestDe = (e: Error): unknown => ('digest' in e ? (e as { digest: unknown }).digest : undefined);
-
 function saneado(nivel: 'error' | 'warn'): (...args: unknown[]) => void {
   const evento = nivel === 'error' ? 'console_erro' : 'console_aviso';
   return (...args: unknown[]) => {
@@ -29,8 +28,11 @@ function saneado(nivel: 'error' | 'warn'): (...args: unknown[]) => void {
     if (escrevendo) return;
     escrevendo = true;
     try {
-      const erro = args.find((a): a is Error => a instanceof Error);
-      log[nivel]({ evento, ...(erro ? { erro, erroId: digestDe(erro) } : {}) });
+      // B-3 da revisão do 0011: ehErro e lerDigest não lançam com getter nem com Proxy; sem eles, a exceção caía no
+      // `catch` abaixo e a linha do log sumia. O Proxy com getPrototypeOf que lança não conta como Error.
+      const erro = args.find(ehErro);
+      const digest = erro ? lerDigest(erro) : undefined;
+      log[nivel]({ evento, ...(erro ? { erro, erroId: digest } : {}) });
       // M-3 (0008): o erro fora de requisição (uncaughtException, unhandledRejection, onError do after()) chega aqui
       // pelo console.error e vai ao Sentry pelo mesmo saneamento das rotas. Com `digest`, o onRequestError já mandou (ou
       // é controle do Next): não vai de novo. console.warn é aviso, não falha: fica só no log. Dentro da guarda e do try:
@@ -42,7 +44,7 @@ function saneado(nivel: 'error' | 'warn'): (...args: unknown[]) => void {
       //   RouteModule.onRequestError escreve console.error(err) e chama o gancho com o mesmo objeto
       //   (server/route-modules/route-module.js:320-328). As rotas daqui passam por rota(), que trata o erro; o que
       //   escapar (Better Auth, por exemplo) seria enviado duas vezes. Quem evita é a marca por objeto em capturarErro.
-      if (nivel === 'error' && erro && !('digest' in erro)) capturarErro(erro, { evento });
+      if (nivel === 'error' && erro && digest === undefined) capturarErro(erro, { evento });
     } catch {
       // Falha do log não derruba quem chamou e não cai no console original.
     } finally {

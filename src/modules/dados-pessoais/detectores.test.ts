@@ -91,3 +91,116 @@ describe('encontrarDadosPessoais', () => {
     for (const tipo of Object.keys(DETECTORES) as TipoDadoPessoal[]) expect(DETECTORES[tipo].flags, tipo).toContain('g');
   });
 });
+
+// M-a e B-2 da revisão do 0011 (DEC-DEM-20261104-0012-v1): o detector de e-mail fica linear (início ancorado) e aceita
+// letra com acento no usuário. Os e-mails detectados antes continuam detectados, terminando no mesmo lugar. Só valores
+// fictícios, no domínio reservado exemplo.test.
+describe('M-a e B-2 do 0011: detector de e-mail linear e com acento no usuário', () => {
+  // A regex de antes da 0.1.11, copiada aqui só para a equivalência.
+  const ANTIGA = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+  // Os três tipos do Pedido de Construção (DADOS_PESSOAIS_DO_PEDIDO, pedido-construcao/gerar.ts:42).
+  const DO_PEDIDO: TipoDadoPessoal[] = ['e-mail', 'telefone', 'CPF'];
+  const LIMITE_MS = 200;
+
+  const medir = <T>(f: () => T): { r: T; ms: number } => {
+    const inicio = performance.now();
+    const r = f();
+    return { r, ms: performance.now() - inicio };
+  };
+
+  it.each([
+    ['100 mil letras de usuário sem @', 'a'.repeat(100_000)],
+    ['50 mil de usuário, @ e domínio de 49.999 sem ponto', 'a'.repeat(50_000) + '@' + 'b'.repeat(49_999)],
+    ['"a@" repetido 50 mil vezes', 'a@'.repeat(50_000)],
+    ['"a." repetido 50 mil vezes', 'a.'.repeat(50_000)],
+    ['100 mil letras acentuadas', 'é'.repeat(100_000)],
+    ['"a@" seguido de ".a" repetido', 'a@' + '.a'.repeat(49_999)],
+  ])('tempo: %s, sem e-mail, em menos de 200 ms', (_nome, t) => {
+    const { r, ms } = medir(() => t.search(DETECTORES['e-mail']));
+    expect(r).toBe(-1);
+    expect(ms).toBeLessThan(LIMITE_MS);
+  });
+
+  it('tempo: detector do Pedido de Construção com 100 mil caracteres e 50 itens de 10 mil, em menos de 200 ms', () => {
+    const pedido = {
+      especificacao: { conteudo: 'a'.repeat(100_000) },
+      criterios_aceite_preliminares: Array.from({ length: 50 }, () => 'a'.repeat(10_000)),
+    };
+    const { r, ms } = medir(() => encontrarDadosPessoais(pedido, DO_PEDIDO));
+    expect(r).toEqual([]);
+    expect(ms).toBeLessThan(LIMITE_MS);
+  });
+
+  it('tempo: os 50 itens de 10 mil sozinhos, só e-mail, em menos de 200 ms', () => {
+    const lista = Array.from({ length: 50 }, () => 'a'.repeat(10_000));
+    const { r, ms } = medir(() => encontrarDadosPessoais({ criterios_aceite_preliminares: lista }, ['e-mail']));
+    expect(r).toEqual([]);
+    expect(ms).toBeLessThan(LIMITE_MS);
+  });
+
+  it('a regex é global e Unicode (sem `u`, \\p{L} seria a classe dos caracteres "p{L}")', () => {
+    expect(DETECTORES['e-mail'].flags).toContain('g');
+    expect(DETECTORES['e-mail'].flags).toContain('u');
+  });
+
+  // Corpus curto: os casos de detectores.test.ts e de minimizar.test.ts que têm e-mail, e os formatos novos do B-2.
+  const USUARIO_68 = 'contato.ficticio.departamento.de.atendimento.ao.cliente.exemplo.2026@exemplo.test';
+  const FORMATOS = [
+    'joão.ficticia@exemplo.test',
+    'conceição.ficticia@exemplo.test',
+    'érica@exemplo.test',
+    'JOÃO.FICTICIO@exemplo.test',
+    'joão.ficticia@exemplo.test'.normalize('NFD'),
+    USUARIO_68,
+    'nome.sobrenome@empresa.exemplo.test',
+    'pessoa.ficticia+demanda@sub.exemplo.test',
+    'n_s-1@exemplo.test',
+    'a@b.co',
+  ];
+  const CORPUS = [
+    'texto contato@exemplo.test texto',
+    'texto (11) 90000-0000 texto',
+    'texto 123.456.789-09 texto',
+    'texto 12.345.678/0001-90 texto',
+    'Antes contato@exemplo.test depois.',
+    'Antes pessoa.ficticia+demanda@sub.exemplo.test depois.',
+    'Escreva para ficticia@empresa-exemplo.test hoje',
+    'Ou contato.ficticia@empresa-exemplo.test',
+    'A: contato@exemplo.test; B: (11) 90000-0000; C: 123.456.789-09; D: 12.345.678/0001-90; E: x.',
+    'Ficticia [e-mail removido] Ficticia',
+    'Para ficticia.contato@empresa-exemplo.test e contato@ficticia.test, ou FICTICIA_2@exemplo.test',
+    'Escreva para joana.ficticia@exemplo.test ou Joana@exemplo.test',
+    ...FORMATOS.map((v) => `Antes ${v} depois.`),
+    '<x@exemplo.test>',
+    'mailto:x@exemplo.test',
+    'x@exemplo.test.',
+    'x@y@exemplo.test',
+    '-'.repeat(70) + 'joana.ficticia@exemplo.test',
+    '_'.repeat(70) + 'joana.ficticia@exemplo.test',
+    'linha ' + '-'.repeat(70) + ' joana.ficticia@exemplo.test',
+  ];
+
+  it('o corpus é curto (menos de 200 caracteres por texto)', () => {
+    for (const t of CORPUS) expect(t.length, t).toBeLessThan(200);
+  });
+
+  it.each(CORPUS)('equivalência com a regex de antes: %j', (t) => {
+    const antes = [...t.matchAll(ANTIGA)];
+    const depois = [...t.matchAll(DETECTORES['e-mail'])];
+    expect(depois).toHaveLength(antes.length);
+    antes.forEach((a, i) => {
+      const d = depois[i]!;
+      expect(d.index).toBeLessThanOrEqual(a.index);
+      expect(d.index + d[0].length).toBe(a.index + a[0].length);
+    });
+  });
+
+  it.each([USUARIO_68, 'joão.ficticia@exemplo.test', 'joão.ficticia@exemplo.test'.normalize('NFD')])(
+    'Pedido de Construção: %j é e-mail',
+    (v) => {
+      expect(encontrarDadosPessoais({ especificacao: { conteudo: `texto ${v} texto` } }, DO_PEDIDO)).toEqual([
+        { caminho: 'especificacao.conteudo', tipo: 'e-mail' },
+      ]);
+    },
+  );
+});
