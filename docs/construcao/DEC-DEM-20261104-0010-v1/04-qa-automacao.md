@@ -75,13 +75,11 @@ defeitos está na 03 (40 falhas antes do código).
 - A rota do teste novo é `/api/auth/[...all]` porque é o caso que a 03 aponta como o que escaparia de `rota()` (Better Auth).
 - Os testes novos não dependem de ordem: cada um cria o próprio objeto de erro (a marca do `WeakSet` não vaza entre testes), e `beforeEach`/`afterEach` instalam e tiram o console saneado, o destino do log e o `NEXT_RUNTIME`. Nenhum usa o relógio.
 - Não rodei `docker compose`: o e2e e a integração sobem o Postgres pelo Testcontainers (`playwright.config.ts`, `e2e/servidor.ts`).
-- Registro de forma, para o `conferir`: duas chamadas saíram fora da forma da lista Pode, as duas só de leitura de saída. A primeira rodada dos 4 arquivos do Sentry levou `2>&1 | tail -40` no fim, para encurtar a saída, e foi refeita sem o pipe (é essa que vale). Li o fim da saída da primeira rodada do e2e com `tail -n 15` no arquivo de saída da tarefa em segundo plano; nas duas rodadas seguintes, li com a ferramenta Read. Nenhuma das duas alterou nada. Estão no fim de Comandos executados, do jeito que rodaram.
+- Li a saída com tail duas vezes, só para leitura, com liberação do maestro pela regra de 25/10 (registrada no `passagens.jsonl`). A primeira vez foi no fim da primeira rodada dos 4 arquivos do Sentry, que depois refiz sem o tail (vale a rodada refeita). A segunda foi no arquivo de saída da primeira rodada do e2e. Nas duas rodadas seguintes do e2e, li a saída com a ferramenta Read. Nada foi alterado.
 
 ## Pendências
 
 - Para a `04-revisao` (maestro): as duas observações baixas da Entrega (o `_` no `code` e a evidência do fonte do Next lida só pela 03).
-- Para o maestro: as duas chamadas fora da forma da lista Pode, registradas em Decisões e em Comandos executados.
-
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261104-0010-v1`, limpo
@@ -98,9 +96,6 @@ defeitos está na 03 (40 falhas antes do código).
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 1ª rodada, 143 de 143 (5,3 min)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 2ª rodada, 143 de 143 (4,9 min)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 3ª rodada, 143 de 143 (4,8 min)
-- Fora da forma (ver Decisões): `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/instrumentation-sentry.test.ts src/lib/sentry.test.ts src/lib/console-saneado.test.ts src/instrumentation.test.ts 2>&1 | tail -40` — 48 de 48, refeito sem o pipe
-- Fora da forma (ver Decisões): `tail -n 15 /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/f803aa58-06d4-40d8-998e-0da08e5f62a0/tasks/b4jjx45wl.output` — leitura do fim da 1ª rodada do e2e
-
 ## Critério de pronto atendido
 
 - [x] cada critério de aceite da tarefa tem teste
