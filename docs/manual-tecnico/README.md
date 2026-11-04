@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.8 (muda dois comportamentos: texto livre de DEC, ESP e RSK minimizado para quem não é pessoa, na leitura, na listagem e no 201 da criação, e `normalizarErro` reduzindo a `{ classe: "desconhecido" }` o erro em objeto que não é `Error`; ver o [CHANGELOG](../../CHANGELOG.md)) |
-| Atualizado em | 03/11/2026 |
+| Versão do sistema | 0.1.9 (muda quatro comportamentos: classe e `code` do erro com regra mais estreita no log e no Sentry, nomes da demanda lidos antes de gravar nos três `POST` de criação, o mesmo objeto de erro enviado uma vez só ao Sentry e rótulo de `demanda_final` no histórico; ver o [CHANGELOG](../../CHANGELOG.md)) |
+| Atualizado em | 04/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
 | Fonte de verdade | o código do ramo (padrão técnico, seção 11). Onde a spec ou o plano dizem outra coisa, vale o código, e a diferença está apontada no capítulo |

@@ -2,12 +2,12 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.8 |
+| Versão | 0.1.9 |
 | Imagem | `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas` (privada) |
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 04/11/2026 (`devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -285,9 +285,10 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
    chega ao console como `console_erro` ou `console_aviso`. No Sentry, o mesmo erro tem a tag `evento` igual a
    `erro_requisicao` e o título `<classe> <code>`, sem o `erroId`: case pela hora, pela classe e pelo código
    ([manual, cap. 02](../manual-tecnico/02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)). Desde a 0.1.9, a
-   classe só aparece quando termina em `Error` ou `Exception` ou é uma classe do projeto (fora disso, `Error` no Sentry
-   e `desconhecido` no log), o `code` com 10 ou mais dígitos seguidos não aparece, e o mesmo objeto de erro vai uma vez
-   só ao Sentry, mesmo que chegue ao gancho e ao console; cada `console.error` continua deixando a sua linha no log.
+   classe só aparece quando termina em `Error` ou `Exception` ou é uma classe do projeto (fora disso, sai `Error` no log
+   e no Sentry, ou `desconhecido` no log quando o erro já chega reduzido), o `code` com 10 ou mais dígitos seguidos não
+   aparece, e o mesmo objeto de erro vai uma vez só ao Sentry, mesmo que chegue ao gancho e ao console; cada
+   `console.error` continua deixando a sua linha no log.
 3. Em `/configuracao/agentes`, batimento do worker com menos de 5 minutos e uma instância só.
 4. Entrar com uma conta real (senha e 2FA) e abrir a fila de demandas.
 

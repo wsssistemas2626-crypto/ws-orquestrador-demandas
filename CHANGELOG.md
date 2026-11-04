@@ -3,6 +3,137 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.9 — 2026-11-04
+
+Correção do pedido `DEC-DEM-20261104-0010-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.8 (`1d6d897`). Ainda
+não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano. A regra da primeira publicação
+não muda: exige a 0.1.8 ou posterior na `main`, e a 0.1.9 a cumpre (`docs/operacao/deploy.md`, seção 4).
+
+Fecha cinco baixos que sobraram das revisões anteriores, todos do lado servidor: o B-1 e o B-3 da revisão da 0.1.8
+(pedido 0009), o B-a da revisão da 0.1.7 (pedido 0008) e o B-1 e o B-5 da revisão da 0.1.5 (pedido 0006). O B-4 da
+0.1.5 (foco da fila antes da hidratação) é de interface e fica para um pedido próprio. Não há migration nova, coluna
+nova, dependência nova nem variável de ambiente nova. Não mudaram `src/db/`, `drizzle/`, `e2e/`, `scripts/`,
+`.github/`, `Dockerfile`, `.env.example` nem o lockfile.
+
+### O que mudou
+
+- **B-1 do 0009: a classe e o `code` do erro reduzido têm regra mais estreita, no log e no título do Sentry**
+  (`src/lib/reduzir-erro.ts`).
+  - `lerCode` recusa o `code` que tenha 10 ou mais dígitos seguidos, em qualquer posição (`DIGITOS_DEMAIS`), no erro e
+    na `cause`. Um CPF, CNPJ ou telefone sem máscara passado como `code` não sai mais. Continuam aceitos o `code` do
+    Postgres (`23505`, `57P01`, `2200H`), os do Node (`ECONNREFUSED`) e os internos (`recusado`, `transitorio`).
+  - A nova `classeAceita(nome)` decide a classe que pode sair. Aceita `desconhecido`, um identificador de até 64
+    caracteres terminado em `Error` ou `Exception` (`Error`, `TypeError`, `DrizzleQueryError`) ou um nome da lista
+    fechada `CLASSES_DO_PROJETO`: `ErroEnvioEmail`, `ErroDominio`, `ErroProvedor`, `ErroConfiguracao`,
+    `ErroLeituraSessao`, `AvisoNaoEnviado`, `ExecucaoPerdida` e `TempoEsgotado`. Fora disso, o `Error` com esse
+    `name` sai com a classe `Error` (`reduzirErro`), no log e no Sentry. O objeto já reduzido com essa classe não é
+    reconhecido por `erroJaReduzido` e sai no log como `{ "classe": "desconhecido" }`, com o `code` só se passar em
+    `lerCode`. Um nome como `Joana` ou `ErroJoana` não chega ao log nem ao Sentry.
+  - **Convenção nova:** classe de erro nova do projeto, com `name` próprio e sem o sufixo `Error` ou `Exception`, tem de
+    entrar em `CLASSES_DO_PROJETO`. Sem isso, ela aparece como `Error` no log e no Sentry. O teste
+    estático `test/estatico/classes-de-erro.test.ts` lê pela AST toda string posta em `name` nos arquivos de `src/`
+    que não são teste e reprova o nome que `classeAceita` recusar.
+- **B-3 do 0009: nos três `POST` de criação, os nomes da demanda são lidos antes de gravar.** Em
+  `src/app/api/demandas/[id]/{especificacoes,pareceres-risco,pacotes-decisao}/route.ts`, `nomesDaDemanda` roda antes do
+  serviço de criação, e o 201 usa os nomes lidos. Se essa leitura falhar, a resposta é 500 `erro_interno` e nada é
+  gravado: nem a versão, nem o evento, nem a mudança de status, nem o aviso do DEC. A nova tentativa cria a versão
+  seguinte, sem duplicar. A demanda inexistente continua 404, porque `nomesDaDemanda` devolve `[]` e o 404 vem do
+  serviço. O 409 de status final, o 429 do limite e o 400 com `faltando` do DEC também não mudam. Os `GET` e os
+  serviços ficaram como estavam.
+- **B-a do 0008: o mesmo objeto de erro vai ao Sentry uma vez só** (`src/lib/sentry.ts`). A duplicação foi conferida no
+  fonte do Next 16.4.1 e existe no route handler. O erro que escapa do handler chega sem `digest` ao `console.error` e
+  ao `onRequestError`, e é o mesmo objeto nos dois (`dist/server/route-modules/route-module.js:320-328`,
+  `dist/build/templates/app-route.js:335-346`). Na página, no layout e no Server Component, o erro ganha `digest`
+  antes (`dist/server/app-render/create-error-handler.js:100-103` e `:165-167`). A guarda de `digest` do console
+  saneado já cobria esses casos. `capturarErro` marca agora o objeto num `WeakSet`: o que já foi enviado não vai de
+  novo, nas duas ordens. Dois erros distintos com a mesma mensagem continuam indo os dois, e valor que não é objeto vai
+  toda vez. O log não é deduplicado: cada `console.error` continua deixando a sua linha. A evidência está no
+  comentário de `src/lib/console-saneado.ts`. As rotas que passam por `rota()` e o `/api/saude` tratam o próprio erro.
+  O caso real hoje é a rota do Better Auth.
+- **B-1 do 0006: um teste estático barra `extras` em `criarPacoteDecisao` vindos de `src/app/`**
+  (`test/estatico/pacote-sem-extras.test.ts`). Pela AST do TypeScript, ele reprova o arquivo de `src/app/` que não é
+  teste e que faça uma destas coisas com `criarPacoteDecisao`: chamar com mais de 4 argumentos, usar argumento
+  espalhado ou usar a função fora da chamada direta (variável, `.call`, `.apply`, `bind`). O teste segue import
+  renomeado e por namespace. Hoje os dois chamadores de `src/app/` passam 4 argumentos. O `especificacaoId` e o
+  `parecerRiscoId` só vêm do worker. Não mudou código de produção.
+- **B-5 do 0006: `demanda_final` tem rótulo no histórico** (`MOTIVO_IGNORADO` em `src/components/rotulos.ts`). O
+  evento `agente_ignorado` com esse motivo aparece como "Agente de consolidação não rodou: demanda já entregue ou
+  encerrada" (e o mesmo para os outros agentes). Motivo desconhecido continua só "não rodou".
+- **Testes:** blocos novos em `src/lib/reduzir-erro.test.ts`, `src/lib/log.test.ts`, `src/lib/sentry.test.ts`,
+  `src/lib/console-saneado.test.ts` e `src/components/rotulos.test.ts`. Três arquivos novos:
+  `test/estatico/classes-de-erro.test.ts`, `test/estatico/pacote-sem-extras.test.ts` e
+  `src/app/api/demandas/nomes-antes-de-gravar.test.ts`, com Testcontainers, os 3 `POST` e a pessoa e o agente. Na
+  regressão entrou também `src/instrumentation-sentry.test.ts`, com o `onRequestError` real, o console saneado real e
+  o Sentry real em transporte falso, na sequência do route handler do Next. Em `src/lib/sentry.test.ts`, a classe de
+  exemplo de um teste existente passou de `ErroDeConsulta` a `ConsultaError`, com as mesmas três asserções. O nome
+  antigo ganhou teste próprio, que confere a queda para `Error`.
+- **Versão:** o `package.json` passou de 0.1.8 para 0.1.9, e `test/estatico/projeto.test.ts` confere a versão nova.
+- **Documentação:** estas notas e a versão no `README.md`, no manual técnico e no `docs/operacao/deploy.md`. O
+  `README.md` ganhou a convenção de `CLASSES_DO_PROJETO`. No manual, mudaram os capítulos 02 (log e Sentry, com a
+  regra de classe e de `code`, o envio único e os limites que sobram), 04 (ordem do `POST` e teste dos `extras`), 06
+  (rótulo de `demanda_final`) e 09 (ordem do `POST`). No `deploy.md`, as seções 4, 6 e 8 vieram da `05-devops-sre.md`.
+
+Não houve `.skip`, `.only` ou `.todo` novo, nem asserção afrouxada. O C-10, o C-21, o C-23, o C-36, a A-02 e o axe
+continuam sem exceção. As seis asserções de `ErroEnvioEmail` (`log.test.ts`, `aviso-dec.test.ts`, `enviador.test.ts`)
+e o `src/instrumentation.test.ts` não mudaram.
+
+### Verificações desta versão
+
+- `pnpm test`: 3.999 de 3.999 (`04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143, três vezes seguidas, sem teste pulado e sem nova tentativa.
+- Os testes que reproduzem os cinco defeitos da `01-qa-funcional.md` usam dados fictícios. Os casos: `code`
+  `00000000191` e `11900000000`, classe `Joana`, falha simulada na leitura dos nomes, o mesmo erro no gancho e no
+  console, e o evento `agente_ignorado` com `demanda_final`. Foram vistos falhando antes do código, com 40 falhas
+  (`03-engenheiro-backend.md`).
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico, alto ou médio; cinco baixos (abaixo).
+- `pnpm build` passou (34 rotas). O `docker build` não rodou na `05-entrega`, porque as entradas da imagem são as da
+  0.1.8, salvo `src/` e `package.json`. A imagem é construída na homologação e no CI do PR (`05-devops-sre.md`).
+- A homologação, o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam para a Parada 3. O rollback
+  é o caminho A, só com a troca de imagem para a `v0.1.8` (`deploy.md`, seção 6).
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), baixos:
+
+- **B-1** (`src/lib/reduzir-erro.ts`), para um pedido futuro: o `code` ainda passa com 9 dígitos, com dígitos
+  separados por `_` (`000_000_001_91`) ou com uma palavra. Só vira problema se um chamador futuro puser dado pessoal em
+  `code`, e nenhum caminho de hoje faz isso. Sugestão: limitar os dígitos no total. Na mesma linha, o sufixo deixa
+  passar um nome montado como `JoanaSilvaError`, limite aceito na triagem.
+- **B-2** (`src/lib/reduzir-erro.ts`), no pedido `DEC-DEM-20261104-0011-v1`: `reduzirErro` não confere se `e.name` é
+  string. Um `name` montado de propósito, com `toString` variável, passaria. Já existia antes.
+- **B-3** (as 3 rotas `POST`), no pedido 0011: os nomes são lidos fora da transação, antes de `travarDemanda`. Se o
+  solicitante for renomeado nesse intervalo, o 201 minimiza com o nome antigo, e o nome novo, se estiver no texto, sai
+  para o agente. É uma variante do M-1 do 0009.
+- **B-4** (`src/lib/sentry.ts`), no pedido 0011: a marca é gravada antes de `reduzirErro` e do envio. Se `reduzirErro`
+  lançar, o erro fica marcado sem ter ido. O mesmo objeto reaproveitado por várias requisições também vai uma vez só,
+  e nenhum caso assim foi achado no código.
+- **B-5** (testes estáticos), para um pedido futuro: `classes-de-erro.test.ts` não vê `get name()` nem
+  `X.name = '...'` fora de `this`. `pacote-sem-extras.test.ts` não segue reexport, barrel nem `import()` dinâmico.
+  Hoje não há nenhum desses casos.
+
+Registradas nas outras etapas deste pedido:
+
+- **Convenção de `CLASSES_DO_PROJETO` no padrão técnico** (`02-tech-lead.md`, `03-engenheiro-backend.md`): está no
+  `README.md` e no manual (cap. 02). O registro no `padrao-tecnico.md` da estruturaAutonoma fica para um pedido
+  próprio.
+- **Conferência parcial do fonte do Next** (`03-engenheiro-backend.md`): os caminhos do middleware/proxy e da Server
+  Action não foram lidos em arquivo próprio. A marca por objeto vale para qualquer caminho, então a leitura não muda a
+  correção.
+- **Barreira de `extras` só em `criarPacoteDecisao`** (`02-tech-lead.md`): `criarEspecificacao` e `criarParecerRisco`
+  também recebem `extras` (`execucaoAgenteId`). Estender o teste estático a elas fica para um pedido próprio.
+
+Seguem abertas, sem mudança neste pedido:
+
+- da 0.1.8: o **M-1 da revisão do 0009** (nome antigo ou parcial do solicitante em claro para o token de agente;
+  risco residual, sem bloquear). A opção (b) refinada foi decidida por Fabiano em 04/11 e está no pedido 0011.
+  Também segue o limite do teste "nenhum dos fragmentos" para campo de texto novo nas três vistas;
+- da 0.1.7: o risco do M-3 para a Parada 3 (erro fora de requisição chega ao Sentry só se o Next o escrever por
+  `console.error`);
+- da 0.1.6: B-2 a B-5, `erroId` fora do Sentry, o risco do M-05 e o teste estático das actions por SHA;
+- da 0.1.5: B-2, B-3, B-4 (foco da fila antes da hidratação, WCAG 2.4.3, de interface, para um pedido próprio) e
+  B-6.
+
 ## 0.1.8 — 2026-11-03
 
 Correção do pedido `DEC-DEM-20261103-0009-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.7 (`3c8a942`). Ainda

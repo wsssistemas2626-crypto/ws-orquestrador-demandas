@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
+| Atualizado em | 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` e teste estático dos `extras` do DEC, no RF-10); 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-08 a RF-14 |
 | Fontes no código | `src/modules/especificacoes/`, `src/modules/pareceres-risco/`, `src/modules/pacotes-decisao/` (`criar.ts`, `decidir.ts`, `desatualizado.ts`, `consultas.ts`, `schemas.ts`), `src/modules/versoes.ts`, `drizzle/0003_rls_privilegios_dominio.sql` |
@@ -22,6 +22,15 @@ criação, pela pessoa ou pelo agente, responde 409:
 
 A recusa vem antes de qualquer insert, evento, agente disparado, aviso ou job, e antes do limite: numa demanda final,
 o ator que já passou do limite recebe 409, e não 429 (`recusarSeDemandaFinal`, `src/modules/demandas/transicoes.ts`).
+
+Nos três `POST` da API (`.../especificacoes`, `.../pareceres-risco` e `.../pacotes-decisao`), a rota lê os nomes do
+solicitante (`nomesDaDemanda`, usados na vista do 201) **antes** de chamar o serviço de criação (B-3 do 0009, desde a
+0.1.9). Se essa leitura falhar, a resposta é 500 `erro_interno` e nada é gravado: nem a versão, nem o evento, nem a
+mudança de status, nem o aviso do DEC. A nova tentativa cria a versão seguinte, sem duplicar. Demanda inexistente
+continua 404: `nomesDaDemanda` devolve `[]`, e o 404 vem de `travarDemanda`, no serviço. O 409, o 429 e o 400 com
+`faltando` também continuam vindo do serviço. Limite (B-3 da revisão do 0010, pedido 0011): os nomes são lidos fora da
+transação. Se o solicitante for renomeado entre a leitura e a gravação, o 201 minimiza com o nome lido antes, e o nome
+novo, se estiver no texto, sai em claro para o agente.
 
 ## RF-08. Especificação técnica (ESP)
 
@@ -74,7 +83,12 @@ RSK gravado numa demanda que já tem ESP dispara o agente `consolidacao`, se lig
     inexistente ou de outra demanda dá 404 e nada é gravado. Se entrou versão mais nova depois da leitura, o DEC nasce
     desatualizado (RF-12) (M-01, corrigido na 0.1.5).
   - `especificacaoId` e `parecerRiscoId` nunca vêm do corpo da requisição nem da saída do modelo: o schema da rota não
-    tem esses campos, e o que vier a mais é descartado (C-11, C-25).
+    tem esses campos, e o que vier a mais é descartado (C-11, C-25). Desde a 0.1.9 (B-1 do 0006), o
+    `test/estatico/pacote-sem-extras.test.ts` lê pela AST do TypeScript os arquivos de `src/app/` que não são teste.
+    Ele reprova o uso de `criarPacoteDecisao` com mais de 4 argumentos (o 5º é a transação, o 6º são os `extras`),
+    com argumento espalhado ou fora da chamada direta (variável, `.call`, `.apply`, `bind`). Segue import renomeado e
+    por namespace. Só o worker (`src/modules/agentes/executar.ts`) passa os `extras`. O teste não segue reexport,
+    barrel nem `import()` dinâmico (B-5 da revisão do 0010).
 - O DEC grava uma cópia do tipo, do título e da descrição da demanda, que não muda se a demanda for editada.
 - Sem ESP ou sem RSK: 400 "Faltam itens para o pacote." com `faltando: ["especificacao", "parecer_risco"]` (o que
   faltar).

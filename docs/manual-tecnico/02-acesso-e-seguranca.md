@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
+| Atualizado em | 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-01, RF-02, RNF-10, RNF-12, RNF-13; controles C-01 a C-21 de `04-seguranca-aplicacao.md` |
-| Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `bloqueio-verificacao.ts`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
+| Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `bloqueio-verificacao.ts`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/reduzir-erro.ts`, `src/lib/sentry.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
 
 ## RF-01. Login com 2FA
 
@@ -102,11 +102,30 @@ com a mensagem genérica, sem texto do Postgres, do Drizzle nem do Zod. Os códi
 - Uma linha por requisição: método, padrão da rota (nunca o caminho com o id nem a query), status, ms, tipo de ator e
   código do erro.
 - Erro do Postgres vai ao log reduzido a classe e código. Desde a 0.1.8 (B-b), `normalizarErro` (`src/lib/log.ts`)
-  reduz também o valor em `erro` que não é `Error`: sai `{ "classe": "desconhecido" }`, com `code` só quando passa no
-  formato de `lerCode` (`src/lib/reduzir-erro.ts`). A exceção é o erro que já chega reduzido, na forma exata
-  `{ classe, code? }` com a classe no formato de identificador (`erroJaReduzido`), como o do `onRequestError`. O logger do Better Auth foi trocado por um evento fixo, sem
-  mensagem nem argumentos.
-- Sentry só com `SENTRY_DSN`; sem ela, desligado. Erro 5xx vai reduzido, sem dado pessoal.
+  reduz também o valor em `erro` que não é `Error`: sai `{ "classe": "desconhecido" }`, com `code` só quando passa em
+  `lerCode` (`src/lib/reduzir-erro.ts`). A exceção é o erro que já chega reduzido, na forma exata `{ classe, code? }`
+  com a classe aceita por `classeAceita` (`erroJaReduzido`), como o do `onRequestError`. O logger do Better Auth foi
+  trocado por um evento fixo, sem mensagem nem argumentos.
+- **Regra da classe e do `code`** (`src/lib/reduzir-erro.ts`, B-1 do 0009, desde a 0.1.9). A regra vale para o log
+  (`normalizarErro`, `erroJaReduzido`) e para o título do Sentry (`reduzirErro`, em `capturarErro`):
+  - `code`: até 40 caracteres de letras, dígitos e `_`, **sem 10 ou mais dígitos seguidos** em nenhuma posição
+    (`DIGITOS_DEMAIS`), no erro e na `cause`. `23505`, `57P01`, `2200H`, `ECONNREFUSED`, `recusado` e `transitorio`
+    passam; `00000000191`, `1234567890` e `1234567890A` não saem;
+  - classe (`classeAceita`): `desconhecido`; um identificador de até 64 caracteres terminado em `Error` ou `Exception`;
+    ou um nome de `CLASSES_DO_PROJETO`. Fora disso, o `Error` com esse `name` sai com a classe `Error`
+    (`reduzirErro`), no log e no Sentry. O objeto já reduzido com essa classe não é reconhecido por `erroJaReduzido` e
+    sai no log como `{ "classe": "desconhecido" }`, com o `code` só se passar em `lerCode`. Um `name` como `Joana` ou
+    `ErroJoana` não sai;
+  - `CLASSES_DO_PROJETO` é a lista fechada das classes que o projeto põe em `name` sem o sufixo: `ErroEnvioEmail`,
+    `ErroDominio`, `ErroProvedor`, `ErroConfiguracao`, `ErroLeituraSessao`, `AvisoNaoEnviado`, `ExecucaoPerdida` e
+    `TempoEsgotado`. **Convenção:** classe de erro nova do projeto com `name` próprio termina em `Error` ou
+    `Exception` ou entra nessa lista. O `test/estatico/classes-de-erro.test.ts` lê pela AST toda string posta em
+    `name` nos arquivos de `src/` que não são teste (`this.name = '...'`, campo `name` da classe e
+    `Object.defineProperty(X.prototype, 'name', { value })`). Ele reprova o nome que `classeAceita` recusar.
+- Sentry só com `SENTRY_DSN`; sem ela, desligado. Erro 5xx vai reduzido, sem dado pessoal. Desde a 0.1.9 (B-a do
+  0008), `capturarErro` (`src/lib/sentry.ts`) marca cada objeto de erro enviado num `WeakSet`: o mesmo objeto não vai
+  de novo, venha do gancho ou do console, em qualquer ordem. A marca é por objeto, não por mensagem: dois erros
+  distintos com a mesma mensagem vão os dois. Valor que não é objeto (string, número) vai toda vez.
 - Teste transversal com sentinelas confere que texto bruto, e-mail, telefone, token, senha, cookie e conteúdo de IA não
   aparecem em log, Sentry, histórico nem tabela do pg-boss.
 - **Erro não tratado de página, layout, metadados ou Server Component** (M-05, desde a 0.1.6). O Next chama
@@ -132,18 +151,28 @@ com a mensagem genérica, sem texto do Postgres, do Drizzle nem do Zod. Os códi
     fica só no log. `defaultIntegrations` continua `false`.
   - Desde a 0.1.7 (B-1), o `onRequestError` grava `reduzirErro(err)`: valor que não é `Error` vira
     `{ "classe": "desconhecido" }`.
-- Limites conhecidos ([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6 à 0.1.8):
-  - o `code` aceito no erro reduzido pode ser só de dígitos, e `erroJaReduzido` aceita como classe um nome de uma
-    palavra: um CPF ou telefone sem máscara passado como `code` sairia no log (B-1 da revisão do 0009, aberto; depende
-    de quem chama o log passar esse valor);
+  - Desde a 0.1.9 (B-a do 0008), a duplicação está conferida no fonte do Next 16.4.1 e registrada no comentário de
+    `console-saneado.ts`. Na página, no layout e no Server Component, o erro ganha `digest` antes de ir ao gancho e ao
+    console, e a guarda de `digest` basta. No route handler, o erro que escapa chega **sem** `digest` ao
+    `console.error` e ao `onRequestError`, e é o mesmo objeto nos dois. Quem evita o segundo envio é a marca por objeto
+    em `capturarErro`. As rotas daqui passam por `rota()`, que trata o erro, e o `/api/saude` trata o próprio. O caso
+    real é a rota do Better Auth. O log não é deduplicado: cada `console.error` deixa a sua linha `console_erro`.
+- Limites conhecidos ([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6 à 0.1.9):
+  - o `code` ainda passa com 9 dígitos, com dígitos separados por `_` ou com uma palavra, e o sufixo aceita um nome
+    montado como `JoanaSilvaError`. Só vira problema se um chamador futuro puser dado pessoal em `code` ou em `name`,
+    e nenhum caminho de hoje faz isso (B-1 da revisão do 0010, aberto);
+  - `reduzirErro` não confere se `e.name` é string (B-2 da revisão do 0010, pedido 0011);
+  - a marca do `WeakSet` é gravada antes de `reduzirErro` e do envio. Se `reduzirErro` lançar, o erro fica marcado sem
+    ter ido. O mesmo objeto reaproveitado por várias requisições vai uma vez só (B-4 da revisão do 0010, pedido 0011);
+  - o `classes-de-erro.test.ts` não vê `get name()` nem `X.name = '...'` fora de `this` (B-5 da revisão do 0010);
   - a prova do console é de unidade: se o Next escrever direto no `process.stderr` ou guardar a referência do
-    `console.error` antes do `register()`, a troca não pega (B-2), e só a `ErroLeituraSessao` e o `erro_requisicao`
+    `console.error` antes do `register()`, a troca não pega (B-2 da 0.1.6), e só a `ErroLeituraSessao` e o `erro_requisicao`
     seguem garantidos;
   - erro fora de requisição (`uncaughtException`, `unhandledRejection`, `onError` do `after()`) só chega ao Sentry se
     o Next o escrever por `console.error`; isso não foi conferido no runtime do Next 16 (prova de unidade, risco do M-3
     para a Parada 3);
-  - a não duplicação depende de o Next não mandar o mesmo erro sem `digest` ao `onRequestError` e ao `console.error`
-    (B-a); no máximo, um evento a mais, sem dado.
+  - na conferência do B-a, os caminhos do middleware/proxy e da Server Action não foram lidos em arquivo próprio. A
+    marca por objeto vale para qualquer caminho.
 
 ## Segredos (RNF-13)
 
