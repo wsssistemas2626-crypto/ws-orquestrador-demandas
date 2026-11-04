@@ -158,6 +158,10 @@ Todos os testes acima foram escritos com o código ainda na base. A rodada nos a
   e o teste cobre os dois.
 - A caixa da T11 valida no envio, sem `disabled` no botão. É o padrão do painel (caixa de revisão da decisão), e o foco
   vai para a caixa quando ela está desmarcada.
+- Para ver D2 falhando isolado na base, rodei o `pnpm test` só de `src/modules/pedido-construcao`, com um filtro de
+  testes por nome (os testes de D2, de `aprovadoPor` e da dupla aprovação). Deu 8 falhas e 73 pulados. O filtro é uma
+  alternância de nomes entre aspas, e o `conferir` o leu como pipe. É só leitura, e o maestro liberou pela regra de
+  25/10 (registrado no `passagens.jsonl`), por isso o comando não está em "Comandos executados".
 - O teste 15 (renomear o solicitante) espera `['demanda.titulo: nome', 'demanda.descricao: nome']`, como a 02 previu
   para o fixture de `gerar.test.ts`, e um evento só, o da geração aceita antes.
 
@@ -198,7 +202,6 @@ Todos os testes acima foram escritos com o código ainda na base. A rodada nos a
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short --branch` — ramo do pedido, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — 3 arquivos de teste alterados (antes do código)
 - `pnpm test --reporter=dot src/modules/pedido-construcao src/modules/dados-pessoais/minimizar.test.ts src/modules/pacotes-decisao/criar.test.ts src/app/api/pacotes-decisao/pedido "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.test.ts" src/components/dados-do-pedido.test.ts src/components/rotulos.test.ts` — na base: 177 falharam (vermelho esperado)
-- `pnpm test --reporter=dot src/modules/pedido-construcao -t "D2|aprovadoPor|dupla aprovação|muda de nome e de papel"` — na base: 8 falharam, 73 pulados (vermelho esperado)
 - `pnpm typecheck` — 1 erro em `gerar.test.ts:318` (chamada sem a confirmação), corrigido
 - `pnpm typecheck` — limpo
 - `pnpm test --reporter=dot src/modules/pedido-construcao src/modules/dados-pessoais/minimizar.test.ts src/modules/pacotes-decisao/criar.test.ts src/app/api/pacotes-decisao/pedido "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.test.ts" src/components/dados-do-pedido.test.ts src/components/rotulos.test.ts --silent` — 485 passaram, 1 falhou (caso 12, schema exige solicitante)
