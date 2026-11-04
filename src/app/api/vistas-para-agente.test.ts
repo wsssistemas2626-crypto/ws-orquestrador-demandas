@@ -507,3 +507,116 @@ describe('M-a: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa
     expect(daPessoa.map((d) => d.resumoExecutivo).sort()).toEqual(nomes.map((n) => `Falar com ${n}`).sort());
   });
 });
+
+// 04-regressao do 0011 (qa-automacao), M-1 do 0009 nas vistas de ESP, RSK e DEC: o agente grava ESP, RSK e DEC pelas
+// rotas com o primeiro nome e os sobrenomes do solicitante sozinhos no texto. No 201 dos três POST e nas sete leituras,
+// o agente recebe as partes com inicial maiúscula trocadas, e a palavra comum em minúscula igual a uma parte do nome
+// ("rosa", "campos", "30 dias") e a partícula ("dos") ficam; a pessoa lê o original, o mesmo texto que o agente mandou.
+// Nome fictício.
+describe('M-1 do 0009 (04-regressao do 0011): parte do nome, palavra comum e partícula nas vistas de ESP, RSK e DEC', () => {
+  const NOME_PARTES = 'Carla dos Santos Rosa Campos Dias';
+  const PARTES = ['Carla', 'Santos', 'Rosa', 'Campos', 'Dias'];
+  const TEXTO_PARTES = 'A Carla pediu os dados dos clientes em 30 dias; camisa rosa e os campos do formulário; Santos, Rosa e Campos assinaram.';
+  const M = '[nome removido]';
+  const MIN_PARTES = `A ${M} pediu os dados dos clientes em 30 dias; camisa rosa e os campos do formulário; ${M}, ${M} e ${M} assinaram.`;
+  const COMUNS = 'os dados dos clientes em 30 dias; camisa rosa e os campos do formulário';
+  const ESP_PARTES = {
+    descricaoObjetiva: TEXTO_PARTES,
+    situacaoAtual: TEXTO_PARTES,
+    escopoInclui: [TEXTO_PARTES],
+    sistemaAlvo: 'meu-sistema',
+    repositorioDestino: 'wsssistemas2626-crypto/meu-sistema',
+    criteriosAceitePreliminares: [TEXTO_PARTES],
+    definicaoDePronto: [TEXTO_PARTES],
+  };
+  const RSK_PARTES = { resumo: TEXTO_PARTES, riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo', preCondicoes: [TEXTO_PARTES] };
+  const DEC_PARTES = {
+    resumoExecutivo: TEXTO_PARTES,
+    opcaoA: { descricao: TEXTO_PARTES },
+    opcaoB: { descricao: TEXTO_PARTES },
+    recomendacao: TEXTO_PARTES,
+    nivelAprovacaoRequerido: 'cto',
+  };
+
+  let cen: Cenario;
+  let respostas: { esp: string; rsk: string; dec: string };
+
+  // A parte como palavra inteira: a chave "dadosCamposCriticos" da ESP tem "Campos" dentro e não é texto do pedido.
+  const semPartes = (texto: string) => {
+    for (const p of PARTES) expect(texto, p).not.toMatch(new RegExp(`(?<!\\p{L})${p}(?!\\p{L})`, 'u'));
+    expect(texto).toContain(COMUNS);
+  };
+  // Só as vistas desta demanda: a fila inteira traz os DEC dos outros blocos do arquivo.
+  const desta = (r: Awaited<ReturnType<typeof lerTudo>>) => JSON.stringify([r.esp, r.esps, r.rsk, r.rsks, r.dec, r.decs, r.fila]);
+
+  beforeAll(async () => {
+    const insumoTok = (await comTransacao(b.poolApp, (t) => criarTokenServico(t, 'insumo_tecnico', deps.relogio))).token;
+    const consolidacaoTok = (await comTransacao(b.poolApp, (t) => criarTokenServico(t, 'consolidacao', deps.relogio))).token;
+    const id = (
+      await criarDemanda(deps, pessoa, criarDemandaSchema.parse({ titulo: 'Relatório da Carla', tipo: 'bug', solicitanteNome: NOME_PARTES, contexto: TEXTO_PARTES }))
+    ).id;
+    const postar = async (h: HandlerRota, recurso: string, corpo: unknown, bearer: string) => {
+      const r = await chamarRota(h, { metodo: 'POST', caminho: `/api/demandas/${id}/${recurso}`, params: { id }, corpo, bearer });
+      expect(r.status, recurso).toBe(201);
+      return r.text();
+    };
+    const esp = await postar(POST_ESP, 'especificacoes', ESP_PARTES, insumoTok);
+    const rsk = await postar(POST_RSK, 'pareceres-risco', RSK_PARTES, tokenRisco);
+    const dec = await postar(POST_DEC, 'pacotes-decisao', DEC_PARTES, consolidacaoTok);
+    respostas = { esp, rsk, dec };
+    const idDe = (t: string) => (JSON.parse(t) as { id: string }).id;
+    cen = { id, espId: idDe(esp), rskId: idDe(rsk), decId: idDe(dec), decSemDecisao: null };
+  });
+
+  it('201 dos três POST do agente: partes trocadas, palavra comum em minúscula e partícula no lugar', () => {
+    for (const t of Object.values(respostas)) semPartes(t);
+    const esp = JSON.parse(respostas.esp) as Obj;
+    const rsk = JSON.parse(respostas.rsk) as Obj;
+    const dec = JSON.parse(respostas.dec) as Obj;
+    expect(esp).toMatchObject({ descricaoObjetiva: MIN_PARTES, situacaoAtual: MIN_PARTES, escopoInclui: [MIN_PARTES], criteriosAceitePreliminares: [MIN_PARTES], definicaoDePronto: [MIN_PARTES] });
+    expect(rsk).toMatchObject({ resumo: MIN_PARTES, preCondicoes: [MIN_PARTES] });
+    expect(dec).toMatchObject({
+      demandaTitulo: `Relatório da ${M}`,
+      demandaDescricao: `Contexto: ${MIN_PARTES}`,
+      resumoExecutivo: MIN_PARTES,
+      recomendacao: MIN_PARTES,
+      opcaoA: { descricao: MIN_PARTES },
+      opcaoB: { descricao: MIN_PARTES },
+    });
+  });
+
+  it('agente, nas sete leituras: partes trocadas, palavra comum em minúscula e partícula no lugar', async () => {
+    const r = await lerTudo(cen, { bearer: tokenRisco });
+    semPartes(desta(r));
+    for (const esp of [r.esp, ...r.esps]) {
+      expect(esp).toMatchObject({ descricaoObjetiva: MIN_PARTES, situacaoAtual: MIN_PARTES, escopoInclui: [MIN_PARTES], criteriosAceitePreliminares: [MIN_PARTES] });
+    }
+    for (const rsk of [r.rsk, ...r.rsks]) expect(rsk).toMatchObject({ resumo: MIN_PARTES, preCondicoes: [MIN_PARTES] });
+    const decs = [r.dec, ...r.decs, ...r.fila];
+    expect(decs).toHaveLength(3);
+    for (const dec of decs) {
+      expect(dec).toMatchObject({ demandaTitulo: `Relatório da ${M}`, demandaDescricao: `Contexto: ${MIN_PARTES}`, resumoExecutivo: MIN_PARTES, opcaoA: { descricao: MIN_PARTES } });
+      expect((dec.especificacaoCitada as Obj).criteriosAceitePreliminares).toEqual([MIN_PARTES]);
+    }
+  });
+
+  it('pessoa, nas sete leituras: o texto original que o agente mandou, sem marcador', async () => {
+    const r = await lerTudo(cen, { cookie });
+    expect(desta(r)).not.toContain(M);
+    for (const esp of [r.esp, ...r.esps]) expect(esp).toMatchObject(ESP_PARTES);
+    for (const rsk of [r.rsk, ...r.rsks]) expect(rsk).toMatchObject({ resumo: TEXTO_PARTES, preCondicoes: [TEXTO_PARTES] });
+    const decs = [r.dec, ...r.decs, ...r.fila];
+    expect(decs).toHaveLength(3);
+    for (const dec of decs) {
+      expect(dec).toMatchObject({
+        demandaTitulo: 'Relatório da Carla',
+        demandaDescricao: `Contexto: ${TEXTO_PARTES}`,
+        resumoExecutivo: TEXTO_PARTES,
+        recomendacao: TEXTO_PARTES,
+        opcaoA: { descricao: TEXTO_PARTES },
+        opcaoB: { descricao: TEXTO_PARTES },
+      });
+      expect((dec.especificacaoCitada as Obj).criteriosAceitePreliminares).toEqual([TEXTO_PARTES]);
+    }
+  });
+});

@@ -29,6 +29,8 @@ import { criarPacoteDecisaoSchema, registrarDecisaoSchema } from '../../../modul
 import { criarParecerRiscoSchema } from '../../../modules/pareceres-risco/schemas';
 import { criarParecerRisco } from '../../../modules/pareceres-risco/servico';
 import { gerarPedido, MENSAGENS_PEDIDO } from '../../../modules/pedido-construcao/gerar';
+import { POST as POST_ESP } from '../demandas/[id]/especificacoes/route';
+import { POST as POST_RSK } from '../demandas/[id]/pareceres-risco/route';
 import * as rotaDoPedido from './[decId]/pedido-construcao/route';
 import { POST } from './[decId]/pedido-construcao/route';
 
@@ -379,6 +381,66 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: texto original (M-
     const texto = await r.text();
     const p = JSON.parse(texto);
     expect(p.demanda).toMatchObject({ titulo: 'Relatório da Joana', descricao: `Contexto: ${trecho}` });
+    expect(p.especificacao.conteudo).toBe(`Descrição objetiva: ${trecho}\n\nEscopo inclui:\n- ${trecho}`);
+    expect(p.risco.conteudo).toContain(`Resumo: ${trecho}`);
+    expect(p.risco.conteudo).toContain(`Pré-condições:\n- ${trecho}`);
+    expect(p.decisao.opcaoEscolhida).toBe(`A: ${trecho}`);
+    expect(p.criterios_aceite_preliminares).toEqual([trecho]);
+    expect(texto).not.toContain('[nome removido]');
+  });
+
+  // 04-regressao do 0011 (qa-automacao), contraprova do CA 3 pelo caminho do agente: a ESP e o RSK são gravados pelos
+  // agentes pelas rotas, cujo 201 vem minimizado; o banco, e por isso o Pedido de Construção, guarda o texto que o agente
+  // mandou, com as partes do nome, a palavra comum em minúscula e a partícula. Nome fictício.
+  it('M-1 do 0009 (04-regressao do 0011): ESP e RSK gravados pelos agentes nas rotas; o 201 vem minimizado e o pedido leva o original', async () => {
+    const trecho = 'A Carla pediu os dados dos clientes em 30 dias; camisa rosa e os campos do formulário; Rosa e Campos assinaram.';
+    const minimo = 'A [nome removido] pediu os dados dos clientes em 30 dias; camisa rosa e os campos do formulário; [nome removido] e [nome removido] assinaram.';
+    const autora = novaAutora();
+    const d = await criarDemanda(
+      deps,
+      autora,
+      criarDemandaSchema.parse({ titulo: 'Relatório da Carla', tipo: 'bug', solicitanteNome: 'Carla dos Santos Rosa Campos Dias', contexto: trecho }),
+    );
+    const postar = async (h: typeof POST_ESP, recurso: string, corpo: unknown, bearer: string) => {
+      const r = await chamarRota(h, { metodo: 'POST', caminho: `/api/demandas/${d.id}/${recurso}`, params: { id: d.id }, corpo, bearer });
+      expect(r.status, recurso).toBe(201);
+      return (await r.json()) as Record<string, unknown>;
+    };
+    const esp = await postar(
+      POST_ESP,
+      'especificacoes',
+      {
+        descricaoObjetiva: trecho,
+        escopoInclui: [trecho],
+        sistemaAlvo: 'meu-sistema',
+        repositorioDestino: 'wsssistemas2626-crypto/meu-sistema',
+        criteriosAceitePreliminares: [trecho],
+        definicaoDePronto: ['p'],
+      },
+      tokens.insumo_tecnico,
+    );
+    const rsk = await postar(
+      POST_RSK,
+      'pareceres-risco',
+      { resumo: trecho, riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo', preCondicoes: [trecho] },
+      tokens.risco,
+    );
+    expect(esp).toMatchObject({ descricaoObjetiva: minimo, escopoInclui: [minimo], criteriosAceitePreliminares: [minimo] });
+    expect(rsk).toMatchObject({ resumo: minimo, preCondicoes: [minimo] });
+
+    const dec = await criarPacoteDecisao(
+      deps,
+      autora,
+      d.id,
+      criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo', opcaoA: { descricao: trecho }, opcaoB: { descricao: 'Opção B' }, nivelAprovacaoRequerido: 'cto' }),
+    );
+    // O DEC cita os rascunhos dos agentes: quem decide marca que os revisou.
+    await registrarDecisao(deps, decisora, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A', revisouRascunhosDeAgente: true }));
+    const r = await gerar(dec.id);
+    expect(r.status).toBe(200);
+    const texto = await r.text();
+    const p = JSON.parse(texto);
+    expect(p.demanda).toMatchObject({ titulo: 'Relatório da Carla', descricao: `Contexto: ${trecho}` });
     expect(p.especificacao.conteudo).toBe(`Descrição objetiva: ${trecho}\n\nEscopo inclui:\n- ${trecho}`);
     expect(p.risco.conteudo).toContain(`Resumo: ${trecho}`);
     expect(p.risco.conteudo).toContain(`Pré-condições:\n- ${trecho}`);

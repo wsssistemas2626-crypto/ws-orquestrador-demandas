@@ -393,3 +393,62 @@ describe('M-1 do 0009: cada parte do nome', () => {
     expect(performance.now() - inicio).toBeLessThan(1000);
   });
 });
+
+// 04-regressao do 0011 (qa-automacao): bordas da regra das partes que os casos da 01 e da 02 não cobrem. A regra da
+// maiúscula vale para o texto, não para o campo do nome; partícula com maiúscula no começo da frase fica; pontuação é
+// borda, número e "_" colados não são; o resto do texto em NFD não é normalizado. Todos os nomes são fictícios.
+describe('M-1 do 0009 (04-regressao do 0011): bordas das partes do nome', () => {
+  const M = MARCADOR_NOME;
+  const NFD = (s: string) => s.normalize('NFD');
+
+  const CASOS: [string, string, string][] = [
+    // O nome digitado em minúscula ou em maiúscula no campo: a parte com inicial maiúscula no texto sai do mesmo jeito.
+    ['joana ficticia', 'Joana pediu e a Ficticia aprovou', `${M} pediu e a ${M} aprovou`],
+    ['ANA FICTICIA', 'Ana pediu; a ana não', `${M} pediu; a ana não`],
+    // Partícula com maiúscula fica, também no começo da frase e toda em maiúscula.
+    ['Carlos Van Der Berg', 'Van Der Berg ligou; o Carlos e a Berg', `Van Der ${M} ligou; o ${M} e a ${M}`],
+    ['Ana de Souza', 'De acordo com a Ana, a Souza assina.', `De acordo com a ${M}, a ${M} assina.`],
+    ['Ana dos Santos', 'DOS SANTOS aprovou', `DOS ${M} aprovou`],
+    // Pontuação é borda; número e "_" colados não são.
+    ['Joana Ficticia', '(Joana), "Joana", Joana. Joana!', `(${M}), "${M}", ${M}. ${M}!`],
+    ['Joana Ficticia', 'Joana2 e Joana_x e x_Joana e 2Joana', 'Joana2 e Joana_x e x_Joana e 2Joana'],
+    // Começa por minúscula: fica, mesmo com o resto em maiúscula (risco que sobra, aceito no RSK).
+    ['Joana Ficticia', 'jOANA pediu', 'jOANA pediu'],
+    // Nome completo com quebra de linha e tab entre os pedaços: um marcador só.
+    ['Joana Ficticia', 'Joana\n\tFicticia confirmou', `${M} confirmou`],
+    // Inicial com ponto no nome: a inicial sozinha (1 letra) fica; o nome completo e as partes saem.
+    ['Maria J. Ficticia', 'a Maria J. Ficticia e a J. e a Maria', `a ${M} e a J. e a ${M}`],
+    // Nome com hífen escrito no texto sem o resto do nome: as duas partes saem, o hífen fica.
+    ['Ana-Clara Ficticia', 'a Ana-Clara pediu', `a ${M}-${M} pediu`],
+    // Parte que é começo de outra parte do mesmo nome: cada uma casa inteira.
+    ['Ana Anabela Ficticia', 'a Anabela e a Ana', `a ${M} e a ${M}`],
+  ];
+
+  it.each(CASOS)('nome %j, texto %j', (nome, texto, esperado) => {
+    const op = { nomes: [nome] };
+    const s = minimizar(texto, op);
+    expect(s).toBe(esperado);
+    expect(minimizar(s, op)).toBe(s);
+  });
+
+  it('texto em NFD com a parte começando por maiúscula acentuada: sai; a minúscula e o resto ficam em NFD', () => {
+    const t = NFD('a Érica pediu; a érica não');
+    const op = { nomes: ['Érica Ficticia'] };
+    const s = minimizar(t, op);
+    expect(s).toBe(`a ${M}${NFD(' pediu; a érica não')}`);
+    expect(minimizar(s, op)).toBe(s);
+  });
+
+  it('a mesma palavra comum em minúscula fica, para qualquer um dos nomes da lista', () => {
+    const op = { nomes: ['Carla Rosa Campos', 'Bruno Dias Lima'] };
+    const t = 'Em 30 dias: camisa rosa, suco de lima, os campos do formulário. Rosa, Dias, Lima e Campos assinaram.';
+    expect(minimizar(t, op)).toBe(`Em 30 dias: camisa rosa, suco de lima, os campos do formulário. ${M}, ${M}, ${M} e ${M} assinaram.`);
+  });
+
+  it('sem nome, a regra das partes não troca nada (o texto só passa pelos detectores)', () => {
+    const t = 'A Joana pediu; Rosa e Campos assinaram.';
+    expect(minimizar(t)).toBe(t);
+    expect(minimizar(t, { nomes: [] })).toBe(t);
+    expect(minimizarValor(t, [])).toBe(t);
+  });
+});
