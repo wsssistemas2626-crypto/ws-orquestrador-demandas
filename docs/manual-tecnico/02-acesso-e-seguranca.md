@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
+| Atualizado em | 04/11/2026 (0.1.10: partes do nome do solicitante na vista mínima, `name` do erro lido uma vez e só como texto, marca do Sentry depois do envio); 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-01, RF-02, RNF-10, RNF-12, RNF-13; controles C-01 a C-21 de `04-seguranca-aplicacao.md` |
 | Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `bloqueio-verificacao.ts`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/reduzir-erro.ts`, `src/lib/sentry.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
@@ -74,9 +74,12 @@ ESP, RSK e DEC também cortam para quem não é pessoa, por lista de permissão 
 `vistaDoParecerPara`, `vistaDoPacotePara`): autor pessoa vira `{ "tipo": "pessoa" }`, os aprovadores saem sem `nome` e
 `referenciaDocumento`, e a decisão sem `decididaPor`. Desde a 0.1.8 (M-a), as mesmas três vistas também passam o texto
 livre de DEC, ESP e RSK por `minimizarValor`, com o nome do solicitante da demanda entre os trocados, nas sete leituras e
-no 201 dos três `POST` de criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)). Limite que
-sobra (M-1 da revisão do 0009, risco residual para Fabiano e a `gestao-riscos`): só o nome atual e completo do
-solicitante é trocado; nome antigo ou parcial em texto já gravado sai em claro ([CHANGELOG](../../CHANGELOG.md)).
+no 201 dos três `POST` de criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)). Desde a
+0.1.10, a troca pega também cada parte do nome do solicitante que, no texto, começa por maiúscula
+([cap. 06](06-agentes-de-ia.md#rf-20-minimização)). O 201 dos três `POST` usa o nome da demanda travada na transação
+da gravação ([cap. 04](04-versoes-e-decisao.md)). Limite que sobra (M-1 da revisão do 0009, risco residual para
+Fabiano e a `gestao-riscos`): o nome antigo, de antes de uma edição, a parte escrita toda em minúscula, o nome grudado
+em número, `_` ou CamelCase e o nome de outras pessoas saem em claro ([CHANGELOG](../../CHANGELOG.md)).
 
 ## Proteção das rotas
 
@@ -115,7 +118,9 @@ com a mensagem genérica, sem texto do Postgres, do Drizzle nem do Zod. Os códi
     ou um nome de `CLASSES_DO_PROJETO`. Fora disso, o `Error` com esse `name` sai com a classe `Error`
     (`reduzirErro`), no log e no Sentry. O objeto já reduzido com essa classe não é reconhecido por `erroJaReduzido` e
     sai no log como `{ "classe": "desconhecido" }`, com o `code` só se passar em `lerCode`. Um `name` como `Joana` ou
-    `ErroJoana` não sai;
+    `ErroJoana` não sai. Desde a 0.1.10 (B-2 da revisão do 0010), `reduzirErro` lê `e.name` uma vez só e usa a
+    leitura só se ela for texto e passar em `classeAceita`. Objeto com `toString`, array, símbolo ou número em `name`
+    saem como `Error`. Um getter que muda entre leituras não troca o valor depois da conferência;
   - `CLASSES_DO_PROJETO` é a lista fechada das classes que o projeto põe em `name` sem o sufixo: `ErroEnvioEmail`,
     `ErroDominio`, `ErroProvedor`, `ErroConfiguracao`, `ErroLeituraSessao`, `AvisoNaoEnviado`, `ExecucaoPerdida` e
     `TempoEsgotado`. **Convenção:** classe de erro nova do projeto com `name` próprio termina em `Error` ou
@@ -125,7 +130,9 @@ com a mensagem genérica, sem texto do Postgres, do Drizzle nem do Zod. Os códi
 - Sentry só com `SENTRY_DSN`; sem ela, desligado. Erro 5xx vai reduzido, sem dado pessoal. Desde a 0.1.9 (B-a do
   0008), `capturarErro` (`src/lib/sentry.ts`) marca cada objeto de erro enviado num `WeakSet`: o mesmo objeto não vai
   de novo, venha do gancho ou do console, em qualquer ordem. A marca é por objeto, não por mensagem: dois erros
-  distintos com a mesma mensagem vão os dois. Valor que não é objeto (string, número) vai toda vez.
+  distintos com a mesma mensagem vão os dois. Valor que não é objeto (string, número) vai toda vez. Desde a 0.1.10 (B-4
+  da revisão do 0010), a marca só é posta depois que `Sentry.captureException` volta. Se `reduzirErro` ou o envio
+  lançarem, o objeto fica sem marca, e a próxima chamada com ele tenta de novo.
 - Teste transversal com sentinelas confere que texto bruto, e-mail, telefone, token, senha, cookie e conteúdo de IA não
   aparecem em log, Sentry, histórico nem tabela do pg-boss.
 - **Erro não tratado de página, layout, metadados ou Server Component** (M-05, desde a 0.1.6). O Next chama
@@ -157,13 +164,14 @@ com a mensagem genérica, sem texto do Postgres, do Drizzle nem do Zod. Os códi
     `console.error` e ao `onRequestError`, e é o mesmo objeto nos dois. Quem evita o segundo envio é a marca por objeto
     em `capturarErro`. As rotas daqui passam por `rota()`, que trata o erro, e o `/api/saude` trata o próprio. O caso
     real é a rota do Better Auth. O log não é deduplicado: cada `console.error` deixa a sua linha `console_erro`.
-- Limites conhecidos ([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6 à 0.1.9):
+- Limites conhecidos ([CHANGELOG](../../CHANGELOG.md), pendências da 0.1.6 à 0.1.10):
   - o `code` ainda passa com 9 dígitos, com dígitos separados por `_` ou com uma palavra, e o sufixo aceita um nome
     montado como `JoanaSilvaError`. Só vira problema se um chamador futuro puser dado pessoal em `code` ou em `name`,
     e nenhum caminho de hoje faz isso (B-1 da revisão do 0010, aberto);
-  - `reduzirErro` não confere se `e.name` é string (B-2 da revisão do 0010, pedido 0011);
-  - a marca do `WeakSet` é gravada antes de `reduzirErro` e do envio. Se `reduzirErro` lançar, o erro fica marcado sem
-    ter ido. O mesmo objeto reaproveitado por várias requisições vai uma vez só (B-4 da revisão do 0010, pedido 0011);
+  - um getter que lança em `name`, `code` ou `cause`, ou um Proxy, faz `reduzirErro` lançar, e o erro escapa da
+    `rota()` sem registro. Desde a 0.1.10, ele não fica marcado sem envio (B-3 da revisão do 0011, aberto);
+  - o mesmo objeto de erro reaproveitado por várias requisições vai ao Sentry uma vez só (registrado no B-4 da revisão
+    do 0010; nenhum caso assim foi achado no código);
   - o `classes-de-erro.test.ts` não vê `get name()` nem `X.name = '...'` fora de `this` (B-5 da revisão do 0010);
   - a prova do console é de unidade: se o Next escrever direto no `process.stderr` ou guardar a referência do
     `console.error` antes do `register()`, a troca não pega (B-2 da 0.1.6), e só a `ErroLeituraSessao` e o `erro_requisicao`

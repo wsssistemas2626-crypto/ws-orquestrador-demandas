@@ -4,3 +4,4 @@
 {"pedido":"DEC-DEM-20261104-0011-v1","etapa":"04-regressao","de":"qa-automacao","para":"maestro","status":"pronto","volta":0,"inicio":"2026-11-04T12:20:40.000Z","fim":"2026-11-04T12:53:31.631Z","minutos":33,"motivo":null}
 {"pedido":"DEC-DEM-20261104-0011-v1","etapa":"04-revisao","de":"maestro","para":"devops-sre","status":"pronto","volta":0,"inicio":"2026-11-04T12:53:37.000Z","fim":"2026-11-04T12:53:37.297Z","minutos":0,"motivo":null}
 {"pedido":"DEC-DEM-20261104-0011-v1","etapa":"05-entrega","de":"devops-sre","para":"documentacao-tecnica","status":"pronto","volta":0,"inicio":"2026-11-04T12:53:45.000Z","fim":"2026-11-04T12:55:31.393Z","minutos":2,"motivo":null}
+{"pedido":"DEC-DEM-20261104-0011-v1","etapa":"06-documentacao","de":"documentacao-tecnica","para":"maestro","status":"pronto","volta":0,"inicio":"2026-11-04T12:55:40.000Z","fim":"2026-11-04T13:01:24.086Z","minutos":6,"motivo":null}

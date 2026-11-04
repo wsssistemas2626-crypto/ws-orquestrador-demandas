@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09 |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
@@ -84,10 +84,14 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
   solicitante desta demanda entre os trocados ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)).
   Os utilitários (`nomesDoSolicitante`, `textoMinimo`, `textoMinimoOuNulo`, `listaMinima`, `listaMinimaOuNula`,
   `nomesDosSolicitantes`, `nomesDaDemanda`) ficam em `consultas.ts` e são usados pelas três vistas, sem cópia.
-- Limite conhecido (pendências da 0.1.8 no [CHANGELOG](../../CHANGELOG.md)):
-  - **M-1 da revisão do 0009, risco residual, não bloqueia:** só o nome atual e completo do solicitante é trocado. O
-    `solicitanteNome` pode ser editado, e o DEC, a ESP e o RSK guardam texto do momento da criação: nome antigo ou
-    escrito pela metade sai em claro para o token de agente. Aceite do risco é de Fabiano e da `gestao-riscos`.
+- Desde a 0.1.10 (M-1 da revisão do 0009), a minimização troca também cada parte do nome do solicitante que, no texto,
+  começa por maiúscula (`A Joana pediu` sai `A [nome removido] pediu`), em todas essas vistas. A regra está no
+  [cap. 06](06-agentes-de-ia.md#rf-20-minimização). A pessoa continua recebendo o original.
+- Limite conhecido (pendências da 0.1.10 no [CHANGELOG](../../CHANGELOG.md)):
+  - **o que sobra do M-1 da revisão do 0009 (risco residual, não bloqueia):** a troca usa só o `solicitanteNome`
+    atual. O nome pode ser editado, e o DEC, a ESP e o RSK guardam o texto do momento da criação. Por isso, o nome
+    antigo sai em claro para o token de agente. Também saem em claro a parte escrita toda em minúscula, o nome grudado
+    em número, `_` ou CamelCase e o nome de outras pessoas. O aceite do risco é de Fabiano e da `gestao-riscos`.
 
 ## RF-07. Status e transições
 
