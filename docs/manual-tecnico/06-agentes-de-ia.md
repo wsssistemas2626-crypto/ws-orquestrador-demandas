@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, nome grudado em número, `_` ou CamelCase, aviso e dica com os limites da troca, no RF-20); 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
+| Atualizado em | 04/11/2026 (0.1.12: `trocarNomes` e `temNome`, a mesma regra do nome usada pelo Pedido de Construção, no RF-20); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, nome grudado em número, `_` ou CamelCase, aviso e dica com os limites da troca, no RF-20); 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -239,7 +239,9 @@ solicitante entre os trocados. Desde a 0.1.8 (M-a), a regra vale também fora da
 criação de DEC, ESP e RSK passam o texto livre pela mesma minimização para o token de agente, com o nome do solicitante
 da demanda ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)). Desde a 0.1.10, as partes do nome
 valem em todos esses lugares, porque todos passam por `minimizar` e `minimizarValor`. A pessoa e o Pedido de Construção
-continuam com o texto original. O que sobra do M-1 da revisão do 0009 (risco residual, não bloqueia) é a lista acima:
+continuam com o texto original. Desde a 0.1.12 (D1 do 0013), o Pedido usa a mesma etapa do nome, sem trocar: os passos
+3 e 4 de `minimizar` ficaram em `trocarNomes`, e `temNome` diz se ela mudaria o texto. Com o nome do solicitante num
+texto do pedido, a geração é recusada ([cap. 05](05-pedido-de-construcao.md#nome-do-solicitante)). O que sobra do M-1 da revisão do 0009 (risco residual, não bloqueia) é a lista acima:
 parte em minúscula, nome todo em maiúscula sem separador, parte curta grudada a outra que começa por ela, nome antigo e
 nome de outras pessoas ([CHANGELOG](../../CHANGELOG.md)).
 

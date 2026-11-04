@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
+| Atualizado em | 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-26; RNF-11, RNF-16 |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/components/`, `src/proxy.ts`, `e2e/` |
@@ -26,7 +26,7 @@ como texto (`react/no-danger`). As páginas saem com `no-store` e CSP com nonce.
 | T08 Novo RSK | `/demandas/[id]/pareceres-risco/novo` | três níveis, comentários, listas | RF-09 |
 | T09 Novo DEC | `/demandas/[id]/pacotes-decisao/novo` | resumo, opções A e B, recomendação, nível de aprovação | RF-10 |
 | T10 Ver ESP ou RSK | `/especificacoes/[espId]`, `/pareceres-risco/[rskId]` | somente leitura | RF-11 |
-| T11 Decisão | `/pacotes-decisao/[decId]` | revisão do destino, dos níveis e do nível de aprovação; decisão com confirmação em diálogo; aprovar indisponível e explicado quando desatualizado; gerar, baixar e copiar o pedido; aviso sobre dado pessoal no pedido | RF-12, RF-13, RF-14, RF-22 |
+| T11 Decisão | `/pacotes-decisao/[decId]` | revisão do destino, dos níveis e do nível de aprovação; decisão com confirmação em diálogo; aprovar indisponível e explicado quando desatualizado; gerar, baixar e copiar o pedido; aviso sobre dado pessoal no pedido; caixa de confirmação sem dado pessoal antes de gerar (desde a 0.1.12, [cap. 05](05-pedido-de-construcao.md#na-t11)) | RF-12, RF-13, RF-14, RF-22 |
 | T12 Agentes e teto | `/configuracao/agentes` | interruptor e modelo de cada agente, teto, gasto do mês, batimento do worker, último expurgo; as duas contas leem, só a `cto` altera | RF-17, RF-18, RF-19 |
 | Sem permissão | `/sem-permissao` | conta sem papel válido | RF-01 |
 | E01 E-mail | Resend | aviso de pacote pronto ([cap. 07](07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail)) | RF-25 |
@@ -45,6 +45,13 @@ demanda foi para Encerrada." (`e2e/decisao.spec.ts`, teste "Arquivar"). O `test/
 no `pnpm test`, reprova se algum `e2e/**/*.ts` usar `disableRules`, `disableOtherRules`, `exclude`, `include`,
 `withRules` ou `options` do axe, ou se outro arquivo além de `e2e/apoio.ts` montar o `AxeBuilder`.
 
+Desde a 0.1.12, o `e2e/pedido-construcao.spec.ts` marca a caixa de confirmação antes de gerar e manda
+`{ "confirmaSemDadoPessoal": true }` em todo `POST` que deve passar ou que prova outra recusa. Na seção do pedido da
+T11, o axe roda antes de marcar, com o erro da caixa, com a caixa marcada, depois de gerar, no 422 de e-mail, no 422 de
+e-mail e nome e na demanda de Estudo. O teste "CA-26.3" confere a caixa (nome acessível, `aria-required`, desmarcada,
+botão habilitado), que o clique com ela desmarcada não faz `POST` à página, o erro e o foco na caixa, o Espaço, o
+`aprovadoPor` `cto`, o 422 sem a confirmação pela API e o histórico com a confirmação, pela API e na T05.
+
 ## Pendências de interface conhecidas
 
 - Textos para a `ux-ui-design`: QF-01 a QF-04 e D-01 a D-06 do `07-qa-funcional.md` (por exemplo, o bloqueio de
@@ -61,6 +68,12 @@ no `pnpm test`, reprova se algum `e2e/**/*.ts` usar `disableRules`, `disableOthe
   exemplo de partícula foi ajustado na revisão de segurança ("da" tem 2 letras e já fica de fora pelo mínimo). Esperam
   a revisão da `ux-ui-design`. Nenhum e2e fixa essas frases; elas são conferidas em `dados-da-demanda.test.ts` e
   `formularios.test.ts`.
+- Desde a 0.1.12 (D1 e D3 do 0013), a T11 tem textos novos na seção do pedido: o aviso de C-28, o rótulo da caixa de
+  confirmação, o erro da caixa ("Marque a confirmação para gerar o pedido.") e as linhas da orientação do 422
+  (`TEXTOS_PEDIDO` e `orientacaoDoPedido` em `src/components/dados-do-pedido.ts`;
+  [cap. 05](05-pedido-de-construcao.md#corrigir-uma-recusa)). Foram escritos na triagem e esperam a revisão da
+  `ux-ui-design`. A linha "Título e descrição …: corrija na demanda, em "Editar dados"." não diz que a edição só vale
+  para um DEC novo; a linha seguinte avisa que outro pacote da demanda não se aprova.
 - Falha ao carregar uma tela mostra "Não foi possível carregar esta página." e "Tentar de novo" (`src/app/error.tsx`),
   sem mensagem, pilha nem `digest`. O registro do erro é o `erro_requisicao` do servidor
   ([cap. 02](02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).

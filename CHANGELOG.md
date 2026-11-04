@@ -3,6 +3,157 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.12 — 2026-11-04
+
+Correção do pedido `DEC-DEM-20261104-0013-v1` (cadeia curta, tipo bug): o Pedido de Construção sem nome de pessoa,
+pelos pareceres de 04/11 da `gestao-riscos` (seção 5), da `juridico-contratos` e da `seguranca-aplicacao`, na
+correção aprovada por Fabiano em 04/11. Base: o ramo do pedido 0012 no commit `c2340e6` (0.1.11), que entrou na `main`
+pelo PR #13 (`b9e52d6`). Ainda não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano.
+A regra da primeira publicação não muda: exige a 0.1.8 ou posterior na `main`, e a 0.1.12 a cumpre
+(`docs/operacao/deploy.md`, seção 4).
+
+O pedido gerado vai para a assinatura pessoal onde roda o `/construir`, e lá o JUR-2026-002, item 7.4, proíbe dado
+pessoal real. Até a 0.1.11, o pedido levava o nome do solicitante escrito no texto e o nome de quem aprovou em
+`aprovadoPor`, e a geração não pedia confirmação nenhuma.
+
+Não há migration nova, coluna nova, dependência nova nem variável de ambiente nova. Não mudaram `src/db/`, `drizzle/`,
+`scripts/`, `.github/`, `Dockerfile`, `.env.example` nem o lockfile. Mudou `e2e/pedido-construcao.spec.ts` (a caixa da
+T11).
+
+### O que mudou
+
+- **D1: a geração é recusada com o nome do solicitante no texto** (`src/modules/pedido-construcao/gerar.ts`,
+  `montar.ts` e `conteudo.ts`; `src/modules/dados-pessoais/minimizar.ts`; `src/modules/pacotes-decisao/criar.ts`).
+  - Campos conferidos: título, descrição, ESP, parecer de risco, opção escolhida, sistema, repositório, cada critério
+    de aceite e cada item da definição de pronto.
+  - Regra: a mesma da minimização, sem cópia. O nome completo conta sem diferença de caixa e de acento, com espaço ou
+    `_` entre os pedaços. Cada parte com 3 letras ou mais, fora das partículas, conta quando começa por maiúscula,
+    também grudada em número, `_` ou CamelCase. Os passos 3 e 4 de `minimizar` foram extraídos para `trocarNomes`, sem
+    mudar o resultado, e a função nova `temNome(texto, nomes)` diz se eles mudariam o texto. O cabeçalho de e-mail
+    (`Para: o financeiro`) não conta.
+  - Os rótulos do sistema não contam. A conferência corre sobre os valores antes do rótulo (`textosDoPedido`,
+    `valoresDaEspecificacao`, `valoresDoParecer` e `descricaoSemRotulos`): "Campos críticos", o nível "Alto" e
+    "Contexto" não recusam a geração.
+  - O nome conferido é o `solicitanteNome` atual da demanda travada. Renomear o solicitante depois pode fazer o mesmo
+    DEC, antes aceito, passar a ser recusado. O CA-22.2 (mesmo DEC, mesmo pedido) vale quando a geração é aceita.
+  - Resposta: um 422 só, "O pedido não passou na validação do /construir. Nada foi entregue.". Os `erros` trazem
+    primeiro a lista do C-28 (e-mail, telefone, CPF), na ordem de antes, e depois `<caminho>: nome`, sem o valor. Nada
+    é entregue e nenhum evento é gravado. O `validarPedido` vem depois, como antes.
+  - Exemplo fictício, com a solicitante `Joana Ficticia`: o título `Pedido da Joana Ficticia` e
+    `contato@exemplo.test` na ESP dão `["especificacao.conteudo: e-mail", "demanda.titulo: nome"]`. Com
+    `Rosa Dias Ficticia`, a ESP `camisa rosa em 30 dias` gera.
+  - `nome` não virou um `TipoDadoPessoal`. A minimização do texto que vai ao agente não muda.
+- **D3: a geração exige a confirmação de que o texto não tem dado pessoal** (`src/modules/pedido-construcao/schemas.ts`,
+  novo; `gerar.ts`; a rota `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`; a Server Action
+  `acoes-pedido.ts`).
+  - O `POST /api/pacotes-decisao/:decId/pedido-construcao` e a Server Action da T11 recebem
+    `{ "confirmaSemDadoPessoal": true }`, pelo mesmo `confirmacaoDoPedidoSchema`.
+  - Sem o campo, ou com `false`, a resposta é 422 "Confirme que o título, a descrição, a ESP e o parecer de risco não
+    têm dado pessoal de ninguém. Nada foi entregue.", sem lista. O `gerarPedido` confere logo depois da matriz e antes
+    do banco, então também quem chama a função direto é recusado, e a resposta não diz se o DEC existe.
+  - Tipo errado (`"true"`, `1`), JSON inválido ou `POST` sem corpo dão 400 `entrada_invalida`. Chave a mais é
+    descartada (C-11). O token de agente continua com 403.
+  - O evento `pedido_gerado` grava `depois: { "confirmaSemDadoPessoal": true }`, um booleano fixo, sem texto. O
+    histórico (`textoDoEvento`, `src/components/rotulos.ts`) mostra "Gerou o Pedido de Construção de <DEC-id>, com a
+    confirmação de que o texto não tem dado pessoal". O evento antigo, sem o `depois`, fica com o texto de antes.
+  - T11 (`SecaoPedido.tsx`): entre o aviso e o botão, a caixa obrigatória `confirma-sem-dado-pessoal`, com rótulo
+    associado. A validação é no envio, e o botão fica habilitado. Com a caixa desmarcada, o clique não chama a Server
+    Action, mostra "Marque a confirmação para gerar o pedido." como erro da caixa e põe o foco nela. Marcar a caixa
+    limpa o erro, e ela continua marcada depois de gerar.
+- **D2: `decisao.aprovadoPor` leva o papel de quem aprovou, e não o nome** (`montar.ts`).
+  - O papel vem da aprovação gravada (`cto`, `administradora`), e não da conta: trocar o nome ou o papel da conta
+    depois não muda o arquivo.
+  - Na dupla aprovação, os dois papéis seguem a ordem da aprovação, unidos por " e ": pelo instante e, no mesmo
+    instante, `cto` primeiro. Exemplo: `administradora e cto` quando a administradora aprovou antes. O `validarPedido`
+    aceita.
+  - O mesmo DEC gerado na 0.1.11 e na 0.1.12 dá arquivos diferentes.
+- **T11: o aviso e a orientação do 422** (`src/components/dados-do-pedido.ts`).
+  - O aviso passou a dizer "nome, e-mail, telefone ou CPF de qualquer pessoa ou do cliente no título, na descrição, na
+    ESP nem no parecer de risco".
+  - A orientação deixou de ser uma frase fixa. `orientacaoDoPedido(erros)` monta um parágrafo por situação: o nome do
+    solicitante, onde corrigir cada campo da lista, e o aviso de que, com este pacote aprovado, outro pacote da
+    demanda não se aprova. Sem nenhum campo conhecido na lista, fica a frase de antes. `ErroDoPedido.orientacao`
+    passou a lista.
+- **Testes:**
+  - casos 1 a 16 da triagem (`gerar.test.ts`), mais o `14b` da 04-regressao (os quatro tipos num 422 só), a guarda de
+    `textosDoPedido` e os testes da confirmação, do evento e do `aprovadoPor`;
+  - `temNome` em `minimizar.test.ts`: 79 casos de equivalência com `minimizar` e os casos fixos;
+  - a rota (`pedido.test.ts`, `pedido-bordas.test.ts`), a Server Action, a página, `dados-do-pedido.test.ts`,
+    `rotulos.test.ts` e `criar.test.ts`;
+  - `e2e/pedido-construcao.spec.ts`: a caixa, o corpo com a confirmação em todo `POST`, o histórico pela API e na T05,
+    e o axe em sete estados da seção do pedido;
+  - por efeito da correção, mudaram estes esperados:
+    - três testes M-a de `pedido.test.ts` passaram de 200 para 422 com seis caminhos `: nome`. Entraram dois testes
+      com 200: o nome de outra pessoa e a palavra comum em minúscula;
+    - em `test/transversal/sentinelas.test.ts:291`, o solicitante do fixture passou a `Pessoa Ficticia Outra`;
+    - `orientacao: null` passou a `[]`;
+    - a versão em `test/estatico/projeto.test.ts`.
+- **Versão:** o `package.json` passou de 0.1.11 para 0.1.12.
+- **Documentação:** estas notas e a versão no `README.md`, no manual técnico e no `docs/operacao/deploy.md`.
+  - No manual, mudaram os capítulos 03 (evento `pedido_gerado`), 05 (RF-22 inteiro: corpo, ordem, nome do
+    solicitante, `aprovadoPor`, como corrigir uma recusa e a T11), 06 (`trocarNomes` e `temNome`), 08 (caixa da T11, e2e
+    e textos nas pendências), 09 (corpo, exemplo e 422) e o glossário.
+  - No `deploy.md`, a seção 6 (rollback da 0.1.12) e a seção 4 vieram da `05-devops-sre.md`.
+
+Não houve `.skip`, `.only` ou `.todo` novo, nem asserção afrouxada. O C-10, o C-21, o C-23, o C-28, o C-36, a A-02 e o
+axe continuam sem exceção.
+
+### Verificações desta versão
+
+- `pnpm test`: 4.415 de 4.415 (`04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143 em três execuções seguidas, com `retries: 0`.
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico, alto ou médio; quatro baixos (abaixo).
+- `pnpm build` passou (34 rotas). O `docker build` não rodou na `05-entrega`: as entradas da imagem são as da 0.1.11,
+  salvo `src/` e `package.json`. A imagem é construída na homologação e no CI do PR (`05-devops-sre.md`).
+- A homologação, o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam para a Parada 3. O rollback
+  é o caminho A, só com a troca de imagem para a `v0.1.11` (`deploy.md`, seção 6). Na volta, os três defeitos voltam.
+  Com a 0.1.11 de volta no ar, nenhum Pedido de Construção é gerado de demanda real.
+
+### Pendências abertas
+
+- **E5, no pedido `DEC-DEM-20261104-0014-v1`.** Fabiano decidiu em 04/11 pela opção (b): o DEC aprovado mais novo
+  substitui o anterior. A mudança não está nesta versão. Até ela entrar, pela A-02, uma recusa num DEC aprovado não tem
+  saída dentro da demanda, inclusive a recusa falsa (`Santos` cidade, `Rosa` no começo da frase, `Campos`). A saída é
+  encerrar a demanda e abrir outra com o texto limpo. A linha da orientação da T11 sobre título e descrição ("corrija
+  na demanda") não diz que a edição só vale para um DEC novo (manual, cap. 05).
+
+Da revisão deste pedido (`04-maestro.md`):
+
+- **B-1, para um pedido futuro** (`minimizar.ts:112`): o nome completo em minúscula ligado por hífen ou ponto passa
+  (`joana-ficticia`, `joana.ficticia`). Em `sistema_alvo` e `repositorio_destino`, que só aceitam minúscula, a
+  conferência do nome nunca dispara. A confirmação cobre o caso. Sugestão: aceitar `-` e `.` entre as partes do nome
+  completo, com teste.
+- **B-2, para o RSK do sistema:** quem quer esconder o nome consegue, com espaço invisível, letra cirílica ou letra de
+  largura total. O controle mira o descuido de uma pessoa com 2FA.
+- **B-3, para o RSK do sistema** (`gerar.ts`): a conferência roda com a demanda travada. No pior caso medido, com
+  512 KB em NFD, leva cerca de 1 s.
+- **B-4, para o `juridico-contratos`** (`montar.ts`): o papel identifica a pessoa, porque `cto` e `administradora` têm
+  uma pessoa cada. Está dentro do que foi aprovado.
+
+O que a conferência do nome não pega, coberto pela confirmação da T11 e pela regra de uso: o nome de outras pessoas, o
+nome antigo do solicitante, a parte do nome escrita toda em minúscula, o nome completo em minúscula com hífen ou ponto
+(B-1), o nome todo em maiúscula sem separador (`JOANAFICTICIA`) e a parte curta grudada a outra que começa por ela
+(`AnaBelax`).
+
+Registradas nas outras etapas deste pedido:
+
+- **Textos da T11** (aviso, rótulo e erro da caixa, mensagem do 422 sem a confirmação e as linhas da orientação):
+  escritos na triagem, esperam a revisão da `ux-ui-design` (manual, cap. 08).
+- **Prettier:** o `pnpm format` não rodou na 03 nem na 04, porque não está na lista Pode delas. O `pnpm lint` passou.
+  Se o CI conferir a formatação, a Parada 3 roda o Prettier.
+- **Sha completo do merge do PR #13** (`b9e52d6`): o clone local não o tem. A seção 6 do `deploy.md` manda conferir a
+  tag em Packages; na Parada 3, depois do `git fetch`, troque pelo sha completo (`05-devops-sre.md`).
+- **Spec do sistema** (`docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md`): a tabela de controles
+  (C-28, linha 183) diz só e-mail, telefone e CPF, e a T11 (linhas 152 e 159) não tem a caixa de confirmação. A spec é
+  o documento aprovado na Parada 1 e não foi editada. Vale o código (manual, cap. 05).
+
+Seguem abertas, sem mudança neste pedido: as pendências da 0.1.11 (B-a, I-1, B-3 e B-4 da revisão do 0012, o teste
+e2e do T11 sensível a carga e os textos do aviso e da dica da minimização) e as que ela herdou da 0.1.10 à 0.1.5. Da
+0.1.10, o que ficou com Fabiano e `juridico-contratos` sobre ESP, RSK e o nome original no Pedido de Construção fecha
+em parte: o nome do solicitante e o de quem aprovou não saem mais no pedido, e o nome de outras pessoas fica com a
+confirmação. ESP e RSK continuam saindo com o texto original, sem minimizar.
+
 ## 0.1.11 — 2026-11-04
 
 Correção do pedido `DEC-DEM-20261104-0012-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.10 (`2e621de`): o

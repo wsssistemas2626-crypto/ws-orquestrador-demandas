@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.11 (muda cinco comportamentos: o detector de e-mail fica linear e aceita acento no usuário, o nome grudado em número, `_` ou CamelCase vira marcador para o agente, `reduzirErro` e `mapearErro` nunca lançam, o `stack` é lido uma vez no envio ao Sentry, e o aviso e a dica dizem os limites da troca do nome; ver o [CHANGELOG](../../CHANGELOG.md)) |
+| Versão do sistema | 0.1.12 (o Pedido de Construção sai sem nome de pessoa: a geração é recusada com o nome do solicitante no texto, exige a confirmação de que o texto não tem dado pessoal, na API e na caixa da T11, registrada no histórico, e `aprovadoPor` leva o papel de quem aprovou; ver o [cap. 05](05-pedido-de-construcao.md) e o [CHANGELOG](../../CHANGELOG.md)) |
 | Atualizado em | 04/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
@@ -11,6 +11,10 @@
 
 O manual descreve o sistema como ele está construído. Cada capítulo cita os arquivos de onde a descrição saiu e os
 requisitos (RF) que cobre. Variável de ambiente aparece só pelo nome; valor nenhum é escrito aqui.
+
+A spec aprovada na Parada 1 (`docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md`) ainda descreve o
+C-28 só com e-mail, telefone e CPF e a T11 sem a caixa de confirmação. Vale o código, descrito no
+[cap. 05](05-pedido-de-construcao.md).
 
 ## Capítulos
 
@@ -76,7 +80,8 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Status final | `entregue` ou `encerrada`: status sem transição manual de saída (`STATUS_FINAIS`, `transicoes.ts`). Não aceita ESP, RSK nem DEC novos, decisão de DEC nem geração de Pedido |
 | Decisão | `aprovada` (opção A ou B), `devolvida` ou `arquivada`, registrada uma vez por DEC; sem decisão, o DEC está `pendente` |
 | Aprovação | Registro de uma pessoa (papel `cto` ou `administradora`) aprovando uma opção do DEC |
-| Pedido de Construção | JSON gerado de um DEC aprovado, no formato que o `validarPedido` do `/construir` aceita |
+| Pedido de Construção | JSON gerado de um DEC aprovado, no formato que o `validarPedido` do `/construir` aceita. Desde a 0.1.12, sai só com a confirmação sem dado pessoal, sem o nome do solicitante no texto e com o papel, e não o nome, em `aprovadoPor` ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)) |
+| Confirmação sem dado pessoal | O campo `confirmaSemDadoPessoal: true` do `POST .../pedido-construcao`, marcado na caixa da T11: quem gera declara que título, descrição, ESP e parecer de risco não têm dado pessoal de ninguém. Fica gravado no evento `pedido_gerado` (desde a 0.1.12) |
 | Ator | Quem faz a ação: `pessoa` (sessão com 2FA), `agente` (token de serviço ou job do worker) ou `sistema` (mudança automática) |
 | Vista mínima | O que a leitura de demanda pela API devolve a quem não é pessoa: sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) e, desde a 0.1.8, com o texto livre minimizado também nelas e no 201 da criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)) |
 | Rascunho de agente | ESP, RSK ou DEC gravado por um agente; a decisão exige confirmar que foi revisado |
