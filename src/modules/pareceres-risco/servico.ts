@@ -3,7 +3,8 @@
 // (409, M-02) → limite por ator (C-36) → próxima versão → insert com a autoria só do ator (C-11) → evento sem texto livre (C-30). O RSK não exige ESP (o pacote
 // de decisão é que exige as duas) e não muda o status da demanda; com ESP na demanda, dispara a consolidação (T28). Aceita a transação de quem chama (G3.8): o worker
 // grava a versão, a execução e o job juntos (ADR-02, ADR-06). A entrada já chega validada pelo Zod (rota, Server Action
-// ou job).
+// ou job). B-3 do 0010: os nomes do solicitante da vista do 201 saem da linha travada, no fim da mesma transação; a rota
+// usa criarParecerRiscoComNomes e não lê mais os nomes fora da trava. Se essa conta falhar, a transação inteira volta.
 import { eq } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { especificacaoTecnica, parecerRisco } from '../../db/schema';
@@ -11,6 +12,7 @@ import { comTransacao, type Transacao } from '../../db/transacao';
 import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { dispararSeLigado } from '../agentes/gatilhos';
+import { nomesDoSolicitante } from '../demandas/consultas';
 import { autoriaDo, type DepsComFila } from '../demandas/servico';
 import { recusarSeDemandaFinal } from '../demandas/transicoes';
 import { registrarEvento } from '../historico/registrar';
@@ -37,10 +39,31 @@ export async function criarParecerRisco(
   t?: Transacao,
   extras: { execucaoAgenteId?: string } = {},
 ): Promise<ParecerRiscoVista> {
+  return (await criarComNomes(deps, ator, demandaId, entrada, t, extras)).vista;
+}
+
+// B-3 do 0010: para a rota. Quatro argumentos, sem `t` nem `extras`: a rota não passa transação nem execução.
+export async function criarParecerRiscoComNomes(
+  deps: DepsComFila,
+  ator: Ator,
+  demandaId: string,
+  entrada: CriarParecerRisco,
+): Promise<{ vista: ParecerRiscoVista; nomes: string[] }> {
+  return criarComNomes(deps, ator, demandaId, entrada);
+}
+
+async function criarComNomes(
+  deps: DepsComFila,
+  ator: Ator,
+  demandaId: string,
+  entrada: CriarParecerRisco,
+  t?: Transacao,
+  extras: { execucaoAgenteId?: string } = {},
+): Promise<{ vista: ParecerRiscoVista; nomes: string[] }> {
   autorizar(ator, 'criar_parecer_risco');
   const autoria = autoriaDo(ator);
   const rascunhoAgente = autoria.autorTipo === 'agente';
-  const corpo = async (tr: Transacao): Promise<string> => {
+  const corpo = async (tr: Transacao): Promise<{ id: string; nomes: string[] }> => {
     const { tx } = tr;
     const atual = await travarDemanda(tx, demandaId);
     recusarSeDemandaFinal(atual.status);
@@ -75,8 +98,9 @@ export async function criarParecerRisco(
     );
     // T28: com ESP na demanda, o RSK dispara o agente de consolidação, se ligado e sem suspensão, nesta transação (ADR-06).
     if (await temEspecificacao(tx, demandaId)) await dispararSeLigado(tr, deps, 'consolidacao', `rsk:${id}`, demandaId);
-    return id;
+    // B-3 do 0010: o nome da linha travada, que nenhuma renomeação muda até o commit.
+    return { id, nomes: nomesDoSolicitante(atual.solicitanteNome) };
   };
-  const id = t ? await corpo(t) : await comTransacao(deps.pool, corpo);
-  return obterParecerRisco(t?.tx ?? deps.db, id);
+  const { id, nomes } = t ? await corpo(t) : await comTransacao(deps.pool, corpo);
+  return { vista: await obterParecerRisco(t?.tx ?? deps.db, id), nomes };
 }

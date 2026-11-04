@@ -486,8 +486,9 @@ describe('M-1: texto livre da demanda minimizado para quem não é pessoa', () =
     };
     const agente = await titulos({ bearer: tokenRisco });
     semValores(agente.texto);
-    expect(agente.porId.get(a.id)).toBe('Pedido de [nome removido], falar com Bruno Exemplo Rocha');
-    expect(agente.porId.get(c.id)).toBe('Pedido de Ana Exemplo Lima, falar com [nome removido]');
+    // M-1 do 0009 (DEC-DEM-20261104-0011-v1): a parte em comum ("Exemplo") também sai do nome do outro.
+    expect(agente.porId.get(a.id)).toBe('Pedido de [nome removido], falar com Bruno [nome removido] Rocha');
+    expect(agente.porId.get(c.id)).toBe('Pedido de Ana [nome removido] Lima, falar com [nome removido]');
     expect(agente.porId.get(t.id)).toBe(T_MIN);
     const pessoa = await titulos(p());
     expect(pessoa.porId.get(a.id)).toBe('Pedido de Ana Exemplo Lima, falar com Bruno Exemplo Rocha');
@@ -523,6 +524,76 @@ describe('M-1: texto livre da demanda minimizado para quem não é pessoa', () =
       semValores(String(item.titulo));
     }
     expect(comparados).toBeGreaterThan(0);
+  });
+
+  // M-1 do 0009 (DEC-DEM-20261104-0011-v1, D-1): o primeiro nome sozinho, com inicial maiúscula, também sai como marcador
+  // para o agente, no GET da demanda e na listagem; a pessoa lê o original. Nome fictício.
+  it('M-1 do 0009: "a Joana pediu" sai com o marcador para o agente, e original para a pessoa', async () => {
+    const titulo = 'Relatório da Joana';
+    const contexto = 'A Joana pediu o relatório mensal.';
+    const d = await criarOk({ tipo: 'estudo', titulo, contexto, solicitanteNome: 'Joana Ficticia' }, p());
+    const doAgente = (await (await obter(d.id, { bearer: tokenRisco })).json()) as Record<string, unknown>;
+    expect(doAgente.titulo).toBe('Relatório da [nome removido]');
+    expect(doAgente.contexto).toBe('A [nome removido] pediu o relatório mensal.');
+    const lista = (await (await listar('?tipo=estudo&limit=100', { bearer: tokenRisco })).json()) as { itens: Array<Record<string, unknown>> };
+    expect(lista.itens.find((i) => i.id === d.id)?.titulo).toBe('Relatório da [nome removido]');
+    expect(JSON.stringify(doAgente)).not.toContain('Joana');
+    const daPessoa = (await (await obter(d.id, p())).json()) as Record<string, unknown>;
+    expect(daPessoa.titulo).toBe(titulo);
+    expect(daPessoa.contexto).toBe(contexto);
+    const listaPessoa = (await (await listar('?tipo=estudo&limit=100', p())).json()) as { itens: Array<Record<string, unknown>> };
+    expect(listaPessoa.itens.find((i) => i.id === d.id)?.titulo).toBe(titulo);
+  });
+
+  // 04-regressao do 0011 (qa-automacao), M-1 do 0009: a palavra comum em minúscula igual a uma parte do nome ("30 dias",
+  // "suco de lima") e a partícula ("dos") ficam no texto do agente; as partes com inicial maiúscula saem; a pessoa lê o
+  // original. Nos seis campos de texto do GET, no título da listagem e no 201 do POST do orquestrador. Nome fictício.
+  describe('M-1 do 0009 (04-regressao do 0011): palavra comum em minúscula e partícula ficam', () => {
+    const NOME_P = 'Bruno dos Santos Dias Lima';
+    const TEXTO_P = 'Prazo de 30 dias para o Bruno; suco de lima e os dados dos clientes; Lima, Dias e Santos assinaram.';
+    const MIN_P = 'Prazo de 30 dias para o [nome removido]; suco de lima e os dados dos clientes; [nome removido], [nome removido] e [nome removido] assinaram.';
+    const PARTES = ['Bruno', 'Santos', 'Dias', 'Lima'];
+    const corpoP = { titulo: TEXTO_P, tipo: 'estudo', solicitanteNome: NOME_P, urgencia: 'alta', justificativaUrgencia: TEXTO_P, contexto: TEXTO_P, descricaoProblema: TEXTO_P, impactoPercebido: TEXTO_P };
+
+    const semPartes = (texto: string) => {
+      for (const parte of PARTES) expect(texto, parte).not.toContain(parte);
+      expect(texto).toContain('Prazo de 30 dias para o [nome removido]; suco de lima e os dados dos clientes');
+    };
+
+    it('GET da demanda e listagem: o agente recebe as partes trocadas e as palavras comuns; a pessoa, o original', async () => {
+      const d = await criarOk(corpoP, p());
+      await b.poolMigrator.query('update demanda set duvidas_entrada = $2::jsonb where id = $1', [d.id, JSON.stringify([TEXTO_P])]);
+      for (const bearer of [tokenRisco, tokenOrquestrador]) {
+        const texto = await (await obter(d.id, { bearer })).text();
+        semPartes(texto);
+        const v = JSON.parse(texto) as Record<string, unknown>;
+        for (const c of CAMPOS) expect(v[c], c).toBe(MIN_P);
+        expect(v.duvidasEntrada).toEqual([MIN_P]);
+      }
+      const lista = (await (await listar('?tipo=estudo&limit=100', { bearer: tokenRisco })).json()) as { itens: Array<Record<string, unknown>> };
+      expect(lista.itens.find((i) => i.id === d.id)?.titulo).toBe(MIN_P);
+
+      const daPessoa = (await (await obter(d.id, p())).json()) as Record<string, unknown>;
+      for (const c of CAMPOS) expect(daPessoa[c], c).toBe(TEXTO_P);
+      expect(daPessoa.duvidasEntrada).toEqual([TEXTO_P]);
+      expect(daPessoa.solicitanteNome).toBe(NOME_P);
+      const listaPessoa = (await (await listar('?tipo=estudo&limit=100', p())).json()) as { itens: Array<Record<string, unknown>> };
+      expect(listaPessoa.itens.find((i) => i.id === d.id)?.titulo).toBe(TEXTO_P);
+    });
+
+    it('POST /api/demandas pelo orquestrador: o 201 sai com as partes trocadas e as palavras comuns; o banco guarda o original', async () => {
+      const r = await criar(corpoP, { bearer: tokenOrquestrador });
+      expect(r.status).toBe(201);
+      const texto = await r.text();
+      semPartes(texto);
+      const v = JSON.parse(texto) as { id: string } & Record<string, unknown>;
+      for (const c of CAMPOS) expect(v[c], c).toBe(MIN_P);
+      const linha = await b.poolMigrator.query<{ titulo: string; contexto: string; solicitante_nome: string }>(
+        'select titulo, contexto, solicitante_nome from demanda where id = $1',
+        [v.id],
+      );
+      expect(linha.rows).toEqual([{ titulo: TEXTO_P, contexto: TEXTO_P, solicitante_nome: NOME_P }]);
+    });
   });
 });
 

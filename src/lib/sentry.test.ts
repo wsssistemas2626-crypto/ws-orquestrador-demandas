@@ -236,6 +236,53 @@ describe('04-regressao do 0010: B-1 do 0009 no título do Sentry', () => {
   });
 });
 
+// B-2 do 0010 (DEC-DEM-20261104-0011-v1, D-4): name que muda entre leituras ou que não é texto não chega ao título.
+describe('B-2 do 0010: o título do Sentry não usa name que muda nem name que não é texto', () => {
+  it('objeto com toString que muda: o título é Error, sem o nome fictício', async () => {
+    const e = new Error('x');
+    let n = 0;
+    e.name = { toString: () => (n++ < 2 ? 'TypeError' : 'Joana Ficticia') } as never;
+    const saida = await enviar(e);
+    expect(saida).not.toContain('Joana');
+    expect(saida).not.toContain('TypeError');
+    expect(saida).toContain('"value":"Error"');
+  });
+
+  it('getter de name que muda entre leituras: o título é o valor conferido, sem o nome fictício', async () => {
+    const e = new Error('x');
+    let n = 0;
+    Object.defineProperty(e, 'name', { get: () => (n++ === 0 ? 'TypeError' : 'Joana Ficticia') });
+    const saida = await enviar(e);
+    expect(saida).not.toContain('Joana');
+    expect(saida).toContain('"value":"TypeError"');
+  });
+});
+
+// B-4 do 0010 (DEC-DEM-20261104-0011-v1, D-5): o objeto só fica marcado como enviado depois de o envio voltar. Uma falha
+// no meio (aqui, o getter de `code` que lança dentro de reduzirErro) não deixa o erro marcado sem ter ido.
+describe('B-4 do 0010: a marca de enviado vem depois do envio', () => {
+  it('a primeira chamada lança e não envia; a segunda envia um evento só', async () => {
+    const e = new Error('x');
+    let falhar = true;
+    Object.defineProperty(e, 'code', {
+      get() {
+        if (falhar) throw new Error('falha fictícia na leitura do code');
+        return '23505';
+      },
+    });
+    enviados.length = 0;
+    expect(() => capturarErro(e)).toThrow();
+    await Sentry.flush(2000);
+    expect(enviados.length).toBe(0);
+    falhar = false;
+    capturarErro(e);
+    capturarErro(e);
+    await Sentry.flush(2000);
+    expect(enviados.length).toBe(1);
+    expect(enviados.join('')).toContain('Error 23505');
+  });
+});
+
 it('stack que não começa pelo cabeçalho atual do erro não manda quadro nenhum, só o título', async () => {
   const erro = new Error(`falhou\n    at ${SENTINELAS.texto}`);
   void erro.stack; // o V8 monta o stack com a mensagem de agora

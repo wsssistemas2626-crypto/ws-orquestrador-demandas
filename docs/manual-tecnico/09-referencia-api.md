@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
+| Atualizado em | 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Fontes no código | `src/app/api/**/route.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
@@ -124,12 +124,18 @@ solicitante da demanda entre os trocados (na lista `GET /api/pacotes-decisao`, o
 
 Campo nulo continua `null` e lista nula continua nula. Ids, `sistemaAlvo`, `repositorioDestino`, níveis,
 `statusDecisao` e datas saem iguais para os dois atores. A pessoa recebe o original, e o Pedido de Construção
-(`POST .../pedido-construcao`) continua gerado com o texto original. Limite: só o nome atual e completo do solicitante é
-trocado (M-1 da revisão do 0009, risco residual; [CHANGELOG](../../CHANGELOG.md)).
+(`POST .../pedido-construcao`) continua gerado com o texto original.
 
-Desde a 0.1.9 (B-3 do 0009), os três `POST` leem esses nomes antes de gravar. Se a leitura falhar, a resposta é 500
-`erro_interno` e nada fica gravado, então repetir o `POST` cria uma versão só. Os outros códigos não mudam
-([cap. 04](04-versoes-e-decisao.md)).
+Desde a 0.1.10 (M-1 da revisão do 0009), a troca pega também cada parte do nome do solicitante que, no texto, começa
+por maiúscula, nessas leituras, no 201 e na leitura da demanda. Com a solicitante `Joana Ficticia` (fictícia), um
+`contexto` gravado como `A Joana pediu o relatório mensal.` sai para o agente como
+`A [nome removido] pediu o relatório mensal.`. A regra e o que sobra (parte em minúscula, nome grudado em número ou
+`_`, nome antigo e nome de outras pessoas) estão no [cap. 06](06-agentes-de-ia.md#rf-20-minimização).
+
+Desde a 0.1.10 (B-3 da revisão do 0010), os nomes do 201 dos três `POST` vêm da linha da demanda travada, na mesma
+transação da gravação. Uma renomeação no meio do `POST` não sai em claro. Se essa conta falhar, a resposta é 500
+`erro_interno` e nada fica gravado (desde a 0.1.9), então repetir o `POST` cria uma versão só. Os outros códigos não
+mudam ([cap. 04](04-versoes-e-decisao.md)).
 
 ## Exemplo: decidir ou gerar o Pedido numa demanda em status final
 

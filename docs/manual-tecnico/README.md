@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.9 (muda quatro comportamentos: classe e `code` do erro com regra mais estreita no log e no Sentry, nomes da demanda lidos antes de gravar nos três `POST` de criação, o mesmo objeto de erro enviado uma vez só ao Sentry e rótulo de `demanda_final` no histórico; ver o [CHANGELOG](../../CHANGELOG.md)) |
+| Versão do sistema | 0.1.10 (muda cinco comportamentos: cada parte do nome do solicitante também vira marcador para o agente, a dica do nome e o aviso de minimização sem prometer mais do que o sistema faz, nomes do 201 dos três `POST` de criação tirados da demanda travada, `name` do erro lido uma vez e só como texto, e erro marcado como enviado ao Sentry só depois do envio; ver o [CHANGELOG](../../CHANGELOG.md)) |
 | Atualizado em | 04/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
@@ -80,6 +80,7 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Ator | Quem faz a ação: `pessoa` (sessão com 2FA), `agente` (token de serviço ou job do worker) ou `sistema` (mudança automática) |
 | Vista mínima | O que a leitura de demanda pela API devolve a quem não é pessoa: sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) e, desde a 0.1.8, com o texto livre minimizado também nelas e no 201 da criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)) |
 | Rascunho de agente | ESP, RSK ou DEC gravado por um agente; a decisão exige confirmar que foi revisado |
+| Parte do nome | Pedaço do nome do solicitante, cortado em espaço, hífen e apóstrofo, com 3 letras ou mais e fora de `PARTICULAS_DO_NOME` (`partesDoNome`, `minimizar.ts`). Desde a 0.1.10, vira `[nome removido]` na entrada do agente e na API de quem não é pessoa quando, no texto, começa por maiúscula ([cap. 06](06-agentes-de-ia.md#rf-20-minimização)) |
 | Texto bruto | O texto colado na entrada (e-mail, mensagem). Dado pessoal de terceiro; guardado à parte e expurgado no prazo |
 | Entrada pendente | Texto enviado ao agente orquestrador antes de a demanda existir |
 | Teto | Limite mensal de gasto com IA, em US$; nasce 0 |

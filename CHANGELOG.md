@@ -3,6 +3,140 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.10 — 2026-11-04
+
+Correção do pedido `DEC-DEM-20261104-0011-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.9 (`fb675ee`): o M-1
+da revisão do 0009 pela opção (b) refinada, decidida por Fabiano em 04/11, a dica da tela e os baixos B-2, B-3 e B-4 da
+revisão do 0010. Ainda não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano. A regra
+da primeira publicação não muda: exige a 0.1.8 ou posterior na `main`, e a 0.1.10 a cumpre (`docs/operacao/deploy.md`,
+seção 4).
+
+Não há migration nova, coluna nova, dependência nova nem variável de ambiente nova. Não mudaram `src/db/`, `drizzle/`,
+`e2e/`, `scripts/`, `.github/`, `Dockerfile`, `.env.example` nem o lockfile.
+
+### O que mudou
+
+- **M-1 do 0009 (RF-20): cada parte do nome do solicitante também vira `[nome removido]`**
+  (`src/modules/dados-pessoais/minimizar.ts`). Vale no texto que vai ao agente (entrada do worker) e na API de quem
+  não é pessoa (vista da demanda, título da listagem, leituras de ESP, RSK e DEC e o 201 dos `POST`), porque todos
+  esses caminhos já passavam por `minimizar` e `minimizarValor`. A ordem agora é esta: cabeçalhos de e-mail, depois
+  e-mail, CNPJ, CPF e telefone, depois o nome completo de cada solicitante e, por último, as partes de todos os nomes.
+  - **Nome completo:** como antes, sem diferença de caixa, com qualquer espaço entre os pedaços e sem ser pedaço de
+    outra palavra. Agora também sem diferença de acento, nos dois sentidos (`Conceicao` casa com `Conceição` e o
+    inverso), e com texto em NFD. O nome completo é trocado antes das partes e vira um marcador só.
+  - **Parte do nome** (`partesDoNome`): o nome é cortado em espaço, hífen e apóstrofo. Entra a parte com 3 letras ou
+    mais que não esteja em `PARTICULAS_DO_NOME`. Essa lista é fechada e exportada: `da`, `das`, `de`, `do`, `dos`,
+    `du`, `del`, `della`, `di`, `van`, `von`, `der`, `den`, `le`, `la`, `e`, `y`, mais os sufixos de parentesco
+    `filho`, `filha`, `neto`, `neta`, `junior` e `sobrinho`, comparados sem caixa e sem acento.
+  - A parte só é trocada quando, no texto, **começa por letra maiúscula**. O resto da parte não diferencia caixa nem
+    acento. Com o nome `Bruno Dias Lima`, o texto `Prazo de 30 dias; suco de lima; Lima aprovou.` sai
+    `Prazo de 30 dias; suco de lima; [nome removido] aprovou.`. Com o nome `Ana dos Santos`, `dos` fica no texto.
+  - Nada é trocado dentro de um marcador, e o texto original não é normalizado: só a faixa casada muda.
+  - **A pessoa e o Pedido de Construção continuam com o texto original.**
+  - **O que sobra, risco aceito no RSK:** a parte escrita toda em minúscula (`a joana pediu`). O nome completo em
+    minúscula continua trocado.
+  - **Falsos positivos aceitos:** palavra com maiúscula igual a uma parte do nome (`Dias depois`, `Paulo` em
+    `São Paulo`, `Santos` cidade). Também a parte que o nome de outra pessoa tem em comum com o do solicitante: com
+    `Ana Exemplo Lima` como solicitante, `Bruno Exemplo Rocha` sai `Bruno [nome removido] Rocha`. O hífen conta como
+    borda: `Ana-Clara` sai `[nome removido]-[nome removido]`.
+- **Dica do campo "Nome do solicitante" e aviso de minimização do modo agente** (`dicaNome` e `avisoMinimizacao` em
+  `src/components/dados-da-demanda.ts`). Antes, os dois davam a entender que o nome nunca chegava ao agente. A dica
+  agora diz "O campo não vai ao agente de IA. Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas
+  não o de outras pessoas.". O aviso diz que o nome do solicitante e cada parte dele escrita com inicial maiúscula
+  viram marcador, e que nomes de outras pessoas não viram. A tela de edição usa a mesma dica.
+- **B-3 do 0010: o 201 dos três `POST` de criação minimiza com o nome da demanda travada.** Em
+  `src/app/api/demandas/[id]/{especificacoes,pareceres-risco,pacotes-decisao}/route.ts`, a rota não chama mais
+  `nomesDaDemanda`. Ela chama `criarEspecificacaoComNomes`, `criarParecerRiscoComNomes` ou
+  `criarPacoteDecisaoComNomes`, com 4 argumentos e sem `t` nem `extras`. Cada função devolve a vista e os nomes. Os
+  nomes saem de `nomesDoSolicitante` sobre a linha travada por `travarDemanda`, no fim da mesma transação da gravação.
+  Assim, uma renomeação do solicitante no meio do `POST` não deixa o nome novo sair em claro no 201. Se essa conta
+  falhar, a resposta é 500 `erro_interno` e nada é gravado, como na 0.1.9. O 404, o 409, o 429 e o 400 com `faltando`
+  não mudam. `criarEspecificacao`, `criarParecerRisco` e `criarPacoteDecisao` ficaram com a mesma assinatura e o
+  mesmo retorno, então o worker e as Server Actions não mudaram. A guarda estática
+  `test/estatico/pacote-sem-extras.test.ts` passa a cobrir também `criarPacoteDecisaoComNomes`.
+- **B-2 do 0010: `reduzirErro` lê `e.name` uma vez só e só a usa se for texto aceito por `classeAceita`**
+  (`src/lib/reduzir-erro.ts`). Um `name` que não é texto (objeto com `toString`, array, símbolo, número) sai como
+  `Error`, no log e no título do Sentry. Um getter que muda entre leituras não troca mais o valor depois da
+  conferência: sai o valor da leitura única, se ele passar na regra.
+- **B-4 do 0010: `capturarErro` marca o erro como enviado só depois de `Sentry.captureException`**
+  (`src/lib/sentry.ts`). Se `reduzirErro` ou o envio lançarem, o objeto fica sem marca, e a próxima chamada com ele
+  tenta de novo. O envio continua único por objeto quando dá certo (B-a do 0008).
+- **Testes:** em `minimizar.test.ts`, um bloco com os casos da reprodução e da triagem e outro com as bordas da
+  regressão, todos com nomes fictícios e com idempotência. Há também um teste de tempo: nome de 200 caracteres sobre
+  texto de 100.000, abaixo de 1 s. Entraram casos de integração em `demandas.test.ts`, `entrada-agente.test.ts` (os
+  quatro agentes), `vistas-para-agente.test.ts` (o 201 dos três `POST`, as sete leituras do agente e as da pessoa) e
+  `pedido.test.ts` (o Pedido com o original). `nomes-antes-de-gravar.test.ts` ganhou a corrida real com trava de linha
+  nos três `POST`, e "falha não grava nada" foi refeito sobre `nomesDoSolicitante`. Há blocos novos em
+  `reduzir-erro.test.ts` e `sentry.test.ts`. Por efeito da regra nova, mudaram seis esperados existentes, listados
+  com o antes e o depois em `03-engenheiro-backend.md`: a parte em comum com o nome de outra pessoa
+  (`minimizar.test.ts:252`, `demandas.test.ts:489-490`), a parte com maiúscula igual a uma palavra
+  (`minimizar.test.ts:204`, `test/transversal/sentinelas.test.ts:430`) e a versão (`test/estatico/projeto.test.ts`).
+  Nenhuma fixture foi trocada para fugir do efeito.
+- **Versão:** o `package.json` passou de 0.1.9 para 0.1.10.
+- **Documentação:** estas notas e a versão no `README.md`, no manual técnico e no `docs/operacao/deploy.md`. No
+  manual, mudaram os capítulos 02 (limite da vista mínima, `name` lido uma vez, marca depois do envio), 03 (limite da
+  vista mínima), 04 e 09 (nomes do 201 tirados da linha travada), 06 (regra das partes, dica e aviso, o que sobra), 08
+  (texto da dica e do aviso nas pendências de interface) e o glossário (parte do nome). No `deploy.md`, as seções 4, 6
+  e 8 vieram da `05-devops-sre.md`.
+
+Não houve `.skip`, `.only` ou `.todo` novo, nem asserção afrouxada. O C-10, o C-21, o C-23, o C-36, a A-02 e o axe
+continuam sem exceção.
+
+### Verificações desta versão
+
+- `pnpm test`: 4.081 de 4.081 (`04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143, três vezes seguidas. Nenhum e2e conferia as frases antigas.
+- Os testes que reproduzem os cinco defeitos da `01-qa-funcional.md` usam dados fictícios e foram vistos falhando
+  antes do código (`03-engenheiro-backend.md`): 9 falhas no B-2 e no B-4, 34 no M-1, 4 na dica e 11 no B-3.
+- Revisão de código e de segurança (`04-maestro.md`): nenhum achado crítico nem alto; um médio que já existia na
+  `main` e quatro baixos (abaixo).
+- `pnpm build` passou (34 rotas). O `docker build` não rodou na `05-entrega`: as entradas da imagem são as da 0.1.9,
+  salvo `src/` e `package.json`. A imagem é construída na homologação e no CI do PR (`05-devops-sre.md`).
+- A homologação, o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam para a Parada 3. O rollback
+  é o caminho A, só com a troca de imagem para a `v0.1.9` (`deploy.md`, seção 6). Na volta, os cinco defeitos voltam.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), para um pedido curto a decidir por Fabiano:
+
+- **M-a, médio, já existia na `main`** (`src/modules/dados-pessoais/detectores.ts:9`): a regex de e-mail tem custo
+  quadrático numa sequência longa de caracteres de usuário sem `@`. Medido: 30 mil caracteres levam 1,7 s, e 100 mil
+  levam 20,6 s, no limite do texto bruto. Cada `minimizar` e a busca do Pedido de Construção travam o event loop. Só
+  pessoa autenticada dispara. Sugestão: ancorar e limitar a regex, com teste de tempo.
+- **B-1** (`minimizar.ts`): o nome grudado em número, `_` ou CamelCase (`Joana2`, `Joana_Ficticia`,
+  `@JoanaFicticia`) sai em claro. O RSK do 0011 não cobre esses formatos.
+- **B-2, já existia** (detector de e-mail): usuário de e-mail com acento sai cortado (`joã[e-mail removido]`).
+- **B-3** (`reduzir-erro.ts`, `sentry.ts`): um getter que lança em `name`, `code` ou `cause`, ou um Proxy, faz
+  `reduzirErro` lançar, e o erro escapa da `rota()` sem registro. Depois do B-4 do 0010, ele já não fica marcado sem
+  envio. Sugestão: `try/catch` dentro de `reduzirErro`.
+- **B-4** (`dados-da-demanda.ts`): o aviso diz "cada parte" sem dizer "com 3 letras ou mais" nem citar as partículas,
+  e a dica não diz que a parte escrita em minúscula sobra. Os textos foram escritos na triagem e esperam a revisão da
+  `ux-ui-design` (manual, cap. 08).
+
+Registradas nas outras etapas deste pedido:
+
+- **Dois testes olham o relógio real** (`04-qa-automacao.md`): o teste de tempo de `minimizar.test.ts`
+  (`performance.now()`, 47 ms contra o limite de 1 s) e a espera da trava em `nomes-antes-de-gravar.test.ts` (prazo de
+  segurança de 10 s, sem efeito no resultado). Se o primeiro ficar instável no CI, aumente o limite ou mova o teste
+  para `test/desempenho/`.
+- **Fora do escopo** (`01-qa-funcional.md`, `02-tech-lead.md`): orientar quem preenche ESP e RSK a escrever "o
+  solicitante" e o nome original no Pedido de Construção ficam com Fabiano e `juridico-contratos`, no pedido 0012
+  (Pedido de Construção sem nome de pessoa, pareceres de 04/11).
+
+Seguem abertas, sem mudança neste pedido:
+
+- do M-1 da revisão do 0009, o que a 0.1.10 não fecha. Para o agente, continuam saindo em claro a parte em minúscula,
+  o nome grudado (B-1 acima), o nome antigo de antes de uma edição da demanda (a troca usa só o `solicitanteNome`
+  atual) e o nome de outras pessoas (J-03 da spec). É risco residual e não bloqueia a publicação (`deploy.md`, seção
+  4). Também segue o limite do teste "nenhum dos fragmentos" para campo de texto novo nas três vistas;
+- da 0.1.9: B-1 (`code` com 9 dígitos, dígitos separados por `_` e `JoanaSilvaError`) e B-5 (o que os testes estáticos
+  não veem), a convenção de `CLASSES_DO_PROJETO` no padrão técnico e a barreira de `extras` só em
+  `criarPacoteDecisao`;
+- da 0.1.7: o risco do M-3 para a Parada 3;
+- da 0.1.6: B-2 a B-5, `erroId` fora do Sentry, o risco do M-05 e o teste estático das actions por SHA;
+- da 0.1.5: B-2, B-3, B-4 (foco da fila antes da hidratação, de interface) e B-6.
+
 ## 0.1.9 — 2026-11-04
 
 Correção do pedido `DEC-DEM-20261104-0010-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.8 (`1d6d897`). Ainda

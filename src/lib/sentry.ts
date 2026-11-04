@@ -41,18 +41,19 @@ function quadrosDaPilha(e: unknown): string[] {
 // chega sem `digest` ao console.error e ao onRequestError, o mesmo objeto nos dois (ver console-saneado.ts). A marca é
 // por objeto, e não por mensagem: dois erros distintos com a mesma mensagem vão os dois. Valor que não é objeto não é
 // marcado e vai toda vez. WeakSet: a marca some com o erro, sem segurar memória.
+// B-4 do 0010: a marca só é posta depois de `captureException` voltar. Se `reduzirErro` ou o envio lançam, o objeto
+// fica sem marca, e a próxima chamada com ele tenta de novo.
 const jaEnviados = new WeakSet<object>();
 
 export function capturarErro(e: unknown, contexto?: { evento: string }): void {
-  if (e !== null && (typeof e === 'object' || typeof e === 'function')) {
-    if (jaEnviados.has(e)) return;
-    jaEnviados.add(e);
-  }
+  const marcavel = e !== null && (typeof e === 'object' || typeof e === 'function');
+  if (marcavel && jaEnviados.has(e)) return;
   const { classe, code } = reduzirErro(e);
   const titulo = `${classe}${code ? ` ${code}` : ''}`;
   const enviado = new Error(titulo);
   enviado.stack = [`Error: ${titulo}`, ...quadrosDaPilha(e)].join('\n');
   Sentry.captureException(enviado, contexto ? { tags: { evento: contexto.evento } } : undefined);
+  if (marcavel) jaEnviados.add(e);
 }
 
 // beforeSend: apaga tudo o que pode trazer corpo, cabeçalho, cookie, query, usuário ou contexto da resposta.

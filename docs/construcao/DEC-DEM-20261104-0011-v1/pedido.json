@@ -1,0 +1,40 @@
+{
+  "pedido": "DEC-DEM-20261104-0011-v1",
+  "demanda": {
+    "id": "DEM-20261104-0011",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.10: M-1 da revisão do 0009 (cada parte do nome do solicitante minimizada), dica da tela e baixos da revisão do 0010",
+    "descricao": "Na 04-revisao do pedido DEC-DEM-20261103-0009-v1 ficou o M-1 (RF-20, dado pessoal): minimizar (src/modules/dados-pessoais/minimizar.ts, padraoDoNome) troca só o nome atual e completo do solicitante; o primeiro nome sozinho ('a Joana pediu'), ou parte do nome, sai em claro para o agente na entrada do worker (src/modules/agentes/entrada-agente.ts) e na API de quem não é pessoa. O parecer da gestao-riscos de 04/11 (estruturaAutonoma, docs/construcao/pareceres/2026-11-04-gestao-riscos-M-1-do-0009.md) recomendou a opção (b) refinada, sem migration, e corrigir a dica da tela; Fabiano decidiu em 04/11 pela (b) refinada. Agravante: a dica do campo de nome (src/components/dados-da-demanda.ts:34, 'Ele não é enviado ao agente de IA') e o aviso de minimização (:29-30, 'sem o nome do solicitante') dão a entender que o nome nunca chega ao agente, mas ele chega quando é repetido no texto. Base: main (fb675ee, versão 0.1.9). Junto, três baixos da revisão de segurança do pedido 0010 (docs/construcao/DEC-DEM-20261104-0010-v1/04-maestro.md): (B-3) nos 3 POST de demandas/[id]/{especificacoes,pareceres-risco,pacotes-decisao}, os nomes são lidos fora da transação, antes de travarDemanda; uma renomeação do solicitante no meio deixa o nome novo sair no 201 para o agente; (B-2) src/lib/reduzir-erro.ts, reduzirErro não confere typeof e.name === 'string' antes de classeAceita; (B-4) src/lib/sentry.ts, capturarErro marca o erro como enviado antes de reduzirErro e do envio, então uma falha no meio deixa o erro marcado sem ter ido."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261104-0011-v1",
+    "conteudo": "(M-1, opção b refinada) Além do nome completo, minimizar troca cada parte do nome do solicitante com 3 letras ou mais, com estas regras: a parte só casa se, no texto, começar por letra maiúscula (sem diferença de caixa no resto e de acento, como hoje), para 'Dias' não trocar '30 dias' nem 'Rosa' trocar 'rosa'; partículas ficam de fora mesmo com 3 letras ou mais (lista fechada exportada, ao menos: da, das, de, do, dos, du, del, della, di, van, von, der, den, le, la, e, y); a parte continua sem ser pedaço de outra palavra; o nome completo é trocado antes das partes, para virar um marcador só; nada é trocado dentro de marcador. Falso positivo aceito: a palavra com maiúscula no começo da frase igual a uma parte do nome ('Dias depois'). Vale para todos os lugares que já usam minimizar e minimizarValor (entrada do agente, vistas da API de quem não é pessoa), sem mudar quem recebe o original (a pessoa e o Pedido de Construção). Testes com nomes fictícios: primeiro nome sozinho, sobrenome sozinho, nome completo, nome com partícula ('Ana dos Santos': 'dos' fica, 'Ana' e 'Santos' saem), sobrenome que é palavra comum ('Lima', 'Rosa', 'Dias', 'Campos') em minúscula fica, e em maiúscula sai, nome dentro de e-mail continua só o marcador de e-mail, nome com acento e sem acento. (Dica) dicaNome passa a dizer que o campo não vai ao agente e pede para não repetir o nome no texto (por exemplo 'O campo não vai ao agente de IA. Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas.'), e avisoMinimizacao deixa de prometer 'sem o nome do solicitante' de forma absoluta (dizer que o nome do solicitante e as partes dele são trocados por marcador, e que nomes de outras pessoas não são). Ajustar os testes de texto que conferem essas frases. (B-3 do 0010) Os nomes do solicitante usados na vista do 201 dos 3 POST vêm da linha da demanda travada, dentro da transação do serviço (o serviço devolve os nomes junto com o artefato); o comportamento de falha do 0.1.9 (nada gravado se a leitura falhar) continua. (B-2 do 0010) reduzirErro usa e.name só se for string e passar em classeAceita. (B-4 do 0010) capturarErro marca o objeto só depois do envio ao Sentry; teste com reduzirErro lançando. Nenhum controle é afrouxado (C-10, C-21, C-23, A-02, axe, C-36). Sem migration. Mudam src/, os testes, package.json (versão 0.1.10) e CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261104-0011-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe na minimização do texto que vai ao agente de IA, com dados fictícios. Riscos: falso positivo que estraga o conteúdo do texto para o agente (sobrenome que é palavra comum, partícula fora da lista); a regra da maiúscula deixar passar o nome escrito todo em minúscula ('joana pediu'), o que é aceito como risco que sobra e vai para a revisão; a mudança chegar por engano ao que a pessoa vê ou ao Pedido de Construção (os testes da 0.1.8 conferem os dois atores e o Pedido); desempenho com muitos nomes (uma regex por parte, poucas partes). Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261104-0011-v1",
+    "opcaoEscolhida": "Opção (b) refinada do parecer da gestao-riscos para o M-1 do 0009, com a dica da tela corrigida, num pedido de correção (cadeia curta) sobre a main",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-04"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "O primeiro nome e o sobrenome do solicitante, sozinhos e com inicial maiúscula, saem como marcador para o agente na entrada do worker e na API de quem não é pessoa",
+    "Partículas e palavras comuns em minúscula que coincidem com parte do nome ficam no texto",
+    "A pessoa e o Pedido de Construção continuam com o texto original",
+    "A dica do campo de nome e o aviso de minimização não prometem mais do que o sistema faz",
+    "Os nomes da vista do 201 dos 3 POST vêm da demanda travada na transação; reduzirErro ignora name que não é string; o erro só fica marcado depois de enviado",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.10",
+    "PR com CI verde"
+  ]
+}

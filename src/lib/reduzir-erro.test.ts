@@ -102,3 +102,68 @@ describe('B-1 do 0009: a classe é desconhecido, termina em Error ou Exception, 
     expect(reduzirErro(comNome(longo))).toEqual({ classe: 'Error' });
   });
 });
+
+// B-2 do 0010 (DEC-DEM-20261104-0011-v1, D-4): o `name` é lido uma vez só e usado só se for texto aceito. Um getter que
+// muda entre leituras, um objeto com `toString` que muda e um array não passam. Nome fictício.
+describe('B-2 do 0010: name que não é texto, ou que muda entre leituras, vira Error', () => {
+  // A classe que sai é a da única leitura, a que foi conferida ('TypeError'), e nunca a da segunda ('Joana Ficticia').
+  it('getter de name que muda entre a primeira e a segunda leitura: sai o valor conferido, nunca o seguinte', () => {
+    const e = new Error('x');
+    let n = 0;
+    Object.defineProperty(e, 'name', { get: () => (n++ === 0 ? 'TypeError' : 'Joana Ficticia') });
+    expect(reduzirErro(e)).toEqual({ classe: 'TypeError' });
+  });
+
+  it('getter de name que muda, com code: o code continua', () => {
+    const e = Object.assign(new Error('x'), { code: '23505' });
+    let n = 0;
+    Object.defineProperty(e, 'name', { get: () => (n++ === 0 ? 'TypeError' : 'Joana Ficticia') });
+    expect(reduzirErro(e)).toEqual({ classe: 'TypeError', code: '23505' });
+  });
+
+  it('getter de name que começa fora da regra e depois muda para uma classe aceita: Error', () => {
+    const e = new Error('x');
+    let n = 0;
+    Object.defineProperty(e, 'name', { get: () => (n++ === 0 ? 'Joana Ficticia' : 'TypeError') });
+    expect(reduzirErro(e)).toEqual({ classe: 'Error' });
+  });
+
+  it('objeto com toString que muda entre conversões', () => {
+    const e = new Error('x');
+    let n = 0;
+    e.name = { toString: () => (n++ < 2 ? 'TypeError' : 'Joana Ficticia') } as never;
+    const r = reduzirErro(e);
+    expect(r).toEqual({ classe: 'Error' });
+    expect(typeof r.classe).toBe('string');
+  });
+
+  it('array com um nome de classe aceito', () => {
+    const e = new Error('x');
+    e.name = ['TypeError'] as never;
+    const r = reduzirErro(e);
+    expect(r).toEqual({ classe: 'Error' });
+    expect(typeof r.classe).toBe('string');
+  });
+
+  it('símbolo e número no name também viram Error, sem lançar', () => {
+    const s = new Error('x');
+    s.name = Symbol('TypeError') as never;
+    expect(reduzirErro(s)).toEqual({ classe: 'Error' });
+    const num = new Error('x');
+    num.name = 42 as never;
+    expect(reduzirErro(num)).toEqual({ classe: 'Error' });
+  });
+
+  it('o name é lido uma vez só', () => {
+    const e = new Error('x');
+    let leituras = 0;
+    Object.defineProperty(e, 'name', {
+      get: () => {
+        leituras++;
+        return 'TypeError';
+      },
+    });
+    expect(reduzirErro(e)).toEqual({ classe: 'TypeError' });
+    expect(leituras).toBe(1);
+  });
+});

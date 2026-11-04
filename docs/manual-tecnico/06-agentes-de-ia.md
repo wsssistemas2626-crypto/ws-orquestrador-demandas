@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
+| Atualizado em | 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -113,10 +113,57 @@ Vale para todo campo de texto de todo agente, não só para o texto bruto (`mini
    formas em inglês) saem inteiras;
 2. e-mail, CNPJ, CPF e telefone viram `[e-mail removido]`, `[CNPJ removido]`, `[CPF removido]` e
    `[telefone removido]`;
-3. o nome do solicitante, quando informado, vira `[nome removido]`.
+3. o nome completo do solicitante, quando informado, vira `[nome removido]`, sem diferença de caixa e, desde a 0.1.10,
+   sem diferença de acento, nos dois sentidos e também com texto em NFD. Qualquer espaço entre os pedaços casa, e o
+   nome não é trocado quando é pedaço de outra palavra;
+4. desde a 0.1.10 (M-1 da revisão do 0009, opção (b) refinada decidida por Fabiano em 04/11), cada **parte do nome**
+   de todos os solicitantes informados também vira `[nome removido]`, quando no texto ela começa por letra maiúscula.
+
+A parte do nome sai de `partesDoNome`:
+
+- o nome é cortado em espaço, hífen e apóstrofo, e cada pedaço perde as pontas que não são letra nem número;
+- entra o pedaço com 3 letras ou mais, que não está em `PARTICULAS_DO_NOME`, sem repetição;
+- `PARTICULAS_DO_NOME` é uma lista fechada, comparada sem caixa e sem acento: `da`, `das`, `de`, `do`, `dos`, `du`,
+  `del`, `della`, `di`, `van`, `von`, `der`, `den`, `le`, `la`, `e`, `y`, `filho`, `filha`, `neto`, `neta`, `junior` e
+  `sobrinho`.
+
+Regras da troca:
+
+- a primeira letra do trecho tem de ser maiúscula no texto. O resto não diferencia caixa nem acento, então `JOANA` sai;
+- todos os nomes completos são trocados antes de todas as partes, então o nome completo vira um marcador só;
+- a parte também não é trocada quando é pedaço de outra palavra. Letra, marca, número e `_` colados impedem a troca;
+  hífen e pontuação contam como borda;
+- nada é trocado dentro de um marcador. O texto original não é normalizado: a busca corre sobre uma cópia dobrada do
+  mesmo comprimento, e só a faixa casada muda.
+
+Exemplo com nomes fictícios. Com o solicitante `Bruno Dias Lima`, o texto
+`Prazo de 30 dias; suco de lima; o Bruno e o Lima aprovaram.` vai ao agente como
+`Prazo de 30 dias; suco de lima; o [nome removido] e o [nome removido] aprovaram.`. Com `Ana dos Santos`, `dos` fica no
+texto.
+
+O que a regra nova **troca**: o primeiro nome, o sobrenome ou outra parte sozinha, com inicial maiúscula (`a Joana
+pediu`), em maiúscula (`JOANA`) ou sem acento (`Conceicao` para `Conceição`). O que **sobra** e chega ao provedor:
+
+- a parte escrita toda em minúscula (`a joana pediu`), risco aceito no RSK do 0011. O nome completo em minúscula
+  continua trocado;
+- o nome grudado em número, `_` ou CamelCase (`Joana2`, `Joana_Ficticia`, `@JoanaFicticia`), B-1 da revisão do 0011;
+- o nome antigo, de antes de uma edição da demanda: a troca usa só o `solicitanteNome` atual;
+- o nome de outras pessoas (J-03 da spec).
+
+Falsos positivos aceitos: palavra com maiúscula igual a uma parte do nome (`Dias depois`, `Paulo` em `São Paulo`) e a
+parte que o nome de outra pessoa tem em comum com o do solicitante. Com `Ana Exemplo Lima` como solicitante,
+`Bruno Exemplo Rocha` sai `Bruno [nome removido] Rocha`.
 
 Ao provedor vai só a lista de campos permitida para cada agente (`entrada-agente.ts`). Risco residual registrado para
 aceite (J-03 da spec): nome de outra pessoa dentro de texto livre ainda pode chegar ao provedor.
+
+**Na tela** (`TEXTOS_DEMANDA` em `src/components/dados-da-demanda.ts`, desde a 0.1.10), os textos não prometem mais do
+que essa regra faz. A dica do campo "Nome do solicitante", na criação e na edição, é "O campo não vai ao agente de IA.
+Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas.". O aviso do modo
+agente diz que o agente recebe só o texto, sem a origem, com e-mails, telefones, CPF e CNPJ trocados por marcadores.
+Diz também que o nome do solicitante e cada parte dele escrita com inicial maiúscula viram marcador, e que nomes de
+outras pessoas não viram. Até a 0.1.9, a dica dizia "Ele não é enviado ao agente de IA", e o aviso dizia "sem o nome
+do solicitante".
 
 Esta minimização vale para a entrada que o worker monta. Desde a 0.1.7 (M-1), a leitura de demanda pela API com token
 de agente usa a mesma regra: `minimizarValor` saiu de `entrada-agente.ts` para `src/modules/dados-pessoais/minimizar.ts`
@@ -124,9 +171,10 @@ e é usada pelos dois. A vista mínima ([cap. 03](03-demandas.md#rf-06-consultar
 `anexos` e o nome da conta e passa o texto livre da demanda (e o `titulo` da listagem) pela minimização, com o nome do
 solicitante entre os trocados. Desde a 0.1.8 (M-a), a regra vale também fora da demanda: as leituras e o 201 da
 criação de DEC, ESP e RSK passam o texto livre pela mesma minimização para o token de agente, com o nome do solicitante
-da demanda ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)). Limite que sobra (M-1 da revisão do
-0009, risco residual, não bloqueia): só o nome atual e completo do solicitante é trocado; nome antigo ou parcial em
-texto já gravado chega ao agente em claro ([CHANGELOG](../../CHANGELOG.md)).
+da demanda ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)). Desde a 0.1.10, as partes do nome
+valem em todos esses lugares, porque todos passam por `minimizar` e `minimizarValor`. A pessoa e o Pedido de Construção
+continuam com o texto original. O que sobra do M-1 da revisão do 0009 (risco residual, não bloqueia) é a lista acima:
+parte em minúscula, nome grudado, nome antigo e nome de outras pessoas ([CHANGELOG](../../CHANGELOG.md)).
 
 ## Pré-condições para ligar qualquer agente em produção
 

@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
+| Atualizado em | 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-26; RNF-11, RNF-16 |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/components/`, `src/proxy.ts`, `e2e/` |
@@ -53,6 +53,11 @@ no `pnpm test`, reprova se algum `e2e/**/*.ts` usar `disableRules`, `disableOthe
   concluir: " ([cap. 04](04-versoes-e-decisao.md#rf-13-decisão) e [cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)),
   foram escritos na triagem e esperam a revisão da `ux-ui-design`. A T11 não esconde as ações de decisão nem a seção do
   pedido quando a demanda está em status final; esconder é decisão da `ux-ui-design`.
+- Desde a 0.1.10 (M-1 da revisão do 0009), a dica do campo "Nome do solicitante" (T04 e T06) e o aviso de minimização
+  do modo agente (T04) têm texto novo (`dicaNome` e `avisoMinimizacao` em `src/components/dados-da-demanda.ts`;
+  [cap. 06](06-agentes-de-ia.md#rf-20-minimização)). Os textos foram escritos na triagem e esperam a revisão da
+  `ux-ui-design`. O B-4 da revisão do 0011 também fica para ela: o aviso diz "cada parte" sem dizer "com 3 letras ou
+  mais" nem citar as partículas, e a dica não diz que a parte escrita toda em minúscula sobra.
 - Falha ao carregar uma tela mostra "Não foi possível carregar esta página." e "Tentar de novo" (`src/app/error.tsx`),
   sem mensagem, pilha nem `digest`. O registro do erro é o `erro_requisicao` do servidor
   ([cap. 02](02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).
