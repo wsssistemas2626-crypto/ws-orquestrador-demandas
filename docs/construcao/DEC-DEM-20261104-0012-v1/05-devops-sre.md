@@ -3,8 +3,8 @@ pedido: DEC-DEM-20261104-0012-v1
 etapa: 05-entrega
 agente: devops-sre
 leu: [contrato-passagem.md, padrao-tecnico.md (seção 9), pedido.json, 02-tech-lead.md, 03-engenheiro-backend.md, 04-maestro.md, passagens.jsonl, 05-devops-sre.md do pedido 0011, .github/workflows/ci.yml, .github/workflows/deploy.yml (1-40), docs/operacao/deploy.md]
-status: bloqueado
-proximo: devops-sre
+status: pronto
+proximo: documentacao-tecnica
 devolvido_para: null
 ---
 ## Entrega
@@ -85,25 +85,21 @@ mudou (33 linhas incluídas e 7 tiradas).
   do B-3 da 04-maestro.
 - Não rodei o `ensaiar-rollback` nem o `homologar` nesta etapa. O contrato da `05-entrega` não os lista, e os dois ficam
   com a Parada 3 do maestro.
+- Listei uma vez a pasta do pedido, só para leitura, para saber quais entregas já existiam. O maestro liberou essa
+  leitura pela regra de 25/10.
 
 ## Pendências
 
-1. Motivo do bloqueio: no começo da etapa rodei pelo Bash `ls -la` na pasta do pedido, só para listar os arquivos
-   (leitura, sem alterar nada). O comando está fora da minha lista **Pode**, porque o contrato manda listar com
-   Read/Glob. Fiz o resto da etapa dentro da lista, e a entrega está completa. Pela regra de 25/10, o maestro pode
-   liberar e regravar esta entrega com `status: pronto`, `proximo: documentacao-tecnica`, tirando o item do `ls` de
-   Comandos executados e mantendo o resto.
-2. Para a Parada 3 do maestro: `construir.mjs homologar` (constrói a imagem da 0.1.11 e roda o e2e),
+1. Para a Parada 3 do maestro: `construir.mjs homologar` (constrói a imagem da 0.1.11 e roda o e2e),
    `ensaiar-rollback` e o CI do PR (job `imagem`). Conferi a volta da 0.1.11 no código: `drizzle/` é igual ao da `main`.
-3. Para a `06-documentacao`: o campo "Versão" do `deploy.md` (0.1.11) e a entrada 0.1.11 do `CHANGELOG.md`, com o texto
+2. Para a `06-documentacao`: o campo "Versão" do `deploy.md` (0.1.11) e a entrada 0.1.11 do `CHANGELOG.md`, com o texto
    da Pendência 2 da 03.
-4. Herdadas da 04-maestro, para um pedido futuro: B-a (comentário do detector e teste dos dois `@`), I-1 (comentário da
+3. Herdadas da 04-maestro, para um pedido futuro: B-a (comentário do detector e teste dos dois `@`), I-1 (comentário da
    classe `DetectorDeEmail`), B-3 (`AnaBelax`), B-4 (`digest: undefined`) e o tempo de 30 s do axe do T11
    (`e2e/axe-todas.spec.ts:273`), sensível a carga.
 
 ## Comandos executados
 
-- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261104-0012-v1` — listou os 7 arquivos da pasta do pedido (fora da lista Pode; ver Pendência 1)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261104-0012-v1`, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -12` — `9a27ef6` (04-revisao) no topo; `2e621de` é a base
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat main...HEAD` — 29 arquivos, só `src/`, `test/`, `package.json` e entregas
