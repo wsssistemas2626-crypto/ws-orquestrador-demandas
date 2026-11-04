@@ -344,3 +344,296 @@ describe('M-a do 0011 (03-correcao do 0012, 2ª volta): e-mail colado no fim de 
     expect(re.source.startsWith('(?<!')).toBe(true);
   });
 });
+
+// 04-regressao do 0012, 2ª volta (qa-automacao): o detector de e-mail é uma subclasse de RegExp com `exec` próprio.
+// Todos os caminhos do RegExp (`replace`, `replaceAll`, `matchAll`, `match`, `search`, `exec` e `test`) dão os mesmos
+// casamentos, com o `lastIndex` coerente em cada um. Em texto ASCII, em que a classe do usuário é a mesma da regex de
+// antes, `exec` e `test` a partir de qualquer `lastIndex` dão o mesmo que a regex de antes. Gerador com semente fixa; o
+// relógio só mede o tempo da ESP. Só valores fictícios, no domínio reservado exemplo.test.
+describe('M-a do 0011 (04-regressao do 0012, 2ª volta): o mesmo resultado em todos os caminhos do RegExp', () => {
+  const ANTIGA = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+  const LIMITE_MS = 200;
+  const MARCA = '[x]';
+  type Faixa = [number, number];
+
+  // Outra instância do detector, pelo mesmo construtor que `matchAll` usa (Symbol.species): mexer no `lastIndex` dela não
+  // toca o detector compartilhado.
+  const outra = (flags = DETECTORES['e-mail'].flags): RegExp => {
+    const Detector = DETECTORES['e-mail'].constructor as unknown as new (origem: RegExp, flags: string) => RegExp;
+    return new Detector(DETECTORES['e-mail'], flags);
+  };
+
+  const porMatchAll = (t: string): Faixa[] => [...t.matchAll(DETECTORES['e-mail'])].map((m) => [m.index, m.index + m[0].length]);
+
+  const porExec = (t: string, re: RegExp): Faixa[] => {
+    const r: Faixa[] = [];
+    re.lastIndex = 0;
+    for (let m = re.exec(t); m !== null; m = re.exec(t)) {
+      expect(m.input).toBe(t);
+      expect(re.lastIndex).toBe(m.index + m[0].length);
+      expect(t.slice(m.index, re.lastIndex)).toBe(m[0]);
+      r.push([m.index, re.lastIndex]);
+    }
+    expect(re.lastIndex).toBe(0);
+    return r;
+  };
+
+  const porTest = (t: string, re: RegExp): number[] => {
+    const fins: number[] = [];
+    re.lastIndex = 0;
+    while (re.test(t)) fins.push(re.lastIndex);
+    expect(re.lastIndex).toBe(0);
+    return fins;
+  };
+
+  const porTroca = (trocar: (re: RegExp, f: (m: string, inicio: number) => string) => string): Faixa[] => {
+    const r: Faixa[] = [];
+    trocar(DETECTORES['e-mail'], (m, inicio) => {
+      r.push([inicio, inicio + m.length]);
+      return MARCA;
+    });
+    expect(DETECTORES['e-mail'].lastIndex).toBe(0);
+    return r;
+  };
+
+  const trocado = (t: string, faixas: Faixa[]): string => {
+    let s = '';
+    let ultimo = 0;
+    for (const [i, f] of faixas) {
+      s += t.slice(ultimo, i) + MARCA;
+      ultimo = f;
+    }
+    return s + t.slice(ultimo);
+  };
+
+  // Os sete caminhos, no detector compartilhado e numa instância solta, contra as faixas do `matchAll`.
+  const conferirCaminhos = (t: string): Faixa[] => {
+    const faixas = porMatchAll(t);
+    expect(porExec(t, DETECTORES['e-mail'])).toEqual(faixas);
+    expect(porExec(t, outra())).toEqual(faixas);
+    expect(porTest(t, DETECTORES['e-mail'])).toEqual(faixas.map(([, f]) => f));
+    expect(porTroca((re, f) => t.replace(re, f))).toEqual(faixas);
+    expect(porTroca((re, f) => t.replaceAll(re, f))).toEqual(faixas);
+    expect(t.replace(DETECTORES['e-mail'], MARCA)).toBe(trocado(t, faixas));
+    expect(t.match(DETECTORES['e-mail'])).toEqual(faixas.length === 0 ? null : faixas.map(([i, f]) => t.slice(i, f)));
+    expect(t.search(DETECTORES['e-mail'])).toBe(faixas[0]?.[0] ?? -1);
+    expect(DETECTORES['e-mail'].lastIndex).toBe(0);
+    // `search` começa do zero mesmo com `lastIndex` > 0, e devolve o `lastIndex` de antes.
+    const solta = outra();
+    solta.lastIndex = 7;
+    expect(t.search(solta)).toBe(faixas[0]?.[0] ?? -1);
+    expect(solta.lastIndex).toBe(7);
+    return faixas;
+  };
+
+  const TEXTOS = [
+    'ana@exemplo.test+bia@exemplo.test',
+    'joana.ficticia@exemplo.test+pedro.ficticio@exemplo.test',
+    'joana.ficticia@exemplo.test_pedro.ficticio@exemplo.test',
+    'joana.ficticia@exemplo.test%pedro.ficticio@exemplo.test',
+    'joana.ficticia@exemplo.test-pedro@exemplo.test',
+    'joana.ficticia@exemplo.test2pedro@exemplo.test',
+    'joana.ficticia@exemplo.test.1pedro@exemplo.test',
+    'ana@exemplo.test-bia@exemplo.test-caio@exemplo.test',
+    'ana@exemplo.testébia@exemplo.test',
+    'ana@exemplo.test' + 'ébia@exemplo.test'.normalize('NFD'),
+    'Escreva para joão.ficticia@exemplo.test ou Joana@exemplo.test, hoje.',
+    'x ana@exemplo.test y',
+    'a@b.cc.a@b.cc',
+    'a@b.cca@b.cc',
+    'a@b.cc@b.cc',
+    'x@y@exemplo.test',
+    '-'.repeat(70) + 'joana.ficticia@exemplo.test',
+    'nada aqui',
+    '',
+  ];
+
+  it.each(TEXTOS)('%j: replace, replaceAll, matchAll, match, search, exec e test dão os mesmos casamentos', (t) => {
+    conferirCaminhos(t);
+  });
+
+  it('os dois e-mails colados por "+" dão duas faixas, a segunda começando no fim da primeira', () => {
+    expect(conferirCaminhos('ana@exemplo.test+bia@exemplo.test')).toEqual([
+      [0, 16],
+      [16, 33],
+    ]);
+  });
+
+  it('exec passo a passo: o lastIndex fica no fim de cada casamento, pelos dois caminhos do exec, e volta a zero', () => {
+    const re = outra();
+    const t = 'ana@exemplo.test+bia@exemplo.test x caio@exemplo.test';
+    const m1 = re.exec(t);
+    expect([m1?.index, m1?.[0], re.lastIndex]).toEqual([0, 'ana@exemplo.test', 16]);
+    const m2 = re.exec(t); // tentativa no fim do anterior (sticky)
+    expect([m2?.index, m2?.[0], re.lastIndex]).toEqual([16, '+bia@exemplo.test', 33]);
+    const m3 = re.exec(t); // a tentativa no fim do anterior falha (espaço); segue a regex ancorada
+    expect([m3?.index, m3?.[0], re.lastIndex]).toEqual([36, 'caio@exemplo.test', 53]);
+    expect(re.exec(t)).toBeNull();
+    expect(re.lastIndex).toBe(0);
+    expect(re.exec(t)?.index).toBe(0); // recomeça do zero, como qualquer RegExp global
+  });
+
+  it('test passo a passo: verdadeiro, verdadeiro, falso, com o mesmo lastIndex do exec', () => {
+    const re = outra();
+    const t = 'ana@exemplo.test+bia@exemplo.test';
+    expect([re.test(t), re.lastIndex]).toEqual([true, 16]);
+    expect([re.test(t), re.lastIndex]).toEqual([true, 33]);
+    expect([re.test(t), re.lastIndex]).toEqual([false, 0]);
+  });
+
+  it.each([0, 1, 2, 16, 16.7, 17, 33, 34, 1_000, -1, Number.NaN])(
+    'lastIndex %d posto à mão: exec e test dão o mesmo que a regex de antes',
+    (k) => {
+      const t = 'ana@exemplo.test+bia@exemplo.test';
+      const re = outra();
+      re.lastIndex = k;
+      ANTIGA.lastIndex = k;
+      const d = re.exec(t);
+      const a = ANTIGA.exec(t);
+      expect([d?.index, d?.[0], re.lastIndex]).toEqual([a?.index, a?.[0], ANTIGA.lastIndex]);
+      re.lastIndex = k;
+      ANTIGA.lastIndex = k;
+      expect([re.test(t), re.lastIndex]).toEqual([ANTIGA.test(t), ANTIGA.lastIndex]);
+      ANTIGA.lastIndex = 0;
+    },
+  );
+
+  it('instância sem a flag g ignora o lastIndex e não o muda, como a regex de antes sem g', () => {
+    const t = 'ana@exemplo.test+bia@exemplo.test';
+    const re = outra('u');
+    const antiga = new RegExp(ANTIGA.source);
+    re.lastIndex = 16;
+    antiga.lastIndex = 16;
+    const d = re.exec(t);
+    const a = antiga.exec(t);
+    expect([d?.index, d?.[0], re.lastIndex]).toEqual([0, 'ana@exemplo.test', 16]);
+    expect([a?.index, a?.[0], antiga.lastIndex]).toEqual([0, 'ana@exemplo.test', 16]);
+  });
+
+  it('buscas intercaladas não dividem estado: matchAll em andamento, troca no detector compartilhado e outra instância no meio', () => {
+    const t = 'ana@exemplo.test+bia@exemplo.test+caio@exemplo.test';
+    const esperado = porMatchAll(t);
+    expect(esperado).toHaveLength(3);
+    const iterador = t.matchAll(DETECTORES['e-mail']);
+    const vistos: Faixa[] = [];
+    const primeiro = iterador.next();
+    if (!primeiro.done) vistos.push([primeiro.value.index, primeiro.value.index + primeiro.value[0].length]);
+    expect('davi@exemplo.test_eva@exemplo.test'.replace(DETECTORES['e-mail'], MARCA)).toBe(MARCA + MARCA);
+    const solta = outra();
+    solta.lastIndex = 5;
+    expect(solta.exec('zzzzz+w@exemplo.test')?.index).toBe(5);
+    for (const m of iterador) vistos.push([m.index, m.index + m[0].length]);
+    expect(vistos).toEqual(esperado);
+
+    const r1 = outra();
+    const r2 = outra();
+    const t1 = 'ana@exemplo.test+bia@exemplo.test';
+    const t2 = 'caio@exemplo.test_davi@exemplo.test';
+    const seq = [r1.exec(t1), r2.exec(t2), r1.exec(t1), r2.exec(t2), r1.exec(t1), r2.exec(t2)].map((m) => (m ? [m.index, m[0]] : null));
+    expect(seq).toEqual([[0, 'ana@exemplo.test'], [0, 'caio@exemplo.test'], [16, '+bia@exemplo.test'], [17, '_davi@exemplo.test'], null, null]);
+  });
+
+  // Gerador com semente fixa (mulberry32): o mesmo corpus em toda execução, sem Math.random.
+  const gerador = (semente: number) => () => {
+    semente = (semente + 0x6d2b79f5) | 0;
+    let x = Math.imul(semente ^ (semente >>> 15), 1 | semente);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  const gerarTexto = (r: () => number, pedacos: readonly string[]): string => {
+    const quantos = 2 + Math.floor(r() * 5);
+    let t = '';
+    for (let i = 0; i < quantos; i++) t += pedacos[Math.floor(r() * pedacos.length)];
+    return t;
+  };
+  const ASCII = ['a@b.cc', 'ab@c.de', 'ana@exemplo.test', 'x', '1', '.', '-', '_', '+', '%', '@', ' ', ','];
+
+  it('corpus ASCII gerado (3.000 textos): exec e test a partir de cada lastIndex dão o mesmo que a regex de antes', () => {
+    const r = gerador(20261104);
+    const re = outra();
+    const falhas: string[] = [];
+    for (let n = 0; n < 3_000 && falhas.length < 10; n++) {
+      const t = gerarTexto(r, ASCII);
+      for (let k = 0; k <= t.length + 1; k++) {
+        re.lastIndex = k;
+        ANTIGA.lastIndex = k;
+        const d = re.exec(t);
+        const a = ANTIGA.exec(t);
+        const execIgual = d?.index === a?.index && d?.[0] === a?.[0] && re.lastIndex === ANTIGA.lastIndex;
+        re.lastIndex = k;
+        ANTIGA.lastIndex = k;
+        const testIgual = re.test(t) === ANTIGA.test(t) && re.lastIndex === ANTIGA.lastIndex;
+        if (!execIgual || !testIgual) {
+          falhas.push(`${JSON.stringify(t)} lastIndex=${k}`);
+          break;
+        }
+      }
+    }
+    ANTIGA.lastIndex = 0;
+    expect(falhas).toEqual([]);
+  });
+
+  it('corpus gerado com acento e NFD (3.000 textos): os sete caminhos dão os mesmos casamentos', () => {
+    const r = gerador(20261105);
+    const pedacos = [...ASCII, 'é', 'é'.normalize('NFD'), 'joão@exemplo.test'];
+    for (let n = 0; n < 3_000; n++) conferirCaminhos(gerarTexto(r, pedacos));
+  });
+
+  // Casos ruins para a tentativa no fim do casamento anterior: sequência longa logo depois de um e-mail, com e sem "@",
+  // domínio sem ponto, cadeia de e-mails colados e domínio que volta atrás. Cada caminho, abaixo de 200 ms.
+  const CASOS_RUINS: [string, string][] = [
+    ['e-mail e 100 mil "x" colados, sem "@"', 'a@b.cc+' + 'x'.repeat(100_000)],
+    ['e-mail, 1.000 de usuário, "@" e 1.000 de domínio sem ponto, 50 vezes', ('a@b.cc+' + 'x'.repeat(1_000) + '@' + 'y'.repeat(1_000) + ' ').repeat(50)],
+    ['e-mails colados por "+", 102 mil caracteres', 'ana@exemplo.test+'.repeat(6_000)],
+    ['e-mail e ".a" repetido 50 mil vezes', 'a@b.cc' + '.a'.repeat(50_000)],
+    ['e-mail e "-a@b" repetido 25 mil vezes', 'a@b.cc' + '-a@b'.repeat(25_000)],
+    ['"a@b.cc@" repetido 15 mil vezes', 'a@b.cc@'.repeat(15_000)],
+    ['e-mail e "é" em NFD colado 50 mil vezes', 'a@b.cc' + 'é'.normalize('NFD').repeat(50_000)],
+    ['e-mail e 100 mil dígitos', 'a@b.cc' + '1'.repeat(100_000)],
+  ];
+
+  it.each(CASOS_RUINS)('tempo: %s, em cada caminho, em menos de 200 ms', (_nome, t) => {
+    const caminhos: [string, () => unknown][] = [
+      ['replace', () => t.replace(DETECTORES['e-mail'], MARCA)],
+      ['matchAll', () => [...t.matchAll(DETECTORES['e-mail'])].length],
+      ['match', () => t.match(DETECTORES['e-mail'])?.length],
+      ['search', () => t.search(DETECTORES['e-mail'])],
+      [
+        'exec',
+        () => {
+          const re = outra();
+          let n = 0;
+          while (re.exec(t)) n++;
+          return n;
+        },
+      ],
+      [
+        'test',
+        () => {
+          const re = outra();
+          let n = 0;
+          while (re.test(t)) n++;
+          return n;
+        },
+      ],
+    ];
+    for (const [nome, f] of caminhos) {
+      const inicio = performance.now();
+      f();
+      const ms = performance.now() - inicio;
+      expect(ms, nome).toBeLessThan(LIMITE_MS);
+    }
+    expect(DETECTORES['e-mail'].lastIndex).toBe(0);
+  });
+
+  it('tempo linear: 1 milhão de caracteres com os casos ruins juntos, troca de todas as ocorrências em menos de 2 s', () => {
+    let t = '';
+    for (let i = 0; t.length < 1_000_000; i++) t += CASOS_RUINS[i % CASOS_RUINS.length]![1].slice(0, 20_000) + ' ';
+    const inicio = performance.now();
+    const s = t.replace(DETECTORES['e-mail'], MARCA);
+    const ms = performance.now() - inicio;
+    expect(s).toContain(MARCA);
+    expect(s).not.toContain('a@b.cc');
+    expect(ms).toBeLessThan(10 * LIMITE_MS);
+  });
+});
