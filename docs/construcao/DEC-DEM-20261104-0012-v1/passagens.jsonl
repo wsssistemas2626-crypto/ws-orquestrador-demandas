@@ -7,3 +7,4 @@
 {"pedido":"DEC-DEM-20261104-0012-v1","etapa":"03-correcao","de":"engenheiro-backend","para":"qa-automacao","status":"pronto","volta":3,"inicio":"2026-11-04T14:43:23.000Z","fim":"2026-11-04T14:43:56.544Z","minutos":1,"motivo":null}
 {"pedido":"DEC-DEM-20261104-0012-v1","etapa":"04-regressao","de":"qa-automacao","para":"maestro","status":"pronto","volta":1,"inicio":"2026-11-04T14:44:00.000Z","fim":"2026-11-04T15:25:31.739Z","minutos":42,"motivo":null}
 {"pedido":"DEC-DEM-20261104-0012-v1","etapa":"04-revisao","de":"maestro","para":"devops-sre","status":"pronto","volta":0,"inicio":"2026-11-04T15:25:43.000Z","fim":"2026-11-04T15:25:43.305Z","minutos":0,"motivo":null}
+{"pedido":"DEC-DEM-20261104-0012-v1","etapa":"05-entrega","de":"devops-sre","para":"devops-sre","status":"bloqueado","volta":0,"inicio":"2026-11-04T15:25:50.000Z","fim":"2026-11-04T15:28:10.835Z","minutos":2,"motivo":"comando fora da lista Pode: ls -la da pasta do pedido (só leitura)"}

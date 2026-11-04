@@ -7,7 +7,7 @@
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 04/11/2026 (`documentacao-tecnica`, pedido 0011: versão 0.1.10; `devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 04/11/2026 (`devops-sre`, pedido 0012: rollback da 0.1.11 na seção 6, para a `v0.1.10`, risco residual do M-1 do 0009 reduzido de novo na seção 4 e erro que lança ao ser lido na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0011: versão 0.1.10; `devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -112,10 +112,13 @@ primeira publicação.
 Fica um **risco residual (M-1 da revisão do 0009)**, para aceite de Fabiano e da `gestao-riscos`. Até a 0.1.9, só o
 nome **atual e completo** do solicitante era trocado. A 0.1.10 (pedido 0011, opção (b) refinada decidida por Fabiano
 em 04/11) troca também cada parte do nome atual com 3 letras ou mais, quando no texto ela começa por maiúscula, sem
-diferença de acento, com as partículas e os sufixos de parentesco de fora. Continuam saindo em claro para o agente: o
-nome escrito todo em minúscula (`joana pediu`, aceito no RSK do 0011), o nome grudado em número, `_` ou CamelCase
-(`Joana2`, `Joana_Ficticia`, B-1 da revisão do 0011), o nome antigo de antes de uma edição da demanda (a troca usa o
-nome atual) e nomes de outras pessoas. Não é regressão e não bloqueia a publicação.
+diferença de acento, com as partículas e os sufixos de parentesco de fora. A 0.1.11 (pedido 0012) troca também a parte
+grudada em número, em `_` ou em CamelCase (`Joana2`, `Joana_Ficticia`, `@JoanaFicticia`, B-1 da revisão do 0011), e o
+nome completo com `_` entre as partes, mesmo em minúscula (`joana_ficticia`). Continuam saindo em claro para o agente:
+a parte escrita toda em minúscula (`joana pediu`, aceito no RSK do 0011), o nome todo em maiúscula sem separador entre
+as partes (`JOANAFICTICIA`), a parte curta quando outra parte do nome começa por ela e as duas vêm grudadas
+(`AnaBelax` com `Ana` e `Anabela`, B-3 da revisão do 0012), o nome antigo de antes de uma edição da demanda (a troca usa
+o nome atual) e nomes de outras pessoas. Não é regressão e não bloqueia a publicação.
 
 1. Snapshot no hPanel.
 2. Criar o projeto e o serviço `db` (Postgres 16). O usuário criado pelo Easypanel é o **migrator** (dono do banco).
@@ -125,7 +128,7 @@ nome atual) e nomes de outras pessoas. Não é regressão e não bloqueia a publ
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
 5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
    - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
-   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.10, que não mudam `drizzle/`): roda o passo "Disparar o
+   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.11, que não mudam `drizzle/`): roda o passo "Disparar o
      Easypanel".
      - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
        EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
@@ -196,6 +199,26 @@ na homologação por `construir.mjs ensaiar-rollback <DEC-id>` antes de cada PR 
 anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaurar`, e as 7 migrations novas não alteram
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
+
+A 0.1.11 não traz migration: `drizzle/` não muda em relação à 0.1.10, e o journal é o mesmo da 0.1.10 à 0.1.0. Ela não
+grava valor novo no banco: o detector de e-mail novo e a troca do nome grudado valem só no texto que vai ao agente, na
+resposta da API ao ator que não é pessoa e na busca de dado pessoal que bloqueia o Pedido de Construção (que não grava
+nada), o aviso e a dica são só texto da tela, e as mudanças em `reduzirErro`, `mapearErro`, no log, no console saneado e
+no gancho `onRequestError` são só no log, no envio ao Sentry e na resposta 500 de erro interno. O que o agente escreveu
+com a 0.1.11 pode trazer mais `[nome removido]` e `[e-mail removido]` no texto, marcadores que a 0.1.10 já produz e lê
+sem diferença. A volta da 0.1.11 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:2e621de1c91f31d9ed636a3e7ad38c939bebac11` (a `v0.1.10`,
+commit de merge do PR #12 na `main`), sem restaurar backup. Antes de voltar, confirme a tag em Packages. Ao voltar,
+reabrem: a regex de e-mail de custo quadrático (M-a do 0011), em que um texto longo sem `@` (100 mil caracteres, o
+limite do texto bruto) trava o event loop do `worker` ou do `app` por até cerca de 20 s a cada minimização ou busca do
+Pedido de Construção; o usuário de e-mail com acento sai em parte em claro (`joã[e-mail removido]`, B-2 do 0011); a
+parte do nome grudada em número, `_` ou CamelCase sai em claro para o agente (B-1 do 0011); um erro com getter que lança
+em `name`, `code` ou `cause`, ou um Proxy, volta a escapar da `rota()` sem chegar ao log nem ao Sentry (B-3 do 0011); e
+o aviso e a dica voltam a não dizer o limite de 3 letras, as partículas e a parte em minúscula (B-4 do 0011). Como a
+própria 0.1.10 tem o M-a, que pode ser a causa de lentidão, a volta é só para indisponibilidade que a 0.1.11 cause, e a
+correção vem logo depois. Se a 0.1.11 for a primeira publicação (seção 4), não há versão no ar para onde voltar: a volta
+é parar `app` e `worker` no Easypanel, e não publicar a 0.1.10 no lugar dela. O ensaio é o `ensaiar-rollback` da
+Parada 3.
 
 A 0.1.10 não traz migration: `drizzle/` não muda em relação à 0.1.9, e o journal é o mesmo da 0.1.9 à 0.1.0. Ela não
 grava valor novo no banco: a troca de cada parte do nome do solicitante é só no texto que vai ao agente (entrada do
@@ -311,7 +334,10 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
    aparece, e o mesmo objeto de erro vai uma vez só ao Sentry, mesmo que chegue ao gancho e ao console; cada
    `console.error` continua deixando a sua linha no log. Desde a 0.1.10, o `name` do erro só vira classe quando é texto
    (fora disso, sai `Error`), e o objeto só conta como enviado depois que o Sentry o recebe: se a redução do erro falhar
-   na primeira vez, a próxima chegada do mesmo objeto ainda gera um evento.
+   na primeira vez, a próxima chegada do mesmo objeto ainda gera um evento. Desde a 0.1.11, um erro que lança ao ter
+   `name`, `code` ou `cause` lido (getter ou Proxy) aparece no log e no Sentry com a classe `Error`, e a rota responde
+   500 `erro_interno`; quando nem dá para saber se é um Error (Proxy cujo protótipo não se lê), o log diz
+   `desconhecido`, e a linha `console_erro` sai sem o campo `erro`.
 3. Em `/configuracao/agentes`, batimento do worker com menos de 5 minutos e uma instância só.
 4. Entrar com uma conta real (senha e 2FA) e abrir a fila de demandas.
 
