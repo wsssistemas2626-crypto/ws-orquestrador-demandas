@@ -355,15 +355,26 @@ describe('T11: Pedido de Construção (T44)', () => {
     }
   });
 
-  it('aprovado: a seção vem depois de "Registrar decisão", com o texto da 03, o aviso de C-28 e o botão; nada gerado ainda', async () => {
+  it('aprovado: a seção vem depois de "Registrar decisão", com o texto da 03, o aviso de C-28, a caixa de confirmação e o botão; nada gerado ainda', async () => {
     mPacote.mockResolvedValue(aprovado());
     const s = await pagina();
     expect(s).toMatch(/<section aria-labelledby="pedido-construcao"[^>]*><h2 id="pedido-construcao"[^>]*>Pedido de Construção<\/h2>/);
     expect(s.search(TITULO_DA_SECAO)).toBeGreaterThan(s.search(/<h2[^>]*>Registrar decisão<\/h2>/));
     const secao = s.slice(s.search(TITULO_DA_SECAO));
     expect(secao).toContain('Gere o pedido, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma. O envio ao /construir é manual nesta versão.');
-    expect(secao).toContain('O pedido vai para o repositório git da estruturaAutonoma. Não deixe nome, e-mail ou telefone de cliente na ESP nem no parecer de risco.');
+    // D3 do 0013: o aviso novo e, entre ele e o botão, a caixa desmarcada com rótulo associado e obrigatória; o botão
+    // continua habilitado (validação no envio).
+    expect(secao).toContain(
+      'O pedido vai para o repositório git da estruturaAutonoma. Não deixe nome, e-mail, telefone ou CPF de qualquer pessoa ou do cliente no título, na descrição, na ESP nem no parecer de risco.',
+    );
+    expect(secao).toMatch(
+      /<input type="checkbox" id="confirma-sem-dado-pessoal" aria-required="true"[^>]*\/><label for="confirma-sem-dado-pessoal">Confirmo que o título, a descrição, a ESP e o parecer de risco deste pacote não têm dado pessoal de ninguém: nome, e-mail, telefone ou CPF\.<\/label>/,
+    );
+    expect(secao).not.toMatch(/id="confirma-sem-dado-pessoal"[^>]*checked/);
+    expect(secao.search('id="confirma-sem-dado-pessoal"')).toBeGreaterThan(secao.search('O pedido vai para o repositório git'));
+    expect(secao.search('id="gerar-pedido-construcao"')).toBeGreaterThan(secao.search('id="confirma-sem-dado-pessoal"'));
     expect(secao).toMatch(/<button type="button"[^>]*>Gerar Pedido de Construção<\/button>/);
+    expect(secao).not.toMatch(/<button[^>]*\sdisabled[=\s>][^>]*>Gerar Pedido de Construção/);
     // C-16: nada é gerado ao abrir a página; sem link de baixar, sem bloco e sem formulário (o botão chama a ação).
     expect(secao).not.toContain('Baixar ');
     expect(secao).not.toContain('Conteúdo do Pedido de Construção');

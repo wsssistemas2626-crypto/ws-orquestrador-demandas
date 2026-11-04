@@ -17,6 +17,8 @@
 // ("30 dias", "camisa rosa"); o nome escrito todo em minúscula ("a joana pediu") sobra, risco aceito no RSK do 0011.
 // Sem acento nos dois sentidos, e também com o texto em NFD: a busca corre sobre uma cópia do texto dobrada sem mudar o
 // comprimento, e a troca é feita na mesma faixa do texto original, que não é normalizado.
+// D1 do 0013: os passos 3 e 4 ficam em `trocarNomes`, e o Pedido de Construção pergunta por `temNome` se o texto tem o
+// nome do solicitante (a mesma regra, sem cópia), para recusar a geração em vez de trocar.
 import { DETECTORES, type TipoDadoPessoal } from './detectores';
 
 export const MARCADORES: Record<TipoDadoPessoal, string> = {
@@ -240,12 +242,9 @@ function trocarNome(s: string, re: RegExp, aceitar: Aceitar = () => true): strin
     .join('');
 }
 
-export function minimizar(texto: string, op: { nomes?: readonly string[] } = {}): string {
-  let s = texto.replace(CABECALHOS_DE_EMAIL, '');
-  // `replace` com regex global começa do zero e devolve o `lastIndex` a zero: os detectores compartilhados não guardam
-  // estado de uma chamada para a outra.
-  for (const tipo of ORDEM) s = s.replace(DETECTORES[tipo], MARCADORES[tipo]);
-  const nomes = op.nomes ?? [];
+// Passos 3 e 4 de `minimizar` (nome completo e partes), sem o cabeçalho de e-mail e sem os detectores.
+function trocarNomes(texto: string, nomes: readonly string[]): string {
+  let s = texto;
   for (const nome of nomes) {
     const re = padraoDoNome(nome);
     if (re) s = trocarNome(s, re);
@@ -253,6 +252,22 @@ export function minimizar(texto: string, op: { nomes?: readonly string[] } = {})
   const partes = padraoDasPartes(nomes);
   if (partes) s = trocarNome(s, partes, aceitarParte);
   return s;
+}
+
+// D1 do 0013: o texto tem o nome, inteiro ou uma parte aceita pela mesma regra? É "a etapa do nome mudaria o texto": a
+// troca só acontece fora de marcador e sempre põe MARCADOR_NOME no lugar de um trecho que não é esse marcador, então a
+// igualdade é exata. Só a etapa do nome: "Para: o financeiro" (cabeçalho) não conta, e e-mail, telefone e CPF ficam com
+// os detectores (C-28). Uma regra só com `minimizar`, sem cópia.
+export function temNome(texto: string, nomes: readonly string[]): boolean {
+  return trocarNomes(texto, nomes) !== texto;
+}
+
+export function minimizar(texto: string, op: { nomes?: readonly string[] } = {}): string {
+  let s = texto.replace(CABECALHOS_DE_EMAIL, '');
+  // `replace` com regex global começa do zero e devolve o `lastIndex` a zero: os detectores compartilhados não guardam
+  // estado de uma chamada para a outra.
+  for (const tipo of ORDEM) s = s.replace(DETECTORES[tipo], MARCADORES[tipo]);
+  return trocarNomes(s, op.nomes ?? []);
 }
 
 // O texto e cada texto de uma lista passam por `minimizar`; o resto (nulo, número, booleano) sai como está. Uma regra

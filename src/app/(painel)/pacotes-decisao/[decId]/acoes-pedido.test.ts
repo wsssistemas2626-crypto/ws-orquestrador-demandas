@@ -32,6 +32,13 @@ vi.mock('../../../../lib/sentry', () => ({ capturarErro: () => undefined }));
 
 const DIA_MS = 86_400_000;
 const EMAIL_FICTICIO = 'pessoa.ficticia@cliente.test';
+// D3 do 0013: a tela manda a confirmação de que o texto não tem dado pessoal (a caixa marcada da T11).
+const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
+// D1 do 0013: a orientação do 422 de dado pessoal na ESP (linhas 3 e 6 de orientacaoDoPedido).
+const ORIENTACAO_ESP = [
+  'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
+  'Atenção: com este pacote aprovado, outro pacote desta demanda não pode ser aprovado nesta versão. Fale com o CTO antes de refazer o texto.',
+];
 
 let b: BancoDeTeste;
 let deps: Deps;
@@ -104,26 +111,26 @@ beforeEach(() => {
 describe('gerarPedidoNoPainel (T44)', () => {
   it('aprovado: o JSON e o nome do arquivo de gerarPedido, byte a byte; gerar de novo devolve o mesmo (CA-22.2)', async () => {
     const decId = await novoPacote('novo_projeto', espConstruida);
-    const r = await gerarPedidoNoPainel({ decId });
+    const r = await gerarPedidoNoPainel({ decId, ...CONFIRMADO });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(Object.keys(r.dados).sort()).toEqual(['json', 'nomeArquivo']);
     expect(r.dados.nomeArquivo).toBe(`${decId}.json`);
-    expect(r.dados).toEqual(await gerarPedido(deps, cto, decId));
+    expect(r.dados).toEqual(await gerarPedido(deps, cto, decId, CONFIRMADO));
     expect(JSON.parse(r.dados.json)).toMatchObject({ pedido: decId, sistema_alvo: 'sistema-ficticio', repositorio_destino: 'wsssistemas2626-crypto/sistema-ficticio' });
     relogio.avancar(DIA_MS);
-    expect(await gerarPedidoNoPainel({ decId })).toEqual(r);
+    expect(await gerarPedidoNoPainel({ decId, ...CONFIRMADO })).toEqual(r);
   });
 
   it('a administradora também gera (gerar_pedido_construcao é de pessoa)', async () => {
     const decId = await novoPacote('novo_projeto', espConstruida);
     como(cookieAdm);
-    expect(await gerarPedidoNoPainel({ decId })).toMatchObject({ ok: true, dados: { nomeArquivo: `${decId}.json` } });
+    expect(await gerarPedidoNoPainel({ decId, ...CONFIRMADO })).toMatchObject({ ok: true, dados: { nomeArquivo: `${decId}.json` } });
   });
 
   it('pacote pendente: 409, e a tela mostra "Não foi possível concluir: …"', async () => {
     const decId = await novoPacote('novo_projeto', espConstruida, false);
-    const r = await gerarPedidoNoPainel({ decId });
+    const r = await gerarPedidoNoPainel({ decId, ...CONFIRMADO });
     expect(r).toMatchObject({ ok: false, erro: 'conflito', mensagem: MENSAGENS_PEDIDO.naoAprovado });
     if (r.ok) return;
     expect(erroDoPedido(r).texto).toBe(`Não foi possível concluir: ${MENSAGENS_PEDIDO.naoAprovado}`);
@@ -131,33 +138,50 @@ describe('gerarPedidoNoPainel (T44)', () => {
 
   it('Estudo: 422, e a tela mostra "Demanda do tipo Estudo não gera Pedido de Construção."', async () => {
     const decId = await novoPacote('estudo', { descricaoObjetiva: 'Estudo (fictício)', escopoInclui: ['Comparar opções (fictício)'] });
-    const r = await gerarPedidoNoPainel({ decId });
+    const r = await gerarPedidoNoPainel({ decId, ...CONFIRMADO });
     expect(r).toMatchObject({ ok: false, erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.estudo });
     if (r.ok) return;
-    expect(erroDoPedido(r)).toEqual({ texto: 'Demanda do tipo Estudo não gera Pedido de Construção.', erros: [], orientacao: null });
+    expect(erroDoPedido(r)).toEqual({ texto: 'Demanda do tipo Estudo não gera Pedido de Construção.', erros: [], orientacao: [] });
   });
 
   it('C-28: e-mail fictício na ESP → 422 com o campo e o tipo; o valor não aparece em parte nenhuma do resultado', async () => {
     const decId = await novoPacote('novo_projeto', { ...espConstruida, descricaoObjetiva: `Falar com ${EMAIL_FICTICIO} (fictício)` });
-    const r = await gerarPedidoNoPainel({ decId });
+    const r = await gerarPedidoNoPainel({ decId, ...CONFIRMADO });
     expect(r).toMatchObject({ ok: false, erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.naoPassou, erros: ['especificacao.conteudo: e-mail'] });
     expect(JSON.stringify(r)).not.toContain(EMAIL_FICTICIO);
     if (r.ok) return;
     expect(erroDoPedido(r)).toEqual({
       texto: 'O pedido não passou na validação do /construir. Nada foi entregue. Erros:',
       erros: ['especificacao.conteudo: e-mail'],
-      orientacao: 'Corrija criando uma versão nova da ESP e um pacote novo.',
+      orientacao: ORIENTACAO_ESP,
     });
+  });
+
+  it('D3 do 0013: sem a confirmação ({ decId }) ou com false → 422 semConfirmacao, sem evento, e a tela mostra o texto sem lista nem orientação', async () => {
+    const decId = await novoPacote('novo_projeto', espConstruida);
+    for (const entrada of [{ decId }, { decId, confirmaSemDadoPessoal: false }]) {
+      const r = await gerarPedidoNoPainel(entrada);
+      expect(r, JSON.stringify(entrada)).toEqual({ ok: false, erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.semConfirmacao });
+      if (r.ok) continue;
+      expect(erroDoPedido(r)).toEqual({ texto: MENSAGENS_PEDIDO.semConfirmacao, erros: [], orientacao: [] });
+    }
+    // Tipo errado: erro de entrada, como em todo corpo.
+    expect(await gerarPedidoNoPainel({ decId, confirmaSemDadoPessoal: 'true' })).toMatchObject({ ok: false, erro: 'entrada_invalida' });
+    const eventos = await b.db
+      .select()
+      .from(evento)
+      .where(and(eq(evento.entidadeId, decId), eq(evento.acao, 'pedido_gerado')));
+    expect(eventos).toEqual([]);
   });
 
   it('C-17: id fora do formato ou de outra versão é recusado antes do banco; DEC que não existe dá 404; sem sessão, 401', async () => {
     for (const decId of ['DEC-1', 'ESP-DEM-20261022-0001-v1', 'DEM-20261022-0001', "DEC-DEM-20261022-0001-v1'"])
-      expect(await gerarPedidoNoPainel({ decId }), decId).toMatchObject({ ok: false, erro: 'entrada_invalida' });
+      expect(await gerarPedidoNoPainel({ decId, ...CONFIRMADO }), decId).toMatchObject({ ok: false, erro: 'entrada_invalida' });
     expect(await gerarPedidoNoPainel({})).toMatchObject({ ok: false, erro: 'entrada_invalida' });
-    expect(await gerarPedidoNoPainel({ decId: 'DEC-DEM-20991231-9999-v1' })).toMatchObject({ ok: false, erro: 'nao_encontrado' });
+    expect(await gerarPedidoNoPainel({ decId: 'DEC-DEM-20991231-9999-v1', ...CONFIRMADO })).toMatchObject({ ok: false, erro: 'nao_encontrado' });
     const decId = await novoPacote('novo_projeto', espConstruida);
     pedido.cabecalhos = new Headers();
-    expect(await gerarPedidoNoPainel({ decId })).toMatchObject({ ok: false, erro: 'nao_autenticado' });
+    expect(await gerarPedidoNoPainel({ decId, ...CONFIRMADO })).toMatchObject({ ok: false, erro: 'nao_autenticado' });
   });
 });
 
@@ -211,39 +235,39 @@ describe('gerarPedidoNoPainel: a regra do servidor sem a ajuda da tela (qa-autom
         // Arquivar encerra a demanda: desde a 0.1.6 (M-08), a recusa é a da demanda em status final, que vem antes do
         // status do DEC. Continua 409, sem evento.
         const mensagem = decId === arquivado ? MENSAGENS_PEDIDO.demandaFinal : MENSAGENS_PEDIDO.naoAprovado;
-        const r = await gerarPedidoNoPainel({ decId });
+        const r = await gerarPedidoNoPainel({ decId, ...CONFIRMADO });
         expect(r, `${conta} ${decId}`).toEqual({ ok: false, erro: 'conflito', mensagem });
         if (r.ok) continue;
-        expect(erroDoPedido(r)).toEqual({ texto: `Não foi possível concluir: ${mensagem}`, erros: [], orientacao: null });
+        expect(erroDoPedido(r)).toEqual({ texto: `Não foi possível concluir: ${mensagem}`, erros: [], orientacao: [] });
       }
     }
     for (const decId of [devolvido, arquivado, soCto, soAdm]) expect(await eventosDoPedido(decId), decId).toEqual([]);
   });
 
-  it('RF-21: cada geração pela ação grava um pedido_gerado com a pessoa da sessão e sem conteúdo; recusa e conta sem 2FA não gravam', async () => {
+  it('RF-21: cada geração pela ação grava um pedido_gerado com a pessoa da sessão e a confirmação (D3 do 0013), sem conteúdo; recusa e conta sem 2FA não gravam', async () => {
     const decId = await novoPacote('novo_projeto', espConstruida);
     expect(await eventosDoPedido(decId)).toEqual([]);
 
-    const r1 = await gerarPedidoNoPainel({ decId });
+    const r1 = await gerarPedidoNoPainel({ decId, ...CONFIRMADO });
     como(cookieAdm);
-    const r2 = await gerarPedidoNoPainel({ decId });
+    const r2 = await gerarPedidoNoPainel({ decId, ...CONFIRMADO });
     expect(r1.ok).toBe(true);
     expect(r2).toEqual(r1);
     expect((await eventosDoPedido(decId)).map((e) => [e.atorTipo, e.atorId, e.entidade, e.demandaId, e.antes, e.depois])).toEqual([
-      ['pessoa', cto.usuarioId, 'pacote_decisao', decId.slice('DEC-'.length, decId.lastIndexOf('-v')), null, null],
-      ['pessoa', adm.usuarioId, 'pacote_decisao', decId.slice('DEC-'.length, decId.lastIndexOf('-v')), null, null],
+      ['pessoa', cto.usuarioId, 'pacote_decisao', decId.slice('DEC-'.length, decId.lastIndexOf('-v')), null, { confirmaSemDadoPessoal: true }],
+      ['pessoa', adm.usuarioId, 'pacote_decisao', decId.slice('DEC-'.length, decId.lastIndexOf('-v')), null, { confirmaSemDadoPessoal: true }],
     ]);
 
     // C-04: com senha certa e sem 2FA a ação não roda, e nada é gravado.
     const sem2fa = await criarPessoa(deps, { papel: 'cto', com2fa: false });
     como(sem2fa.cookie);
-    expect(await gerarPedidoNoPainel({ decId })).toMatchObject({ ok: false, erro: 'sem_2fa' });
+    expect(await gerarPedidoNoPainel({ decId, ...CONFIRMADO })).toMatchObject({ ok: false, erro: 'sem_2fa' });
     expect(await eventosDoPedido(decId)).toHaveLength(2);
 
     // Recusa pelo C-28 (422) também não grava.
     como(cookieCto);
     const comEmail = await novoPacote('novo_projeto', { ...espConstruida, descricaoObjetiva: `Falar com ${EMAIL_FICTICIO} (fictício)` });
-    expect(await gerarPedidoNoPainel({ decId: comEmail })).toMatchObject({ ok: false, erro: 'nao_processavel' });
+    expect(await gerarPedidoNoPainel({ decId: comEmail, ...CONFIRMADO })).toMatchObject({ ok: false, erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.naoPassou });
     expect(await eventosDoPedido(comEmail)).toEqual([]);
   });
 
@@ -258,11 +282,11 @@ describe('gerarPedidoNoPainel: a regra do servidor sem a ajuda da tela (qa-autom
     });
     let json = '';
     try {
-      const r = await gerarPedidoNoPainel({ decId: aprovado });
+      const r = await gerarPedidoNoPainel({ decId: aprovado, ...CONFIRMADO });
       if (r.ok) json = r.dados.json;
-      await gerarPedidoNoPainel({ decId: comEmail });
+      await gerarPedidoNoPainel({ decId: comEmail, ...CONFIRMADO });
       pedido.cabecalhos = new Headers();
-      await gerarPedidoNoPainel({ decId: aprovado });
+      await gerarPedidoNoPainel({ decId: aprovado, ...CONFIRMADO });
     } finally {
       substituirDestinoDoLog(null);
     }

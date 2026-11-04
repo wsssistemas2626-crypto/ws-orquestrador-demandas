@@ -224,8 +224,11 @@ export function textoDoEvento(e: EventoVisivel, op: { retencaoDias?: number } = 
       const motivo = MOTIVO_IGNORADO[String(d.motivo)];
       return `${agente ? NOME_AGENTE[agente] : 'Agente'} não rodou${motivo ? `: ${motivo}` : ''}`;
     }
+    // D3 do 0013: o evento grava a confirmação de que o texto não tem dado pessoal; o evento antigo, sem ela, não a cita.
     case 'pedido_gerado':
-      return `Gerou o Pedido de Construção de ${e.entidadeId}`;
+      return d.confirmaSemDadoPessoal === true
+        ? `Gerou o Pedido de Construção de ${e.entidadeId}, com a confirmação de que o texto não tem dado pessoal`
+        : `Gerou o Pedido de Construção de ${e.entidadeId}`;
     case 'texto_expurgado':
       return `Apagou o texto recebido (retenção de ${op.retencaoDias ?? 90} dias)`;
     // Os eventos abaixo não são de uma demanda (demanda_id nulo) e não aparecem no histórico dela; os textos ficam
