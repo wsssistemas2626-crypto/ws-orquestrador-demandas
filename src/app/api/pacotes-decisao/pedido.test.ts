@@ -46,13 +46,15 @@ let autoras = 0;
 type Credencial = Pick<OpRequisicao, 'cookie' | 'bearer'>;
 const cto = (): Credencial => ({ cookie: cookieCto });
 const adm = (): Credencial => ({ cookie: cookieAdm });
-// POST sem corpo de negócio: vai `{}` em JSON, como o painel manda (C-15 exige Content-Type JSON com cookie).
+// D3 do 0013: o corpo leva a confirmação de que o texto não tem dado pessoal, em JSON (C-15 exige Content-Type JSON com
+// cookie). Os testes da recusa sem ela trocam o corpo por `extra.corpo`.
+const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
 const gerar = (decId: string, cred: Credencial = cto(), extra: OpRequisicao = {}) =>
   chamarRota(POST, {
     metodo: 'POST',
     caminho: `/api/pacotes-decisao/${encodeURIComponent(decId)}/pedido-construcao`,
     params: { decId },
-    corpo: {},
+    corpo: CONFIRMADO,
     ...cred,
     ...extra,
   });
@@ -140,10 +142,12 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: download', () => {
     expect(r.headers.get('cache-control')).toBe('no-store');
     expect(r.headers.get('access-control-allow-origin')).toBeNull();
     const texto = await r.text();
-    expect(texto).toBe((await gerarPedido(deps, decisora, decId)).json);
+    expect(texto).toBe((await gerarPedido(deps, decisora, decId, CONFIRMADO)).json);
     const p = JSON.parse(texto);
     expect(validarPedido(p)).toEqual({ ok: true, erros: [] });
-    expect(p).toMatchObject({ pedido: decId, risco: { nivel: 'alto' }, decisao: { id: decId, opcaoEscolhida: 'A: Opção A', aprovadoPor: 'Pessoa Ficticia Decisora' } });
+    // D2 do 0013: o papel de quem aprovou, e não o nome.
+    expect(p).toMatchObject({ pedido: decId, risco: { nivel: 'alto' }, decisao: { id: decId, opcaoEscolhida: 'A: Opção A', aprovadoPor: 'cto' } });
+    expect(texto).not.toContain('Pessoa Ficticia Decisora');
     // CA-22.6: o nome do solicitante (sentinela) não vai ao pedido.
     expect(contemSentinela(texto)).toBe(false);
   });
@@ -263,6 +267,54 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: demanda em status 
   });
 });
 
+// D3 do 0013: o corpo do POST leva a confirmação. Sem ela (ou com false), 422 com a mensagem, sem download nem evento;
+// tipo errado, 400 como em todo corpo; chave a mais é descartada (C-11, z.object); POST sem corpo, 400 (JSON inválido).
+describe('POST /api/pacotes-decisao/:decId/pedido-construcao: confirmação sem dado pessoal (D3 do 0013)', () => {
+  it('corpo {} e {"confirmaSemDadoPessoal": false} → 422 com a mensagem, sem download e sem evento', async () => {
+    const { decId } = await prepararDec();
+    for (const corpo of [{}, { confirmaSemDadoPessoal: false }]) {
+      const r = await gerar(decId, cto(), { corpo });
+      expect(r.status, JSON.stringify(corpo)).toBe(422);
+      expect(r.headers.get('content-disposition')).toBeNull();
+      expect(await r.json()).toEqual({ erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.semConfirmacao });
+    }
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+
+  it('{"confirmaSemDadoPessoal": "true"} e 1 → 400 entrada_invalida, sem evento', async () => {
+    const { decId } = await prepararDec();
+    for (const valor of ['true', 1]) {
+      const r = await gerar(decId, cto(), { corpo: { confirmaSemDadoPessoal: valor } });
+      expect(r.status, String(valor)).toBe(400);
+      expect(await r.json()).toMatchObject({ erro: 'entrada_invalida' });
+    }
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+
+  it('POST sem corpo → 400 (JSON inválido), sem evento', async () => {
+    const { decId } = await prepararDec();
+    const r = await gerar(decId, cto(), { corpo: '' });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toMatchObject({ erro: 'entrada_invalida' });
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+
+  it('com a confirmação e uma chave a mais → 200 (a chave é descartada, C-11), e o evento grava a confirmação', async () => {
+    const { decId } = await prepararDec();
+    const r = await gerar(decId, cto(), { corpo: { ...CONFIRMADO, outra: 'x' } });
+    expect(r.status).toBe(200);
+    expect(await r.text()).toBe((await gerarPedido(deps, decisora, decId, CONFIRMADO)).json);
+    const { rows } = await b.poolMigrator.query<{ depois: unknown }>(`select depois from evento where entidade_id = $1 and acao = 'pedido_gerado'`, [decId]);
+    expect(rows.map((l) => l.depois)).toEqual([{ confirmaSemDadoPessoal: true }, { confirmaSemDadoPessoal: true }]);
+  });
+
+  it('token de agente com a confirmação → 403, sem evento', async () => {
+    const { decId } = await prepararDec();
+    for (const agente of AGENTES) expect((await gerar(decId, { bearer: tokens[agente] }, { corpo: CONFIRMADO })).status, agente).toBe(403);
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+});
+
 describe('POST /api/pacotes-decisao/:decId/pedido-construcao: acesso', () => {
   it('token de agente → 403 (matriz), para cada um dos quatro, sem evento', async () => {
     const { decId } = await prepararDec();
@@ -291,18 +343,23 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: acesso', () => {
 });
 
 // M-a (DEC-DEM-20261103-0009-v1): a minimização do texto livre vale só para a vista do agente na API. O Pedido de
-// Construção continua lendo o banco: o título, a descrição, a ESP e o RSK saem como gravados. Só o nome fictício entra
-// no texto, porque e-mail, telefone e CPF fazem o pedido ser recusado (C-28).
-describe('POST /api/pacotes-decisao/:decId/pedido-construcao: texto original (M-a)', () => {
-  it('o pedido de um DEC com o nome do solicitante no texto mantém título, descrição, ESP e RSK originais', async () => {
-    const solicitante = 'Joana Fictícia Teste';
-    const trecho = `Falar com ${solicitante}`;
+// Construção continua lendo o banco: o título, a descrição, a ESP e o RSK saem como gravados, sem marcador. Desde o D1
+// do 0013, o nome do solicitante, inteiro ou em parte, nesses textos recusa a geração (422 com o caminho e o tipo
+// "nome"); o nome de outra pessoa não é detectado e sai como gravado (fica com a confirmação). Nomes fictícios.
+describe('POST /api/pacotes-decisao/:decId/pedido-construcao: texto original (M-a) e nome do solicitante (D1 do 0013)', () => {
+  const TODOS_COM_NOME = [
+    'demanda.titulo: nome',
+    'demanda.descricao: nome',
+    'especificacao.conteudo: nome',
+    'risco.conteudo: nome',
+    'decisao.opcaoEscolhida: nome',
+    'criterios_aceite_preliminares[0]: nome',
+  ];
+
+  // Demanda, ESP, RSK e DEC aprovado com `trecho` em todo texto escrito por pessoa.
+  async function decComTrecho(solicitante: string, titulo: string, trecho: string): Promise<string> {
     const autora = novaAutora();
-    const d = await criarDemanda(
-      deps,
-      autora,
-      criarDemandaSchema.parse({ titulo: `Erro no cadastro da ${solicitante}`, tipo: 'bug', solicitanteNome: solicitante, contexto: trecho }),
-    );
+    const d = await criarDemanda(deps, autora, criarDemandaSchema.parse({ titulo, tipo: 'bug', solicitanteNome: solicitante, contexto: trecho }));
     await criarEspecificacao(
       deps,
       autora,
@@ -329,10 +386,39 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: texto original (M-
       criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo', opcaoA: { descricao: trecho }, opcaoB: { descricao: 'Opção B' }, nivelAprovacaoRequerido: 'cto' }),
     );
     await registrarDecisao(deps, decisora, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }));
-    const r = await gerar(dec.id);
+    return dec.id;
+  }
+
+  it('D1 do 0013: o nome inteiro do solicitante em todo texto → 422 com cada caminho e o tipo "nome", sem o valor, sem download nem evento', async () => {
+    const solicitante = 'Joana Fictícia Teste';
+    const decId = await decComTrecho(solicitante, `Erro no cadastro da ${solicitante}`, `Falar com ${solicitante}`);
+    const r = await gerar(decId);
+    expect(r.status).toBe(422);
+    expect(r.headers.get('content-disposition')).toBeNull();
+    const texto = await r.text();
+    expect(JSON.parse(texto)).toEqual({ erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.naoPassou, erros: TODOS_COM_NOME });
+    expect(texto).not.toMatch(/joana|fict[ií]cia|teste/i);
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+
+  it('D1 do 0013: "A Joana pediu" (parte do nome com maiúscula) → 422 em todo campo, sem o valor', async () => {
+    const decId = await decComTrecho('Joana Ficticia', 'Relatório da Joana', 'A Joana pediu o relatório mensal.');
+    const r = await gerar(decId);
+    expect(r.status).toBe(422);
+    const texto = await r.text();
+    expect(JSON.parse(texto)).toEqual({ erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.naoPassou, erros: TODOS_COM_NOME });
+    expect(texto).not.toMatch(/joana|ficticia/i);
+    expect(await eventosDoPedido(decId)).toBe(0);
+  });
+
+  it('M-a: o nome de outra pessoa no texto não é do solicitante; o pedido mantém título, descrição, ESP e RSK originais, sem marcador', async () => {
+    const outra = 'Joana Fictícia Teste';
+    const trecho = `Falar com ${outra}`;
+    const decId = await decComTrecho('Carlos Ficticio Solicitante', `Erro no cadastro da ${outra}`, trecho);
+    const r = await gerar(decId);
     expect(r.status).toBe(200);
     const p = JSON.parse(await r.text());
-    expect(p.demanda).toMatchObject({ titulo: `Erro no cadastro da ${solicitante}`, descricao: `Contexto: ${trecho}` });
+    expect(p.demanda).toMatchObject({ titulo: `Erro no cadastro da ${outra}`, descricao: `Contexto: ${trecho}` });
     expect(p.especificacao.conteudo).toBe(`Descrição objetiva: ${trecho}\n\nEscopo inclui:\n- ${trecho}`);
     expect(p.risco.conteudo).toContain(`Resumo: ${trecho}`);
     expect(p.risco.conteudo).toContain(`Pré-condições:\n- ${trecho}`);
@@ -341,58 +427,23 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: texto original (M-
     expect(p.risco.conteudo).not.toContain('[nome removido]');
   });
 
-  // M-1 do 0009 (DEC-DEM-20261104-0011-v1, contraprova do CA 3): a parte do nome sozinha também sai como gravada.
-  it('M-1 do 0009: com "A Joana pediu" no texto, o pedido leva o original, sem marcador', async () => {
-    const trecho = 'A Joana pediu o relatório mensal.';
-    const autora = novaAutora();
-    const d = await criarDemanda(
-      deps,
-      autora,
-      criarDemandaSchema.parse({ titulo: 'Relatório da Joana', tipo: 'bug', solicitanteNome: 'Joana Ficticia', contexto: trecho }),
-    );
-    await criarEspecificacao(
-      deps,
-      autora,
-      d.id,
-      criarEspecificacaoSchema.parse({
-        descricaoObjetiva: trecho,
-        escopoInclui: [trecho],
-        sistemaAlvo: 'meu-sistema',
-        repositorioDestino: 'wsssistemas2626-crypto/meu-sistema',
-        criteriosAceitePreliminares: [trecho],
-        definicaoDePronto: ['p'],
-      }),
-    );
-    await criarParecerRisco(
-      deps,
-      autora,
-      d.id,
-      criarParecerRiscoSchema.parse({ resumo: trecho, riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo', preCondicoes: [trecho] }),
-    );
-    const dec = await criarPacoteDecisao(
-      deps,
-      autora,
-      d.id,
-      criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo', opcaoA: { descricao: trecho }, opcaoB: { descricao: 'Opção B' }, nivelAprovacaoRequerido: 'cto' }),
-    );
-    await registrarDecisao(deps, decisora, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }));
-    const r = await gerar(dec.id);
+  it('M-a: palavra comum em minúscula igual a parte do nome do solicitante sai como gravada', async () => {
+    const trecho = 'Em 30 dias: camisa rosa e os campos do formulário.';
+    const decId = await decComTrecho('Carla Rosa Campos Dias', 'Relatório mensal', trecho);
+    const r = await gerar(decId);
     expect(r.status).toBe(200);
     const texto = await r.text();
     const p = JSON.parse(texto);
-    expect(p.demanda).toMatchObject({ titulo: 'Relatório da Joana', descricao: `Contexto: ${trecho}` });
     expect(p.especificacao.conteudo).toBe(`Descrição objetiva: ${trecho}\n\nEscopo inclui:\n- ${trecho}`);
-    expect(p.risco.conteudo).toContain(`Resumo: ${trecho}`);
-    expect(p.risco.conteudo).toContain(`Pré-condições:\n- ${trecho}`);
     expect(p.decisao.opcaoEscolhida).toBe(`A: ${trecho}`);
-    expect(p.criterios_aceite_preliminares).toEqual([trecho]);
     expect(texto).not.toContain('[nome removido]');
   });
 
   // 04-regressao do 0011 (qa-automacao), contraprova do CA 3 pelo caminho do agente: a ESP e o RSK são gravados pelos
-  // agentes pelas rotas, cujo 201 vem minimizado; o banco, e por isso o Pedido de Construção, guarda o texto que o agente
-  // mandou, com as partes do nome, a palavra comum em minúscula e a partícula. Nome fictício.
-  it('M-1 do 0009 (04-regressao do 0011): ESP e RSK gravados pelos agentes nas rotas; o 201 vem minimizado e o pedido leva o original', async () => {
+  // agentes pelas rotas, cujo 201 vem minimizado; o banco guarda o texto que o agente mandou, com as partes do nome, a
+  // palavra comum em minúscula e a partícula. Desde o D1 do 0013, esse texto, com as partes do nome do solicitante, não
+  // sai no Pedido de Construção: a geração é recusada com o caminho e o tipo, sem o valor. Nome fictício.
+  it('M-1 do 0009 (04-regressao do 0011) e D1 do 0013: ESP e RSK gravados pelos agentes nas rotas; o 201 vem minimizado e o pedido é recusado pelo nome', async () => {
     const trecho = 'A Carla pediu os dados dos clientes em 30 dias; camisa rosa e os campos do formulário; Rosa e Campos assinaram.';
     const minimo = 'A [nome removido] pediu os dados dos clientes em 30 dias; camisa rosa e os campos do formulário; [nome removido] e [nome removido] assinaram.';
     const autora = novaAutora();
@@ -437,16 +488,12 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: texto original (M-
     // O DEC cita os rascunhos dos agentes: quem decide marca que os revisou.
     await registrarDecisao(deps, decisora, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A', revisouRascunhosDeAgente: true }));
     const r = await gerar(dec.id);
-    expect(r.status).toBe(200);
+    expect(r.status).toBe(422);
     const texto = await r.text();
-    const p = JSON.parse(texto);
-    expect(p.demanda).toMatchObject({ titulo: 'Relatório da Carla', descricao: `Contexto: ${trecho}` });
-    expect(p.especificacao.conteudo).toBe(`Descrição objetiva: ${trecho}\n\nEscopo inclui:\n- ${trecho}`);
-    expect(p.risco.conteudo).toContain(`Resumo: ${trecho}`);
-    expect(p.risco.conteudo).toContain(`Pré-condições:\n- ${trecho}`);
-    expect(p.decisao.opcaoEscolhida).toBe(`A: ${trecho}`);
-    expect(p.criterios_aceite_preliminares).toEqual([trecho]);
+    expect(JSON.parse(texto)).toEqual({ erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.naoPassou, erros: TODOS_COM_NOME });
+    expect(texto).not.toMatch(/Carla|Rosa|Campos|Santos|Dias/);
     expect(texto).not.toContain('[nome removido]');
+    expect(await eventosDoPedido(dec.id)).toBe(0);
   });
 });
 

@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09 |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
@@ -159,7 +159,10 @@ Fora da origem permitida, a automática não faz nada nem grava evento. **A apro
   `token_revogado`.
 - **Sem dado de terceiro** (C-30): a mudança de campo guarda o valor só de `tipo`, `status`, `solicitantePapel`,
   `linhaServicoProvavel` e `urgencia`. Qualquer outro campo vira `{ "alterado": true }`. Evento de ESP, RSK, DEC e
-  pedido leva só ids, números e enumerações.
+  pedido leva só ids, números e enumerações. Desde a 0.1.12 (D3 do 0013), o `pedido_gerado` grava também
+  `depois: { "confirmaSemDadoPessoal": true }`, um booleano fixo, sem texto, e o histórico mostra "Gerou o Pedido de
+  Construção de <DEC-id>, com a confirmação de que o texto não tem dado pessoal"
+  ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)).
 - Leitura: `GET /api/demandas/:id/historico` e o detalhe da demanda, só pessoa.
 - Limite conhecido (B-04, backlog): a `referenciaDocumento` da aprovação da administradora é texto livre e fica no
   evento `aprovacao_registrada`.

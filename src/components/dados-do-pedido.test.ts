@@ -9,7 +9,7 @@ import { MENSAGENS_ACESSO } from '../modules/acesso/mensagens';
 import type { PacoteDecisaoVista } from '../modules/pacotes-decisao/consultas';
 import { MENSAGENS_PEDIDO } from '../modules/pedido-construcao/gerar';
 import { serializarPedido } from '../modules/pedido-construcao/serializar';
-import { erroDoPedido, hrefDoPedido, MENSAGENS_PEDIDO_DO_SERVIDOR, secaoDoPedido, TEXTOS_PEDIDO } from './dados-do-pedido';
+import { entradaDoPedido, erroDoPedido, hrefDoPedido, MENSAGENS_PEDIDO_DO_SERVIDOR, orientacaoDoPedido, secaoDoPedido, TEXTOS_PEDIDO } from './dados-do-pedido';
 
 type Falha = Extract<ResultadoAcao<unknown>, { ok: false }>;
 
@@ -25,7 +25,12 @@ describe('textos (03, T11 "Pedido de Construção"; 04, C-28)', () => {
     expect(TEXTOS_PEDIDO).toMatchObject({
       titulo: 'Pedido de Construção',
       texto: 'Gere o pedido, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma. O envio ao /construir é manual nesta versão.',
-      avisoDadoPessoal: 'O pedido vai para o repositório git da estruturaAutonoma. Não deixe nome, e-mail ou telefone de cliente na ESP nem no parecer de risco.',
+      // D3 do 0013: texto da 02-triagem, para revisão da ux-ui-design.
+      avisoDadoPessoal:
+        'O pedido vai para o repositório git da estruturaAutonoma. Não deixe nome, e-mail, telefone ou CPF de qualquer pessoa ou do cliente no título, na descrição, na ESP nem no parecer de risco.',
+      confirmacao:
+        'Confirmo que o título, a descrição, a ESP e o parecer de risco deste pacote não têm dado pessoal de ninguém: nome, e-mail, telefone ou CPF.',
+      semConfirmacao: 'Marque a confirmação para gerar o pedido.',
       gerar: 'Gerar Pedido de Construção',
       gerando: 'Gerando o pedido…',
       copiar: 'Copiar JSON',
@@ -42,7 +47,11 @@ describe('textos (03, T11 "Pedido de Construção"; 04, C-28)', () => {
   });
 
   it('as mensagens do servidor copiadas para o navegador são as de gerar.ts', () => {
-    expect(MENSAGENS_PEDIDO_DO_SERVIDOR).toEqual({ estudo: MENSAGENS_PEDIDO.estudo, naoPassou: MENSAGENS_PEDIDO.naoPassou });
+    expect(MENSAGENS_PEDIDO_DO_SERVIDOR).toEqual({
+      estudo: MENSAGENS_PEDIDO.estudo,
+      naoPassou: MENSAGENS_PEDIDO.naoPassou,
+      semConfirmacao: MENSAGENS_PEDIDO.semConfirmacao,
+    });
     expect(TEXTOS_PEDIDO.naoPassou).toBe(`${MENSAGENS_PEDIDO.naoPassou} Erros:`);
   });
 });
@@ -91,12 +100,12 @@ describe('hrefDoPedido: o link de baixar leva o conteúdo exato', () => {
 describe('erroDoPedido: o que a tela mostra para cada recusa', () => {
   const falha = (f: Omit<Partial<Falha>, 'ok'> & Pick<Falha, 'erro'>): Falha => ({ mensagem: '', ...f, ok: false });
 
-  it('422 da validação (C-28 e validarPedido): o texto da 03 com "Erros:", a lista da API e a orientação', () => {
+  it('422 da validação (C-28 e validarPedido): o texto da 03 com "Erros:", a lista da API e a orientação por campo (D1 do 0013)', () => {
     const r = falha({ erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.naoPassou, erros: ['especificacao.conteudo: e-mail', 'demanda.titulo: telefone'] });
     expect(erroDoPedido(r)).toEqual({
       texto: 'O pedido não passou na validação do /construir. Nada foi entregue. Erros:',
       erros: ['especificacao.conteudo: e-mail', 'demanda.titulo: telefone'],
-      orientacao: 'Corrija criando uma versão nova da ESP e um pacote novo.',
+      orientacao: [ORIENTACOES.titulo, ORIENTACOES.esp, ORIENTACOES.aviso],
     });
   });
 
@@ -104,7 +113,15 @@ describe('erroDoPedido: o que a tela mostra para cada recusa', () => {
     expect(erroDoPedido(falha({ erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.estudo }))).toEqual({
       texto: 'Demanda do tipo Estudo não gera Pedido de Construção.',
       erros: [],
-      orientacao: null,
+      orientacao: [],
+    });
+  });
+
+  it('D3 do 0013: 422 sem a confirmação: o texto do servidor, sem lista nem orientação', () => {
+    expect(erroDoPedido(falha({ erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.semConfirmacao }))).toEqual({
+      texto: 'Confirme que o título, a descrição, a ESP e o parecer de risco não têm dado pessoal de ninguém. Nada foi entregue.',
+      erros: [],
+      orientacao: [],
     });
   });
 
@@ -112,7 +129,7 @@ describe('erroDoPedido: o que a tela mostra para cada recusa', () => {
     expect(erroDoPedido(falha({ erro: 'conflito', mensagem: MENSAGENS_PEDIDO.naoAprovado }))).toEqual({
       texto: `Não foi possível concluir: ${MENSAGENS_PEDIDO.naoAprovado}`,
       erros: [],
-      orientacao: null,
+      orientacao: [],
     });
     expect(erroDoPedido(falha({ erro: 'sem_permissao', mensagem: 'x' })).texto).toBe(MENSAGENS_ACESSO.sem_permissao);
     expect(erroDoPedido(falha({ erro: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO })).texto).toBe(MENSAGEM_NAO_ENCONTRADO);
@@ -123,12 +140,74 @@ describe('erroDoPedido: o que a tela mostra para cada recusa', () => {
     expect(erroDoPedido(falha({ erro: 'nao_processavel', mensagem: MENSAGENS_PEDIDO.naoPassou }))).toEqual({
       texto: 'O pedido não passou na validação do /construir. Nada foi entregue.',
       erros: [],
-      orientacao: 'Corrija criando uma versão nova da ESP e um pacote novo.',
+      orientacao: ['Corrija criando uma versão nova da ESP e um pacote novo.'],
     });
     expect(erroDoPedido(falha({ erro: 'entrada_invalida', mensagem: 'Corrija os campos abaixo para continuar.', campos: [{ campo: 'decId', mensagem: 'Valor inválido.' }] }))).toEqual({
       texto: MENSAGEM_ERRO_INTERNO,
       erros: [],
-      orientacao: null,
+      orientacao: [],
     });
+  });
+});
+
+// D1 do 0013 (E5): a orientação do 422 diz que campo corrigir e onde, e avisa que outro pacote da demanda não se aprova
+// depois deste. Só as linhas que valem, nesta ordem; nenhuma traz valor do pedido.
+const ORIENTACOES = {
+  nome: 'O nome do solicitante, inteiro ou em parte com inicial maiúscula, está nos campos da lista. Tire o nome e gere de novo.',
+  titulo: 'Título e descrição (demanda.titulo, demanda.descricao): corrija na demanda, em "Editar dados".',
+  esp: 'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
+  risco: 'Parecer de risco (risco.conteudo): corrija num parecer de risco novo.',
+  decisao: 'Opção escolhida (decisao.opcaoEscolhida): corrija num pacote novo.',
+  aviso: 'Atenção: com este pacote aprovado, outro pacote desta demanda não pode ser aprovado nesta versão. Fale com o CTO antes de refazer o texto.',
+  geral: 'Corrija criando uma versão nova da ESP e um pacote novo.',
+};
+
+describe('orientacaoDoPedido (D1 do 0013)', () => {
+  it('nome no título: a linha do nome, a do título e o aviso', () => {
+    expect(orientacaoDoPedido(['demanda.titulo: nome'])).toEqual([ORIENTACOES.nome, ORIENTACOES.titulo, ORIENTACOES.aviso]);
+  });
+
+  it('e-mail na ESP: só a linha da ESP e o aviso', () => {
+    expect(orientacaoDoPedido(['especificacao.conteudo: e-mail'])).toEqual([ORIENTACOES.esp, ORIENTACOES.aviso]);
+  });
+
+  it('erro do validarPedido em sistema_alvo: a linha da ESP e o aviso', () => {
+    expect(orientacaoDoPedido(['sistema_alvo fora do formato: minúsculas, números e hífen, sem barra'])).toEqual([ORIENTACOES.esp, ORIENTACOES.aviso]);
+  });
+
+  it('todos os campos ao mesmo tempo: cada linha uma vez, na ordem', () => {
+    const erros = [
+      'demanda.descricao: telefone',
+      'risco.conteudo: nome',
+      'decisao.opcaoEscolhida: nome',
+      'criterios_aceite_preliminares[1]: nome',
+      'definicao_de_pronto[0]: CPF',
+      'repositorio_destino: nome',
+      'demanda.titulo: nome',
+    ];
+    expect(orientacaoDoPedido(erros)).toEqual([ORIENTACOES.nome, ORIENTACOES.titulo, ORIENTACOES.esp, ORIENTACOES.risco, ORIENTACOES.decisao, ORIENTACOES.aviso]);
+  });
+
+  it('lista vazia, ou erro de campo que não é do pedido: a frase de antes', () => {
+    expect(orientacaoDoPedido([])).toEqual([ORIENTACOES.geral]);
+    expect(orientacaoDoPedido(['pedido vazio'])).toEqual([ORIENTACOES.geral]);
+  });
+
+  it('nenhuma linha traz valor do pedido: são sempre as frases fixas', () => {
+    const fixas = new Set(Object.values(ORIENTACOES));
+    for (const erros of [['demanda.titulo: nome'], ['especificacao.conteudo: e-mail', 'risco.conteudo: telefone'], ['decisao.opcaoEscolhida: nome'], []])
+      for (const linha of orientacaoDoPedido(erros)) expect(fixas.has(linha), linha).toBe(true);
+  });
+});
+
+// D3 do 0013: a T11 só chama a Server Action com a caixa marcada, e manda a confirmação junto. Desmarcada, nada é
+// chamado e a caixa mostra o erro.
+describe('entradaDoPedido (D3 do 0013)', () => {
+  it('caixa desmarcada: null (a tela não chama a ação)', () => {
+    expect(entradaDoPedido('DEC-DEM-20261022-0042-v1', false)).toBeNull();
+  });
+
+  it('caixa marcada: o id e a confirmação', () => {
+    expect(entradaDoPedido('DEC-DEM-20261022-0042-v1', true)).toEqual({ decId: 'DEC-DEM-20261022-0042-v1', confirmaSemDadoPessoal: true });
   });
 });

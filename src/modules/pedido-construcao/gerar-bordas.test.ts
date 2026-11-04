@@ -35,6 +35,8 @@ const ESP_COMPLETA = {
 };
 const RSK_PADRAO = { riscoTecnicoNivel: 'medio', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' };
 const OPCOES = { opcaoA: { descricao: 'Corrigir no importador' }, opcaoB: { descricao: 'Refazer a integração' } };
+// D3 do 0013: a geração que deve passar manda a confirmação de que o texto não tem dado pessoal.
+const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
 
 let b: BancoDeTeste;
 let relogio: RelogioFixo;
@@ -113,25 +115,34 @@ async function erroDe(p: Promise<unknown>): Promise<ErroDominio> {
 }
 
 describe('CA-22.2: o mesmo DEC gera sempre o mesmo pedido (bordas)', () => {
-  it('cinco gerações ao mesmo tempo dão o mesmo JSON, byte a byte, e cinco eventos pedido_gerado', async () => {
+  it('cinco gerações ao mesmo tempo, com a confirmação, dão o mesmo JSON, byte a byte, e cinco eventos pedido_gerado com a confirmação', async () => {
     const { decId } = await prepararAprovado();
-    const resultados = await Promise.all(Array.from({ length: 5 }, () => gerarPedido(deps, cto, decId)));
+    const resultados = await Promise.all(Array.from({ length: 5 }, () => gerarPedido(deps, cto, decId, CONFIRMADO)));
     const jsons = new Set(resultados.map((r) => r.json));
     expect(jsons.size).toBe(1);
     expect(validarPedido(JSON.parse(resultados[0]!.json))).toEqual({ ok: true, erros: [] });
-    expect(await eventosDoPedido(decId)).toHaveLength(5);
+    const eventos = await eventosDoPedido(decId);
+    expect(eventos).toHaveLength(5);
+    for (const e of eventos) expect(e.depois).toEqual({ confirmaSemDadoPessoal: true });
   });
 
-  it('a conta de quem aprovou muda de nome depois da aprovação: aprovadoPor continua o nome gravado na aprovação', async () => {
+  // D2 do 0013 (E7): aprovadoPor vem do papel gravado na aprovação, e não da conta. Trocar o nome e o papel da conta de
+  // quem aprovou não muda o arquivo.
+  it('a conta de quem aprovou muda de nome e de papel depois da aprovação: o arquivo é o mesmo e aprovadoPor continua "cto"', async () => {
     const { decId } = await prepararAprovado();
-    const antes = (await gerarPedido(deps, cto, decId)).json;
-    await b.db.update(user).set({ name: 'Pessoa Ficticia Renomeada' }).where(eq(user.id, cto.usuarioId));
+    const antes = (await gerarPedido(deps, cto, decId, CONFIRMADO)).json;
+    await b.db.update(user).set({ name: 'Pessoa Ficticia Renomeada', papel: 'administradora' }).where(eq(user.id, cto.usuarioId));
     try {
-      const depois = (await gerarPedido(deps, administradora, decId)).json;
+      const depois = (await gerarPedido(deps, administradora, decId, CONFIRMADO)).json;
       expect(depois).toBe(antes);
-      expect(JSON.parse(depois).decisao.aprovadoPor).toBe('Pessoa Ficticia CTO');
+      const p = JSON.parse(depois);
+      expect(p.decisao.aprovadoPor).toBe('cto');
+      expect(validarPedido(p)).toEqual({ ok: true, erros: [] });
+      expect(depois).not.toContain('Pessoa Ficticia CTO');
+      expect(depois).not.toContain('Pessoa Ficticia Adm');
+      expect(depois).not.toContain('Renomeada');
     } finally {
-      await b.db.update(user).set({ name: cto.nome }).where(eq(user.id, cto.usuarioId));
+      await b.db.update(user).set({ name: cto.nome, papel: 'cto' }).where(eq(user.id, cto.usuarioId));
     }
   });
 
@@ -139,9 +150,9 @@ describe('CA-22.2: o mesmo DEC gera sempre o mesmo pedido (bordas)', () => {
     const criterios = ['Terceiro critério', 'Primeiro critério', 'Segundo critério'];
     const pronto = ['pnpm test verde', 'pnpm lint limpo'];
     const { decId } = await prepararAprovado({ esp: { ...ESP_COMPLETA, criteriosAceitePreliminares: criterios, definicaoDePronto: pronto } });
-    const a = (await gerarPedido(deps, cto, decId)).json;
+    const a = (await gerarPedido(deps, cto, decId, CONFIRMADO)).json;
     relogio.avancar(365 * 86_400_000);
-    const b2 = (await gerarPedido(deps, cto, decId)).json;
+    const b2 = (await gerarPedido(deps, cto, decId, CONFIRMADO)).json;
     expect(b2).toBe(a);
     const p = JSON.parse(b2);
     expect(p.criterios_aceite_preliminares).toEqual(criterios);
@@ -152,7 +163,7 @@ describe('CA-22.2: o mesmo DEC gera sempre o mesmo pedido (bordas)', () => {
 describe('C-28: caminho do dado pessoal em cada parte do pedido (bordas)', () => {
   it('e-mail na descrição da opção escolhida → "decisao.opcaoEscolhida: e-mail", sem o valor e sem evento', async () => {
     const { decId } = await prepararAprovado({ opcoes: { opcaoA: { descricao: 'Combinar com contato@exemplo.test' } } });
-    const e = await erroDe(gerarPedido(deps, cto, decId));
+    const e = await erroDe(gerarPedido(deps, cto, decId, CONFIRMADO));
     expect(e.codigo).toBe('nao_processavel');
     expect(e.extras).toEqual({ erros: ['decisao.opcaoEscolhida: e-mail'] });
     expect(JSON.stringify(e.extras)).not.toContain('exemplo.test');
@@ -161,7 +172,7 @@ describe('C-28: caminho do dado pessoal em cada parte do pedido (bordas)', () =>
 
   it('e-mail só na opção que não foi escolhida não bloqueia nem aparece no pedido', async () => {
     const { decId } = await prepararAprovado({ opcoes: { opcaoB: { descricao: 'Combinar com contato@exemplo.test' } } });
-    const { json } = await gerarPedido(deps, cto, decId);
+    const { json } = await gerarPedido(deps, cto, decId, CONFIRMADO);
     expect(json).not.toContain('exemplo.test');
     expect(JSON.parse(json).decisao.opcaoEscolhida).toBe('A: Corrigir no importador');
   });
@@ -171,7 +182,7 @@ describe('C-28: caminho do dado pessoal em cada parte do pedido (bordas)', () =>
       demanda: { contexto: 'Ligar para (11) 90000-0000 antes' },
       esp: { ...ESP_COMPLETA, definicaoDePronto: ['pnpm test verde', 'Conferir o cadastro 123.456.789-09'] },
     });
-    const e = await erroDe(gerarPedido(deps, cto, decId));
+    const e = await erroDe(gerarPedido(deps, cto, decId, CONFIRMADO));
     expect(e.extras).toEqual({ erros: ['demanda.descricao: telefone', 'definicao_de_pronto[1]: CPF'] });
     expect(JSON.stringify(e.extras)).not.toMatch(/90000|456\.789/);
   });
@@ -181,7 +192,7 @@ describe('C-28: caminho do dado pessoal em cada parte do pedido (bordas)', () =>
       demanda: { contexto: undefined },
       esp: { ...ESP_COMPLETA, descricaoObjetiva: 'Falar com contato@exemplo.test' },
     });
-    const e = await erroDe(gerarPedido(deps, cto, decId));
+    const e = await erroDe(gerarPedido(deps, cto, decId, CONFIRMADO));
     expect(e.mensagem).toBe(MENSAGENS_PEDIDO.naoPassou);
     expect(e.extras).toEqual({ erros: ['especificacao.conteudo: e-mail'] });
   });
@@ -197,7 +208,7 @@ describe('C-28: caminho do dado pessoal em cada parte do pedido (bordas)', () =>
       'pnpm@12.6.0 e @types/node',
     ];
     const { decId } = await prepararAprovado({ esp: { ...ESP_COMPLETA, escopoInclui: tecnico } });
-    const p = JSON.parse((await gerarPedido(deps, cto, decId)).json);
+    const p = JSON.parse((await gerarPedido(deps, cto, decId, CONFIRMADO)).json);
     for (const t of tecnico) expect(p.especificacao.conteudo).toContain(t);
     expect(validarPedido(p)).toEqual({ ok: true, erros: [] });
   });
@@ -207,7 +218,7 @@ describe('A-03 (08-correcao): DEC aprovado e depois desatualizado não gera pedi
   it('ESP v2 gravada depois da aprovação do DEC v1: 409 com a mensagem de desatualizado, sem evento', async () => {
     const { demandaId, decId } = await prepararAprovado();
     await criarEspecificacao(deps, cto, demandaId, criarEspecificacaoSchema.parse({ ...ESP_COMPLETA, descricaoObjetiva: 'Corrigir pedidos duplicados, versão 2' }));
-    const e = await erroDe(gerarPedido(deps, cto, decId));
+    const e = await erroDe(gerarPedido(deps, cto, decId, CONFIRMADO));
     expect(e.codigo).toBe('conflito');
     expect(e.mensagem).toBe(MENSAGENS_PEDIDO.desatualizado);
     expect(await eventosDoPedido(decId)).toEqual([]);
@@ -216,7 +227,7 @@ describe('A-03 (08-correcao): DEC aprovado e depois desatualizado não gera pedi
   it('RSK v2 gravado depois da aprovação: também 409', async () => {
     const { demandaId, decId } = await prepararAprovado();
     await criarParecerRisco(deps, cto, demandaId, criarParecerRiscoSchema.parse({ ...RSK_PADRAO, riscoTecnicoNivel: 'alto' }));
-    const e = await erroDe(gerarPedido(deps, cto, decId));
+    const e = await erroDe(gerarPedido(deps, cto, decId, CONFIRMADO));
     expect(e).toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_PEDIDO.desatualizado });
   });
 });
@@ -229,9 +240,11 @@ describe('dupla aprovação com a opção B (bordas)', () => {
     // 02:59 UTC do dia 4 ainda é 23:59 do dia 3 em São Paulo.
     relogio.definir('2026-12-04T02:59:00Z');
     await aprovar(decId, cto, 'B');
-    const p = JSON.parse((await gerarPedido(deps, cto, decId)).json);
-    expect(p.decisao).toEqual({ id: decId, opcaoEscolhida: 'B: Refazer a integração', aprovadoPor: 'Pessoa Ficticia CTO e Pessoa Ficticia Adm', aprovadoEm: '2026-12-03' });
+    const p = JSON.parse((await gerarPedido(deps, cto, decId, CONFIRMADO)).json);
+    // D2 do 0013: os papéis na ordem da aprovação (a administradora aprovou primeiro), sem o nome de ninguém.
+    expect(p.decisao).toEqual({ id: decId, opcaoEscolhida: 'B: Refazer a integração', aprovadoPor: 'administradora e cto', aprovadoEm: '2026-12-03' });
     expect(JSON.stringify(p)).not.toContain('DOC-FICTICIO-020');
+    expect(JSON.stringify(p)).not.toMatch(/Pessoa Ficticia (CTO|Adm)/);
     expect(validarPedido(p)).toEqual({ ok: true, erros: [] });
   });
 });

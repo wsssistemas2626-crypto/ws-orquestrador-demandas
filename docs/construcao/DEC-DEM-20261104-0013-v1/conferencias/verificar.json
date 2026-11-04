@@ -1,0 +1,52 @@
+{
+  "ok": true,
+  "verificacoes": [
+    {
+      "nome": "ramo",
+      "ok": true,
+      "detalhe": "construcao/DEC-DEM-20261104-0013-v1"
+    },
+    {
+      "nome": "arvore_limpa",
+      "ok": true,
+      "detalhe": "limpa"
+    },
+    {
+      "nome": "versao",
+      "ok": true,
+      "detalhe": "0.1.11 → 0.1.12"
+    },
+    {
+      "nome": "changelog",
+      "ok": true,
+      "detalhe": "seção 0.1.12"
+    },
+    {
+      "nome": "ci",
+      "ok": true,
+      "detalhe": ".github/workflows/ci.yml"
+    },
+    {
+      "nome": "remoto",
+      "ok": true,
+      "detalhe": "github.com/wsssistemas2626-crypto/ws-orquestrador-demandas"
+    },
+    {
+      "nome": "test",
+      "ok": true,
+      "detalhe": "4415 passed (4415)"
+    },
+    {
+      "nome": "lint",
+      "ok": true,
+      "detalhe": "limpo"
+    },
+    {
+      "nome": "typecheck",
+      "ok": true,
+      "detalhe": "limpo"
+    }
+  ],
+  "sha": "ca4f874206625f1cc4790cd4129520be1d0545fa",
+  "em": "2026-11-04T18:29:48.026Z"
+}

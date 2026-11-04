@@ -12,6 +12,7 @@ import {
   minimizar,
   minimizarValor,
   partesDoNome,
+  temNome,
 } from './minimizar';
 
 const TIPOS: TipoDadoPessoal[] = ['e-mail', 'telefone', 'CPF', 'CNPJ'];
@@ -643,5 +644,126 @@ describe('M-a do 0011 (03-correcao do 0012, 2ª volta): cadeia de e-mails colado
 
   it('e-mail colado com letra acentuada no começo do usuário seguinte vira um marcador por e-mail', () => {
     expect(minimizar('ana@exemplo.testébia@exemplo.test')).toBe(E + E);
+  });
+});
+
+// D1 do 0013 (DEC-DEM-20261104-0013-v1): o Pedido de Construção pergunta se o texto tem o nome do solicitante por
+// `temNome`, que é a etapa do nome de `minimizar` (nome completo e partes), sem o cabeçalho de e-mail e sem os
+// detectores. Para cada caso de nome deste arquivo cuja entrada não tem e-mail, telefone, CPF, CNPJ nem cabeçalho,
+// `temNome` diz sim exatamente quando `minimizar` com o nome muda algo além do que muda sem ele. Todos os nomes são
+// fictícios.
+describe('temNome (D1 do 0013)', () => {
+  const NFD = (s: string) => s.normalize('NFD');
+  const JF = 'Joana Ficticia';
+
+  const CASOS: [string[], string][] = [
+    // minimizar: nome conhecido do solicitante.
+    [[SENTINELAS.nome], `Att.,\n${SENTINELAS.nome}\nfalei com PESSOA  FICTICIA   SENTINELA ontem`],
+    [['Ana'], 'Anabela e Ana e Banana'],
+    [['Pessoa (Ficticia)'], 'Fale com Pessoa (Ficticia) e PessoaXFicticia'],
+    [['a.b'], 'a.b e axb'],
+    [['Eu', 'a', '  ', ''], 'Ele e eu, a casa'],
+    [[], 'Pessoa Ficticia'],
+    [['Pessoa Fictícia'], 'Falei com PESSOA FICTÍCIA ontem'],
+    [['Ana'], 'Ana, éAna e Anaé'],
+    [['Ficticia'], 'Ficticia [e-mail removido] Ficticia'],
+    [['Pessoa Ficticia', 'nome'], 'Pessoa Ficticia assinou; Nome também.'],
+    [['nome', 'Pessoa Ficticia'], 'Pessoa Ficticia assinou; Nome também.'],
+    [['Pessoa Ficticia', 'nome removido', 'removido'], 'Pessoa Ficticia assinou; Nome também.'],
+    [['removido', 'nome removido'], `${MARCADOR_NOME}${MARCADORES['e-mail']}${MARCADORES.CPF}`],
+    // minimizarValor.
+    [['Bruno Exemplo Rocha'], 'Pedido de Ana Exemplo Lima'],
+    [['Eu'], 'Eu e a casa'],
+    [['Maria Ficticia Teste'], 'falar com MARIA  FICTICIA   TESTE'],
+    // M-1 do 0009: cada parte do nome.
+    [[JF], 'Joana Ficticia confirmou'],
+    [['Ana dos Santos'], 'A Ana pediu os dados dos clientes; Santos aprovou.'],
+    [['Bruno Dias Lima'], 'Prazo de 30 dias; suco de lima; Lima aprovou.'],
+    [['Bruno Dias Lima'], 'Dias depois o Bruno ligou.'],
+    [['Carla Rosa Campos'], 'camisa rosa, os campos do formulário; Rosa e Campos assinaram'],
+    [[JF], 'JOANA pediu'],
+    [[JF], 'a joana pediu'],
+    [['Joana Conceição Ficticia'], 'a Conceição pediu; CONCEIÇÃO aprovou'],
+    [['Joana Conceição Ficticia'], 'a Conceicao pediu'],
+    [['Removido Ficticia'], '[e-mail removido] Removido'],
+    [[JF], 'Joanabela e Ficticias'],
+    [[JF], 'A Joana pediu o relatório. Falei com a Ficticia ontem. Joana Ficticia confirmou.'],
+    [['Joana Conceicao Ficticia'], 'a Conceição pediu; CONCEIÇÃO aprovou'],
+    [['Joana Conceição Ficticia'], 'joana conceicao ficticia ligou'],
+    [['Joana Conceição Ficticia'], NFD('a Conceição pediu')],
+    [['Érica Ícaro Ficticia'], 'a Érica e o ÍCARO'],
+    [["Ana-Clara D'Ávila"], "a Clara e a Ávila; D'Ávila assinou"],
+    [['Carlos Ficticio Neto'], 'o Neto do cliente e o Carlos'],
+    [['Ana dos Santos'], 'Dos Santos e Da Silva'],
+    [[NFD('Joana Conceição Ficticia')], 'a Conceição pediu'],
+    [['Carlos Ficticio Júnior'], 'o Júnior e o Junior; Carlos ligou'],
+    [['Joana Conceição Ficticia'], NFD('JOANA CONCEIÇÃO FICTICIA ligou')],
+    [['Joana Conceição Ficticia'], NFD('Conceição pediu a revisão da ação')],
+    [['Ana Exemplo Lima', 'Bruno Exemplo Rocha'], 'Ana Exemplo Lima falou com Bruno Exemplo Rocha; Exemplo e Rocha assinaram.'],
+    [['Nome Removido Telefone'], 'Nome e Removido e Telefone.'],
+    // M-1 do 0009 (04-regressao do 0011): bordas das partes.
+    [['joana ficticia'], 'Joana pediu e a Ficticia aprovou'],
+    [['ANA FICTICIA'], 'Ana pediu; a ana não'],
+    [['Carlos Van Der Berg'], 'Van Der Berg ligou; o Carlos e a Berg'],
+    [['Ana de Souza'], 'De acordo com a Ana, a Souza assina.'],
+    [['Ana dos Santos'], 'DOS SANTOS aprovou'],
+    [[JF], '(Joana), "Joana", Joana. Joana!'],
+    [[JF], 'Joana2 e Joana_x e x_Joana e 2Joana'],
+    [[JF], 'jOANA pediu'],
+    [[JF], 'Joana\n\tFicticia confirmou'],
+    [['Maria J. Ficticia'], 'a Maria J. Ficticia e a J. e a Maria'],
+    [['Ana-Clara Ficticia'], 'a Ana-Clara pediu'],
+    [['Ana Anabela Ficticia'], 'a Anabela e a Ana'],
+    [['Érica Ficticia'], NFD('a Érica pediu; a érica não')],
+    [['Carla Rosa Campos', 'Bruno Dias Lima'], 'Em 30 dias: camisa rosa, suco de lima, os campos do formulário. Rosa, Dias, Lima e Campos assinaram.'],
+    [[], 'A Joana pediu; Rosa e Campos assinaram.'],
+    // B-1 do 0011: nome grudado.
+    [[JF], 'A Joana2 pediu'],
+    [[JF], 'Usuário Joana_Ficticia aprovou'],
+    [[JF], 'Usuário joana_ficticia aprovou'],
+    [[JF], 'Siga @JoanaFicticia'],
+    [[JF], 'Falei com JoanaFicticia'],
+    [[JF], 'ContatoJoana e 2Joana e x_Joana'],
+    [[JF], 'JOANA2 e JOANA_X'],
+    [[JF], 'JoanaSilva ligou'],
+    [[JF], 'JOANAFicticia'],
+    [[JF], 'JOANAFICTICIA e joana2 e jOANA'],
+    [['Ana Ficticia'], 'A Mariana pediu'],
+    [['Ana Ficticia'], 'ANATEL e ANABELA'],
+    [['Ana Ficticia'], 'AnAna'],
+    [['Ana Ficticia'], 'MariAna'],
+    [['Carla Rosa Campos'], 'RosaTech'],
+    [[JF], 'a Joana_Ficticia_2'],
+    // 04-regressao do 0012: texto comum fica igual.
+    [['Ana Ficticia'], 'A ANAC, a ANATEL e o ANALISTA aprovaram.'],
+    [['Ana Ficticia'], 'Mariana, Anabela, Banana, Ananias e ANAlise.'],
+    [['Ana Ficticia'], 'campo_analise, tabela_ANALISE e var_Analise'],
+    [['Ana Ficticia'], NFD('MARIANA e Mariana')],
+    [['Carla Rosa Campos'], 'ROSACEA, Rosado, Camposanto e CAMPOSINHO'],
+    [[JF], 'Joanasilva, JOANASILVA, joanasilva e FICTICIAS'],
+  ];
+
+  it.each(CASOS)('nomes %j, texto %j: temNome === (minimizar com o nome !== minimizar sem o nome)', (nomes, texto) => {
+    expect(temNome(texto, nomes)).toBe(minimizar(texto, { nomes }) !== minimizar(texto));
+  });
+
+  it('a lista tem casos dos dois lados', () => {
+    const sim = CASOS.filter(([nomes, texto]) => temNome(texto, nomes)).length;
+    expect(sim).toBeGreaterThan(30);
+    expect(CASOS.length - sim).toBeGreaterThan(10);
+  });
+
+  it('só a etapa do nome: cabeçalho de e-mail e e-mail não contam; parte em minúscula também não (risco aceito no 0011)', () => {
+    expect(temNome('Para: o financeiro', [JF])).toBe(false);
+    expect(temNome('De: o financeiro\nTexto', [JF])).toBe(false);
+    expect(temNome('contato@exemplo.test', ['Contato Ficticio'])).toBe(false);
+    expect(temNome('a joana pediu', [JF])).toBe(false);
+  });
+
+  it('sim para o nome inteiro, a parte com maiúscula e o nome grudado; não sem nome e com nome de menos de 3 letras', () => {
+    for (const t of ['Pedido da Joana Ficticia', 'joana ficticia monta', 'Hoje a Joána Fictícia junta', 'Depende da Joana', 'JoanaFicticia', 'Joana_Ficticia', 'Joana2'])
+      expect(temNome(t, [JF]), t).toBe(true);
+    expect(temNome('Pedido da Joana', [])).toBe(false);
+    expect(temNome('Pedido Li', ['Li'])).toBe(false);
   });
 });

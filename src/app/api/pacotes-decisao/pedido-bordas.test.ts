@@ -31,12 +31,14 @@ let deps: Deps;
 let cookieCto: string;
 let autoras = 0;
 
+// D3 do 0013: o corpo leva a confirmação de que o texto não tem dado pessoal.
+const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
 const gerar = (decId: string, extra: OpRequisicao = {}) =>
   chamarRota(POST, {
     metodo: 'POST',
     caminho: `/api/pacotes-decisao/${encodeURIComponent(decId)}/pedido-construcao`,
     params: { decId },
-    corpo: {},
+    corpo: CONFIRMADO,
     cookie: cookieCto,
     ...extra,
   });
@@ -117,11 +119,11 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: bordas', () => {
     expect(await eventosDoPedido(decId)).toBe(2);
   });
 
-  it('o corpo da requisição não muda o pedido: campos do pedido enviados no POST são ignorados', async () => {
+  it('o corpo da requisição não muda o pedido: campos do pedido enviados no POST, junto com a confirmação, são ignorados', async () => {
     const decId = await prepararDec();
     const limpo = await (await gerar(decId)).text();
     const r = await gerar(decId, {
-      corpo: { pedido: 'DEC-DEM-20261022-9999-v1', ensaio: true, sistema_alvo: 'outro-sistema', decisao: { aprovadoPor: 'Outra Pessoa' } },
+      corpo: { ...CONFIRMADO, pedido: 'DEC-DEM-20261022-9999-v1', ensaio: true, sistema_alvo: 'outro-sistema', decisao: { aprovadoPor: 'Outra Pessoa' } },
     });
     expect(r.status).toBe(200);
     const texto = await r.text();

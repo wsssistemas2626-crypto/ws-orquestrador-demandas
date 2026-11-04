@@ -186,8 +186,13 @@ const aprovar = (decId: string) =>
     corpo: { statusDecisao: 'aprovada', opcaoEscolhida: 'A', comentarios: `Aprovado ${SENTINELAS.texto}` },
   });
 
+// D3 do 0013: o corpo leva a confirmação de que o texto não tem dado pessoal.
 const gerarPedido = (decId: string) =>
-  chamar(rotaPedido.POST, 'POST', `/api/pacotes-decisao/${decId}/pedido-construcao`, { ...comoPessoa(cookieDecisora), params: { decId }, corpo: {} });
+  chamar(rotaPedido.POST, 'POST', `/api/pacotes-decisao/${decId}/pedido-construcao`, {
+    ...comoPessoa(cookieDecisora),
+    params: { decId },
+    corpo: { confirmaSemDadoPessoal: true },
+  });
 
 async function todasAsLinhasDoPgboss(): Promise<Record<string, unknown[]>> {
   const tabelas = await b.poolMigrator.query<{ relname: string }>(
@@ -280,7 +285,10 @@ it(
 
     // 2d. Agentes desligados: o caminho da pessoa, com ESP também pelo token do agente; aprovação e Pedido de Construção.
     await b.poolMigrator.query('update configuracao_agente set ligado = false');
-    const aprovado = await caminhoDaPessoa({ espDoAgente: true });
+    // D1 do 0013: o texto leva SENTINELAS.texto ("SENTINELA-..."), que contém a parte "Sentinela" do nome sentinela com
+    // inicial maiúscula; com esse solicitante o pedido seria recusado pelo nome. Aqui o solicitante é outro nome fictício,
+    // para o pedido sair (200); o nome sentinela segue na entrada pelo orquestrador e no pedido com e-mail abaixo.
+    const aprovado = await caminhoDaPessoa({ espDoAgente: true, demanda: { solicitanteNome: 'Pessoa Ficticia Outra' } });
     expect((await aprovar(aprovado.decId)).status).toBe(200);
     const rPedido = await gerarPedido(aprovado.decId);
     expect(rPedido.status).toBe(200);

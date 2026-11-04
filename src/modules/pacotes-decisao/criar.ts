@@ -37,11 +37,14 @@ export const NIVEL_DO_DEC_DE_AGENTE: NivelAprovacao = 'cto_e_administradora';
 // como iguais (mesma regra do RSK).
 const preenchido = (v: string | null | undefined): v is string => typeof v === 'string' && v.trim() !== '';
 
-const PARTES_DA_DESCRICAO = [
+// Exportada para os testes da descrição e do Pedido de Construção (D1 do 0013).
+export const PARTES_DA_DESCRICAO = [
   ['contexto', 'Contexto'],
   ['descricaoProblema', 'Problema'],
   ['impactoPercebido', 'Impacto percebido'],
 ] as const;
+
+const SEPARADOR_DA_DESCRICAO = '\n\n';
 
 // "Contexto: ...\n\nProblema: ...\n\nImpacto percebido: ...", só com as partes preenchidas. É a `descricao` do Pedido de
 // Construção (RF-22), copiada no DEC para não mudar quando a demanda for editada.
@@ -49,7 +52,18 @@ export function descricaoDaDemanda(d: { contexto?: string | null; descricaoProbl
   return PARTES_DA_DESCRICAO.flatMap(([campo, rotulo]) => {
     const v = d[campo];
     return preenchido(v) ? [`${rotulo}: ${v}`] : [];
-  }).join('\n\n');
+  }).join(SEPARADOR_DA_DESCRICAO);
+}
+
+// D1 do 0013: o rótulo de uma parte no começo de um bloco (o começo do texto ou logo depois da linha em branco que
+// separa as partes). Os rótulos não têm caractere de regex.
+const RE_ROTULO_DA_DESCRICAO = new RegExp(`(^|${SEPARADOR_DA_DESCRICAO})(?:${PARTES_DA_DESCRICAO.map(([, rotulo]) => rotulo).join('|')}): `, 'g');
+
+// D1 do 0013: a descrição gravada no DEC sem os rótulos "Contexto: ", "Problema: " e "Impacto percebido: " do começo de
+// cada bloco, para o Pedido de Construção conferir o nome do solicitante só no que a pessoa escreveu (o rótulo
+// "Contexto" não é o nome de ninguém). O mesmo texto fora do começo de um bloco fica.
+export function descricaoSemRotulos(descricao: string): string {
+  return descricao.replace(RE_ROTULO_DA_DESCRICAO, '$1');
 }
 
 // Campo a campo, e só o que veio preenchido: nada a mais chega ao jsonb.

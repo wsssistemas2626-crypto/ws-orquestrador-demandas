@@ -235,6 +235,13 @@ describe('textoDoEvento (03, T05, tabela "Histórico")', () => {
     expect(textoDoEvento(ev({ acao: 'pedido_gerado', entidade: 'pacote_decisao', entidadeId: 'DEC-DEM-20261022-0042-v1' }))).toBe(
       'Gerou o Pedido de Construção de DEC-DEM-20261022-0042-v1',
     );
+    // D3 do 0013: com a confirmação gravada no evento, o histórico diz que ela foi dada; evento antigo, sem `depois`, não.
+    expect(
+      textoDoEvento(ev({ acao: 'pedido_gerado', entidade: 'pacote_decisao', entidadeId: 'DEC-DEM-20261022-0042-v1', depois: { confirmaSemDadoPessoal: true } })),
+    ).toBe('Gerou o Pedido de Construção de DEC-DEM-20261022-0042-v1, com a confirmação de que o texto não tem dado pessoal');
+    expect(
+      textoDoEvento(ev({ acao: 'pedido_gerado', entidade: 'pacote_decisao', entidadeId: 'DEC-DEM-20261022-0042-v1', depois: { confirmaSemDadoPessoal: 'true' } })),
+    ).toBe('Gerou o Pedido de Construção de DEC-DEM-20261022-0042-v1');
     expect(textoDoEvento(ev({ acao: 'texto_expurgado', ator: { tipo: 'sistema' }, entidade: 'entrada_bruta' }))).toBe(
       'Apagou o texto recebido (retenção de 90 dias)',
     );

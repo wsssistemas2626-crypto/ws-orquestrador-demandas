@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase trocado para o agente; 500 `erro_interno` também para erro que lança ao ser lido); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
+| Atualizado em | 04/11/2026 (0.1.12: corpo com a confirmação e recusa com o nome do solicitante no `POST .../pedido-construcao`); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase trocado para o agente; 500 `erro_interno` também para erro que lança ao ser lido); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Fontes no código | `src/app/api/**/route.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
@@ -42,7 +42,7 @@ Base: a origem do `BETTER_AUTH_URL`. Toda rota abaixo, menos `/api/auth/*` e `/a
 | `GET /api/pacotes-decisao` | pessoa, os 4 agentes | `statusDecisao`, `limit`, `offset` | lista |
 | `GET /api/pacotes-decisao/:decId` | pessoa, os 4 agentes | — | DEC com `statusDecisao`, `desatualizado`, aprovadores |
 | `PATCH /api/pacotes-decisao/:decId/decisao` | pessoa | `registrarDecisaoSchema` ([cap. 04](04-versoes-e-decisao.md#rf-13-decisão)) | DEC e resultado (`aprovada`, `aprovacao_parcial`, `devolvida`, `arquivada`) |
-| `POST /api/pacotes-decisao/:decId/pedido-construcao` | pessoa | — | 200, arquivo `<decId>.json` ([cap. 05](05-pedido-de-construcao.md)) |
+| `POST /api/pacotes-decisao/:decId/pedido-construcao` | pessoa | `{ "confirmaSemDadoPessoal": true }` (`confirmacaoDoPedidoSchema`, desde a 0.1.12) | 200, arquivo `<decId>.json` ([cap. 05](05-pedido-de-construcao.md)) |
 | `GET /api/agentes` | pessoa | — | os quatro agentes |
 | `PATCH /api/agentes/:agente` | cto | `{ "ligado": boolean, "modelo"?: string }` | agente |
 | `GET /api/configuracao/teto` | pessoa | — | situação do teto |
@@ -124,7 +124,8 @@ solicitante da demanda entre os trocados (na lista `GET /api/pacotes-decisao`, o
 
 Campo nulo continua `null` e lista nula continua nula. Ids, `sistemaAlvo`, `repositorioDestino`, níveis,
 `statusDecisao` e datas saem iguais para os dois atores. A pessoa recebe o original, e o Pedido de Construção
-(`POST .../pedido-construcao`) continua gerado com o texto original.
+(`POST .../pedido-construcao`) continua gerado com o texto original. Desde a 0.1.12, ele é recusado quando esse texto
+tem o nome do solicitante ([Exemplo: gerar o Pedido de Construção](#exemplo-gerar-o-pedido-de-construção)).
 
 Desde a 0.1.10 (M-1 da revisão do 0009), a troca pega também cada parte do nome do solicitante que, no texto, começa
 por maiúscula, nessas leituras, no 201 e na leitura da demanda. Com a solicitante `Joana Ficticia` (fictícia), um
@@ -157,8 +158,47 @@ Content-Type: application/json
 { "erro": "conflito", "mensagem": "a demanda está em status final; o pacote não pode mais ser decidido." }
 ```
 
-No `POST /api/pacotes-decisao/:decId/pedido-construcao`, a mensagem é "a demanda está em status final; o pacote não
-gera mais Pedido de Construção.", sem `content-disposition` nem evento `pedido_gerado`.
+No `POST /api/pacotes-decisao/:decId/pedido-construcao` (com a confirmação, desde a 0.1.12), a mensagem é "a demanda
+está em status final; o pacote não gera mais Pedido de Construção.", sem `content-disposition` nem evento
+`pedido_gerado`.
+
+## Exemplo: gerar o Pedido de Construção
+
+Desde a 0.1.12 (D3 do 0013), o corpo leva a confirmação de que título, descrição, ESP e parecer de risco não têm dado
+pessoal de ninguém ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)). Valores fictícios:
+
+```http
+POST /api/pacotes-decisao/DEC-DEM-20261103-0901-v1/pedido-construcao HTTP/1.1
+Cookie: wsod.session_token=<sessão>
+Origin: <origem do BETTER_AUTH_URL>
+Content-Type: application/json
+
+{ "confirmaSemDadoPessoal": true }
+```
+
+Aceito: 200, com o JSON do pedido e `content-disposition: attachment; filename="DEC-DEM-20261103-0901-v1.json"`.
+
+Sem o campo (`{}`) ou com `false`, a resposta é 422, antes de qualquer consulta, também para DEC que não existe:
+
+```json
+{ "erro": "nao_processavel", "mensagem": "Confirme que o título, a descrição, a ESP e o parecer de risco não têm dado pessoal de ninguém. Nada foi entregue." }
+```
+
+Com o campo de outro tipo (`"true"`, `1`), JSON inválido ou sem corpo, 400 `entrada_invalida`. Chave a mais é
+descartada.
+
+Com a solicitante fictícia `Joana Ficticia`, um título `Pedido da Joana Ficticia` e `contato@exemplo.test` na ESP, a
+resposta é um 422 só, com a lista do C-28 primeiro e depois a do nome (D1 do 0013), sem os valores:
+
+```json
+{
+  "erro": "nao_processavel",
+  "mensagem": "O pedido não passou na validação do /construir. Nada foi entregue.",
+  "erros": ["especificacao.conteudo: e-mail", "demanda.titulo: nome"]
+}
+```
+
+Nos dois 422, nada é entregue e nenhum evento é gravado. O 403 do token de agente vem antes da confirmação.
 
 ## Exemplo: parecer de risco numa demanda encerrada
 
@@ -197,7 +237,7 @@ Corpo de erro: `{ "erro": <código>, "mensagem": <texto em pt-BR> }`, mais `camp
 | `capacidade_de_ids_esgotada` | 409 | a sequência de ids de demanda passou de 9.999 |
 | `corpo_grande` | 413 | corpo acima de 512 KB |
 | `tipo_nao_suportado` | 415 | corpo que não é `application/json` |
-| `nao_processavel` | 422 | pedido de `estudo`; dado pessoal no pedido; pedido recusado pelo `validarPedido` (`erros`) |
+| `nao_processavel` | 422 | pedido de `estudo`; pedido sem a confirmação `confirmaSemDadoPessoal: true` (desde a 0.1.12); dado pessoal no pedido, inclusive o nome do solicitante desde a 0.1.12 (`erros`); pedido recusado pelo `validarPedido` (`erros`) |
 | `limite_excedido` | 429 | 30 demandas ou 60 versões por hora por ator; limite de login |
 | `indisponivel` | 503 | serviço indisponível |
 | `erro_interno` | 500 | qualquer erro que não é de domínio; mensagem genérica, sem detalhe. Desde a 0.1.11, também o erro que lança ao ser lido (getter ou Proxy), com os cabeçalhos da rota, a linha do log e o evento no Sentry ([cap. 02](02-acesso-e-seguranca.md#proteção-das-rotas)) |

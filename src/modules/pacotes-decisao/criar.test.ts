@@ -22,7 +22,7 @@ import { criarParecerRiscoSchema } from '../pareceres-risco/schemas';
 import { criarParecerRisco } from '../pareceres-risco/servico';
 import { idVersao } from '../versoes';
 import { obterPacoteDecisao } from './consultas';
-import { MENSAGEM_FALTAM_ITENS, criarPacoteDecisao, descricaoDaDemanda } from './criar';
+import { MENSAGEM_FALTAM_ITENS, PARTES_DA_DESCRICAO, criarPacoteDecisao, descricaoDaDemanda, descricaoSemRotulos } from './criar';
 import { criarPacoteDecisaoSchema } from './schemas';
 
 const cto: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-dec-cto', nome: 'Pessoa Ficticia CTO', papel: 'cto' };
@@ -106,6 +106,29 @@ describe('descricaoDaDemanda', () => {
   it('sem nenhuma parte → texto vazio', () => {
     expect(descricaoDaDemanda({})).toBe('');
     expect(descricaoDaDemanda({ contexto: '', descricaoProblema: null, impactoPercebido: undefined })).toBe('');
+  });
+});
+
+// D1 do 0013: o Pedido de Construção confere o nome do solicitante nos valores da descrição, sem os rótulos que
+// descricaoDaDemanda põe no começo de cada bloco (o rótulo "Contexto" não é o nome de ninguém).
+describe('descricaoSemRotulos (D1 do 0013)', () => {
+  it('a descrição gravada volta só com os três valores, sem nenhum rótulo', () => {
+    const d = descricaoSemRotulos(descricaoDaDemanda({ contexto: 'Loja fictícia', descricaoProblema: 'Pedidos duplicam', impactoPercebido: 'Estoque errado' }));
+    for (const v of ['Loja fictícia', 'Pedidos duplicam', 'Estoque errado']) expect(d).toContain(v);
+    for (const [, rotulo] of PARTES_DA_DESCRICAO) expect(d).not.toContain(rotulo);
+    expect(d).toBe('Loja fictícia\n\nPedidos duplicam\n\nEstoque errado');
+  });
+
+  it('só com algumas partes, e o rótulo só sai do começo de um bloco', () => {
+    expect(descricaoSemRotulos(descricaoDaDemanda({ descricaoProblema: 'Contexto: do fornecedor', impactoPercebido: 'Estoque errado' }))).toBe(
+      'Contexto: do fornecedor\n\nEstoque errado',
+    );
+    expect(descricaoSemRotulos('Contexto: Importação diária')).toBe('Importação diária');
+  });
+
+  it('descrição vazia continua vazia', () => {
+    expect(descricaoSemRotulos(descricaoDaDemanda({}))).toBe('');
+    expect(descricaoSemRotulos('')).toBe('');
   });
 });
 

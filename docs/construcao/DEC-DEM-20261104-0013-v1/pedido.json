@@ -1,0 +1,40 @@
+{
+  "pedido": "DEC-DEM-20261104-0013-v1",
+  "demanda": {
+    "id": "DEM-20261104-0013",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.12: Pedido de Construção sem nome de pessoa (recusa com nome do solicitante, confirmação na T11 e aprovadoPor com o papel)",
+    "descricao": "Os pareceres de 04/11 da gestao-riscos (seção 5), da juridico-contratos e da seguranca-aplicacao (estruturaAutonoma, docs/construcao/pareceres/2026-11-04-*) apontaram que o Pedido de Construção (RF-22, src/modules/pedido-construcao/gerar.ts e montar.ts) leva título, descrição, ESP e RSK originais para o /construir, que roda numa assinatura pessoal onde o JUR-2026-002, item 7.4, proíbe dado pessoal real. O gerar barra e-mail, telefone e CPF (C-28, passo 5), mas não nome de pessoa. O campo decisao.aprovadoPor (montar.ts:34,55) leva o nome de quem aprovou. A seguranca-aplicacao classificou como alto. Fabiano aprovou em 04/11 a correção recomendada pelo maestro, que junta os pareceres: recusar a geração quando o texto tiver o nome do solicitante ou parte dele (sem minimizar no gerar, para manter o CA-22.2, mesmo DEC gera o mesmo pedido), exigir na T11 a confirmação de que o texto não tem dado pessoal, registrada no histórico, e levar o papel de quem aprovou em aprovadoPor. Base: o ramo do pedido 0012 no commit c2340e6 (versão 0.1.11, PR #13), que entra na main antes deste PR."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261104-0013-v1",
+    "conteudo": "(1) Recusa: no gerarPedido, depois do passo 5 (C-28) e antes do validarPedido, se qualquer campo de texto do pedido montado (título, descrição, conteúdo da ESP e do RSK, opção escolhida) contiver o nome do solicitante da demanda travada, inteiro ou qualquer parte dele, pela mesma regra de minimizar da 0.1.10/0.1.11 (nome completo sem diferença de caixa e acento; parte com 3 letras ou mais, fora PARTICULAS_DO_NOME, com inicial maiúscula, com a borda nova de número, '_' e CamelCase), a geração é recusada com 422 e a lista de caminhos com o tipo 'nome', sem o valor, como no C-28; nada é entregue e nenhum evento é gravado. Reaproveitar a detecção de minimizar (exportar uma função que diga se e onde há o nome, sem trocar), sem cópia da regra. O mesmo DEC continua gerando o mesmo pedido byte a byte (CA-22.2) quando aceito. (2) Confirmação: a geração exige do ator uma confirmação explícita de que título, descrição, ESP e RSK não têm dado pessoal de ninguém (campo booleano no corpo do POST /api/pacotes-decisao/:decId/pedido-construcao e na Server Action da T11; sem ele, 422 com mensagem clara); a T11 (SecaoPedido.tsx) mostra uma caixa de marcar com esse texto antes do botão de gerar, acessível (rótulo associado, foco, axe sem violação), e o botão só envia com ela marcada; o evento pedido_gerado grava no histórico que a confirmação foi dada (sem texto livre). (3) aprovadoPor: decisao.aprovadoPor do pedido leva o papel de quem aprovou (por exemplo 'cto' ou 'administradora', do papel da pessoa na matriz de acesso), e não o nome; o validarPedido do /construir continua aceitando. Testes com nomes fictícios: recusa com o nome inteiro, com o primeiro nome, com o sobrenome, com o nome grudado; aceite com palavra comum em minúscula igual a parte do nome; 422 sem a confirmação; evento com a confirmação; aprovadoPor com o papel; o mesmo DEC gera o mesmo pedido. Ajustar os testes e2e da T11 que geram o pedido (marcar a caixa). Nenhum controle é afrouxado (C-10, C-21, C-23, C-28, A-02, axe, C-36). Sem migration. Mudam src/, os testes, e2e/ (só o ajuste da caixa), package.json (versão 0.1.12) e CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261104-0013-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe na saída da empresa para o /construir e na T11, com dados fictícios. Riscos: recusa falsa (parte do nome do solicitante igual a palavra com maiúscula no texto, como 'Santos' cidade), que impede gerar o pedido até reescrever o texto; o aviso da recusa deve dizer o caminho e o tipo para a pessoa corrigir; nome de outra pessoa ou nome antigo do solicitante continuam sem detecção (fica a confirmação na T11 e a regra de uso); a mudança de aprovadoPor tira do pedido quem aprovou pelo nome (a rastreabilidade fica no histórico do DEC); e2e da T11 depender da caixa. Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261104-0013-v1",
+    "opcaoEscolhida": "Recusar a geração do Pedido de Construção com nome do solicitante, exigir confirmação na T11 registrada no histórico e levar o papel em aprovadoPor, num pedido de correção (cadeia curta) sobre a main",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-04"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Pedido com o nome do solicitante, inteiro ou em parte, em título, descrição, ESP, RSK ou opção escolhida é recusado com 422, caminho e tipo, sem o valor, e sem evento",
+    "Palavra comum em minúscula igual a parte do nome não impede a geração, e o mesmo DEC gera o mesmo pedido",
+    "Sem a confirmação de que não há dado pessoal, a geração é recusada; com ela, o evento pedido_gerado registra a confirmação",
+    "A T11 tem a caixa de confirmação acessível, e o axe não acusa violação",
+    "aprovadoPor leva o papel de quem aprovou, e o validarPedido aceita",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.12",
+    "PR com CI verde"
+  ]
+}
