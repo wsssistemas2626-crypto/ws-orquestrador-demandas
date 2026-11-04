@@ -148,6 +148,28 @@ describe('console saneado', () => {
     expect(r[2]).toEqual({ level: 40, time: expect.anything(), evento: 'console_aviso' });
   });
 
+  // B-3 da revisão do 0011 (DEC-DEM-20261104-0012-v1): o erro com getter que lança não some do log; o Proxy de
+  // getPrototypeOf que lança não é tratado como Error, e a linha sai sem `erro`. Erros e armadilhas fictícios.
+  it('B-3 do 0011: Error com getter de name que lança e Proxy de getPrototypeOf deixam a linha console_erro', () => {
+    const linhas: string[] = [];
+    substituirDestinoDoLog({ write: (l) => void linhas.push(l) });
+    instalarConsoleSaneado();
+    const lanca = () => {
+      throw new Error('getter fictício');
+    };
+    const saidas = espiarSaidas();
+    try {
+      terminal.error(Object.defineProperty(new Error('falha fictícia'), 'name', { get: lanca }));
+      terminal.error(new Proxy(new Error('falha fictícia'), { getPrototypeOf: lanca }));
+    } finally {
+      saidas.restaurar();
+    }
+    expect(linhas).toHaveLength(2);
+    const r = linhas.map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(r[0]).toEqual({ level: 50, time: expect.anything(), evento: 'console_erro', erro: { classe: 'Error' } });
+    expect(r[1]).toEqual({ level: 50, time: expect.anything(), evento: 'console_erro' });
+  });
+
   it('falha do próprio log não derruba quem chamou nem cai no console original', () => {
     substituirDestinoDoLog({
       write: () => {

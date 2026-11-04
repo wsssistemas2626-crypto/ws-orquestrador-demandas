@@ -262,6 +262,23 @@ describe('log por lista de permissão (C-21)', () => {
     expect(contemSentinela(linhas.join(''))).toBe(false);
   });
 
+  // B-3 da revisão do 0011 (DEC-DEM-20261104-0012-v1): getter que lança e Proxy no `erro` não fazem o log lançar; a
+  // linha sai com o erro reduzido. Erros e armadilhas fictícios.
+  it('B-3 do 0011: Error com getter de name que lança, objeto com getter de code que lança e Proxy de getPrototypeOf', () => {
+    const { linhas, destino } = capturar();
+    substituirDestinoDoLog(destino);
+    const lanca = () => {
+      throw new Error('getter fictício');
+    };
+    const nomeQueLanca = Object.defineProperty(new Error('falha fictícia'), 'name', { get: lanca });
+    const codeQueLanca = Object.defineProperty({}, 'code', { get: lanca, enumerable: true });
+    const prototipoQueLanca = new Proxy(new Error('falha fictícia'), { getPrototypeOf: lanca });
+    for (const erro of [nomeQueLanca, codeQueLanca, prototipoQueLanca]) {
+      expect(() => log.error({ evento: 'x', erro })).not.toThrow();
+    }
+    expect(linhas.map((l) => JSON.parse(l).erro)).toEqual([{ classe: 'Error' }, { classe: 'desconhecido' }, { classe: 'desconhecido' }]);
+  });
+
   it('o log padrão escreve no destino trocado pelo teste, com o mesmo filtro', () => {
     const { linhas, destino } = capturar();
     substituirDestinoDoLog(destino);

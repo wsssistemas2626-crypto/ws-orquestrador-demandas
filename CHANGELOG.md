@@ -3,6 +3,163 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.11 — 2026-11-04
+
+Correção do pedido `DEC-DEM-20261104-0012-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.10 (`2e621de`): o
+médio M-a e os baixos B-1 a B-4 da revisão do 0011. Ainda não foi publicada: o merge, a publicação e a configuração no
+Easypanel são de Fabiano. A regra da primeira publicação não muda: exige a 0.1.8 ou posterior na `main`, e a 0.1.11 a
+cumpre (`docs/operacao/deploy.md`, seção 4).
+
+Não há migration nova, coluna nova, dependência nova nem variável de ambiente nova. Não mudaram `src/db/`, `drizzle/`,
+`e2e/`, `scripts/`, `.github/`, `Dockerfile`, `.env.example` nem o lockfile.
+
+### O que mudou
+
+- **M-a do 0011: o detector de e-mail ficou linear** (`DETECTORES['e-mail']` em
+  `src/modules/dados-pessoais/detectores.ts`). Antes, uma sequência longa de caracteres de usuário sem `@` custava
+  tempo quadrático: 100 mil caracteres, o limite do texto bruto, levavam cerca de 20 s e travavam o event loop do
+  `worker` ou do `app` em cada `minimizar` e na busca de dado pessoal do Pedido de Construção.
+  - O início do e-mail agora é ancorado: um lookbehind só deixa o casamento começar no primeiro caractere de uma
+    sequência de usuário. Cada sequência e cada `@` são tentados uma vez só. Não há limite de tamanho no usuário nem no
+    domínio, então o usuário com mais de 64 caracteres continua detectado.
+  - A âncora sozinha deixava de trocar o e-mail colado no fim de outro (`ana@exemplo.test+bia@exemplo.test`), que a
+    0.1.10 troca. Para isso, o detector é uma subclasse de `RegExp` (`DetectorDeEmail`). Quando continua uma busca
+    global do ponto onde o casamento anterior terminou, o `exec` tenta antes, só naquela posição, a mesma regex sem o
+    lookbehind (flag `y`). Se não casar ali, segue a regex ancorada. Assim, o e-mail colado no fim de outro continua
+    virando dois marcadores, e o custo continua linear.
+  - Medido nos testes: 100 mil caracteres sem `@` abaixo de 200 ms nos detectores, em `minimizar` e na busca do Pedido
+    de Construção; uma cadeia de 20 mil e-mails colados (340 mil caracteres) abaixo de 200 ms; 1 milhão de caracteres
+    com os casos ruins juntos em 66 ms.
+  - Nenhum chamador mudou: `minimizar` usa `replace`, e o Pedido de Construção usa `search`, que começa do zero e não
+    usa a tentativa extra.
+- **B-2 do 0011: o usuário do e-mail aceita letra com acento** (mesmo detector). O usuário aceita letra, marca
+  combinante e número de qualquer alfabeto, além de `._%+-`. `joão.ficticia@exemplo.test` vira um marcador só, também
+  com o texto em NFD. Antes, saía `joã[e-mail removido]`. O domínio e o TLD continuam só ASCII.
+- **B-1 do 0011: o nome grudado em número, `_` ou CamelCase vira marcador** (`src/modules/dados-pessoais/minimizar.ts`).
+  - **Nome completo:** a borda passou a ser só letra e marca, e entre os pedaços vale espaço ou `_`. `Joana_Ficticia` e
+    `joana_ficticia` viram um marcador só. Pedaços sem separador não casam como nome completo: `Ana Lise` não troca
+    `análise`.
+  - **Parte do nome:** a borda saiu da regex e foi para `haFronteira`, conferida no texto original nas duas pontas da
+    parte. Há fronteira no começo e no fim do trecho, ao lado de qualquer coisa que não seja letra (número, `_`,
+    pontuação, espaço, `@`), na passagem de minúscula para maiúscula (`Joana|Ficticia`) e no fim de uma sigla
+    (`JOANA|Ficticia`). A parte continua tendo de começar por maiúscula.
+  - Com o nome `Joana Ficticia`: `Joana2` sai `[nome removido]2`, `@JoanaFicticia` sai
+    `@[nome removido][nome removido]`, `ContatoJoana` sai `Contato[nome removido]` e `JOANA_X` sai `[nome removido]_X`.
+    Com o nome `Ana Ficticia`, `Mariana`, `ANATEL` e `ANABELA` ficam como estão.
+  - Uma parte recusada não esconde outra que começa dentro dela: a busca recomeça um caractere depois (`AnAna` sai
+    `An[nome removido]`). Teste de tempo: 100 mil caracteres abaixo de 1 s.
+  - **Falsos positivos aceitos na triagem:** `RosaTech` (nome `Carla Rosa Campos`) sai `[nome removido]Tech`, e
+    `MariAna` (nome `Ana Ficticia`) sai `Mari[nome removido]`.
+- **B-3 do 0011: `reduzirErro` nunca lança** (`src/lib/reduzir-erro.ts`). Um getter que lança em `name`, `code` ou
+  `cause`, ou um Proxy com armadilha que lança, fazia o erro escapar da `rota()` sem chegar ao log nem ao Sentry.
+  - Exceção ao ler `name`, `code` ou `cause` devolve `{ classe: 'Error' }`, mesmo com o `name` já lido e aceito.
+    O que não é Error, e o Proxy cujo protótipo não se lê, devolve `{ classe: 'desconhecido' }`.
+  - `lerCode` devolve `undefined` e `erroJaReduzido` devolve `null` quando a leitura lança. Entraram `ehErro` (o
+    `instanceof Error` que não lança) e `lerDigest` (o `digest` do Next, sem lançar).
+  - `mapearErro` (`src/lib/erros.ts`) também não lança: a exceção vira o mesmo 500 `erro_interno`. `normalizarErro`
+    (`src/lib/log.ts`), o console saneado (`src/lib/console-saneado.ts`) e `onRequestError` (`src/instrumentation.ts`)
+    passaram a usar `ehErro` e `lerDigest`.
+  - Resultado: com getter que lança ou Proxy, a rota responde 500 `erro_interno` com os cabeçalhos dela, escreve a
+    linha `requisicao` e manda ao Sentry um evento com título `Error`. No console saneado, o Proxy cujo protótipo não
+    se lê sai na linha `console_erro` sem o campo `erro`.
+  - Em `capturarErro` (`src/lib/sentry.ts`), só o envio pode lançar agora. O objeto continua sem marca quando o envio
+    falha, como desde a 0.1.10.
+- **B-2 da revisão de segurança deste pedido: `quadrosDaPilha` lê `e.stack` uma vez só** (`src/lib/sentry.ts`). Um
+  getter que devolvesse outro valor a cada leitura passaria na conferência do cabeçalho com um valor e entregaria outro,
+  com a mensagem, aos quadros enviados ao Sentry.
+- **B-4 do 0011: o aviso e a dica dizem os limites da troca do nome** (`avisoMinimizacao` e `dicaNome` em
+  `src/components/dados-da-demanda.ts`).
+  - O aviso diz: "O nome do solicitante também vira marcador, e cada parte com 3 letras ou mais, fora partículas como
+    dos, das e Júnior, quando escrita com inicial maiúscula; nomes de outras pessoas, não."
+  - A dica diz: "o sistema troca o nome do solicitante, mas não o de outras pessoas nem a parte do nome escrita toda em
+    minúscula."
+  - O exemplo de partícula é "dos, das e Júnior", e não "da, dos e Júnior" como no critério 5 do pedido. A troca veio do
+    B-1 da revisão de segurança: "da" tem 2 letras e já fica de fora pelo mínimo de 3.
+- **Testes:**
+  - blocos novos em `detectores.test.ts` e `minimizar.test.ts`, com tempo, equivalência com a regex da 0.1.10 (corpora
+    gerados com semente fixa), e-mails colados e os sete caminhos do `RegExp` (`replace`, `replaceAll`, `matchAll`,
+    `match`, `search`, `exec` e `test`) com o `lastIndex` coerente;
+  - bloco "B-1 do 0011: nome grudado" em `minimizar.test.ts`, com idempotência;
+  - casos de getter e Proxy em `reduzir-erro.test.ts`, `log.test.ts`, `sentry.test.ts`, `rota.test.ts`,
+    `erros.test.ts`, `instrumentation.test.ts` e `console-saneado.test.ts`, e dois casos do `stack` lido uma vez em
+    `sentry.test.ts`.
+  - Por efeito da regra nova, mudaram os esperados listados na `02-tech-lead.md`: o nome grudado em `minimizar.test.ts`
+    (`Joana2 e Joana_x e x_Joana e 2Joana` e `PessoaXFicticia`), o texto do aviso e da dica em
+    `dados-da-demanda.test.ts` e `formularios.test.ts`, e a versão em `test/estatico/projeto.test.ts`.
+  - O teste do B-4 do 0010 em `sentry.test.ts` agora injeta a falha no `captureException`, porque o getter que lança
+    não faz mais `capturarErro` lançar.
+- **Versão:** o `package.json` passou de 0.1.10 para 0.1.11.
+- **Documentação:** estas notas e a versão no `README.md`, no manual técnico e no `docs/operacao/deploy.md`.
+  - No manual, mudaram os capítulos 02 (o que sobra do nome, `reduzirErro` e `mapearErro` sem lançar, `stack` lido uma
+    vez), 03 (o que sobra do nome), 05 (detector de e-mail no bloqueio do Pedido), 06 (detector de e-mail, bordas do
+    nome, aviso e dica, o que sobra), 08 (aviso e dica nas pendências), 09 (o que sobra do nome) e o glossário (parte do
+    nome).
+  - No `deploy.md`, as seções 4, 6 e 8 vieram da `05-devops-sre.md`.
+
+Não houve `.skip`, `.only` ou `.todo` novo, nem asserção afrouxada. O C-10, o C-21, o C-23, o C-36, a A-02 e o axe
+continuam sem exceção.
+
+### Verificações desta versão
+
+- `pnpm test`: 4.288 de 4.288 (`04-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 143 de 143 em três execuções seguidas (a 3ª, a 4ª e a 5ª da
+  04-regressao). Na 2ª, o T11 do `e2e/axe-todas.spec.ts` estourou os 30 s uma vez (Pendências).
+- A primeira correção (`930b277`) foi devolvida pela 04-regressao com 13 testes, porque o e-mail colado no fim de outro
+  saía em claro (M-1 da revisão). A segunda (`e6faf79`) passou nos 13 sem mudar nenhum deles.
+- Revisão de código e de segurança (`04-maestro.md`), com reteste da `seguranca-aplicacao` sobre 300 mil textos
+  sorteados contra a `main`: nenhum achado crítico, alto ou médio aberto; quatro baixos e um informativo (abaixo).
+  Nenhum texto que a 0.1.10 bloqueia no Pedido de Construção deixa de ser bloqueado.
+- `pnpm build` passou (34 rotas). O `docker build` não rodou na `05-entrega`: as entradas da imagem são as da 0.1.10,
+  salvo `src/` e `package.json`. A imagem é construída na homologação e no CI do PR (`05-devops-sre.md`).
+- A homologação, o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam para a Parada 3. O rollback
+  é o caminho A, só com a troca de imagem para a `v0.1.10` (`deploy.md`, seção 6). Na volta, os cinco defeitos voltam,
+  inclusive o M-a.
+
+### Pendências abertas
+
+Da revisão deste pedido (`04-maestro.md`), para um pedido futuro:
+
+- **B-a** (`detectores.ts`, comentário do `DetectorDeEmail`): o comentário diz que todo caractere que a regex da 0.1.10
+  cobria continua coberto. Isso não vale quando dois `@` dividem o domínio e há acento antes do primeiro
+  (`é@b.cc@b.cc`). Nesses casos sobra no texto só `@domínio`, sem usuário: a 0.1.11 expõe menos que a 0.1.10.
+  Sugestão: corrigir o comentário e testar esse caso.
+- **I-1, informativo** (`DetectorDeEmail`): segundo o reteste, `split`, `new RegExp(detector)` e `test` encadeado não
+  passam pela tentativa extra, então perderiam o e-mail colado no fim de outro. Pelo código, `split` cria a cópia com
+  `y`, que pula a tentativa, e `new RegExp(detector)` é uma `RegExp` comum. O `test` chamado no próprio detector passa
+  pelo `exec` da subclasse, e a 04-regressao o conferiu a partir de cada `lastIndex`. Nenhum chamador usa esses caminhos
+  hoje: só `replace` e `search`. Sugestão: dizer no comentário da classe o que é coberto.
+- **B-3** (`minimizar.ts`, `trocarNoTrecho`): depois de uma parte recusada, a busca não volta à alternativa mais curta
+  na mesma posição. `AnaBelax`, com as partes `Ana` e `Anabela`, fica sem troca. Risco herdado da triagem.
+- **B-4** (`console-saneado.ts`): um Error com `digest: undefined` explícito passa a ir ao Sentry pelo console
+  saneado. O Next não produz esse caso.
+
+Registradas nas outras etapas deste pedido:
+
+- **Teste e2e sensível a carga** (`04-qa-automacao.md`): `e2e/axe-todas.spec.ts:273` (T11 Decisão) estourou os 30 s
+  uma vez em cinco execuções, com a página já no estado final. Leva de 6 a 7 s quando passa. Para a `qa-automacao`
+  (e a `devops-sre`, se for carga da máquina): medir cada passo do T11 numa execução com carga antes de decidir entre
+  dividir o teste e corrigir uma espera.
+- **Os textos do aviso e da dica** foram escritos na triagem e ajustados na revisão de segurança. Ainda esperam a
+  revisão da `ux-ui-design` (manual, cap. 08).
+
+Seguem abertas, sem mudança neste pedido:
+
+- do M-1 da revisão do 0009, o que a 0.1.11 não fecha. Para o agente, continuam saindo em claro a parte escrita toda
+  em minúscula, o nome todo em maiúscula sem separador entre as partes (`JOANAFICTICIA`), a parte curta grudada a outra
+  parte que começa por ela (`AnaBelax`, B-3 acima), o nome antigo de antes de uma edição da demanda e o nome de outras
+  pessoas (J-03 da spec). É risco residual e não bloqueia a publicação (`deploy.md`, seção 4). O domínio de e-mail com
+  acento também não é detectado, como na 0.1.10;
+- da 0.1.10: os dois testes que olham o relógio real (`minimizar.test.ts` e `nomes-antes-de-gravar.test.ts`; a 0.1.11
+  acrescentou testes de tempo com limite de 200 ms e 1 s, todos com folga nas medições) e o que ficou com Fabiano e
+  `juridico-contratos` sobre ESP, RSK e o nome original no Pedido de Construção;
+- da 0.1.9: B-1 (`code` com 9 dígitos, dígitos separados por `_` e `JoanaSilvaError`) e B-5 (o que os testes estáticos
+  não veem), a convenção de `CLASSES_DO_PROJETO` no padrão técnico e a barreira de `extras` só em
+  `criarPacoteDecisao`;
+- da 0.1.7: o risco do M-3 para a Parada 3;
+- da 0.1.6: B-2 a B-5, `erroId` fora do Sentry, o risco do M-05 e o teste estático das actions por SHA;
+- da 0.1.5: B-2, B-3, B-4 (foco da fila antes da hidratação, de interface) e B-6.
+
 ## 0.1.10 — 2026-11-04
 
 Correção do pedido `DEC-DEM-20261104-0011-v1` (cadeia curta, tipo bug), sobre a `main` da 0.1.9 (`fb675ee`): o M-1

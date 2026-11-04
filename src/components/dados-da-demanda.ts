@@ -27,13 +27,16 @@ export const TEXTOS_DEMANDA = {
   pedirAoAgente: 'Pedir ao agente orquestrador que proponha os campos',
   preencherEuMesmo: 'Preencher eu mesmo',
   // M-1 do 0009 (DEC-DEM-20261104-0011-v1): o aviso e a dica dizem o que a minimização faz, sem prometer mais. O nome
-  // repetido no texto chega ao agente como marcador, salvo o de outras pessoas e o escrito todo em minúscula.
+  // repetido no texto chega ao agente como marcador, salvo o de outras pessoas e o escrito todo em minúscula. B-4 da
+  // revisão do 0011 (DEC-DEM-20261104-0012-v1): e dizem os limites da troca da parte (MINIMO_NOME, PARTICULAS_DO_NOME e
+  // a inicial maiúscula, em modules/dados-pessoais/minimizar.ts).
   avisoMinimizacao:
-    'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante e cada parte dele escrita com inicial maiúscula também viram marcador; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
+    'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante também vira marcador, e cada parte com 3 letras ou mais, fora partículas como dos, das e Júnior, quando escrita com inicial maiúscula; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
   dicaTexto:
     'Cole o e-mail, a mensagem ou o formulário como chegou. Este texto é dado pessoal de terceiro: fica guardado por 90 dias e depois é apagado.',
   dicaReferenciaOrigem: 'Um identificador da mensagem, sem endereço de e-mail.',
-  dicaNome: 'O campo não vai ao agente de IA. Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas.',
+  dicaNome:
+    'O campo não vai ao agente de IA. Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas nem a parte do nome escrita toda em minúscula.',
   dicaAnexos: 'Só a referência: o arquivo não é enviado ao sistema.',
   avisoEdicao:
     'As alterações ficam no histórico, com o valor de antes e o de depois. Os pacotes de decisão já criados guardam uma cópia dos dados e não mudam.',

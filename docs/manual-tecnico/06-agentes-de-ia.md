@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
+| Atualizado em | 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, nome grudado em número, `_` ou CamelCase, aviso e dica com os limites da troca, no RF-20); 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -112,10 +112,13 @@ Vale para todo campo de texto de todo agente, não só para o texto bruto (`mini
 1. as linhas de cabeçalho de e-mail encaminhado (`De:`, `Para:`, `Cc:`, `Cco:`, `Enviado em:`, `Responder para:` e as
    formas em inglês) saem inteiras;
 2. e-mail, CNPJ, CPF e telefone viram `[e-mail removido]`, `[CNPJ removido]`, `[CPF removido]` e
-   `[telefone removido]`;
+   `[telefone removido]`, pelos mesmos detectores do Pedido de Construção (`DETECTORES`, `detectores.ts`; o detector de
+   e-mail está descrito abaixo);
 3. o nome completo do solicitante, quando informado, vira `[nome removido]`, sem diferença de caixa e, desde a 0.1.10,
-   sem diferença de acento, nos dois sentidos e também com texto em NFD. Qualquer espaço entre os pedaços casa, e o
-   nome não é trocado quando é pedaço de outra palavra;
+   sem diferença de acento, nos dois sentidos e também com texto em NFD. Qualquer espaço entre os pedaços casa e, desde
+   a 0.1.11, também `_` (`Joana_Ficticia` e `joana_ficticia` viram um marcador só). O nome não é trocado quando é
+   pedaço de outra palavra: desde a 0.1.11, só letra e marca coladas impedem a troca, e número e `_` colados contam
+   como borda (`Joana Ficticia2`). Pedaços sem separador não casam como nome completo (`Ana Lise` não troca `análise`);
 4. desde a 0.1.10 (M-1 da revisão do 0009, opção (b) refinada decidida por Fabiano em 04/11), cada **parte do nome**
    de todos os solicitantes informados também vira `[nome removido]`, quando no texto ela começa por letra maiúscula.
 
@@ -131,8 +134,14 @@ Regras da troca:
 
 - a primeira letra do trecho tem de ser maiúscula no texto. O resto não diferencia caixa nem acento, então `JOANA` sai;
 - todos os nomes completos são trocados antes de todas as partes, então o nome completo vira um marcador só;
-- a parte também não é trocada quando é pedaço de outra palavra. Letra, marca, número e `_` colados impedem a troca;
-  hífen e pontuação contam como borda;
+- a parte só é trocada quando há fronteira nas duas pontas (`haFronteira`, desde a 0.1.11, B-1 da revisão do 0011),
+  conferida no texto original. Há fronteira no começo e no fim do trecho, ao lado de qualquer coisa que não seja letra
+  (número, `_`, hífen, pontuação, espaço, `@`), na passagem de minúscula para maiúscula (CamelCase, `Joana|Ficticia`)
+  e no fim de uma sigla (maiúscula seguida de maiúscula e minúscula, `JOANA|Ficticia`). Entre duas letras, fora disso,
+  não há fronteira (`Ana|bela`, `ANA|TEL`). A marca combinante é pulada na conferência. A mesma regra vale para a ponta
+  direita de uma parte e a esquerda da seguinte, então uma segunda chamada de `minimizar` não troca nada a mais;
+- uma parte recusada não esconde outra que começa dentro dela: a busca recomeça um caractere depois do início da
+  recusada (`AnAna` com a parte `Ana` sai `An[nome removido]`). O custo continua linear;
 - nada é trocado dentro de um marcador. O texto original não é normalizado: a busca corre sobre uma cópia dobrada do
   mesmo comprimento, e só a faixa casada muda.
 
@@ -141,29 +150,86 @@ Exemplo com nomes fictícios. Com o solicitante `Bruno Dias Lima`, o texto
 `Prazo de 30 dias; suco de lima; o [nome removido] e o [nome removido] aprovaram.`. Com `Ana dos Santos`, `dos` fica no
 texto.
 
-O que a regra nova **troca**: o primeiro nome, o sobrenome ou outra parte sozinha, com inicial maiúscula (`a Joana
-pediu`), em maiúscula (`JOANA`) ou sem acento (`Conceicao` para `Conceição`). O que **sobra** e chega ao provedor:
+O que a regra **troca**: o primeiro nome, o sobrenome ou outra parte sozinha, com inicial maiúscula (`a Joana
+pediu`), em maiúscula (`JOANA`) ou sem acento (`Conceicao` para `Conceição`). Desde a 0.1.11, também a parte grudada,
+com o nome `Joana Ficticia`:
 
-- a parte escrita toda em minúscula (`a joana pediu`), risco aceito no RSK do 0011. O nome completo em minúscula
-  continua trocado;
-- o nome grudado em número, `_` ou CamelCase (`Joana2`, `Joana_Ficticia`, `@JoanaFicticia`), B-1 da revisão do 0011;
+| Texto | Vai ao agente |
+|---|---|
+| `A Joana2 pediu` | `A [nome removido]2 pediu` |
+| `Usuário Joana_Ficticia aprovou` | `Usuário [nome removido] aprovou` (nome completo) |
+| `Siga @JoanaFicticia` | `Siga @[nome removido][nome removido]` |
+| `ContatoJoana e 2Joana e x_Joana` | `Contato[nome removido] e 2[nome removido] e x_[nome removido]` |
+| `JOANA2 e JOANA_X` | `[nome removido]2 e [nome removido]_X` |
+| `JOANAFicticia` | `[nome removido][nome removido]` (fim de sigla) |
+| `JOANAFICTICIA e joana2 e jOANA` | igual (toda em maiúscula sem separador; minúscula) |
+
+O que **sobra** e chega ao provedor:
+
+- a parte escrita toda em minúscula (`a joana pediu`, `joana2`), risco aceito no RSK do 0011. O nome completo em
+  minúscula continua trocado, com espaço ou `_` entre os pedaços;
+- o nome todo em maiúscula sem separador entre as partes (`JOANAFICTICIA`): entre duas maiúsculas seguidas de outra
+  maiúscula não há fronteira;
+- a parte curta grudada a outra parte do mesmo nome que começa por ela: com as partes `Ana` e `Anabela`, `AnaBelax`
+  fica igual, porque a busca tenta a parte mais longa, que é recusada, e não volta à mais curta na mesma posição (B-3
+  da revisão do 0012);
 - o nome antigo, de antes de uma edição da demanda: a troca usa só o `solicitanteNome` atual;
 - o nome de outras pessoas (J-03 da spec).
 
 Falsos positivos aceitos: palavra com maiúscula igual a uma parte do nome (`Dias depois`, `Paulo` em `São Paulo`) e a
 parte que o nome de outra pessoa tem em comum com o do solicitante. Com `Ana Exemplo Lima` como solicitante,
-`Bruno Exemplo Rocha` sai `Bruno [nome removido] Rocha`.
+`Bruno Exemplo Rocha` sai `Bruno [nome removido] Rocha`. Desde a 0.1.11, também a parte no começo ou no fim de uma
+palavra em CamelCase: `RosaTech` (nome `Carla Rosa Campos`) sai `[nome removido]Tech`, e `MariAna` (nome
+`Ana Ficticia`) sai `Mari[nome removido]`. `Mariana`, `Anabela`, `ANATEL` e `ANABELA` ficam.
+
+### Detector de e-mail
+
+`DETECTORES['e-mail']` (`src/modules/dados-pessoais/detectores.ts`) é o mesmo na minimização e no bloqueio do Pedido
+de Construção ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)). Desde a 0.1.11 (M-a e B-2 da revisão do
+0011):
+
+- o usuário aceita letra, marca combinante e número de qualquer alfabeto, além de `._%+-`. `joão.ficticia@exemplo.test`
+  vira um marcador só, também com o texto em NFD. Até a 0.1.10, saía `joã[e-mail removido]`. O domínio e o TLD seguem
+  só ASCII: domínio com acento não é detectado;
+- o custo é linear. O início é ancorado por um lookbehind, que só deixa o casamento começar no primeiro caractere de
+  uma sequência de usuário. Não há limite de tamanho no usuário nem no domínio. Até a 0.1.10, uma sequência longa sem
+  `@` custava tempo quadrático: 100 mil caracteres, o limite do texto bruto, levavam cerca de 20 s e travavam o event
+  loop do processo. Nos testes, 100 mil caracteres ficam abaixo de 200 ms nos detectores, em `minimizar` e na busca do
+  Pedido;
+- o e-mail colado no fim de outro (`ana@exemplo.test+bia@exemplo.test`) continua virando dois marcadores. O detector é
+  uma subclasse de `RegExp` (`DetectorDeEmail`). Quando continua uma busca global do ponto onde o casamento anterior
+  terminou, o `exec` tenta antes, só naquela posição, a mesma regex sem o lookbehind (flag `y`). Se não casar, segue a
+  regex ancorada;
+- o separador colado ao e-mail (`------joana.ficticia@exemplo.test`) entra no marcador; com espaço antes, fica.
+
+Cobertura: `replace`, `replaceAll`, `matchAll`, `match`, `search`, `exec` e `test` dão os mesmos casamentos, conferidos
+em teste. `minimizar` usa `replace`, e o Pedido de Construção usa `search`. O que fica de fora (pendências da 0.1.11 no
+[CHANGELOG](../../CHANGELOG.md)):
+
+- `split` (que cria uma cópia com a flag `y`, e a tentativa extra só roda sem ela) e a cópia feita com
+  `new RegExp(detector)` (uma `RegExp` comum, sem o `exec` da subclasse) não passam pela tentativa extra e perderiam o
+  e-mail colado no fim de outro. Nenhum chamador usa esses caminhos hoje (I-1 da revisão do 0012);
+- com dois `@` no domínio e acento antes do primeiro (`é@b.cc@b.cc`), sobra no texto `@domínio`, sem usuário. É menos
+  do que a 0.1.10 deixava, mas contradiz o comentário do código, que diz que tudo o que a regex antiga cobria continua
+  coberto (B-a da revisão do 0012).
 
 Ao provedor vai só a lista de campos permitida para cada agente (`entrada-agente.ts`). Risco residual registrado para
 aceite (J-03 da spec): nome de outra pessoa dentro de texto livre ainda pode chegar ao provedor.
 
 **Na tela** (`TEXTOS_DEMANDA` em `src/components/dados-da-demanda.ts`, desde a 0.1.10), os textos não prometem mais do
-que essa regra faz. A dica do campo "Nome do solicitante", na criação e na edição, é "O campo não vai ao agente de IA.
-Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas.". O aviso do modo
-agente diz que o agente recebe só o texto, sem a origem, com e-mails, telefones, CPF e CNPJ trocados por marcadores.
-Diz também que o nome do solicitante e cada parte dele escrita com inicial maiúscula viram marcador, e que nomes de
-outras pessoas não viram. Até a 0.1.9, a dica dizia "Ele não é enviado ao agente de IA", e o aviso dizia "sem o nome
-do solicitante".
+que essa regra faz. Desde a 0.1.11 (B-4 da revisão do 0011), eles dizem também os limites da troca da parte:
+
+- a dica do campo "Nome do solicitante", na criação e na edição: "O campo não vai ao agente de IA. Evite repetir o
+  nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas nem a parte do nome escrita toda
+  em minúscula.";
+- o aviso do modo agente: "O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por
+  marcadores. O nome do solicitante também vira marcador, e cada parte com 3 letras ou mais, fora partículas como dos,
+  das e Júnior, quando escrita com inicial maiúscula; nomes de outras pessoas, não. Você revisa a proposta antes de
+  qualquer decisão.".
+
+O "3 letras" é o `MINIMO_NOME` e as partículas vêm de `PARTICULAS_DO_NOME`, os dois em `minimizar.ts`. Até a 0.1.9, a
+dica dizia "Ele não é enviado ao agente de IA", e o aviso dizia "sem o nome do solicitante". Na 0.1.10, o aviso dizia
+"cada parte dele escrita com inicial maiúscula", sem o mínimo de letras nem as partículas.
 
 Esta minimização vale para a entrada que o worker monta. Desde a 0.1.7 (M-1), a leitura de demanda pela API com token
 de agente usa a mesma regra: `minimizarValor` saiu de `entrada-agente.ts` para `src/modules/dados-pessoais/minimizar.ts`
@@ -174,7 +240,8 @@ criação de DEC, ESP e RSK passam o texto livre pela mesma minimização para o
 da demanda ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)). Desde a 0.1.10, as partes do nome
 valem em todos esses lugares, porque todos passam por `minimizar` e `minimizarValor`. A pessoa e o Pedido de Construção
 continuam com o texto original. O que sobra do M-1 da revisão do 0009 (risco residual, não bloqueia) é a lista acima:
-parte em minúscula, nome grudado, nome antigo e nome de outras pessoas ([CHANGELOG](../../CHANGELOG.md)).
+parte em minúscula, nome todo em maiúscula sem separador, parte curta grudada a outra que começa por ela, nome antigo e
+nome de outras pessoas ([CHANGELOG](../../CHANGELOG.md)).
 
 ## Pré-condições para ligar qualquer agente em produção
 

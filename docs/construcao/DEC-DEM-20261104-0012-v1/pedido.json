@@ -1,0 +1,40 @@
+{
+  "pedido": "DEC-DEM-20261104-0012-v1",
+  "demanda": {
+    "id": "DEM-20261104-0012",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.11: médio M-a (regex de e-mail com custo quadrático) e baixos B-1 a B-4 da revisão do 0011",
+    "descricao": "Na 04-revisao do pedido DEC-DEM-20261104-0011-v1 (docs/construcao/DEC-DEM-20261104-0011-v1/04-maestro.md) ficaram: (M-a, já existia na main) src/modules/dados-pessoais/detectores.ts:9, a regex de e-mail [A-Za-z0-9._%+-]+@... tem custo quadrático numa sequência longa de caracteres de usuário sem '@'; medido pela seguranca-aplicacao: 30 mil caracteres em 1,7 s e 100 mil em 20,6 s, no limite do texto bruto (LIMITE_TEXTO_BRUTO); cada minimizar e a busca do Pedido de Construção travam o event loop do worker ou da API. (B-1) src/modules/dados-pessoais/minimizar.ts:97-98: o nome grudado em número, '_' ou CamelCase ('Joana2', 'Joana_Ficticia', '@JoanaFicticia', 'JoanaFicticia') sai em claro. (B-2, já existia) o detector de e-mail só aceita ASCII no usuário: 'joão.ficticia@x.com' vira 'joã[e-mail removido]'. (B-3) src/lib/reduzir-erro.ts:55-60 e src/lib/sentry.ts:51: um getter que lança em name, code ou cause, ou um Proxy, faz reduzirErro lançar; o erro escapa da rota() e não chega ao Sentry. (B-4) src/components/dados-da-demanda.ts:31,36: o aviso diz 'cada parte' do nome sem dizer 'com 3 letras ou mais' nem as partículas, e a dica não diz que o nome todo em minúscula sobra. Base: main (2e621de, versão 0.1.10)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261104-0012-v1",
+    "conteudo": "(M-a) O detector de e-mail fica linear: início ancorado (sem caractere de usuário antes) e tamanhos limitados (usuário até 64, domínio até 255), por exemplo (?<![\\p{L}\\p{N}._%+-])[\\p{L}\\p{N}._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\\.[A-Za-z]{2,}; teste de tempo com 100 mil caracteres de usuário sem '@' e com 50 itens de 10 mil, abaixo de 200 ms cada, nos detectores, em minimizar e no detector do Pedido de Construção; os e-mails que hoje são detectados continuam detectados. (B-2) O usuário do e-mail aceita letra com acento, e 'joão.ficticia@x.com' vira um marcador só. (B-1) A parte do nome também casa grudada em número, em '_' e no começo de CamelCase ('Joana2', 'Joana_Ficticia', '@JoanaFicticia', 'JoanaFicticia' viram marcador), mantendo a regra da inicial maiúscula e sem trocar pedaço do meio de outra palavra ('Mariana' não troca 'Ana'). (B-3) reduzirErro nunca lança: qualquer exceção ao ler name, code ou cause devolve { classe: 'Error' } (ou 'desconhecido' para o que não é Error); teste com getter que lança e com Proxy, e o erro chega ao Sentry e ao log. (B-4) avisoMinimizacao diz 'cada parte com 3 letras ou mais, fora partículas como da, dos e Júnior' e dicaNome diz que o nome escrito todo em minúscula não é trocado. Nenhum controle é afrouxado (C-10, C-21, C-23, A-02, axe, C-36). Sem migration. Mudam src/, os testes, package.json (versão 0.1.11) e CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261104-0012-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe nos detectores de dado pessoal, que servem à minimização para o agente e ao bloqueio do Pedido de Construção, com dados fictícios. Riscos: a regex nova deixar de detectar um e-mail que hoje é detectado (os testes atuais dos detectores e do Pedido seguem verdes, e entra teste com os formatos comuns); o casamento do nome grudado trocar palavra comum (a regra da maiúscula continua, e o teste confere 'Mariana' com o nome 'Ana'); o try/catch em reduzirErro esconder um defeito (a saída continua sendo o erro reduzido, com teste). Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261104-0012-v1",
+    "opcaoEscolhida": "Corrigir o médio M-a e os baixos B-1 a B-4 da revisão do 0011 num pedido de correção (cadeia curta) sobre a main, na retomada autônoma de 04/11",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-03"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Detector de e-mail linear: 100 mil caracteres de usuário sem '@' em menos de 200 ms, nos detectores, em minimizar e no Pedido de Construção",
+    "Os e-mails detectados hoje continuam detectados, e o e-mail com acento no usuário vira um marcador só",
+    "Nome grudado em número, '_' ou CamelCase vira marcador; palavra que só contém o nome no meio não é trocada",
+    "reduzirErro nunca lança, e o erro com getter que lança chega ao Sentry e ao log",
+    "O aviso e a dica dizem o limite de 3 letras, as partículas e o nome em minúscula",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.11",
+    "PR com CI verde"
+  ]
+}

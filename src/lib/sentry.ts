@@ -22,13 +22,17 @@ export function iniciarSentry(op: OpcoesSentry): void {
 // Só os quadros da pilha ("    at ..."), nunca a mensagem. O V8 começa o `stack` com o texto de
 // `Error.prototype.toString` (nome e mensagem, que pode ter várias linhas, inclusive linhas que começam por "    at ").
 // O cabeçalho sai pelo conteúdo conhecido, não pelo formato da linha. Se o `stack` não começar por ele (nome ou
-// mensagem trocados depois do primeiro acesso ao `stack`), não sai quadro nenhum: só o título.
+// mensagem trocados depois do primeiro acesso ao `stack`), não sai quadro nenhum: só o título. O `stack` é lido uma vez
+// só (B-2 da revisão de segurança da 04 do 0012): um getter que devolve outro valor a cada leitura passaria na conferência
+// do cabeçalho com um valor e entregaria outro, com a mensagem, aos quadros.
 function quadrosDaPilha(e: unknown): string[] {
   try {
-    if (!(e instanceof Error) || typeof e.stack !== 'string') return [];
+    if (!(e instanceof Error)) return [];
+    const pilha: unknown = e.stack;
+    if (typeof pilha !== 'string') return [];
     const cabecalho = `${Error.prototype.toString.call(e)}\n`;
-    if (!e.stack.startsWith(cabecalho)) return [];
-    return e.stack
+    if (!pilha.startsWith(cabecalho)) return [];
+    return pilha
       .slice(cabecalho.length)
       .split('\n')
       .filter((linha) => /^\s+at\s/.test(linha));
@@ -41,8 +45,9 @@ function quadrosDaPilha(e: unknown): string[] {
 // chega sem `digest` ao console.error e ao onRequestError, o mesmo objeto nos dois (ver console-saneado.ts). A marca é
 // por objeto, e não por mensagem: dois erros distintos com a mesma mensagem vão os dois. Valor que não é objeto não é
 // marcado e vai toda vez. WeakSet: a marca some com o erro, sem segurar memória.
-// B-4 do 0010: a marca só é posta depois de `captureException` voltar. Se `reduzirErro` ou o envio lançam, o objeto
-// fica sem marca, e a próxima chamada com ele tenta de novo.
+// B-4 do 0010: a marca só é posta depois de `captureException` voltar. Se o envio lança, o objeto fica sem marca, e a
+// próxima chamada com ele tenta de novo. Desde o B-3 da revisão do 0011, `reduzirErro` não lança (getter que lança e
+// Proxy saem { classe: 'Error' } ou 'desconhecido'); só o envio pode lançar.
 const jaEnviados = new WeakSet<object>();
 
 export function capturarErro(e: unknown, contexto?: { evento: string }): void {

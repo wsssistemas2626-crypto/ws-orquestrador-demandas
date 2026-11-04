@@ -268,6 +268,28 @@ describe('rota(): C-20, erro', () => {
     expect(capturados.erros).toHaveLength(1);
     expect(contemSentinela(linhas.join('\n'))).toBe(false);
   });
+
+  // B-3 da revisão do 0011 (DEC-DEM-20261104-0012-v1): o erro com getter que lança, ou o Proxy de getPrototypeOf que
+  // lança (que passa por mapearErro), não escapa do handler: 500 genérico com os cabeçalhos da rota, a linha da
+  // requisição no log e o erro no Sentry. Erros e armadilhas fictícios.
+  const lanca = () => {
+    throw new Error('getter fictício');
+  };
+  it.each([
+    ['Error com getter de name que lança', () => Object.defineProperty(new Error('falha fictícia'), 'name', { get: lanca })],
+    ['Proxy com getPrototypeOf que lança', () => new Proxy(new Error('falha fictícia'), { getPrototypeOf: lanca })],
+  ])('B-3 do 0011: %s → 500, linha da requisição e Sentry', async (_nome, criar) => {
+    const erro = criar();
+    const r = await chamarRota(hFalha(erro), { cookie });
+    expect(r.status).toBe(500);
+    expect(await r.json()).toEqual({ erro: 'erro_interno', mensagem: MENSAGEM_ERRO_INTERNO });
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    expect(r.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(r.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(ultimaLinha()).toMatchObject({ evento: 'requisicao', status: 500, codigoErro: 'erro_interno' });
+    expect(capturados.erros).toHaveLength(1);
+    expect(capturados.erros[0] === erro).toBe(true);
+  });
 });
 
 describe('rota(): C-21, linha de requisição', () => {

@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
+| Atualizado em | 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-26; RNF-11, RNF-16 |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/components/`, `src/proxy.ts`, `e2e/` |
@@ -55,9 +55,12 @@ no `pnpm test`, reprova se algum `e2e/**/*.ts` usar `disableRules`, `disableOthe
   pedido quando a demanda está em status final; esconder é decisão da `ux-ui-design`.
 - Desde a 0.1.10 (M-1 da revisão do 0009), a dica do campo "Nome do solicitante" (T04 e T06) e o aviso de minimização
   do modo agente (T04) têm texto novo (`dicaNome` e `avisoMinimizacao` em `src/components/dados-da-demanda.ts`;
-  [cap. 06](06-agentes-de-ia.md#rf-20-minimização)). Os textos foram escritos na triagem e esperam a revisão da
-  `ux-ui-design`. O B-4 da revisão do 0011 também fica para ela: o aviso diz "cada parte" sem dizer "com 3 letras ou
-  mais" nem citar as partículas, e a dica não diz que a parte escrita toda em minúscula sobra.
+  [cap. 06](06-agentes-de-ia.md#rf-20-minimização)). Desde a 0.1.11 (B-4 da revisão do 0011), o aviso diz "cada
+  parte com 3 letras ou mais, fora partículas como dos, das e Júnior, quando escrita com inicial maiúscula", e a dica
+  diz que o sistema não troca "a parte do nome escrita toda em minúscula". Os textos foram escritos na triagem, e o
+  exemplo de partícula foi ajustado na revisão de segurança ("da" tem 2 letras e já fica de fora pelo mínimo). Esperam
+  a revisão da `ux-ui-design`. Nenhum e2e fixa essas frases; elas são conferidas em `dados-da-demanda.test.ts` e
+  `formularios.test.ts`.
 - Falha ao carregar uma tela mostra "Não foi possível carregar esta página." e "Tentar de novo" (`src/app/error.tsx`),
   sem mensagem, pilha nem `digest`. O registro do erro é o `erro_requisicao` do servidor
   ([cap. 02](02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).

@@ -29,17 +29,15 @@ const CONTROLE_DO_NEXT = /^(NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK|NEXT_NOT_FOUN
 
 const texto = (v: unknown, formato: RegExp): string | undefined => (typeof v === 'string' && formato.test(v) ? v : undefined);
 
-function digestDe(err: unknown): unknown {
-  return err !== null && typeof err === 'object' && 'digest' in err ? (err as { digest: unknown }).digest : undefined;
-}
-
+// B-3 da revisão do 0011: o `digest` é lido por lerDigest, que não lança com getter nem com Proxy; o erro reduzido, por
+// reduzirErro, que também não lança. Assim a linha do log e o envio ao Sentry sempre acontecem.
 export async function onRequestError(err: unknown, request: RequisicaoDoNext, context: ContextoDoNext): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
-  const digest = digestDe(err);
+  const { lerDigest, reduzirErro } = await import('./lib/reduzir-erro');
+  const digest = lerDigest(err);
   if (typeof digest === 'string' && CONTROLE_DO_NEXT.test(digest)) return;
   const { log, FORMATO_ERRO_ID } = await import('./lib/log');
   const { capturarErro } = await import('./lib/sentry');
-  const { reduzirErro } = await import('./lib/reduzir-erro');
   const metodo = texto(request?.method, FORMATO_METODO);
   const rota = texto(context?.routePath, FORMATO_ROTA);
   const erroId = texto(digest, FORMATO_ERRO_ID);

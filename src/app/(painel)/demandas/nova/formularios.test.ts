@@ -63,7 +63,9 @@ describe('T04 Nova demanda: modo manual (agente desligado ou suspenso)', () => {
       'Cole o e-mail, a mensagem ou o formulário como chegou. Este texto é dado pessoal de terceiro: fica guardado por 90 dias e depois é apagado.',
     );
     expect(p).toContain('Um identificador da mensagem, sem endereço de e-mail.');
-    expect(p).toContain('O campo não vai ao agente de IA. Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas.');
+    expect(p).toContain(
+      'O campo não vai ao agente de IA. Evite repetir o nome no texto: o sistema troca o nome do solicitante, mas não o de outras pessoas nem a parte do nome escrita toda em minúscula.',
+    );
     expect(p).not.toContain('Ele não é enviado ao agente de IA.');
     expect(p).toContain('Só a referência: o arquivo não é enviado ao sistema.');
     expect(p).toContain('0 de 100.000 caracteres');
@@ -119,7 +121,7 @@ describe('T04 Nova demanda: agente orquestrador ligado', () => {
   it('aviso de minimização e o botão "Enviar ao agente"', () => {
     const p = nova({ estado: 'disponivel' });
     expect(p).toContain(
-      'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante e cada parte dele escrita com inicial maiúscula também viram marcador; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
+      'O agente recebe só o texto, sem a origem e com e-mails, telefones, CPF e CNPJ trocados por marcadores. O nome do solicitante também vira marcador, e cada parte com 3 letras ou mais, fora partículas como dos, das e Júnior, quando escrita com inicial maiúscula; nomes de outras pessoas, não. Você revisa a proposta antes de qualquer decisão.',
     );
     expect(p).not.toContain('sem o nome do solicitante');
     expect(p).toMatch(/<button type="submit"[^>]*>Enviar ao agente<\/button>/);

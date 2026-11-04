@@ -81,14 +81,20 @@ export function deZod(e: z.ZodError): ErroDominio {
   });
 }
 
+// B-3 da revisão do 0011: não lança. Um Proxy com getPrototypeOf que lança (no `instanceof`), ou um getter que lança,
+// vira o mesmo 500 genérico do fim, para a rota() seguir até a resposta, o log e o Sentry.
 export function mapearErro(e: unknown): { status: number; corpo: CorpoErro } {
-  if (e instanceof ErroDominio) {
-    const corpo: CorpoErro = { erro: e.codigo, mensagem: e.mensagem };
-    // Só os três extras da interface; qualquer outra chave que chegue por engano fica de fora.
-    if (e.extras.campos) corpo.campos = e.extras.campos;
-    if (e.extras.faltando) corpo.faltando = e.extras.faltando;
-    if (e.extras.erros) corpo.erros = e.extras.erros;
-    return { status: STATUS_DO_CODIGO[e.codigo], corpo };
+  try {
+    if (e instanceof ErroDominio) {
+      const corpo: CorpoErro = { erro: e.codigo, mensagem: e.mensagem };
+      // Só os três extras da interface; qualquer outra chave que chegue por engano fica de fora.
+      if (e.extras.campos) corpo.campos = e.extras.campos;
+      if (e.extras.faltando) corpo.faltando = e.extras.faltando;
+      if (e.extras.erros) corpo.erros = e.extras.erros;
+      return { status: STATUS_DO_CODIGO[e.codigo], corpo };
+    }
+  } catch {
+    // Cai no 500 genérico abaixo.
   }
   return { status: 500, corpo: { erro: 'erro_interno', mensagem: MENSAGEM_ERRO_INTERNO } };
 }

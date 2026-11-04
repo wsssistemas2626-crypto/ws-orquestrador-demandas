@@ -234,6 +234,17 @@ describe('mapearErro: casos de borda (C-20)', () => {
     const m = mapearErro(e);
     expect(m).toEqual({ status: 500, corpo: { erro: 'erro_interno', mensagem: MENSAGEM_500 } });
   });
+
+  // B-3 da revisão do 0011 (DEC-DEM-20261104-0012-v1): o `instanceof ErroDominio` de um Proxy com getPrototypeOf que
+  // lança não faz mapearErro lançar. Armadilha fictícia.
+  it('B-3 do 0011: Proxy com getPrototypeOf que lança vira 500 genérico, sem lançar', () => {
+    const p = new Proxy(new Error('falha fictícia'), {
+      getPrototypeOf: () => {
+        throw new Error('armadilha fictícia');
+      },
+    });
+    expect(mapearErro(p)).toEqual({ status: 500, corpo: { erro: 'erro_interno', mensagem: MENSAGEM_500 } });
+  });
 });
 
 describe('deZod: casos de borda (C-20, C-17 Zod sem input, RNF-16)', () => {

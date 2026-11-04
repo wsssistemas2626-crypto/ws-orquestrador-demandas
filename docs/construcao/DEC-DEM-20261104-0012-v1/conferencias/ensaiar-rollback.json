@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "alteram_dado": false,
+  "url": "http://127.0.0.1:3200",
+  "volta_sem_restaurar": true,
+  "verificacoes": [
+    {
+      "nome": "migracoes_da_main",
+      "ok": true,
+      "detalhe": "nenhuma alterada"
+    },
+    {
+      "nome": "migracoes_novas",
+      "ok": true,
+      "detalhe": "nenhuma"
+    },
+    {
+      "nome": "anterior",
+      "ok": true,
+      "detalhe": "versão da main: http://127.0.0.1:3200/api/saude respondeu 200 em 165 s"
+    },
+    {
+      "nome": "backup",
+      "ok": true,
+      "detalhe": "106 KB, impressão d53f8e3405907793"
+    },
+    {
+      "nome": "nova",
+      "ok": true,
+      "detalhe": "versão do ramo sobre o banco da main: http://127.0.0.1:3200/api/saude respondeu 200 em 42 s"
+    },
+    {
+      "nome": "restauracao",
+      "ok": true,
+      "detalhe": "banco igual ao backup (impressão d53f8e3405907793)"
+    },
+    {
+      "nome": "volta",
+      "ok": true,
+      "detalhe": "a versão da main voltou sobre o banco migrado e de novo sobre o backup: http://127.0.0.1:3200/api/saude respondeu 200 em 10 s"
+    },
+    {
+      "nome": "ida_de_novo",
+      "ok": true,
+      "detalhe": "versão do ramo depois da volta: http://127.0.0.1:3200/api/saude respondeu 200 em 37 s"
+    },
+    {
+      "nome": "derrubar",
+      "ok": true,
+      "detalhe": "projeto e volumes removidos"
+    }
+  ],
+  "sha": "0709bac7820396ff5b0cabdaf4e5b710f1e0b8fc",
+  "em": "2026-11-04T15:52:43.888Z"
+}

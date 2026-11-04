@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
+| Atualizado em | 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo 7 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-22, RF-23; RNF-15 |
-| Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`), `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/api/pacotes-decisao/route.ts` |
+| Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`), `src/modules/dados-pessoais/detectores.ts`, `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/api/pacotes-decisao/route.ts` |
 
 ## RF-22. Gerar o pedido
 
@@ -27,7 +27,11 @@ gravado. A matriz vem antes (token de agente: 403):
 5. demanda do tipo `estudo`, pela cópia gravada no DEC → 422 "demanda do tipo estudo não gera Pedido de Construção";
 6. montagem só com a ESP e o RSK citados no DEC;
 7. e-mail, telefone ou CPF em qualquer campo → 422 com `erros` no formato `<caminho>: <tipo>`, sem o valor (C-28).
-   CNPJ não bloqueia o pedido;
+   CNPJ não bloqueia o pedido. A busca é `encontrarDadosPessoais`, com os `DETECTORES` de `detectores.ts`. Desde a
+   0.1.11 (M-a e B-2 da revisão do 0011), o detector de e-mail tem custo linear (100 mil caracteres abaixo de 200 ms;
+   antes, cerca de 20 s com o event loop travado) e aceita letra com acento no usuário. No reteste da
+   `seguranca-aplicacao`, com 300 mil textos sorteados, nenhum texto que a 0.1.10 bloqueia deixou de ser bloqueado
+   ([cap. 06](06-agentes-de-ia.md#detector-de-e-mail));
 8. `validarPedido` da cópia em `src/vendor/construir/pedido.mjs` (a mesma regra do `/construir`, conferida por SHA-256
    em teste) → 422 "O pedido não passou na validação do /construir. Nada foi entregue." com os `erros` dele;
 9. evento `pedido_gerado` (sem conteúdo) e a resposta.
