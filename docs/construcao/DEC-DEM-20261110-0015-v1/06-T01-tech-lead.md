@@ -74,10 +74,8 @@ regravam a entrega. **Aprovada.** Nenhum problema Critical ou Important; três M
   deixar de reprovar) continua pega, porque o teste passaria e o `test.fail()` o daria como falha.
 - O cabeçalho do `preparacao.spec.ts` fica como está nesta tarefa: a T01 só autorizava trocar a importação nos specs
   (G5), e o engenheiro fez certo em não mexer.
-- Aviso ao maestro: a seção 12 do `padrao-tecnico.md` foi lida por `git -C .../estruturaAutonoma show HEAD:...`, em vez da
-  ferramenta Read. É só leitura de arquivo rastreado da
-  estruturaAutonoma, que a lista Pode permite ler; se o `conferir` recusar o `-C` fora do repositório do pedido, o
-  item pode ser liberado como leitura (regra de 25/10), sem mudar o parecer.
+- Volta 2: o maestro liberou o `git show` só de leitura do `padrao-tecnico.md` na estruturaAutonoma, feito na volta
+  1, e ele saiu de Comandos executados por instrução dele; o parecer não mudou.
 
 ## Pendências
 
@@ -99,7 +97,6 @@ regravam a entrega. **Aprovada.** Nenhum problema Critical ou Important; três M
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 2ee046ff02a8ac8293586a83f67db940fa2d4916` — 31 arquivos, os da T01 e a passagem
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 2ee046ff02a8ac8293586a83f67db940fa2d4916 -- e2e/apoio.ts e2e/vigia.ts e2e/vigia.spec.ts test/estatico/piso-de-assercoes.test.ts test/estatico/sem-recurso-externo.test.ts test/estatico/vigia.test.ts e2e/moldura.spec.ts e2e/preparacao.spec.ts` — código novo e alterado
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 2ee046ff02a8ac8293586a83f67db940fa2d4916 -- e2e/agentes-teto.spec.ts e2e/autenticacao-qa.spec.ts e2e/axe-todas.spec.ts e2e/configurar-2fa.spec.ts e2e/decisao.spec.ts e2e/demanda-formularios-qa.spec.ts e2e/detalhe-demanda.spec.ts e2e/editar-demanda.spec.ts e2e/entrar.spec.ts e2e/especificacao-qa.spec.ts e2e/especificacao.spec.ts e2e/fila-qa.spec.ts e2e/fila.spec.ts e2e/nova-demanda.spec.ts e2e/pacote-decisao.spec.ts e2e/parecer-risco-qa.spec.ts e2e/parecer-risco.spec.ts e2e/pedido-construcao.spec.ts e2e/seguranca-qa.spec.ts e2e/seguranca.spec.ts e2e/sem-violacoes.spec.ts` — só a linha de importação em cada spec
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma show HEAD:docs/construcao/padrao-tecnico.md` — seção 12
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -5` — topo `57af785`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d -- src/proxy.ts src/proxy.test.ts next.config.ts src/app/api src/db drizzle src/modules/acesso src/worker src/jobs src/agents src/lib/auth.ts src/lib/auth-cliente.ts src/lib/qr.ts src/lib/log.ts src/lib/erros.ts src/instrumentation.ts pnpm-workspace.yaml "src/app/(painel)/configuracao/agentes/acoes.ts" "src/app/(painel)/demandas/[id]/acoes.ts" "src/app/(painel)/demandas/[id]/editar/acoes.ts" "src/app/(painel)/demandas/[id]/especificacoes/nova/acoes.ts" "src/app/(painel)/demandas/[id]/pacotes-decisao/novo/acoes.ts" "src/app/(painel)/demandas/[id]/pareceres-risco/novo/acoes.ts" "src/app/(painel)/demandas/nova/acoes.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes.ts"` — vazio (G4, CV-01)
