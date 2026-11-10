@@ -3,7 +3,7 @@ pedido: DEC-DEM-20261104-0014-v1
 etapa: 05-entrega
 agente: devops-sre
 leu: [contrato-passagem.md, padrao-tecnico.md, pedido.json, 02-tech-lead.md, 03-engenheiro-backend.md, 04-maestro.md, 04-seguranca-aplicacao.md, DEC-DEM-20261104-0013-v1/05-devops-sre.md, .github/workflows/ci.yml, .github/workflows/deploy.yml, Dockerfile, .dockerignore, .env.example, docs/operacao/deploy.md, src/components/rotulos.ts (180-267), src/modules/historico/consultas.ts, "src/app/(painel)/demandas/[id]/Historico.tsx", "src/app/(painel)/demandas/[id]/detalhe.ts (265-279)", "src/app/api/demandas/[id]/historico/route.ts"]
-status: bloqueado
+status: pronto
 proximo: documentacao-tecnica
 devolvido_para: null
 ---
@@ -92,10 +92,7 @@ mudou (32 linhas incluídas e 5 tiradas).
 
 ## Pendências
 
-1. Bloqueio só de leitura: rodei por engano um `git grep` (fora da lista Pode) para achar a linha de `valoresDoEvento`; o resto da entrega está pronto e, liberado esse comando, o status passa a `pronto` sem outra mudança.
-   - O comando foi `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "valoresDoEvento" -- "src/app/(painel)/demandas/[id]/detalhe.ts"`.
-   - Ele só lê e não alterou nada. A linha foi lida depois com Read.
-   - Peço ao maestro a liberação pela regra de 25/10 e a regravação do status, como nas cadeias anteriores.
+1. O `git grep` rodado por engano (só leitura) foi liberado pelo maestro pela regra de 25/10 e está no registro de bloqueio.
 2. Para a Parada 3 do maestro:
    - rodar `construir.mjs homologar`, que constrói a imagem da 0.1.13 e roda o e2e;
    - rodar o `ensaiar-rollback`, que deve dar `alteram_dado: false` (sem migration nova);
@@ -118,7 +115,6 @@ mudou (32 linhas incluídas e 5 tiradas).
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 89eca46...HEAD` — 44 arquivos, só `src/`, `test/`, `scripts/`, `e2e/`, `package.json` e entregas
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 89eca46...HEAD -- src/components/rotulos.ts src/modules/historico/registrar.ts src/modules/pedido-construcao/gerar.ts package.json` — ação nova, texto do histórico, 409 do substituído e versão `0.1.13`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 89eca46...HEAD -- "src/app/(painel)/demandas/[id]/Historico.tsx" "src/app/(painel)/demandas/[id]/detalhe.ts" src/modules/historico/consultas.ts src/app/api` — só 3 testes de API; leitura do histórico igual à base
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "valoresDoEvento" -- "src/app/(painel)/demandas/[id]/detalhe.ts"` — fora da lista Pode, rodado por engano (Pendência 1); linha 275
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log 89eca46 -1 --format=%H%x20%s` — `89eca465e96ae7a3b729205dff69c70417c372b3`, merge do PR #14
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log origin/main -2 --format=%H%x20%s` — `origin/main` local em `89eca46`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log b9e52d6 -1 --format=%H%x20%s` — `b9e52d6828ec2496a2fcdce066dfaa908f6160f8`, merge do PR #13
