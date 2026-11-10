@@ -1,0 +1,39 @@
+{
+  "pedido": "DEC-DEM-20261104-0014-v1",
+  "demanda": {
+    "id": "DEM-20261104-0014",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.1.13: E5 do pedido 0013, o DEC aprovado mais novo substitui o anterior (saída para a recusa do Pedido de Construção)",
+    "descricao": "Na 01 e na 02 do pedido DEC-DEM-20261104-0013-v1 (docs/construcao/DEC-DEM-20261104-0013-v1/01-qa-funcional.md, E5, e 02-tech-lead.md, Pendência 1) ficou o E5: com um DEC aprovado, o A-02 (src/modules/pacotes-decisao/decidir.ts, temOutroAprovado e MENSAGENS_DECISAO.outroAprovado) não deixa aprovar outro DEC da mesma demanda. Uma recusa do Pedido de Construção por nome de pessoa (0.1.12), inclusive a falsa ('Santos' cidade, 'Campos' no começo da frase), ou qualquer correção de ESP ou RSK depois da aprovação, não tem saída dentro da demanda: a ESP nova deixa o DEC aprovado desatualizado (409 no gerar) e o DEC novo não se aprova (409 'outro pacote desta demanda já está aprovado.'). Fabiano decidiu em 04/11 pela opção (b) do tech-lead: o DEC aprovado mais novo substitui o anterior. Base: main (89eca46, versão 0.1.12)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261104-0014-v1",
+    "conteudo": "(b) O registrarDecisao deixa aprovar o DEC mais novo da demanda (a regra 'só o mais novo se decide' continua) mesmo com outro DEC da demanda já aprovado; a aprovação segue todas as regras de hoje (2FA, papéis, dupla aprovação quando exigida, revisão de rascunhos, desatualizado, demanda em status final). Sem migration e sem status novo: o DEC aprovado que não é o aprovado mais novo da demanda é 'substituído', calculado na leitura (vista do pacote e listagens trazem substituido: true e o id do DEC que o substituiu). O gerarPedido recusa com 409, com mensagem clara, todo DEC que não seja o aprovado mais novo, para nunca haver dois Pedidos de Construção válidos da mesma demanda; o aprovado mais novo gera como hoje (CA-22.2 vale para ele). A aprovação que substitui grava no histórico, além do evento de hoje, um evento de substituição com os dois ids, sem texto livre. A T11 mostra no DEC substituído um aviso com o link para o que o substituiu e não oferece gerar o pedido; a mensagem do A-02 sai do fluxo de aprovação. Atualizar a spec do sistema (A-02 e CA-22.4) e o manual. Testes: aprovar o mais novo com outro aprovado; gerar do substituído dá 409 e do mais novo dá 200; corrida de duas aprovações ao mesmo tempo (C-13) deixa um só aprovado mais novo; dupla aprovação no DEC que substitui; histórico com a substituição; T11 do substituído com axe sem violação; e2e do caminho completo (aprovar, recusa por nome, nova ESP, novo DEC, aprovar, gerar). Nenhum controle é afrouxado (C-10, C-13, C-21, C-23, C-28, A-03, axe, C-36). Mudam src/, os testes, e2e/, docs da spec e do manual, package.json (versão 0.1.13) e CHANGELOG. Revisão da seguranca-aplicacao obrigatória na 04."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261104-0014-v1",
+    "nivel": "alto",
+    "conteudo": "Mexe na regra de aprovação (A-02) e na saída da empresa para o /construir, com dados fictícios. Riscos: dois Pedidos de Construção válidos da mesma demanda (o gerar só aceita o aprovado mais novo, com teste de corrida); aprovação que contorna a dupla aprovação ou a 2FA ao substituir (todas as regras de hoje valem, com teste); um Pedido já gerado do DEC antigo ter sido copiado para o /construir antes da substituição (fica registrado no histórico e na tela; a regra de uso é não usar pedido de DEC substituído); perda de rastreabilidade (o histórico grava a substituição com os dois ids). Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261104-0014-v1",
+    "opcaoEscolhida": "Opção (b) do E5: o DEC aprovado mais novo substitui o anterior, e só ele gera Pedido de Construção, num pedido de correção (cadeia curta) sobre a main",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-04"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "O DEC mais novo da demanda pode ser aprovado com outro DEC já aprovado, com todas as regras de aprovação de hoje",
+    "Só o DEC aprovado mais novo gera Pedido de Construção; o substituído dá 409, inclusive em corrida",
+    "A substituição fica no histórico com os dois ids, e a T11 do substituído mostra o aviso e o link, sem violação de axe",
+    "O caminho completo (recusa por nome, nova ESP, novo DEC, aprovação, geração) passa no e2e",
+    "A suíte e2e passa três vezes seguidas"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "CHANGELOG com a versão 0.1.13",
+    "PR com CI verde"
+  ]
+}
