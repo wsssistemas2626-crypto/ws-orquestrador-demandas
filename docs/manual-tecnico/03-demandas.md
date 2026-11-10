@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09 |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
@@ -153,16 +153,19 @@ Fora da origem permitida, a automática não faz nada nem grava evento. **A apro
 - Cada evento tem ator (`pessoa` com a conta, `agente` com o nome do agente, `sistema`), entidade, ação e data do
   relógio injetado.
 - Ações: `demanda_criada`, `status_alterado`, `campo_alterado`, `especificacao_criada`, `parecer_risco_criado`,
-  `pacote_decisao_criado`, `aprovacao_registrada`, `decisao_registrada`, `agente_ligado`, `agente_desligado`,
-  `teto_alterado`, `suspensao_por_teto`, `agente_ignorado`, `falha_agente`, `pedido_gerado`, `texto_expurgado`,
-  `entrada_pendente_expurgada`, `2fa_ativado`, `2fa_desativado`, `conta_criada`, `conta_desativada`, `token_criado`,
-  `token_revogado`.
+  `pacote_decisao_criado`, `aprovacao_registrada`, `decisao_registrada`, `pacote_decisao_substituido` (desde a
+  0.1.13), `agente_ligado`, `agente_desligado`, `teto_alterado`, `suspensao_por_teto`, `agente_ignorado`,
+  `falha_agente`, `pedido_gerado`, `texto_expurgado`, `entrada_pendente_expurgada`, `2fa_ativado`, `2fa_desativado`,
+  `conta_criada`, `conta_desativada`, `token_criado`, `token_revogado`.
 - **Sem dado de terceiro** (C-30): a mudança de campo guarda o valor só de `tipo`, `status`, `solicitantePapel`,
   `linhaServicoProvavel` e `urgencia`. Qualquer outro campo vira `{ "alterado": true }`. Evento de ESP, RSK, DEC e
   pedido leva só ids, números e enumerações. Desde a 0.1.12 (D3 do 0013), o `pedido_gerado` grava também
   `depois: { "confirmaSemDadoPessoal": true }`, um booleano fixo, sem texto, e o histórico mostra "Gerou o Pedido de
   Construção de <DEC-id>, com a confirmação de que o texto não tem dado pessoal"
-  ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)).
+  ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)). Desde a 0.1.13, o `pacote_decisao_substituido` é do
+  DEC substituído e grava `depois: { "substituido": <id>, "substituidoPor": <id> }`, só os dois ids, e o histórico
+  mostra "<DEC substituído> foi substituído por <DEC aprovado>, aprovado depois"
+  ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)).
 - Leitura: `GET /api/demandas/:id/historico` e o detalhe da demanda, só pessoa.
 - Limite conhecido (B-04, backlog): a `referenciaDocumento` da aprovação da administradora é texto livre e fica no
   evento `aprovacao_registrada`.

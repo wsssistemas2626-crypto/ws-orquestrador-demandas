@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.12 (`package.json`) |
-| Atualizado em | 04/11/2026 |
+| Versão | 0.1.13 (`package.json`) |
+| Atualizado em | 10/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
 | Repositório | `wsssistemas2626-crypto/ws-orquestrador-demandas` (privado) |
@@ -13,9 +13,11 @@ Sistema interno da WS Sistemas. Recebe uma demanda técnica (bug, melhoria, novo
 guarda a especificação técnica (ESP), o parecer de risco (RSK) e o pacote de decisão (DEC) em versões que não mudam
 depois de gravadas, registra a decisão de uma pessoa com 2FA (com dupla aprovação quando o nível pede) e, de um DEC
 aprovado, gera o **Pedido de Construção** que o `/construir` aceita. O pedido é baixado e copiado à mão para
-`pedidos/` da estruturaAutonoma. Ele só é gerado depois que a pessoa confirma que o texto não tem dado pessoal, é
-recusado quando o texto tem o nome do solicitante e leva o papel de quem aprovou, e não o nome
-([manual, cap. 05](docs/manual-tecnico/05-pedido-de-construcao.md)).
+`pedidos/` da estruturaAutonoma. Só o DEC aprovado mais novo da demanda gera o pedido: aprovar um DEC novo substitui o
+aprovado anterior, e não se usa pedido gerado de DEC substituído
+([manual, cap. 04](docs/manual-tecnico/04-versoes-e-decisao.md#substituição-do-dec-aprovado)). Ele só é gerado
+depois que a pessoa confirma que o texto não tem dado pessoal, é recusado quando o texto tem o nome do solicitante e
+leva o papel de quem aprovou, e não o nome ([manual, cap. 05](docs/manual-tecnico/05-pedido-de-construcao.md)).
 
 Quatro agentes de IA (orquestrador, insumo técnico, risco e consolidação) podem preencher rascunhos como jobs, mas
 **nascem desligados e com teto de gasto zero**. Na 0.1.0 a pessoa preenche tudo pelo painel.

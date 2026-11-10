@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.12: corpo com a confirmação e recusa com o nome do solicitante no `POST .../pedido-construcao`); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase trocado para o agente; 500 `erro_interno` também para erro que lança ao ser lido); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
+| Atualizado em | 10/11/2026 (0.1.13: `substituido` e `substituidoPor` nas leituras de DEC, 409 do DEC substituído no `POST .../pedido-construcao` e 409 do S-01 no `PATCH .../decisao`; saiu o 409 da A-02); 04/11/2026 (0.1.12: corpo com a confirmação e recusa com o nome do solicitante no `POST .../pedido-construcao`); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase trocado para o agente; 500 `erro_interno` também para erro que lança ao ser lido); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Fontes no código | `src/app/api/**/route.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
@@ -40,7 +40,7 @@ Base: a origem do `BETTER_AUTH_URL`. Toda rota abaixo, menos `/api/auth/*` e `/a
 | `POST /api/demandas/:id/pacotes-decisao` | pessoa, `consolidacao` | `criarPacoteDecisaoSchema` | 201 com o DEC (ao agente, a vista mínima) |
 | `GET /api/demandas/:id/pacotes-decisao` | pessoa, os 4 agentes | — | versões |
 | `GET /api/pacotes-decisao` | pessoa, os 4 agentes | `statusDecisao`, `limit`, `offset` | lista |
-| `GET /api/pacotes-decisao/:decId` | pessoa, os 4 agentes | — | DEC com `statusDecisao`, `desatualizado`, aprovadores |
+| `GET /api/pacotes-decisao/:decId` | pessoa, os 4 agentes | — | DEC com `statusDecisao`, `desatualizado`, `substituido` e `substituidoPor` (desde a 0.1.13), aprovadores |
 | `PATCH /api/pacotes-decisao/:decId/decisao` | pessoa | `registrarDecisaoSchema` ([cap. 04](04-versoes-e-decisao.md#rf-13-decisão)) | DEC e resultado (`aprovada`, `aprovacao_parcial`, `devolvida`, `arquivada`) |
 | `POST /api/pacotes-decisao/:decId/pedido-construcao` | pessoa | `{ "confirmaSemDadoPessoal": true }` (`confirmacaoDoPedidoSchema`, desde a 0.1.12) | 200, arquivo `<decId>.json` ([cap. 05](05-pedido-de-construcao.md)) |
 | `GET /api/agentes` | pessoa | — | os quatro agentes |
@@ -200,6 +200,36 @@ resposta é um 422 só, com a lista do C-28 primeiro e depois a do nome (D1 do 0
 
 Nos dois 422, nada é entregue e nenhum evento é gravado. O 403 do token de agente vem antes da confirmação.
 
+## Exemplo: DEC substituído
+
+Desde a 0.1.13, aprovar o DEC mais novo com outro DEC da demanda já aprovado dá 200, e o anterior passa a ser
+substituído ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)). Valores fictícios: na demanda
+`DEM-20261110-0901`, o v1 foi aprovado e depois o v2. A leitura do v1, resposta encurtada:
+
+```http
+GET /api/pacotes-decisao/DEC-DEM-20261110-0901-v1 HTTP/1.1
+Authorization: Bearer wsod_<token>
+```
+
+```json
+{ "id": "DEC-DEM-20261110-0901-v1", "statusDecisao": "aprovada", "desatualizado": false, "substituido": true, "substituidoPor": "DEC-DEM-20261110-0901-v2" }
+```
+
+O v2 tem `"substituido": false` e `"substituidoPor": null`. Os dois campos saem iguais para a pessoa e para o agente.
+Gerar o Pedido do v1 (`POST .../DEC-DEM-20261110-0901-v1/pedido-construcao`, com a confirmação) dá 409, sem
+`content-disposition` nem evento:
+
+```json
+{ "erro": "conflito", "mensagem": "o pacote foi substituído por DEC-DEM-20261110-0901-v2, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção." }
+```
+
+Se o v1 tivesse sido aprovado no nível `cto_e_administradora` e o v2 fosse de nível `cto`, a aprovação do v2 pela `cto`
+(`PATCH .../DEC-DEM-20261110-0901-v2/decisao`) daria 409, sem gravar nada (S-01):
+
+```json
+{ "erro": "conflito", "mensagem": "o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora." }
+```
+
 ## Exemplo: parecer de risco numa demanda encerrada
 
 Vale igual para `POST .../especificacoes` e `POST .../pacotes-decisao`, pela pessoa e pelo token do agente. Nada é
@@ -233,7 +263,7 @@ Corpo de erro: `{ "erro": <código>, "mensagem": <texto em pt-BR> }`, mais `camp
 | `sem_2fa` | 403 | sessão de conta sem 2FA ativo |
 | `nao_encontrado` | 404 | id fora do formato (sem consulta) ou inexistente |
 | `metodo_nao_permitido` | 405 | método que a rota não tem |
-| `conflito` | 409 | já decidido; não é o DEC mais novo; outro DEC aprovado; desatualizado; transição de status recusada; agente desligado; ESP, RSK ou DEC numa demanda `entregue` ou `encerrada`; decidir DEC ou gerar Pedido numa demanda `entregue` ou `encerrada` |
+| `conflito` | 409 | já decidido; não é o DEC mais novo; DEC só do CTO sobre um aprovado vigente de dupla aprovação (S-01, desde a 0.1.13; até a 0.1.12, qualquer outro DEC aprovado, A-02); desatualizado; Pedido de DEC substituído (desde a 0.1.13); transição de status recusada; agente desligado; ESP, RSK ou DEC numa demanda `entregue` ou `encerrada`; decidir DEC ou gerar Pedido numa demanda `entregue` ou `encerrada` |
 | `capacidade_de_ids_esgotada` | 409 | a sequência de ids de demanda passou de 9.999 |
 | `corpo_grande` | 413 | corpo acima de 512 KB |
 | `tipo_nao_suportado` | 415 | corpo que não é `application/json` |

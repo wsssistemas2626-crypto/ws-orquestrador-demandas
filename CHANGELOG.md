@@ -3,6 +3,143 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.1.13 — 2026-11-10
+
+Correção do pedido `DEC-DEM-20261104-0014-v1` (cadeia curta, tipo bug): o E5 do pedido 0013, pela opção (b) do
+`tech-lead`, decidida por Fabiano em 04/11. **O DEC aprovado mais novo da demanda substitui o anterior**, e só ele gera
+o Pedido de Construção. Base: a `main` da 0.1.12 (`89eca46`, merge do PR #14). Ainda não foi publicada: o merge, a
+publicação e a configuração no Easypanel são de Fabiano. A regra da primeira publicação não muda: exige a 0.1.8 ou
+posterior na `main`, e a 0.1.13 a cumpre (`docs/operacao/deploy.md`, seção 4).
+
+Até a 0.1.12, a A-02 recusava a aprovação de qualquer DEC numa demanda que já tinha um DEC aprovado (409 "outro pacote
+desta demanda já está aprovado."). Uma recusa do Pedido de Construção por nome de pessoa, inclusive a falsa (`Santos`
+cidade, `Rosa` ou `Campos` no começo da frase), ou qualquer correção de ESP, RSK, título, descrição ou opção depois da
+aprovação, não tinha saída dentro da demanda: a única saída era encerrá-la e abrir outra, refazendo ESP, RSK e DEC.
+
+Não há migration nova, coluna nova, status novo, dependência nova nem variável de ambiente nova. Não mudaram
+`src/db/`, `drizzle/`, `.github/`, `Dockerfile`, `.env.example` nem o lockfile. Mudaram `scripts/seed-ficticio.ts` (uma
+demanda fictícia para o e2e), `e2e/decisao.spec.ts` e `e2e/pedido-construcao.spec.ts`.
+
+### O que mudou
+
+- **A aprovação do DEC mais novo substitui o aprovado anterior** (`src/modules/pacotes-decisao/decidir.ts`).
+  - Saíram `temOutroAprovado` e a mensagem `MENSAGENS_DECISAO.outroAprovado`. A regra "só o DEC mais novo se decide"
+    (A-01) continua.
+  - A substituição acontece quando a decisão `aprovada` é gravada: no nível `cto`, na aprovação; no nível
+    `cto_e_administradora`, na segunda aprovação. A primeira aprovação da dupla não substitui nada.
+  - Valem todas as regras de antes: 2FA, matriz, P1-a, P1-b, mesma opção, documento da administradora, revisão de
+    rascunho, desatualizado, A-01 e status final (M-08). A aprovação que substitui não muda o status da demanda (P1-d).
+  - O helper `fecharAprovacao`, usado pelos dois níveis, lê o aprovado vigente sob a trava da demanda e antes do insert
+    em `decisao` (C-13).
+- **Um DEC só do CTO não substitui um aprovado que exigiu o CTO e a administradora** (S-01 da revisão deste pedido,
+  `decidir.ts` e `aprovadoVigente` em `substituido.ts`).
+  - Na aprovação de um DEC de nível `cto`, depois do P1-b e antes de gravar, se o aprovado vigente é
+    `cto_e_administradora`, a resposta é 409 "o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da
+    administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da
+    administradora." (`MENSAGENS_DECISAO.nivelMenorQueOVigente`).
+  - Nada é gravado: nem aprovação, nem decisão, nem evento. O inverso é permitido: um DEC `cto_e_administradora`, com
+    as duas aprovações, substitui um vigente `cto`. O DEC `cto` recusado pode ser devolvido ou arquivado.
+  - Sem esta regra, a `cto` criava um DEC de nível `cto` e, sozinha, tirava a geração de um DEC aprovado com o
+    documento da administradora.
+- **O substituído é calculado na leitura** (`src/modules/pacotes-decisao/substituido.ts`, novo; `consultas.ts`;
+  `src/modules/demandas/consultas.ts`).
+  - Aprovado vigente é o DEC de maior `versao` da demanda com decisão `aprovada`, pela versão e não pela data.
+    Substituído é o DEC `aprovada` que não é o vigente; o `statusDecisao` dele continua `aprovada`.
+  - A vista do DEC (`PacoteDecisaoVista`) e o resumo da lista da demanda (`PacoteResumo`) ganharam `substituido` e
+    `substituidoPor`, também na vista mínima do agente. `substituidoPor` aponta sempre para o vigente atual: com v1,
+    v2 e v3 aprovados, v1 e v2 apontam para o v3. Pendente, parcial, devolvido e arquivado ficam com `false` e `null`.
+  - O filtro `statusDecisao=aprovada` (RF-23) traz o substituído, marcado.
+- **Só o aprovado vigente gera o Pedido de Construção** (`src/modules/pedido-construcao/gerar.ts`).
+  - O substituído recebe 409 "o pacote foi substituído por <id>, aprovado depois dele; só o pacote aprovado mais novo
+    gera o Pedido de Construção." (`MENSAGENS_PEDIDO.substituido`, que passou a ser uma função com o id do vigente),
+    sem arquivo nem evento.
+  - A conferência é lida com o DEC, sob a trava da demanda, logo depois do "não aprovado" e antes do desatualizado:
+    nunca há dois Pedidos válidos da mesma demanda, nem em corrida. O vigente gera como antes (CA-22.2, D1, C-28,
+    `validarPedido`).
+- **Histórico** (`src/modules/historico/registrar.ts`, `src/components/rotulos.ts`). A ação nova
+  `pacote_decisao_substituido`, do DEC substituído, grava `depois: { "substituido": <id>, "substituidoPor": <id> }`, só
+  os dois ids (C-30), depois de `aprovacao_registrada` e `decisao_registrada`. A T05 mostra "<DEC substituído> foi
+  substituído por <DEC aprovado>, aprovado depois".
+- **T11 e T05** (`page.tsx` das duas telas, `dados-da-decisao.ts`, `dados-do-pedido.ts`, `rotulos.ts`).
+  - T11 do substituído: o selo "Substituído", o aviso "Este pacote foi substituído por <id>, aprovado depois dele. Só
+    o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote." com o link
+    "Abrir <id>", sem a seção do pedido e sem o lembrete do P1-d. T05: o selo ao lado de "Aprovada".
+  - A linha 6 da orientação do 422 passou a "Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais
+    novo substitui este, e só ele gera o Pedido de Construção.", no lugar do aviso de que outro pacote não se aprova.
+- **Seed:** a demanda fictícia `TITULOS_DO_E2E.substituicao` ("Frete da filial: substituição do pacote (fictício)"),
+  com a solicitante `Carla Santos Ficticia` e "Santos" cidade no contexto, para o caminho completo do e2e.
+- **Testes:**
+  - novos: `substituicao.test.ts` (leitura, decisão, corridas, histórico e o bloco S-01) e `gerar-substituido.test.ts`
+    (409 do substituído, A contra B, desatualizado e substituído, parcial, corrida de 10 rodadas, v3), mais casos nas
+    rotas `decisao.test.ts`, `pedido.test.ts` e `pacotes.test.ts`, na Server Action e na página da T11;
+  - trocados porque a regra mudou por decisão de Fabiano: o bloco A-02 de `decidir-versoes.test.ts` e o teste A-02 de
+    `e2e/decisao.spec.ts`, que esperavam o 409, agora conferem a substituição. A asserção ficou mais forte, e nenhum
+    teste foi apagado, pulado ou afrouxado;
+  - `e2e/pedido-construcao.spec.ts`: o caminho completo (v1 aprovado, recusa pelo nome, contexto corrigido, v2
+    aprovado, aba velha do v1 com o 409, só o v2 gera), com o axe em três estados;
+  - por efeito da correção: a versão em `test/estatico/projeto.test.ts`, as 24 ações em `rotulos-qa.test.ts`, a
+    contagem de demandas do seed em `scripts.test.ts`, os dois campos novos em fixtures de tipo e no `toEqual` de
+    `demandas/consultas.test.ts`, e o texto da linha 6.
+- **Versão:** o `package.json` passou de 0.1.12 para 0.1.13.
+- **Documentação:** estas notas e a versão no `README.md`, no manual técnico e no `docs/operacao/deploy.md`.
+  - No manual: cap. 04 (regra 5 do RF-13, seção "Substituição do DEC aprovado", regra de nível, RF-14 e o "Limite
+    conhecido"), 03 (ação nova no RF-21), 05 (passo 6 do RF-22, "Corrigir uma recusa", T11 e RF-23), 08 (T05, T11, e2e
+    e textos nas pendências), 09 (campos, exemplo do DEC substituído e tabela de erros) e o glossário.
+  - No `deploy.md`, a seção 6 (rollback da 0.1.13) e a seção 4 vieram da `05-devops-sre.md`.
+
+Fecha o E5 que a 0.1.12 deixou aberto e o médio do reteste da 08 (A-02 com o desatualizado deixava a demanda sem
+saída). O C-10, o C-13, o C-21, o C-23, o C-28, o C-36, a A-03, a 2FA e o axe continuam sem exceção.
+
+### Verificações desta versão
+
+- `pnpm test`: 4.465 de 4.465, 202 arquivos, depois da correção do S-01 (`04-correcao-engenheiro-backend.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 144 de 144 em três execuções seguidas (`04-qa-automacao.md`). As três
+  rodaram antes da correção do S-01, que não mudou `e2e/` nem a T11 (ver Pendências).
+- Revisão de código e de segurança (`04-maestro.md`): um alto (S-01), corrigido no `995ce77` e fechado no reteste da
+  `seguranca-aplicacao` (`04-seguranca-aplicacao.md`); um médio (S-02) e dois baixos (S-03, S-04), abaixo.
+  `pnpm audit --prod`: 5 moderadas transitivas, já existentes, nenhuma alta.
+- `pnpm build` passou (34 rotas). O `docker build` não rodou na `05-entrega`: as entradas da imagem são as da 0.1.12,
+  salvo `src/`, `scripts/` e `package.json`. A imagem é construída na homologação e no CI do PR (`05-devops-sre.md`).
+- A homologação, o ensaio de rollback (`construir.mjs ensaiar-rollback`) e o CI do PR ficam para a Parada 3. O rollback
+  é o caminho A, só com a troca de imagem para a `v0.1.12` (`deploy.md`, seção 6). Na volta, a 0.1.12 lê sem erro o
+  evento novo, mas não marca o substituído: ele volta a gerar Pedido, e a A-02 volta. Enquanto a 0.1.12 estiver no ar,
+  só gere do DEC aprovado de maior versão.
+
+### Pendências abertas
+
+- **Regra de uso: não use Pedido de Construção gerado de DEC substituído** (S-02, médio, risco aceito no RSK do
+  pedido). O sistema recusa gerar de novo do substituído, mas não alcança um pedido já baixado e copiado para
+  `pedidos/` da estruturaAutonoma antes da substituição, nem uma construção em curso, inclusive com a demanda em
+  `em_construcao`: nada avisa o `/construir`. Antes de usar um pedido, confira na T05 que o DEC dele não está
+  "Substituído" (manual, cap. 04). O controle é só de processo. Vai para a `gestao-riscos` (risco residual) e para um
+  pedido futuro: a `00-inicio` do `/construir` consultar `substituido` no Orquestrador e parar.
+- **e2e depois da correção do S-01:** as três execuções verdes são de antes do `995ce77`. A correção não tocou `e2e/`
+  nem a T11, mas os specs que aprovam DEC `cto` passariam a receber 409 se um DEC `cto_e_administradora` aprovado
+  ficasse na mesma demanda antes deles. A homologação da Parada 3 roda a suíte de novo.
+- **S-03 (baixo), para um pedido futuro:** o D1 confere o nome atual do solicitante (`gerar.ts`). Trocar o
+  `solicitanteNome` faz um DEC antes recusado passar (E11 da reprodução, já aceito no 0013). Sugestão: conferir também
+  o nome em vigor quando o DEC foi criado.
+- **S-04 (baixo, desde a 0.1.0):** com o v1 aprovado e o v2 pendente, arquivar o v2 leva a demanda a `encerrada` se
+  ela estiver em `pronta_para_decisao`, e aí o v1 também deixa de gerar (M-08). É decisão da pessoa; devolver o v2 não
+  encerra a demanda.
+- **Textos para a `ux-ui-design`:** o selo, o aviso e o link da T11 do substituído, a mensagem do 409 do substituído,
+  a frase do histórico, a linha 6 da orientação e o 409 do S-01, escritos na triagem e na correção. Faltam três avisos
+  antes do envio: na T11 do DEC pendente, que aprová-lo substitui o vigente; na T11 do vigente, que há DEC mais novo
+  pendente; na T11 de um DEC `cto` com vigente de dupla aprovação, que a aprovação será recusada (manual, cap. 08).
+- **Observação do revisor de código:** `opcoesDeStatus` (`detalhe.ts`) e `temPacoteAprovadoAtualizado`
+  (`desatualizado.ts`) contam também o DEC substituído na transição manual para `aprovada`. Hoje não tem efeito: o
+  substituto cita ESP e RSK iguais ou mais novos, então o substituído atualizado implica o substituto atualizado. Há
+  teste de guarda (`substituicao.test.ts`, bloco "E7").
+- **Spec do sistema** (`docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md`): não tem o texto da A-02
+  nem dos CA-22.x, só as linhas do RF-13 e do RF-22, e nenhum agente da cadeia curta a edita. A atualização (RF-13: a
+  aprovação do DEC mais novo substitui o aprovado anterior; RF-22: só o aprovado vigente gera, o substituído dá 409)
+  fica com o maestro, na Parada 3. Vale o código (manual, cap. 04).
+
+Seguem abertas, sem mudança neste pedido: as pendências da 0.1.12 (B-1 a B-4 da revisão do 0013 e os textos da T11
+da 0.1.12) e as que ela herdou da 0.1.11 à 0.1.5. A da 0.1.12 sobre o sha completo do merge do PR #13 fechou: o
+`deploy.md` já traz `b9e52d6828ec2496a2fcdce066dfaa908f6160f8`.
+
 ## 0.1.12 — 2026-11-04
 
 Correção do pedido `DEC-DEM-20261104-0013-v1` (cadeia curta, tipo bug): o Pedido de Construção sem nome de pessoa,

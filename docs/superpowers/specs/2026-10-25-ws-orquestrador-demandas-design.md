@@ -39,7 +39,7 @@ desligados e a entrega do pedido por cópia manual. Usuários: Fabiano (papel `c
 | RF-10 | DEC cita a ESP e o RSK de maior versão, grava cópia da demanda; sem ESP ou RSK → 400 com `faltando` | CA-10.1 a CA-10.4 |
 | RF-11 | Versão gravada nunca muda, também no banco (o papel da aplicação não consegue `UPDATE`) | CA-11.1 a CA-11.3 |
 | RF-12 | DEC desatualizado (por número de versão) marcado e impossível de aprovar | CA-12.1 a CA-12.4 |
-| RF-13 | Decisão só por pessoa com 2FA: `aprovada` (A ou B), `devolvida` ou `arquivada`; aprovador da sessão; rascunho de agente exige `revisouRascunhosDeAgente: true` | CA-13.1 a CA-13.5 |
+| RF-13 | Decisão só por pessoa com 2FA: `aprovada` (A ou B), `devolvida` ou `arquivada`; aprovador da sessão; rascunho de agente exige `revisouRascunhosDeAgente: true`; aprovar o DEC mais novo da demanda substitui o aprovado anterior (0.1.13, A-02 revisto), e um DEC só do CTO não substitui um aprovado que exigiu CTO e administradora (409) | CA-13.1 a CA-13.5 |
 | RF-14 | `cto_e_administradora` só vale com as duas aprovações, mesma opção; a da administradora exige referência ao documento assinado | CA-14.1 a CA-14.4 |
 | RF-15 | Dúvida em aberto leva a `aguardando_informacao`; **nenhuma** mensagem ao solicitante | CA-15.1 a CA-15.3 |
 | RF-16 | Quatro agentes como jobs do pg-boss; saída validada pelo **mesmo** Zod da rota; execução única; 3 tentativas | CA-16.1 a CA-16.5 |
@@ -48,7 +48,7 @@ desligados e a entrega do pedido por cópia manual. Usuários: Fabiano (papel `c
 | RF-19 | Interruptor por agente, só `cto`; os quatro nascem desligados; operação manual pelos mesmos schemas | CA-19.1 a CA-19.4 |
 | RF-20 | Minimização: ao provedor vai só o necessário; e-mail, telefone, CPF e CNPJ viram marcadores | CA-20.1, CA-20.2 |
 | RF-21 | Histórico só de inclusão, com ator `pessoa`/`agente`/`sistema`, sem texto bruto nem token | CA-21.1 a CA-21.3 |
-| RF-22 | Pedido de Construção de DEC aprovado (não `estudo`), validado pelo `validarPedido`, idêntico byte a byte para o mesmo DEC | CA-22.1 a CA-22.6 |
+| RF-22 | Pedido de Construção de DEC aprovado (não `estudo`), validado pelo `validarPedido`, idêntico byte a byte para o mesmo DEC; só o DEC aprovado mais novo da demanda gera, e o substituído dá 409 (0.1.13, CA-22.4) | CA-22.1 a CA-22.6 |
 | RF-23 | `GET /api/pacotes-decisao?statusDecisao=` | CA-23.1, CA-23.2 |
 | RF-24 | Expurgo diário do texto bruto e dos metadados de origem com mais de 90 dias (configurável) | CA-24.1 a CA-24.4 |
 | RF-25 | E-mail (Resend) de DEC pronto, uma vez por DEC, só com ids e link | CA-25.1 a CA-25.3 |
