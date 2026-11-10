@@ -13,10 +13,14 @@
   --color-atencao-texto: #78350f;
   --color-atencao-fundo: #fef3c7;
 
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
   --radius-campo: 6px;
+}
+
+/* Famílias (ADR-13, RF-02): Noto Sans e Noto Sans Mono do próprio app (src/app/fontes.ts), pelas variáveis que o
+   next/font/local põe no <html>. `inline`: a utilidade usa o valor, que só se resolve onde a variável existe. */
+@theme inline {
+  --font-sans: var(--font-noto-sans), system-ui, sans-serif;
+  --font-mono: var(--font-noto-sans-mono), ui-monospace, monospace;
 }
 
 @layer base {
