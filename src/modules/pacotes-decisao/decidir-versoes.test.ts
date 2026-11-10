@@ -1,7 +1,7 @@
 // A decisão entre versões do DEC da mesma demanda (08-correcao, A-01 e A-02): só o DEC mais novo da demanda pode ser
-// decidido, e nenhum DEC é aprovado quando outro da mesma demanda já está aprovado. Sem isso, arquivar o v1 depois de
-// aprovar o v2 encerrava a demanda (status final), e v1 e v2 aprovados com opções diferentes geravam dois Pedidos de
-// Construção opostos. Postgres real, papel do app; dados só fictícios; relógio fixo, cada teste num dia próprio (C-36).
+// decidido. Sem isso, arquivar o v1 depois de aprovar o v2 encerrava a demanda (status final). Desde a 0.1.13, o A-02
+// não recusa mais a aprovação: o DEC aprovado mais novo substitui o anterior, e só ele gera o Pedido de Construção.
+// Postgres real, papel do app; dados só fictícios; relógio fixo, cada teste num dia próprio (C-36).
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../test/banco';
@@ -15,6 +15,7 @@ import { criarEspecificacaoSchema } from '../especificacoes/schemas';
 import { criarEspecificacao } from '../especificacoes/servico';
 import { criarParecerRiscoSchema } from '../pareceres-risco/schemas';
 import { criarParecerRisco } from '../pareceres-risco/servico';
+import { obterPacoteDecisao } from './consultas';
 import { criarPacoteDecisao } from './criar';
 import { MENSAGENS_DECISAO, registrarDecisao } from './decidir';
 import { criarPacoteDecisaoSchema, registrarDecisaoSchema } from './schemas';
@@ -148,27 +149,30 @@ describe('A-01: só o DEC mais novo da demanda pode ser decidido', () => {
   });
 });
 
-describe('A-02: dois DEC da mesma demanda nunca ficam aprovados', () => {
-  it('v1 aprovado com A e o v2 criado depois: aprovar o v2 com B dá 409, sem aprovação nem decisão no v2', async () => {
+// 0.1.13 (DEC-DEM-20261104-0014-v1, opção b do E5 do 0013, decidida por Fabiano): o A-02 deixou de recusar a aprovação.
+// O DEC mais novo é aprovado com outro DEC da demanda já aprovado, e o anterior fica substituído; a garantia de um só
+// Pedido de Construção passou para o gerar (gerar-substituido.test.ts). Os casos completos estão em substituicao.test.ts.
+describe('A-02 revisto (0.1.13): o DEC aprovado mais novo substitui o anterior', () => {
+  it('v1 aprovado com A e o v2 criado depois: aprovar o v2 com B dá aprovada, com aprovação e decisão no v2, e o v1 fica substituído', async () => {
     const { demandaId, v1 } = await prepararDemanda();
     await registrarDecisao(deps, cto, v1, aprovar('A'));
     const v2 = await novoDec(demandaId);
 
-    await expect(registrarDecisao(deps, cto, v2, aprovar('B'))).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_DECISAO.outroAprovado });
-    expect(await aprovacoesDo(v2)).toEqual([]);
-    expect(await decisoesDo(v2)).toEqual([]);
+    const r = await registrarDecisao(deps, cto, v2, aprovar('B'));
+    expect(r.resultado).toBe('aprovada');
+    expect(await aprovacoesDo(v2)).toHaveLength(1);
+    expect(await decisoesDo(v2)).toEqual([expect.objectContaining({ statusDecisao: 'aprovada', opcaoEscolhida: 'B' })]);
+    expect(await obterPacoteDecisao(b.db, v1)).toMatchObject({ statusDecisao: 'aprovada', substituido: true, substituidoPor: v2 });
   });
 
-  it('na dupla aprovação, nem a primeira aprovação (parcial) do v2 é gravada quando o v1 já está aprovado', async () => {
+  it('na dupla aprovação, a primeira aprovação (parcial) do v2 é gravada com o v1 aprovado, e o v1 ainda não é substituído', async () => {
     const { demandaId, v1 } = await prepararDemanda();
     await registrarDecisao(deps, cto, v1, aprovar('A'));
     const v2 = await novoDec(demandaId, 'cto_e_administradora');
 
-    await expect(registrarDecisao(deps, administradora, v2, aprovar('A', DOC))).rejects.toMatchObject({
-      codigo: 'conflito',
-      mensagem: MENSAGENS_DECISAO.outroAprovado,
-    });
-    expect(await aprovacoesDo(v2)).toEqual([]);
+    expect((await registrarDecisao(deps, administradora, v2, aprovar('A', DOC))).resultado).toBe('aprovacao_parcial');
+    expect((await aprovacoesDo(v2)).map((a) => a.papelAprovacao)).toEqual(['administradora']);
+    expect(await obterPacoteDecisao(b.db, v1)).toMatchObject({ substituido: false, substituidoPor: null });
   });
 
   it('v1 devolvido não conta como aprovado: o v2 é aprovado', async () => {

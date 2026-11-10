@@ -268,6 +268,8 @@ describe('chegada na T05', () => {
     rascunhoAgente: false,
     statusDecisao: 'pendente',
     desatualizado: true,
+    substituido: false,
+    substituidoPor: null,
     ...extra,
   });
   const d = (extra: Partial<DemandaVista> = {}) => ({ pareceresRisco: [versao(2), versao(1)], pacotesDecisao: [pacote()], ...extra }) as Pick<DemandaVista, 'pareceresRisco' | 'pacotesDecisao'>;

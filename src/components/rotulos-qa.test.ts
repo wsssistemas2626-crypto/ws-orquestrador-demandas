@@ -1,5 +1,5 @@
 // Escrito na 06-T36-testes (qa-automacao). O que os testes do engenheiro deixam aberto em rotulos.ts:
-//   - os 23 eventos de AcaoEvento, cada um com texto legível, com e sem `depois`, e com cada tipo de ator;
+//   - os eventos de AcaoEvento (24 desde a 0.1.13), cada um com texto legível, com e sem `depois`, e com cada tipo de ator;
 //   - nenhum texto de evento repete valor livre gravado em `antes` ou `depois` (C-30: o histórico não mostra dado de
 //     terceiro), nem com valor fora da enumeração;
 //   - os caminhos de reserva (campo sem rótulo, agente ausente, motivo desconhecido, documento sem data);
@@ -20,6 +20,8 @@ const ACOES = {
   pacote_decisao_criado: true,
   aprovacao_registrada: true,
   decisao_registrada: true,
+  // 0.1.13 (DEC-DEM-20261104-0014-v1): a substituição do DEC aprovado anterior.
+  pacote_decisao_substituido: true,
   agente_ligado: true,
   agente_desligado: true,
   teto_alterado: true,
@@ -59,9 +61,9 @@ const ev = (acao: AcaoEvento, parcial: Partial<EventoVisivel> = {}): EventoVisiv
 
 const LIXO = /undefined|null|NaN|\[object|function/;
 
-describe('textoDoEvento: os 23 eventos (03, T05 "Histórico")', () => {
-  it('a lista de ações tem 23 itens', () => {
-    expect(TODAS).toHaveLength(23);
+describe('textoDoEvento: os 24 eventos (03, T05 "Histórico")', () => {
+  it('a lista de ações tem 24 itens', () => {
+    expect(TODAS).toHaveLength(24);
   });
 
   it.each(TODAS)('%s: texto não vazio e legível, com qualquer ator e sem antes nem depois', (acao) => {

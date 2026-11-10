@@ -70,7 +70,7 @@ function demanda(extra: Partial<DemandaVista> = {}): DemandaVista {
     atualizadaEm: CRIADA,
     especificacoes: [resumo('ESP', 3), resumo('ESP', 2)],
     pareceresRisco: [resumo('RSK', 2), resumo('RSK', 1)],
-    pacotesDecisao: [{ ...resumo('RSK', 1), id: `DEC-${ID}-v1`, statusDecisao: 'pendente', desatualizado: true }],
+    pacotesDecisao: [{ ...resumo('RSK', 1), id: `DEC-${ID}-v1`, statusDecisao: 'pendente', desatualizado: true, substituido: false, substituidoPor: null }],
     agentesEmAndamento: [],
     ...extra,
   };

@@ -6,17 +6,19 @@
 //   3. já decidido → 409 (CA-11.3);
 //   4. não é o DEC mais novo da demanda → 409, em qualquer decisão (08-correcao, A-01): decidir um DEC antigo encerrava
 //      a demanda por cima do mais novo;
-//   5. aprovar com outro DEC da demanda já aprovado → 409 (A-02): nunca dois Pedidos de Construção opostos;
-//   6. desatualizado, relido sob a trava → 409 só para aprovar (CA-12.2, CA-12.3);
-//   7. rascunho de agente citado sem a confirmação de revisão → 400 (CA-13.4);
-//   8. devolvida ou arquivada: grava a decisão, e a demanda muda pelo ator sistema (RF-07);
-//   9. aprovada: o papel é o da conta (C-11, P1-a); nível cto só por conta cto (P1-b); nível cto_e_administradora com
+//   5. desatualizado, relido sob a trava → 409 só para aprovar (CA-12.2, CA-12.3);
+//   6. rascunho de agente citado sem a confirmação de revisão → 400 (CA-13.4);
+//   7. devolvida ou arquivada: grava a decisão, e a demanda muda pelo ator sistema (RF-07);
+//   8. aprovada: o papel é o da conta (C-11, P1-a); nível cto só por conta cto (P1-b); nível cto_e_administradora com
 //      as duas aprovações, a mesma opção e a referência ao documento assinado da administradora. A aprovação não muda
 //      o status da demanda (P1-d).
+// A aprovação completa do DEC mais novo substitui o aprovado anterior da demanda (0.1.13, opção b do E5 do 0013, no
+// lugar da recusa do A-02): o anterior fica `substituido` na leitura (substituido.ts), o histórico grava a substituição
+// com os dois ids, e só o aprovado mais novo gera o Pedido de Construção (gerar.ts).
 // A autoria (quem, com que nome e em nome de quem) vem só do ator da sessão; o corpo não tem esses campos (C-11). O
 // histórico leva papel, opção e a referência ao documento, nunca o comentário (C-30). Aceita a transação de quem chama
 // (G3.8).
-import { and, eq, max, ne } from 'drizzle-orm';
+import { eq, max } from 'drizzle-orm';
 import { aprovacao, decisao, pacoteDecisao } from '../../db/schema';
 import type { OpcaoDecisao, PapelAprovacao, StatusDecisaoGravado } from '../../db/schema/decisao';
 import { comTransacao, type Transacao } from '../../db/transacao';
@@ -30,6 +32,7 @@ import { registrarEvento } from '../historico/registrar';
 import { travarDemanda } from '../versoes';
 import { obterPacoteDecisao, type PacoteDecisaoVista } from './consultas';
 import type { RegistrarDecisao } from './schemas';
+import { aprovadoMaisNovo } from './substituido';
 
 // P1-a: só a própria administradora, com conta e 2FA, registra a aprovação de papel `administradora`. Trocar para
 // 'cto_com_referencia' deixa o CTO registrar em nome dela, com a referência ao documento assinado.
@@ -43,7 +46,6 @@ export const MENSAGENS_DECISAO = {
   jaDecidido: 'este pacote já tem decisão registrada.',
   desatualizado: 'o pacote está desatualizado e não pode ser aprovado.',
   naoEhOMaisNovo: 'a demanda tem um pacote mais novo; só o mais novo pode ser decidido.',
-  outroAprovado: 'outro pacote desta demanda já está aprovado.',
   // M-08: texto decidido na 02-triagem do DEC-DEM-20261103-0007-v1, para revisão da ux-ui-design.
   demandaFinal: 'a demanda está em status final; o pacote não pode mais ser decidido.',
   revisarRascunhos: 'Marque que revisou os rascunhos de agente para registrar a decisão.',
@@ -88,16 +90,6 @@ export function papelDaAprovacao(
 async function versaoMaisNova(tx: Transacao['tx'], demandaId: string): Promise<number> {
   const [linha] = await tx.select({ v: max(pacoteDecisao.versao) }).from(pacoteDecisao).where(eq(pacoteDecisao.demandaId, demandaId));
   return linha?.v ?? 0;
-}
-
-async function temOutroAprovado(tx: Transacao['tx'], demandaId: string, decId: string): Promise<boolean> {
-  const [linha] = await tx
-    .select({ id: pacoteDecisao.id })
-    .from(pacoteDecisao)
-    .innerJoin(decisao, eq(decisao.pacoteDecisaoId, pacoteDecisao.id))
-    .where(and(eq(pacoteDecisao.demandaId, demandaId), ne(pacoteDecisao.id, decId), eq(decisao.statusDecisao, 'aprovada')))
-    .limit(1);
-  return linha !== undefined;
 }
 
 type Contexto = { tr: Transacao; deps: DepsDemanda; pessoa: AtorPessoa; pacote: PacoteDecisaoVista; entrada: RegistrarDecisao };
@@ -159,6 +151,29 @@ async function gravarAprovacao(c: Contexto, entrada: Aprovar, papel: PapelAprova
   );
 }
 
+// A decisão `aprovada`, nos dois níveis, e a substituição do aprovado anterior (0.1.13). O anterior é lido sob a trava e
+// antes do insert em `decisao`: depois dele, o aprovado mais novo seria o próprio DEC. O evento leva só os dois ids (C-30)
+// e vem depois de `aprovacao_registrada` e `decisao_registrada`. A aprovação parcial não passa por aqui.
+async function fecharAprovacao(c: Contexto, opcao: OpcaoDecisao, comentarios: string | null): Promise<ResultadoDecisao> {
+  const anterior = await aprovadoMaisNovo(c.tr.tx, c.pacote.demandaId);
+  await gravarDecisao(c, 'aprovada', opcao, comentarios);
+  if (anterior !== null) {
+    await registrarEvento(
+      c.tr.tx,
+      {
+        ator: c.pessoa,
+        demandaId: c.pacote.demandaId,
+        entidade: 'pacote_decisao',
+        entidadeId: anterior,
+        acao: 'pacote_decisao_substituido',
+        depois: { substituido: anterior, substituidoPor: c.pacote.id },
+      },
+      c.deps.relogio,
+    );
+  }
+  return 'aprovada';
+}
+
 async function aprovar(c: Contexto, entrada: Aprovar): Promise<ResultadoDecisao> {
   const papel = papelDaAprovacao(c.pessoa, entrada);
   const comentarios = textoOuNulo(entrada.comentarios);
@@ -167,8 +182,7 @@ async function aprovar(c: Contexto, entrada: Aprovar): Promise<ResultadoDecisao>
     // P1-b: DEC de nível cto só é aprovado pela conta cto.
     if (papel !== 'cto') throw semPermissao();
     await gravarAprovacao(c, entrada, papel);
-    await gravarDecisao(c, 'aprovada', entrada.opcaoEscolhida, comentarios);
-    return 'aprovada';
+    return fecharAprovacao(c, entrada.opcaoEscolhida, comentarios);
   }
 
   // cto_e_administradora (RF-14).
@@ -185,8 +199,7 @@ async function aprovar(c: Contexto, entrada: Aprovar): Promise<ResultadoDecisao>
 
   await gravarAprovacao(c, entrada, papel);
   if (!anterior) return 'aprovacao_parcial';
-  await gravarDecisao(c, 'aprovada', entrada.opcaoEscolhida, comentarios);
-  return 'aprovada';
+  return fecharAprovacao(c, entrada.opcaoEscolhida, comentarios);
 }
 
 export async function registrarDecisao(
@@ -216,7 +229,6 @@ export async function registrarDecisao(
 
     if (pacote.decisao) throw conflito(MENSAGENS_DECISAO.jaDecidido);
     if (pacote.versao < (await versaoMaisNova(tx, pacote.demandaId))) throw conflito(MENSAGENS_DECISAO.naoEhOMaisNovo);
-    if (entrada.statusDecisao === 'aprovada' && (await temOutroAprovado(tx, pacote.demandaId, pacote.id))) throw conflito(MENSAGENS_DECISAO.outroAprovado);
     if (entrada.statusDecisao === 'aprovada' && pacote.desatualizado) throw conflito(MENSAGENS_DECISAO.desatualizado);
     if (pacote.rascunhosCitados.length > 0 && entrada.revisouRascunhosDeAgente !== true) {
       throw camposInvalidos([{ campo: 'revisouRascunhosDeAgente', mensagem: MENSAGENS_DECISAO.revisarRascunhos }]);

@@ -352,7 +352,15 @@ describe('errosDaApiEsp (400 no mesmo resumo, campo a campo)', () => {
 
 describe('chegada na T05', () => {
   const versaoResumo = (v: number): VersaoResumo => ({ id: `ESP-${ID}-v${v}`, versao: v, criadaEm: CRIADA, autor: { tipo: 'pessoa', nome: 'Pessoa Ficticia' }, rascunhoAgente: false });
-  const pacote = (v: number, extra: Partial<PacoteResumo> = {}): PacoteResumo => ({ ...versaoResumo(v), id: `DEC-${ID}-v${v}`, statusDecisao: 'pendente', desatualizado: true, ...extra });
+  const pacote = (v: number, extra: Partial<PacoteResumo> = {}): PacoteResumo => ({
+    ...versaoResumo(v),
+    id: `DEC-${ID}-v${v}`,
+    statusDecisao: 'pendente',
+    desatualizado: true,
+    substituido: false,
+    substituidoPor: null,
+    ...extra,
+  });
   const demanda = (extra: Partial<DemandaVista> = {}): Pick<DemandaVista, 'status' | 'especificacoes' | 'pacotesDecisao'> => ({
     status: 'nova',
     especificacoes: [versaoResumo(3), versaoResumo(2), versaoResumo(1)],

@@ -9,6 +9,7 @@ import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import { AGENTES, type Agente, type Ator } from '../acesso/ator';
 import { minimizarValor } from '../dados-pessoais/minimizar';
 import { expressaoDesatualizado } from '../pacotes-decisao/desatualizado';
+import { expressaoSubstituidoPor } from '../pacotes-decisao/substituido';
 import type { FiltroDemandas, Status, Tipo } from './schemas';
 
 // `nome` nulo só quando a conta não existe mais (o app não apaga conta; a desativação mantém a linha).
@@ -16,7 +17,8 @@ export type Responsavel = { tipo: 'pessoa'; nome: string | null } | { tipo: 'age
 export type StatusDecisao = 'pendente' | 'aprovada' | 'devolvida' | 'arquivada';
 
 export type VersaoResumo = { id: string; versao: number; criadaEm: Date; autor: Responsavel; rascunhoAgente: boolean };
-export type PacoteResumo = VersaoResumo & { statusDecisao: StatusDecisao; desatualizado: boolean };
+// `substituido` e `substituidoPor` (0.1.13): os mesmos da vista do DEC (pacotes-decisao/substituido.ts).
+export type PacoteResumo = VersaoResumo & { statusDecisao: StatusDecisao; desatualizado: boolean; substituido: boolean; substituidoPor: string | null };
 // T-03: o aviso "agente trabalhando" da T05, lido da execução, sem ler o esquema do pg-boss.
 export type AgenteEmAndamento = { agente: Agente; status: 'pendente' | 'em_andamento' };
 
@@ -107,21 +109,29 @@ async function pacotesDe(db: Db, demandaId: string): Promise<PacoteResumo[]> {
       nome: user.name,
       statusDecisao: decisao.statusDecisao,
       desatualizado: sql<boolean>`${expressaoDesatualizado()}`,
+      substituidoPor: sql<string | null>`${expressaoSubstituidoPor()}`,
     })
     .from(pacoteDecisao)
     .leftJoin(user, contaDoAutor(pacoteDecisao))
     .leftJoin(decisao, eq(decisao.pacoteDecisaoId, pacoteDecisao.id))
     .where(eq(pacoteDecisao.demandaId, demandaId))
     .orderBy(desc(pacoteDecisao.versao));
-  return linhas.map((l) => ({
-    id: l.id,
-    versao: l.versao,
-    criadaEm: l.criadaEm,
-    autor: responsavelDe(l.autorTipo, l.autorId, l.nome),
-    rascunhoAgente: l.rascunhoAgente,
-    statusDecisao: l.statusDecisao ?? 'pendente',
-    desatualizado: l.desatualizado === true,
-  }));
+  return linhas.map((l) => {
+    const statusDecisao = l.statusDecisao ?? 'pendente';
+    // Só o DEC aprovado é substituído, como na vista do DEC.
+    const substituidoPor = statusDecisao === 'aprovada' ? (l.substituidoPor ?? null) : null;
+    return {
+      id: l.id,
+      versao: l.versao,
+      criadaEm: l.criadaEm,
+      autor: responsavelDe(l.autorTipo, l.autorId, l.nome),
+      rascunhoAgente: l.rascunhoAgente,
+      statusDecisao,
+      desatualizado: l.desatualizado === true,
+      substituido: substituidoPor !== null,
+      substituidoPor,
+    };
+  });
 }
 
 const EM_ANDAMENTO = ['pendente', 'em_andamento'] as const;
@@ -244,7 +254,13 @@ export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | 
     atualizadaEm: d.atualizadaEm,
     especificacoes: d.especificacoes.map(versaoMinima),
     pareceresRisco: d.pareceresRisco.map(versaoMinima),
-    pacotesDecisao: d.pacotesDecisao.map((p) => ({ ...versaoMinima(p), statusDecisao: p.statusDecisao, desatualizado: p.desatualizado })),
+    pacotesDecisao: d.pacotesDecisao.map((p) => ({
+      ...versaoMinima(p),
+      statusDecisao: p.statusDecisao,
+      desatualizado: p.desatualizado,
+      substituido: p.substituido,
+      substituidoPor: p.substituidoPor,
+    })),
     agentesEmAndamento: d.agentesEmAndamento.map((a) => ({ agente: a.agente, status: a.status })),
   };
 }

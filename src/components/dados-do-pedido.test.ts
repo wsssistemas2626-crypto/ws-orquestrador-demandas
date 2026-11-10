@@ -17,8 +17,16 @@ const APROVADO = new Date('2026-10-22T18:00:00Z');
 const decidida = (opcaoEscolhida: 'A' | null) => ({ opcaoEscolhida, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO });
 const aprovacaoCto = { papel: 'cto' as const, nome: 'Pessoa Ficticia CTO', opcao: 'A' as const, registradaEm: APROVADO, referenciaDocumento: null, dataDocumento: null };
 
-type Base = Pick<PacoteDecisaoVista, 'statusDecisao' | 'decisao' | 'demandaTipo' | 'aprovadores' | 'desatualizado'>;
-const p = (extra: Partial<Base> = {}): Base => ({ statusDecisao: 'pendente', decisao: null, demandaTipo: 'novo_projeto', aprovadores: [], desatualizado: false, ...extra });
+type Base = Pick<PacoteDecisaoVista, 'statusDecisao' | 'decisao' | 'demandaTipo' | 'aprovadores' | 'desatualizado' | 'substituidoPor'>;
+const p = (extra: Partial<Base> = {}): Base => ({
+  statusDecisao: 'pendente',
+  decisao: null,
+  demandaTipo: 'novo_projeto',
+  aprovadores: [],
+  desatualizado: false,
+  substituidoPor: null,
+  ...extra,
+});
 
 describe('textos (03, T11 "Pedido de Construção"; 04, C-28)', () => {
   it('os da 03, por inteiro, e o aviso de C-28 do plano', () => {
@@ -79,6 +87,14 @@ describe('secaoDoPedido: só com a decisão aprovada completa', () => {
   it('A-03 (08-correcao): aprovada e desatualizada (ESP ou RSK mais nova depois da aprovação): sem seção nem botão', () => {
     expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: decidida('A'), desatualizado: true }))).toBe('nenhuma');
     expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: decidida('A'), demandaTipo: 'estudo', desatualizado: true }))).toBe('nenhuma');
+  });
+
+  it('0.1.13: aprovada e substituída por um aprovado mais novo: sem seção nem botão; sem substituto, gerar', () => {
+    const v2 = 'DEC-DEM-20261104-0001-v2';
+    expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: decidida('A'), substituidoPor: v2 }))).toBe('nenhuma');
+    expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: decidida('A'), demandaTipo: 'estudo', substituidoPor: v2 }))).toBe('nenhuma');
+    expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: decidida('A'), desatualizado: true, substituidoPor: v2 }))).toBe('nenhuma');
+    expect(secaoDoPedido(p({ statusDecisao: 'aprovada', decisao: decidida('A'), substituidoPor: null }))).toBe('gerar');
   });
 });
 
@@ -150,15 +166,15 @@ describe('erroDoPedido: o que a tela mostra para cada recusa', () => {
   });
 });
 
-// D1 do 0013 (E5): a orientação do 422 diz que campo corrigir e onde, e avisa que outro pacote da demanda não se aprova
-// depois deste. Só as linhas que valem, nesta ordem; nenhuma traz valor do pedido.
+// D1 do 0013 (E5): a orientação do 422 diz que campo corrigir e onde e, desde a 0.1.13, que o pacote novo aprovado
+// substitui este. Só as linhas que valem, nesta ordem; nenhuma traz valor do pedido.
 const ORIENTACOES = {
   nome: 'O nome do solicitante, inteiro ou em parte com inicial maiúscula, está nos campos da lista. Tire o nome e gere de novo.',
   titulo: 'Título e descrição (demanda.titulo, demanda.descricao): corrija na demanda, em "Editar dados".',
   esp: 'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
   risco: 'Parecer de risco (risco.conteudo): corrija num parecer de risco novo.',
   decisao: 'Opção escolhida (decisao.opcaoEscolhida): corrija num pacote novo.',
-  aviso: 'Atenção: com este pacote aprovado, outro pacote desta demanda não pode ser aprovado nesta versão. Fale com o CTO antes de refazer o texto.',
+  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais novo substitui este, e só ele gera o Pedido de Construção.',
   geral: 'Corrija criando uma versão nova da ESP e um pacote novo.',
 };
 
