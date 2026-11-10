@@ -214,8 +214,28 @@ describe('obterDemanda', () => {
     ]);
     expect(v.pareceresRisco).toEqual([{ id: idVersao('RSK', id, 1), versao: 1, criadaEm: t0, autor: { tipo: 'agente', agente: 'risco' }, rascunhoAgente: true }]);
     expect(v.pacotesDecisao).toEqual([
-      { id: idVersao('DEC', id, 2), versao: 2, criadaEm: t1, autor: { tipo: 'agente', agente: 'consolidacao' }, rascunhoAgente: true, statusDecisao: 'pendente', desatualizado: false },
-      { id: idVersao('DEC', id, 1), versao: 1, criadaEm: t0, autor: { tipo: 'pessoa', nome: 'Pessoa Ficticia CTO' }, rascunhoAgente: false, statusDecisao: 'pendente', desatualizado: true },
+      {
+        id: idVersao('DEC', id, 2),
+        versao: 2,
+        criadaEm: t1,
+        autor: { tipo: 'agente', agente: 'consolidacao' },
+        rascunhoAgente: true,
+        statusDecisao: 'pendente',
+        desatualizado: false,
+        substituido: false,
+        substituidoPor: null,
+      },
+      {
+        id: idVersao('DEC', id, 1),
+        versao: 1,
+        criadaEm: t0,
+        autor: { tipo: 'pessoa', nome: 'Pessoa Ficticia CTO' },
+        rascunhoAgente: false,
+        statusDecisao: 'pendente',
+        desatualizado: true,
+        substituido: false,
+        substituidoPor: null,
+      },
     ]);
   });
 

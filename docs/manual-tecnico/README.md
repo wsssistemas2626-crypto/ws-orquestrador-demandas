@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.12 (o Pedido de Construção sai sem nome de pessoa: a geração é recusada com o nome do solicitante no texto, exige a confirmação de que o texto não tem dado pessoal, na API e na caixa da T11, registrada no histórico, e `aprovadoPor` leva o papel de quem aprovou; ver o [cap. 05](05-pedido-de-construcao.md) e o [CHANGELOG](../../CHANGELOG.md)) |
-| Atualizado em | 04/11/2026 |
+| Versão do sistema | 0.1.13 (o DEC aprovado mais novo da demanda substitui o aprovado anterior, e só ele gera o Pedido de Construção; um DEC só do CTO não substitui um aprovado de dupla aprovação; ver o [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado), o [cap. 05](05-pedido-de-construcao.md) e o [CHANGELOG](../../CHANGELOG.md)) |
+| Atualizado em | 10/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
 | Fonte de verdade | o código do ramo (padrão técnico, seção 11). Onde a spec ou o plano dizem outra coisa, vale o código, e a diferença está apontada no capítulo |
@@ -14,7 +14,9 @@ requisitos (RF) que cobre. Variável de ambiente aparece só pelo nome; valor ne
 
 A spec aprovada na Parada 1 (`docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md`) ainda descreve o
 C-28 só com e-mail, telefone e CPF e a T11 sem a caixa de confirmação. Vale o código, descrito no
-[cap. 05](05-pedido-de-construcao.md).
+[cap. 05](05-pedido-de-construcao.md). A substituição do DEC aprovado (0.1.13), que revê a A-02, está descrita no
+[cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado); a atualização da spec (RF-13 e RF-22) fica com o
+maestro do `/construir`.
 
 ## Capítulos
 
@@ -23,7 +25,7 @@ C-28 só com e-mail, telefone e CPF e a T11 sem a caixa de confirmação. Vale o
 | [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco e versões da stack | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-12 |
 | [02](02-acesso-e-seguranca.md) | Login com 2FA, tokens de agente, matriz de acesso, CSRF, log | RF-01, RF-02, RNF-10, RNF-12, RNF-13 |
 | [03](03-demandas.md) | Demanda, entrada colando o texto, id, consulta, status, dúvida em aberto, histórico | RF-03 a RF-07, RF-15, RF-21 |
-| [04](04-versoes-e-decisao.md) | ESP, RSK e DEC em versões, desatualizado, decisão e dupla aprovação | RF-08 a RF-14 |
+| [04](04-versoes-e-decisao.md) | ESP, RSK e DEC em versões, desatualizado, decisão, substituição do DEC aprovado e dupla aprovação | RF-08 a RF-14 |
 | [05](05-pedido-de-construcao.md) | Pedido de Construção e filtro de pacotes por decisão | RF-22, RF-23 |
 | [06](06-agentes-de-ia.md) | Os quatro agentes, uso, teto, interruptor, minimização e as pré-condições para ligar | RF-16 a RF-20 |
 | [07](07-worker-avisos-retencao.md) | Worker, aviso por e-mail e expurgo do texto bruto | RF-24, RF-25 |
@@ -50,7 +52,7 @@ Operação em produção (serviços do Easypanel, deploy, rollback, alertas) fic
 | RF-10 | DEC cita a ESP e o RSK (os mais novos; na consolidação, os que o agente leu) | [04](04-versoes-e-decisao.md#rf-10-pacote-de-decisão-dec) |
 | RF-11 | Versão gravada nunca muda | [04](04-versoes-e-decisao.md#rf-11-imutabilidade) |
 | RF-12 | DEC desatualizado | [04](04-versoes-e-decisao.md#rf-12-dec-desatualizado) |
-| RF-13 | Decisão só por pessoa com 2FA | [04](04-versoes-e-decisao.md#rf-13-decisão) |
+| RF-13 | Decisão só por pessoa com 2FA; o DEC aprovado mais novo substitui o anterior (desde a 0.1.13) | [04](04-versoes-e-decisao.md#rf-13-decisão) |
 | RF-14 | Dupla aprovação `cto_e_administradora` | [04](04-versoes-e-decisao.md#rf-14-dupla-aprovação) |
 | RF-15 | Dúvida em aberto leva a `aguardando_informacao` | [03](03-demandas.md#rf-15-dúvida-em-aberto) |
 | RF-16 | Quatro agentes como jobs do pg-boss | [06](06-agentes-de-ia.md#rf-16-execução-dos-agentes) |
@@ -77,10 +79,12 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | DEC | Pacote de decisão, em versões (`DEC-<demanda>-vN`); cita uma ESP e um RSK |
 | Versão | Linha gravada de ESP, RSK ou DEC. Não muda depois de gravada; mudar é gravar a próxima |
 | Desatualizado | DEC que cita ESP ou RSK de versão menor que a mais nova da demanda |
+| Aprovado vigente | O DEC de maior versão da demanda com decisão `aprovada`; o único que gera o Pedido de Construção (desde a 0.1.13, [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)) |
+| Substituído | DEC com decisão `aprovada` que não é o aprovado vigente da demanda. Calculado na leitura (`substituido`, `substituidoPor`), sem status próprio; não gera Pedido de Construção (desde a 0.1.13) |
 | Status final | `entregue` ou `encerrada`: status sem transição manual de saída (`STATUS_FINAIS`, `transicoes.ts`). Não aceita ESP, RSK nem DEC novos, decisão de DEC nem geração de Pedido |
 | Decisão | `aprovada` (opção A ou B), `devolvida` ou `arquivada`, registrada uma vez por DEC; sem decisão, o DEC está `pendente` |
 | Aprovação | Registro de uma pessoa (papel `cto` ou `administradora`) aprovando uma opção do DEC |
-| Pedido de Construção | JSON gerado de um DEC aprovado, no formato que o `validarPedido` do `/construir` aceita. Desde a 0.1.12, sai só com a confirmação sem dado pessoal, sem o nome do solicitante no texto e com o papel, e não o nome, em `aprovadoPor` ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)) |
+| Pedido de Construção | JSON gerado do DEC aprovado vigente (desde a 0.1.13; o substituído recebe 409), no formato que o `validarPedido` do `/construir` aceita. Desde a 0.1.12, sai só com a confirmação sem dado pessoal, sem o nome do solicitante no texto e com o papel, e não o nome, em `aprovadoPor` ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)) |
 | Confirmação sem dado pessoal | O campo `confirmaSemDadoPessoal: true` do `POST .../pedido-construcao`, marcado na caixa da T11: quem gera declara que título, descrição, ESP e parecer de risco não têm dado pessoal de ninguém. Fica gravado no evento `pedido_gerado` (desde a 0.1.12) |
 | Ator | Quem faz a ação: `pessoa` (sessão com 2FA), `agente` (token de serviço ou job do worker) ou `sistema` (mudança automática) |
 | Vista mínima | O que a leitura de demanda pela API devolve a quem não é pessoa: sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) e, desde a 0.1.8, com o texto livre minimizado também nelas e no 201 da criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)) |

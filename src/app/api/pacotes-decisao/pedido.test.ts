@@ -497,6 +497,33 @@ describe('POST /api/pacotes-decisao/:decId/pedido-construcao: texto original (M-
   });
 });
 
+// 0.1.13 (DEC-DEM-20261104-0014-v1, S3, caso 7): o DEC aprovado e substituído por um aprovado mais novo dá 409 pela
+// rota, com a mensagem que aponta o DEC que gera, sem download nem evento; o mais novo gera como antes.
+describe('POST /api/pacotes-decisao/:decId/pedido-construcao: DEC substituído (0.1.13)', () => {
+  it('v1 substituído pelo v2 → 409 { erro: conflito, mensagem: substituido(v2) }, sem evento; o v2 gera 200', async () => {
+    const { demandaId, decId: v1 } = await prepararDec();
+    const v2 = (
+      await criarPacoteDecisao(
+        deps,
+        novaAutora(),
+        demandaId,
+        criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo', opcaoA: { descricao: 'Opção A' }, opcaoB: { descricao: 'Opção B' }, nivelAprovacaoRequerido: 'cto' }),
+      )
+    ).id;
+    await registrarDecisao(deps, decisora, v2, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'B' }));
+    for (const cred of [cto(), adm()]) {
+      const r = await gerar(v1, cred);
+      expect(r.status).toBe(409);
+      expect(r.headers.get('content-disposition')).toBeNull();
+      expect(await r.json()).toEqual({ erro: 'conflito', mensagem: MENSAGENS_PEDIDO.substituido(v2) });
+    }
+    expect(await eventosDoPedido(v1)).toBe(0);
+    const ok = await gerar(v2);
+    expect(ok.status).toBe(200);
+    expect(JSON.parse(await ok.text())).toMatchObject({ decisao: { id: v2, opcaoEscolhida: 'B: Opção B' } });
+  });
+});
+
 describe('log da rota do pedido (C-21)', () => {
   it('uma linha por requisição, com o padrão da rota; sem id, conteúdo do pedido, sentinela nem token', async () => {
     const aprovado = await prepararDec();

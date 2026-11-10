@@ -1,30 +1,35 @@
 // T43: T11 Decisão do pacote (03, T11; RF-12 a RF-14; 04, C-14; P1-a, P1-b, P1-d). Os pacotes são criados pela API
 // com a sessão da conta fictícia "cto", um DEC novo por teste, todos sobre uma demanda só desta spec (do seed, com a
 // ESP e o RSK gravados na primeira vez que um teste precisa). Uma demanda por teste estourava o limite por ator da
-// suíte inteira (C-36: 30 demandas por hora por conta). A ordem do arquivo é a do fluxo: aprovar e a dupla aprovação
-// deixam a demanda em Pronta para decisão; devolver a leva a Em análise; arquivar, a Encerrada; depois, o 404 e a
-// sessão, sem mudar o banco. Cada teste roda também sozinho. O pacote de rascunho de agente é o do seed fictício
-// (T33), que nasce "CTO e administradora" (08-correcao, A-04: o nível do DEC de agente é da regra do servidor), e
-// nenhum teste daqui registra decisão nele. O P1-b usa um DEC de pessoa de nível "Só o CTO", criado pela "cto". Com
-// A-02 (só um DEC aprovado por demanda), a dupla aprovação usa uma demanda própria, que vem do seed
-// (TITULOS_DO_E2E.duplaAprovacao) e não da API, pelo mesmo limite C-36; ela troca a sessão da página da "cto" para
-// a "administradora". O axe roda nos estados pendente (com e sem rascunho de agente), com erro, com o diálogo aberto,
-// sem formulário, com o conflito da A-02, desatualizado e decidido (aprovado, aprovado nas duas contas, devolvido e
-// arquivado).
+// suíte inteira (C-36: 30 demandas por hora por conta). A ordem do arquivo é a do fluxo: aprovar, a substituição e a
+// dupla aprovação deixam a demanda em Pronta para decisão; devolver a leva a Em análise; arquivar, a Encerrada; depois,
+// o 404 e a sessão, sem mudar o banco. Cada teste roda também sozinho. O pacote de rascunho de agente é o do seed
+// fictício (T33), que nasce "CTO e administradora" (08-correcao, A-04: o nível do DEC de agente é da regra do
+// servidor), e nenhum teste daqui registra decisão nele. O P1-b usa um DEC de pessoa de nível "Só o CTO", criado pela
+// "cto". A dupla aprovação usa uma demanda própria, que vem do seed (TITULOS_DO_E2E.duplaAprovacao) e não da API, pelo
+// mesmo limite C-36; ela troca a sessão da página da "cto" para a "administradora". O axe roda nos estados pendente
+// (com e sem rascunho de agente), com erro, com o diálogo aberto, sem formulário, desatualizado, decidido (aprovado,
+// aprovado nas duas contas, devolvido e arquivado) e substituído, na T11 e na T05.
 //
 // DEC-DEM-20261102-0002-v1: a demanda da spec também vem do seed (TITULOS_DO_E2E.decisao), achada por demandaDoSeed.
+//
+// DEC-DEM-20261104-0014-v1 (04-regressao, 0.1.13): o A-02 deixou de recusar a aprovação (opção b do E5 do 0013). O
+// teste dele virou o da substituição: o DEC mais novo é aprovado pela tela com outro já aprovado na demanda; o anterior
+// fica substituído (selo, aviso e link para o novo na T11, sem a seção do Pedido de Construção nem o lembrete do P1-d;
+// selo na T05), e a substituição vai ao histórico com os dois ids. O caminho completo, com a recusa por nome, a aba
+// velha e a geração, está em e2e/pedido-construcao.spec.ts.
 //
 // DEC-DEM-20261102-0003-v1: as demandas do seed ficam no banco e acumulam versões e decisões entre execuções contra o
 // mesmo banco (homologação reaproveitada, --repeat-each). Cada teste confere pela API o estado de que precisa antes de
 // qualquer POST, e não supõe o número da versão (proximoId):
-//   - exigem banco recém-semeado: "nível cto: aprovar A" e "dupla aprovação" (a demanda não pode ter DEC aprovado: A-02
-//     recusa o segundo), "CA-12.4" (a demanda tem de estar num status de onde a devolução a leva a Em análise; depois
-//     do "Arquivar" ela fica Encerrada, que é final) e "Arquivar" (só a partida de ORIGENS_DO_FLUXO prova a mudança
-//     para Encerrada: B-01 do DEC-DEM-20261102-0003-v1, corrigido no DEC-DEM-20261102-0004-v1). Fora do CI, eles
-//     são pulados com a mensagem "exige banco recém-semeado: ..."; no CI, o banco é sempre novo (Testcontainers), e a
-//     mesma pré-condição falsa reprova o teste;
-//   - rodam em qualquer banco: C-14, M-01, P1-b, A-02 (o segundo DEC aprovado recebe o 409, e a demanda fica com um só
-//     DEC aprovado) e o de 404 e sessão.
+//   - exigem banco recém-semeado: "nível cto: aprovar A", a substituição e "CA-12.4" (a demanda tem de estar num status
+//     de onde o DEC novo a leva a Pronta para decisão e a devolução a leva a Em análise; depois do "Arquivar" ela fica
+//     Encerrada, que é final) e "Arquivar" (só a partida de ORIGENS_DO_FLUXO prova a mudança para Encerrada: B-01 do
+//     DEC-DEM-20261102-0003-v1, corrigido no DEC-DEM-20261102-0004-v1). Fora do CI, eles são pulados com a mensagem
+//     "exige banco recém-semeado: ..."; no CI, o banco é sempre novo (Testcontainers), e a mesma pré-condição falsa
+//     reprova o teste. Desde a 0.1.13, um DEC aprovado antes na demanda não é mais pré-condição: o novo o substitui, e
+//     a substituição termina com um só aprovado mais novo, o do teste;
+//   - rodam em qualquer banco: C-14, M-01, P1-b, a dupla aprovação e o de 404 e sessão.
 // Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
@@ -32,7 +37,8 @@ import { api, demandaDoSeed, entrarComo, semViolacoes } from './apoio';
 import { prepararEspERsk, procurarEmPaginas, proximoId, TAMANHO_DA_PAGINA } from './preparacao';
 
 type Versao = { id: string };
-type Pacote = { id: string; rascunhoAgente: boolean; statusDecisao: string };
+// substituido e substituidoPor: 0.1.13, calculados na leitura (o DEC aprovado que não é o aprovado mais novo).
+type Pacote = { id: string; rascunhoAgente: boolean; statusDecisao: string; substituido: boolean; substituidoPor: string | null };
 
 // Os status de onde um DEC novo leva a demanda a Pronta para decisão e a devolução a leva a Em análise
 // (src/modules/demandas/transicoes.ts, AUTOMATICAS: dec_criado e decisao_devolvida). Fora deles, a transição automática
@@ -120,7 +126,8 @@ async function confirmar(page: Page): Promise<void> {
   await dialogo(page).getByRole('button', { name: 'Confirmar e registrar' }).click();
 }
 
-// Aprovar a opção A pela tela, com comentário, no DEC de nível cto aberto na página ("nível cto: aprovar A" e A-02).
+// Aprovar a opção A pela tela, com comentário, no DEC de nível cto aberto na página ("nível cto: aprovar A" e a
+// substituição).
 async function aprovarOpcaoA(page: Page): Promise<void> {
   await decisao(page, 'Aprovar').check();
   await page.getByRole('radio', { name: 'Opção A — Construir tudo numa entrega (fictício)' }).check();
@@ -212,8 +219,8 @@ test('nível cto: aprovar A → "Decisão registrada: Aprovada, opção A." e o 
   await entrarComo(page, 'cto');
   const demandaId = await demandaDoSeed(page, TITULO);
   const status = await statusDa(page, demandaId);
-  const aprovado = await temDecAprovado(page, demandaId);
-  exigeBancoRecemSemeado(!aprovado && ORIGENS_DO_FLUXO.includes(status), `a demanda ${demandaId} já tem DEC aprovado (A-02) ou está ${status}`);
+  // 0.1.13: um DEC aprovado antes não impede mais a aprovação (o novo o substitui); fica só o status, que o P1-d exige.
+  exigeBancoRecemSemeado(ORIGENS_DO_FLUXO.includes(status), `a demanda ${demandaId} está ${status}, e o DEC novo não a leva a Pronta para decisão`);
   const decId = await novoPacote(page, await completarEspERsk(page, demandaId), 'cto');
   await page.goto(`/demandas/${demandaId}`);
   await page.getByRole('link', { name: `Abrir decisão ${decId}` }).click();
@@ -238,9 +245,31 @@ test('nível cto: aprovar A → "Decisão registrada: Aprovada, opção A." e o 
   expect(await statusDa(page, demandaId)).toBe('pronta_para_decisao');
 });
 
-test('A-02: com um DEC aprovado na demanda, aprovar outro mostra o conflito e o pacote continua pendente', async ({ page }) => {
+// O aprovado mais novo da demanda: aprovado e não substituído (0.1.13). Nunca há mais de um.
+const vigentes = async (page: Page, id: string) =>
+  (await pacotes(page, id)).filter((p) => p.statusDecisao === 'aprovada' && !p.substituido).map((p) => p.id);
+
+// Texto da T11 do substituído e do histórico (dados-da-decisao.ts e rotulos.ts), por inteiro, para o teste quebrar se
+// mudar.
+const AVISO_SUBSTITUIDO = (id: string) =>
+  `Este pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`;
+const LEMBRETE_P1D = 'A demanda continua em Pronta para decisão até alguém mudar o status para Aprovada no detalhe da demanda.';
+// A linha do DEC na tabela de pacotes da T05: a que tem o link "Abrir decisão <id>" (o histórico também cita o id).
+const linhaDoDec = (page: Page, decId: string) =>
+  page.getByRole('row').filter({ has: page.getByRole('link', { name: `Abrir decisão ${decId}`, exact: true }) });
+
+// 0.1.13 (DEC-DEM-20261104-0014-v1): no lugar do teste do A-02, que esperava o 409. A regra mudou por decisão de
+// Fabiano (opção b do E5 do 0013): o DEC aprovado mais novo substitui o anterior, e só ele gera o Pedido de Construção.
+test('substituição: com um DEC aprovado na demanda, aprovar o mais novo dá "Aprovada"; a T11 do anterior mostra o selo, o aviso e o link, sem o pedido', async ({
+  page,
+}) => {
   await entrarComo(page, 'cto');
-  const demandaId = await demanda(page);
+  const demandaId = await demandaDoSeed(page, TITULO);
+  const status = await statusDa(page, demandaId);
+  // O status, e não o DEC aprovado antes: de ORIGENS_DO_FLUXO, o DEC novo leva a demanda a Pronta para decisão, que o
+  // lembrete do P1-d confere; depois do "Arquivar" ela fica Encerrada, e não recebe DEC novo.
+  exigeBancoRecemSemeado(ORIGENS_DO_FLUXO.includes(status), `a demanda ${demandaId} está ${status}, e o DEC novo não a leva a Pronta para decisão`);
+  await completarEspERsk(page, demandaId);
   // Sozinho (--grep) num banco recém-semeado, a demanda ainda não tem DEC aprovado: o teste aprova um pela tela.
   if (!(await temDecAprovado(page, demandaId))) {
     const primeiro = await novoPacote(page, demandaId, 'cto');
@@ -248,28 +277,61 @@ test('A-02: com um DEC aprovado na demanda, aprovar outro mostra o conflito e o 
     await aprovarOpcaoA(page);
     await expect(alertaAprovada(page)).toHaveText('Decisão registrada: Aprovada, opção A.');
   }
-  const aprovadosAntes = (await pacotes(page, demandaId)).filter((p) => p.statusDecisao === 'aprovada').map((p) => p.id);
-  expect(aprovadosAntes, 'DEC aprovados da demanda antes').toHaveLength(1);
+  const antes = await vigentes(page, demandaId);
+  expect(antes, 'aprovado mais novo da demanda antes').toHaveLength(1);
+  const anterior = antes[0]!;
 
   const decId = await novoPacote(page, demandaId, 'cto');
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('Decisão pendente', { exact: true })).toBeVisible();
   await aprovarOpcaoA(page);
-  await expect(page.getByRole('alert').filter({ hasText: 'Não foi possível concluir' })).toHaveText(
-    'Não foi possível concluir: outro pacote desta demanda já está aprovado.',
-  );
-  await semViolacoes(page, 'T11 com o conflito da A-02');
-  expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
-  const aprovadosDepois = (await pacotes(page, demandaId)).filter((p) => p.statusDecisao === 'aprovada').map((p) => p.id);
-  expect(aprovadosDepois, 'DEC aprovados da demanda depois: exatamente um, o mesmo').toEqual(aprovadosAntes);
+  await expect(alertaAprovada(page)).toHaveText('Decisão registrada: Aprovada, opção A.');
+  await expect(page.getByRole('alert').filter({ hasText: 'Não foi possível concluir' })).toHaveCount(0);
+  // O aprovado mais novo não é substituído: sem selo nem aviso.
+  await expect(page.getByText('Substituído', { exact: true })).toHaveCount(0);
+  expect(await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).toMatchObject({ statusDecisao: 'aprovada', substituido: false, substituidoPor: null });
+  expect(await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${anterior}`)).toMatchObject({
+    statusDecisao: 'aprovada',
+    substituido: true,
+    substituidoPor: decId,
+  });
+  expect(await vigentes(page, demandaId), 'aprovado mais novo da demanda depois: só o do teste').toEqual([decId]);
+  // Nada muda no status: a aprovação não mexe na demanda (P1-d).
+  expect(await statusDa(page, demandaId)).toBe('pronta_para_decisao');
+
+  // A T11 do anterior: selo, aviso e link para o novo; sem a seção do pedido e sem o lembrete do P1-d.
+  await page.goto(`/pacotes-decisao/${anterior}`);
+  await expect(page.getByText('Substituído', { exact: true })).toBeVisible();
+  await expect(page.getByText(AVISO_SUBSTITUIDO(decId), { exact: true })).toBeVisible();
+  const link = page.getByRole('link', { name: `Abrir ${decId}`, exact: true });
+  await expect(link).toHaveAttribute('href', `/pacotes-decisao/${decId}`);
+  await expect(page.getByRole('region', { name: 'Pedido de Construção', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Gerar Pedido de Construção' })).toHaveCount(0);
+  await expect(page.getByText(LEMBRETE_P1D)).toHaveCount(0);
+  await expect(page.locator('main form')).toHaveCount(0);
+  await semViolacoes(page, 'T11 substituído');
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(`/pacotes-decisao/${decId}$`));
+  await expect(page.getByText(LEMBRETE_P1D)).toBeVisible();
+
+  // T05: o selo na linha do anterior, e não na do novo; o histórico com a frase fixa e os dois ids.
+  await page.goto(`/demandas/${demandaId}`);
+  await expect(linhaDoDec(page, anterior)).toContainText('Aprovada');
+  await expect(linhaDoDec(page, anterior).getByText('Substituído', { exact: true })).toBeVisible();
+  await expect(linhaDoDec(page, decId).getByText('Substituído', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(`${anterior} foi substituído por ${decId}, aprovado depois`, { exact: true })).toBeVisible();
+  await semViolacoes(page, 'T05 com DEC substituído');
+  const historico = (await api<{ itens: { acao: string; entidadeId: string; depois: unknown }[] }>(page, 'GET', `/api/demandas/${demandaId}/historico`)).itens;
+  expect(historico.filter((e) => e.acao === 'pacote_decisao_substituido' && e.depois !== null && (e.depois as { substituidoPor?: unknown }).substituidoPor === decId)).toEqual([
+    expect.objectContaining({ entidadeId: anterior, depois: { substituido: anterior, substituidoPor: decId } }),
+  ]);
 });
 
 test('dupla aprovação: CTO aprova; administradora entra, vê a opção fixada, informa documento e data; "O pacote está aprovado."', async ({ page }) => {
   await entrarComo(page, 'cto');
-  // Demanda própria (A-02): o teste anterior já deixou um DEC aprovado na demanda da spec.
+  // Demanda própria: o fluxo da demanda da spec (substituição, devolução e arquivamento) não interfere neste teste.
+  // Desde a 0.1.13, um DEC aprovado antes nela não é pré-condição: a dupla aprovação o substituiria.
   const dd = await demandaDoSeed(page, TITULOS_DO_E2E.duplaAprovacao);
-  // Um DEC só com a aprovação do CTO não tem decisão e não conta.
-  exigeBancoRecemSemeado(!(await temDecAprovado(page, dd)), `a demanda ${dd} já tem DEC aprovado (A-02)`);
   const decId = await novoPacote(page, await completarEspERsk(page, dd), 'cto_e_administradora');
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('CTO: pendente.', { exact: true })).toBeVisible();

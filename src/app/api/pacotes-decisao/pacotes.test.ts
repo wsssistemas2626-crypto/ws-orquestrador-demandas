@@ -33,6 +33,10 @@ import * as rotaDoFiltro from './route';
 import { GET as GET_FILTRO } from './route';
 import * as rotaDaLista from '../demandas/[id]/pacotes-decisao/route';
 import { GET as GET_LISTA, POST } from '../demandas/[id]/pacotes-decisao/route';
+import { GET as GET_DEMANDA } from '../demandas/[id]/route';
+import { registrarDecisao } from '../../../modules/pacotes-decisao/decidir';
+import { criarPacoteDecisao } from '../../../modules/pacotes-decisao/criar';
+import { criarPacoteDecisaoSchema } from '../../../modules/pacotes-decisao/schemas';
 
 let b: BancoDeTeste;
 let deps: Deps;
@@ -526,5 +530,48 @@ describe('log das rotas do DEC (C-21)', () => {
     expect(tudo).not.toContain('statusDecisao');
     expect(tudo).not.toContain(tokenConsolidacao);
     expect(contemSentinela(tudo)).toBe(false);
+  });
+});
+
+// 0.1.13 (DEC-DEM-20261104-0014-v1, S1 item 4, E6 da 01): substituido e substituidoPor saem na vista da pessoa e na
+// vista mínima do agente (lista de permissão), no DEC, na fila e na demanda, sem nome. Último bloco do arquivo: o CA-23.1
+// acima confere o total de aprovados do banco inteiro. A demanda e os DEC são de uma pessoa só deste bloco (C-36).
+describe('substituido e substituidoPor pela API (0.1.13)', () => {
+  it('pessoa e token de agente: GET do DEC, da fila com statusDecisao=aprovada e da demanda trazem os dois campos, sem nome', async () => {
+    const p = await criarPessoa(deps, { papel: 'administradora' });
+    const dono: AtorPessoa = { tipo: 'pessoa', usuarioId: p.usuarioId, nome: 'Pessoa Ficticia', papel: 'administradora' };
+    const id = (await criarDemanda(deps, dono, criarDemandaSchema.parse({ titulo: 'Frete da filial', tipo: 'melhoria', solicitanteNome: SENTINELAS.nome }))).id;
+    await criarEspecificacao(deps, insumo, id, espDaRota('Calcular o frete'));
+    await criarParecerRisco(deps, risco, id, criarParecerRiscoSchema.parse({ riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' }));
+    const novo = async () => (await criarPacoteDecisao(deps, dono, id, criarPacoteDecisaoSchema.parse(VALIDO))).id;
+    const v1 = await novo();
+    await registrarDecisao(deps, ctoAtor, v1, { statusDecisao: 'aprovada', opcaoEscolhida: 'A', revisouRascunhosDeAgente: true });
+    const v2 = await novo();
+    await registrarDecisao(deps, ctoAtor, v2, { statusDecisao: 'aprovada', opcaoEscolhida: 'B', revisouRascunhosDeAgente: true });
+
+    for (const cred of [cto(), { bearer: tokenConsolidacao }, { bearer: tokenRisco }]) {
+      const doV1 = (await (await obter(v1, cred)).json()) as Record<string, unknown>;
+      expect(doV1).toMatchObject({ id: v1, statusDecisao: 'aprovada', substituido: true, substituidoPor: v2 });
+      expect(await (await obter(v2, cred)).json()).toMatchObject({ id: v2, statusDecisao: 'aprovada', substituido: false, substituidoPor: null });
+
+      const fila = (await (await filtrar('?statusDecisao=aprovada&limit=100', cred)).json()) as { itens: Array<{ id: string; substituido: boolean; substituidoPor: string | null }> };
+      expect(fila.itens.filter((i) => i.id === v1 || i.id === v2).map((i) => [i.id, i.substituido, i.substituidoPor])).toEqual([
+        [v2, false, null],
+        [v1, true, v2],
+      ]);
+
+      const r = await chamarRota(GET_DEMANDA, { caminho: `/api/demandas/${id}`, params: { id }, ...cred });
+      expect(r.status).toBe(200);
+      const texto = await r.text();
+      const demanda = JSON.parse(texto) as { pacotesDecisao: Array<{ id: string; substituido: boolean; substituidoPor: string | null }> };
+      expect(demanda.pacotesDecisao.map((x) => [x.id, x.substituido, x.substituidoPor])).toEqual([
+        [v2, false, null],
+        [v1, true, v2],
+      ]);
+      if (cred.bearer) {
+        expect(contemSentinela(texto)).toBe(false);
+        expect(contemSentinela(JSON.stringify(doV1))).toBe(false);
+      }
+    }
   });
 });

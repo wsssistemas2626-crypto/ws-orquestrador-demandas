@@ -132,8 +132,9 @@ const DEMANDAS: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
   },
 ];
 
-// Demandas próprias de testes do e2e que aprovam um DEC (08-correcao): com A-02, a demanda só tem um DEC aprovado, então
-// cada um desses testes precisa de uma demanda só dele. Elas vêm do seed, e não da API, para o e2e não gastar o limite
+// Demandas próprias de testes do e2e que aprovam um DEC (08-correcao): cada teste que aprova precisa de uma demanda só
+// dele, para começar sem DEC aprovado (desde a 0.1.13, aprovar outro DEC da demanda substitui o aprovado, e o teste
+// seguinte acharia um estado que não é o dele). Elas vêm do seed, e não da API, para o e2e não gastar o limite
 // de demandas por hora da conta (C-36). Nascem sem ESP, RSK nem DEC; o teste cria os dele. Os títulos são os que
 // e2e/decisao.spec.ts, e2e/pedido-construcao.spec.ts, e2e/axe-todas.spec.ts e e2e/parecer-risco-qa.spec.ts procuram. A
 // `axeSoCto` recebe o DEC de pessoa de nível cto da T11 da axe-todas (o DEC de agente nasce "CTO e administradora", A-04).
@@ -150,6 +151,9 @@ export const TITULOS_DO_E2E = {
   decisao: 'Demanda da decisão (fictício)',
   rskDuploClique: 'Duplo clique no parecer de risco (fictício)',
   espListaDeTextos: 'Lista de textos da especificação (fictício)',
+  // 0.1.13 (DEC-DEM-20261104-0014-v1, S6): o caminho completo da substituição (R1 da 01): aprovar, a recusa por nome
+  // ("Santos" no contexto), contexto corrigido, DEC novo, aprovar e gerar.
+  substituicao: 'Frete da filial: substituição do pacote (fictício)',
 } as const;
 
 // Todas com contexto: a `descricao` do Pedido de Construção sai dele, e o validarPedido recusa descrição vazia.
@@ -210,6 +214,14 @@ const DEMANDAS_DO_E2E: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
     solicitantePapel: 'produto',
     linhaServicoProvavel: 'sob_medida',
     contexto: 'A especificação lista o escopo em itens, e cada item pode ser corrigido ou removido.',
+  },
+  {
+    titulo: TITULOS_DO_E2E.substituicao,
+    tipo: 'melhoria',
+    solicitanteNome: 'Carla Santos Ficticia',
+    solicitantePapel: 'operacoes',
+    linhaServicoProvavel: 'sob_medida',
+    contexto: 'A filial de Santos calcula o frete à mão.',
   },
 ];
 

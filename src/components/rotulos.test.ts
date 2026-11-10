@@ -21,6 +21,7 @@ import {
   rotuloAtor,
   SELO_DESATUALIZADO,
   SELO_RASCUNHO,
+  SELO_SUBSTITUIDO,
   textoDoEvento,
 } from './rotulos';
 
@@ -65,6 +66,8 @@ describe('rótulos de enumeração (03, 2.2 e 2.6)', () => {
     expect(ROTULO_NIVEL).toEqual({ baixo: 'Baixo', medio: 'Médio', alto: 'Alto' });
     expect(SELO_RASCUNHO).toEqual({ texto: 'Rascunho de agente', cor: 'violet', tracejado: true });
     expect(SELO_DESATUALIZADO).toEqual({ texto: 'Desatualizado', cor: 'red', tracejado: false });
+    // 0.1.13: o DEC aprovado que um aprovado mais novo da demanda substituiu.
+    expect(SELO_SUBSTITUIDO).toEqual({ texto: 'Substituído', cor: 'gray', tracejado: false });
   });
 
   it('tipo, papel do solicitante, linha de serviço, urgência e nível de aprovação (03, 2.6)', () => {
@@ -248,6 +251,18 @@ describe('textoDoEvento (03, T05, tabela "Histórico")', () => {
     expect(textoDoEvento(ev({ acao: 'texto_expurgado', ator: { tipo: 'sistema' }, entidade: 'entrada_bruta' }), { retencaoDias: 30 })).toBe(
       'Apagou o texto recebido (retenção de 30 dias)',
     );
+  });
+
+  // 0.1.13 (S4): a substituição grava os dois ids, e a frase é fixa. Um substituidoPor fora do formato de id de DEC não
+  // aparece: o texto de reserva cita só o substituído.
+  it('pacote substituído: "<DEC antigo> foi substituído por <DEC novo>, aprovado depois"; fora do formato, o texto de reserva', () => {
+    const subst = { acao: 'pacote_decisao_substituido', entidade: 'pacote_decisao', entidadeId: 'DEC-DEM-20261104-0042-v1' } as const;
+    expect(textoDoEvento(ev({ ...subst, depois: { substituido: 'DEC-DEM-20261104-0042-v1', substituidoPor: 'DEC-DEM-20261104-0042-v2' } }))).toBe(
+      'DEC-DEM-20261104-0042-v1 foi substituído por DEC-DEM-20261104-0042-v2, aprovado depois',
+    );
+    for (const depois of [{ substituidoPor: 'Carla Santos Ficticia' }, { substituidoPor: 42 }, {}, null]) {
+      expect(textoDoEvento(ev({ ...subst, depois })), JSON.stringify(depois)).toBe('DEC-DEM-20261104-0042-v1 foi substituído por um pacote aprovado depois');
+    }
   });
 
   it('nenhum texto de evento cita dado gravado fora dos ids e das enumerações', () => {

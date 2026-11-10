@@ -7,6 +7,7 @@ import type { NivelRisco } from '../db/schema/versoes';
 import type { Agente, Papel } from '../modules/acesso/ator';
 import type { StatusDecisao } from '../modules/demandas/consultas';
 import type { EventoVisivel } from '../modules/historico/consultas';
+import { RE_ID_DEC } from './dados-do-pacote';
 
 // Cores dos selos (03, 2.2): texto 800 sobre fundo 100 da mesma cor (Selo.tsx).
 export type CorSelo = 'slate' | 'blue' | 'amber' | 'violet' | 'green' | 'cyan' | 'emerald' | 'orange' | 'gray' | 'red';
@@ -55,6 +56,8 @@ export const COR_NIVEL: Readonly<Record<NivelRisco, CorSelo>> = { baixo: 'green'
 export type SeloFixo = { texto: string; cor: CorSelo; tracejado: boolean };
 export const SELO_RASCUNHO: SeloFixo = { texto: 'Rascunho de agente', cor: 'violet', tracejado: true };
 export const SELO_DESATUALIZADO: SeloFixo = { texto: 'Desatualizado', cor: 'red', tracejado: false };
+// 0.1.13: o DEC aprovado que um aprovado mais novo da demanda substituiu. Texto da triagem, para revisão da ux-ui-design.
+export const SELO_SUBSTITUIDO: SeloFixo = { texto: 'Substituído', cor: 'gray', tracejado: false };
 
 export const ROTULO_TIPO: Readonly<Record<TipoDemanda, string>> = {
   bug: 'Bug',
@@ -212,6 +215,13 @@ export function textoDoEvento(e: EventoVisivel, op: { retencaoDias?: number } = 
         return `Registrou a aprovação como administradora (opção ${opcao})${documento}`;
       }
       return `Registrou a aprovação como CTO (opção ${opcao})`;
+    }
+    // 0.1.13: frase fixa com os dois ids (C-30). O substituto só aparece se tiver o formato de id de DEC.
+    case 'pacote_decisao_substituido': {
+      const por = texto(d.substituidoPor);
+      return por && RE_ID_DEC.test(por)
+        ? `${e.entidadeId} foi substituído por ${por}, aprovado depois`
+        : `${e.entidadeId} foi substituído por um pacote aprovado depois`;
     }
     case 'falha_agente': {
       if (!agente) return 'Um agente não conseguiu gerar o rascunho';

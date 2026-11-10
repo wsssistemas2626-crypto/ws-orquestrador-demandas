@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
+| Atualizado em | 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-26; RNF-11, RNF-16 |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/components/`, `src/proxy.ts`, `e2e/` |
@@ -20,13 +20,13 @@ como texto (`react/no-danger`). As páginas saem com `no-store` e CSP com nonce.
 | T02 Configurar 2FA | `/configurar-2fa` | QR, chave para digitar, confirmação do código e códigos de recuperação; única tela aberta à sessão sem 2FA, por até 15 min | RF-01 |
 | T03 Fila de demandas | `/demandas` | filtros por status, tipo e linha de serviço na URL, aplicados por botão; total encontrado; entradas que aguardam o agente | RF-06 |
 | T04 Nova demanda | `/demandas/nova` | colar o texto e preencher os campos, ou mandar ao agente orquestrador quando ligado | RF-03, RF-05, RF-20 |
-| T05 Detalhe | `/demandas/[id]` | dados, dúvidas, versões de ESP, RSK e DEC, mudança manual de status, texto recebido (com a data do expurgo), histórico, agente trabalhando | RF-06, RF-07, RF-12, RF-15, RF-21, RF-24 |
+| T05 Detalhe | `/demandas/[id]` | dados, dúvidas, versões de ESP, RSK e DEC (com o selo "Substituído" no DEC aprovado substituído, desde a 0.1.13), mudança manual de status, texto recebido (com a data do expurgo), histórico, agente trabalhando | RF-06, RF-07, RF-12, RF-15, RF-21, RF-24 |
 | T06 Editar demanda | `/demandas/[id]/editar` | editar os campos | RF-06 |
 | T07 Nova ESP | `/demandas/[id]/especificacoes/nova` | começa com a mais nova; destino por conta e sistema | RF-08 |
 | T08 Novo RSK | `/demandas/[id]/pareceres-risco/novo` | três níveis, comentários, listas | RF-09 |
 | T09 Novo DEC | `/demandas/[id]/pacotes-decisao/novo` | resumo, opções A e B, recomendação, nível de aprovação | RF-10 |
 | T10 Ver ESP ou RSK | `/especificacoes/[espId]`, `/pareceres-risco/[rskId]` | somente leitura | RF-11 |
-| T11 Decisão | `/pacotes-decisao/[decId]` | revisão do destino, dos níveis e do nível de aprovação; decisão com confirmação em diálogo; aprovar indisponível e explicado quando desatualizado; gerar, baixar e copiar o pedido; aviso sobre dado pessoal no pedido; caixa de confirmação sem dado pessoal antes de gerar (desde a 0.1.12, [cap. 05](05-pedido-de-construcao.md#na-t11)) | RF-12, RF-13, RF-14, RF-22 |
+| T11 Decisão | `/pacotes-decisao/[decId]` | revisão do destino, dos níveis e do nível de aprovação; decisão com confirmação em diálogo; aprovar indisponível e explicado quando desatualizado; gerar, baixar e copiar o pedido; aviso sobre dado pessoal no pedido; caixa de confirmação sem dado pessoal antes de gerar (desde a 0.1.12, [cap. 05](05-pedido-de-construcao.md#na-t11)); no DEC substituído, o selo, o aviso com o link para o DEC que gera e nenhuma seção do pedido (desde a 0.1.13, [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)) | RF-12, RF-13, RF-14, RF-22 |
 | T12 Agentes e teto | `/configuracao/agentes` | interruptor e modelo de cada agente, teto, gasto do mês, batimento do worker, último expurgo; as duas contas leem, só a `cto` altera | RF-17, RF-18, RF-19 |
 | Sem permissão | `/sem-permissao` | conta sem papel válido | RF-01 |
 | E01 E-mail | Resend | aviso de pacote pronto ([cap. 07](07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail)) | RF-25 |
@@ -52,6 +52,12 @@ e-mail e nome e na demanda de Estudo. O teste "CA-26.3" confere a caixa (nome ac
 botão habilitado), que o clique com ela desmarcada não faz `POST` à página, o erro e o foco na caixa, o Espaço, o
 `aprovadoPor` `cto`, o 422 sem a confirmação pela API e o histórico com a confirmação, pela API e na T05.
 
+Desde a 0.1.13, o axe roda também na T11 do DEC substituído e na T05 com um DEC substituído (`e2e/decisao.spec.ts`,
+teste "substituição: …"), e, no caminho completo da substituição (`e2e/pedido-construcao.spec.ts`, teste "0.1.13,
+caminho completo: …", na demanda `TITULOS_DO_E2E.substituicao` do seed), na recusa por nome, na aba velha do v1 com o
+409 do substituído e na T11 do v1 substituído. As corridas da substituição (C-13) ficam nos testes de unidade e de
+integração (`substituicao.test.ts`, `gerar-substituido.test.ts`), porque o e2e roda com `workers: 1`.
+
 ## Pendências de interface conhecidas
 
 - Textos para a `ux-ui-design`: QF-01 a QF-04 e D-01 a D-06 do `07-qa-funcional.md` (por exemplo, o bloqueio de
@@ -73,7 +79,15 @@ botão habilitado), que o clique com ela desmarcada não faz `POST` à página, 
   (`TEXTOS_PEDIDO` e `orientacaoDoPedido` em `src/components/dados-do-pedido.ts`;
   [cap. 05](05-pedido-de-construcao.md#corrigir-uma-recusa)). Foram escritos na triagem e esperam a revisão da
   `ux-ui-design`. A linha "Título e descrição …: corrija na demanda, em "Editar dados"." não diz que a edição só vale
-  para um DEC novo; a linha seguinte avisa que outro pacote da demanda não se aprova.
+  para um DEC novo; desde a 0.1.13, a linha 6 diz que o pacote novo, aprovado, substitui este.
+- Desde a 0.1.13 (pedido 0014), textos novos escritos na triagem e na correção, que esperam a revisão da
+  `ux-ui-design`: o selo "Substituído" (`SELO_SUBSTITUIDO`, `rotulos.ts`), o aviso e o link da T11 do DEC substituído
+  (`TEXTOS_DECISAO.substituido` e `abrirSubstituto`, `dados-da-decisao.ts`), a linha 6 da orientação
+  (`dados-do-pedido.ts`), a mensagem do 409 do substituído no gerar (`MENSAGENS_PEDIDO.substituido`), a frase do
+  histórico e o 409 do S-01 (`MENSAGENS_DECISAO.nivelMenorQueOVigente`). Ficam em aberto três avisos que a T11 não
+  mostra: na T11 de um DEC pendente, que aprová-lo substitui o aprovado vigente; na T11 do vigente, que há um DEC mais
+  novo pendente; e, na T11 de um DEC `cto` com o vigente de dupla aprovação, que a aprovação será recusada (hoje a
+  recusa só aparece depois do envio).
 - Falha ao carregar uma tela mostra "Não foi possível carregar esta página." e "Tentar de novo" (`src/app/error.tsx`),
   sem mensagem, pilha nem `digest`. O registro do erro é o `erro_requisicao` do servidor
   ([cap. 02](02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).

@@ -2,12 +2,12 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.12 |
+| Versão | 0.1.13 |
 | Imagem | `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas` (privada) |
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 04/11/2026 (`documentacao-tecnica`, pedido 0013: versão 0.1.12; `devops-sre`, pedido 0013: rollback da 0.1.12 na seção 6, para a `v0.1.11`, e merges sem migration até a 0.1.12 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0012: versão 0.1.11; `devops-sre`, pedido 0012: rollback da 0.1.11 na seção 6, para a `v0.1.10`, risco residual do M-1 do 0009 reduzido de novo na seção 4 e erro que lança ao ser lido na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0011: versão 0.1.10; `devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 10/11/2026 (`documentacao-tecnica`, pedido 0014: versão 0.1.13; `devops-sre`, pedido 0014: rollback da 0.1.13 na seção 6, para a `v0.1.12`, sha completo da `v0.1.11` no parágrafo da 0.1.12 e merges sem migration até a 0.1.13 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0013: versão 0.1.12; `devops-sre`, pedido 0013: rollback da 0.1.12 na seção 6, para a `v0.1.11`, e merges sem migration até a 0.1.12 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0012: versão 0.1.11; `devops-sre`, pedido 0012: rollback da 0.1.11 na seção 6, para a `v0.1.10`, risco residual do M-1 do 0009 reduzido de novo na seção 4 e erro que lança ao ser lido na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0011: versão 0.1.10; `devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -128,7 +128,7 @@ o nome atual) e nomes de outras pessoas. Não é regressão e não bloqueia a pu
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
 5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
    - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
-   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.12, que não mudam `drizzle/`): roda o passo "Disparar o
+   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.13, que não mudam `drizzle/`): roda o passo "Disparar o
      Easypanel".
      - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
        EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
@@ -200,14 +200,41 @@ anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaur
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
 
+A 0.1.13 não traz migration: `drizzle/` não muda em relação à 0.1.12, e o journal é o mesmo da 0.1.12 à 0.1.0. O
+"substituído" é calculado na leitura, sem coluna nem status novo. Dois dados novos podem existir no banco depois dela, e a
+0.1.12 os lê sem erro:
+
+- **O evento `pacote_decisao_substituido`** no histórico. A coluna `acao` é texto sem restrição, e o `depois` leva só
+  os dois ids de DEC. Na 0.1.12, a linha aparece no histórico da demanda com a data e quem aprovou, mas com a coluna
+  do que aconteceu vazia (o `textoDoEvento` dela não conhece a ação), e Antes e Depois vazios, como em todo evento que não
+  é de status nem de campo. O `GET /api/demandas/:id/historico` devolve o evento como está gravado.
+- **Demanda com dois ou mais DEC aprovados.** A 0.1.12 não marca o substituído: sem selo, sem aviso e com a seção do
+  pedido na T11. O gerar dela não confere a substituição, então o DEC substituído volta a gerar Pedido de Construção
+  quando não está desatualizado. São dois Pedidos válidos da mesma demanda, o risco que a 0.1.13 fecha. O A-02 também
+  volta: nenhum DEC novo se aprova numa demanda que já tem DEC aprovado (409 "outro pacote desta demanda já está
+  aprovado."), e a recusa por nome da 0.1.12 volta a não ter saída dentro da demanda (E5 do 0013).
+
+A volta da 0.1.13 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:89eca465e96ae7a3b729205dff69c70417c372b3` (a `v0.1.12`,
+commit de merge do PR #14 na `main`), sem restaurar backup. Antes de voltar, confirme a tag em Packages. Enquanto a
+0.1.12 estiver no ar depois da volta:
+
+1. Antes de gerar um Pedido de Construção, abra a demanda (T05) e confira os pacotes.
+2. Só gere do DEC aprovado de maior versão.
+3. Com mais de um DEC aprovado, os de versão menor são os substituídos: não gere deles, nem use um pedido já gerado deles.
+
+A volta é só para indisponibilidade que a própria 0.1.13 cause, e a correção vem logo depois. Se a 0.1.13 for a
+primeira publicação (seção 4), não há versão no ar para onde voltar: a volta é parar `app` e `worker` no Easypanel, e
+não publicar a 0.1.12 no lugar dela. O ensaio é o `ensaiar-rollback` da Parada 3.
+
 A 0.1.12 não traz migration: `drizzle/` não muda em relação à 0.1.11, e o journal é o mesmo da 0.1.11 à 0.1.0. O único
 valor novo gravado no banco é o `depois` `{ "confirmaSemDadoPessoal": true }` do evento `pedido_gerado`, um booleano
 fixo no `jsonb` do histórico, que a 0.1.11 lê sem diferença: o histórico dela mostra "Gerou o Pedido de Construção de
 <DEC-id>", sem citar a confirmação, e as colunas Antes e Depois ficam vazias para esse evento nas duas versões. A recusa
 por nome e a recusa sem a confirmação não gravam nada, e o `aprovadoPor` com o papel só existe no arquivo baixado, que o
-sistema não guarda. A volta da 0.1.12 é o caminho A, para a imagem do commit de merge do PR #13 na `main` (`b9e52d6`, a
-`v0.1.11`), sem restaurar backup. A tag dessa imagem é o sha completo desse commit, que o clone local não tem: confira-o
-em Packages, na versão que também tem a tag `v0.1.11`, antes de voltar. Ao voltar, reabrem: o Pedido de Construção
+sistema não guarda. A volta da 0.1.12 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:b9e52d6828ec2496a2fcdce066dfaa908f6160f8` (a `v0.1.11`,
+commit de merge do PR #13 na `main`), sem restaurar backup. Antes de voltar, confirme a tag em Packages. Ao voltar, reabrem: o Pedido de Construção
 volta a sair com o nome do solicitante no texto, sem recusa (D1 do 0013), e com o nome de quem aprovou em
 `decisao.aprovadoPor` (D2 do 0013), e a T11 volta a gerar sem a caixa de confirmação e sem registrá-la no histórico (D3
 do 0013). Quem chama o POST com `{ "confirmaSemDadoPessoal": true }` continua recebendo 200, porque a rota da 0.1.11 não

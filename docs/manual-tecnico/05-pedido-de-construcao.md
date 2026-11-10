@@ -2,18 +2,19 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.12: recusa com o nome do solicitante, confirmação sem dado pessoal no corpo e na T11, `aprovadoPor` com o papel, no RF-22); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo de C-28 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
+| Atualizado em | 10/11/2026 (0.1.13: só o DEC aprovado mais novo gera, 409 do substituído, linha 6 da orientação e T11 do substituído, no RF-22; substituído marcado no RF-23); 04/11/2026 (0.1.12: recusa com o nome do solicitante, confirmação sem dado pessoal no corpo e na T11, `aprovadoPor` com o papel, no RF-22); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo de C-28 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-22, RF-23; RNF-15 |
-| Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`, `schemas.ts`), `src/modules/dados-pessoais/detectores.ts`, `src/modules/dados-pessoais/minimizar.ts` (`temNome`), `src/modules/pacotes-decisao/criar.ts` (`descricaoSemRotulos`), `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/(painel)/pacotes-decisao/[decId]/` (`SecaoPedido.tsx`, `acoes-pedido.ts`), `src/components/dados-do-pedido.ts`, `src/app/api/pacotes-decisao/route.ts` |
+| Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`, `schemas.ts`), `src/modules/dados-pessoais/detectores.ts`, `src/modules/dados-pessoais/minimizar.ts` (`temNome`), `src/modules/pacotes-decisao/criar.ts` (`descricaoSemRotulos`), `src/modules/pacotes-decisao/substituido.ts`, `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/(painel)/pacotes-decisao/[decId]/` (`SecaoPedido.tsx`, `acoes-pedido.ts`), `src/components/dados-do-pedido.ts`, `src/app/api/pacotes-decisao/route.ts` |
 
 ## RF-22. Gerar o pedido
 
 `POST /api/pacotes-decisao/:decId/pedido-construcao`, só pessoa com 2FA, com o corpo
 `{ "confirmaSemDadoPessoal": true }` (desde a 0.1.12, D3 do 0013). É `POST`, e não `GET`, porque a geração grava
 evento; `GET` nessa rota responde 405. No painel, a tela de decisão (`/pacotes-decisao/[decId]`) mostra a seção do
-pedido, com a caixa de confirmação, gerar, baixar e copiar, só para DEC aprovado e não desatualizado
-([Na T11](#na-t11)).
+pedido, com a caixa de confirmação, gerar, baixar e copiar, só para DEC aprovado, não desatualizado e, desde a 0.1.13,
+não substituído ([Na T11](#na-t11)). Só o DEC aprovado mais novo da demanda gera o pedido, para nunca haver dois
+Pedidos de Construção válidos da mesma demanda ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)).
 
 O corpo passa pelo `confirmacaoDoPedidoSchema` (`schemas.ts`), o mesmo na rota e na Server Action
 `gerarPedidoNoPainel`. Tipo errado (`"true"`, `1`), JSON inválido ou `POST` sem corpo → 400 `entrada_invalida`, como em
@@ -34,11 +35,17 @@ e nenhum evento é gravado:
    arquivado numa demanda final recebe esta mensagem;
 5. DEC sem decisão `aprovada` completa (pendente, com só uma das duas aprovações, devolvido ou arquivado) → 409
    "o Pedido de Construção só é gerado de pacote aprovado.";
-6. DEC desatualizado, lido sob a trava → 409 "o pacote está desatualizado: a demanda tem ESP ou RSK mais nova que a
+6. DEC substituído por um aprovado mais novo da demanda (desde a 0.1.13), lido junto com o DEC, sob a trava → 409
+   "o pacote foi substituído por <id>, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de
+   Construção." (`MENSAGENS_PEDIDO.substituido(id)`, uma função, com o id do aprovado vigente). Vem antes do
+   desatualizado, porque aponta o DEC que gera: um DEC desatualizado e substituído recebe esta mensagem. Uma aprovação
+   do DEC mais novo ao mesmo tempo ou espera esta transação, ou já é vista; nunca sai 200 do substituído depois que a
+   aprovação do mais novo foi gravada ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado));
+7. DEC desatualizado, lido sob a trava → 409 "o pacote está desatualizado: a demanda tem ESP ou RSK mais nova que a
    citada." (A-03 da 08);
-7. demanda do tipo `estudo`, pela cópia gravada no DEC → 422 "demanda do tipo estudo não gera Pedido de Construção";
-8. montagem só com a ESP e o RSK citados no DEC;
-9. dado pessoal no pedido montado → **um 422 só**, "O pedido não passou na validação do /construir. Nada foi
+8. demanda do tipo `estudo`, pela cópia gravada no DEC → 422 "demanda do tipo estudo não gera Pedido de Construção";
+9. montagem só com a ESP e o RSK citados no DEC;
+10. dado pessoal no pedido montado → **um 422 só**, "O pedido não passou na validação do /construir. Nada foi
    entregue.", com `erros` no formato `<caminho>: <tipo>`, sem o valor. Primeiro vem a lista do C-28, depois a do nome:
    - **C-28:** e-mail, telefone ou CPF em qualquer campo. CNPJ não bloqueia o pedido. A busca é
      `encontrarDadosPessoais`, com os `DETECTORES` de `detectores.ts`. Desde a 0.1.11 (M-a e B-2 da revisão do 0011),
@@ -46,9 +53,9 @@ e nenhum evento é gravado:
      travado) e aceita letra com acento no usuário. No reteste da `seguranca-aplicacao`, com 300 mil textos sorteados,
      nenhum texto que a 0.1.10 bloqueia deixou de ser bloqueado ([cap. 06](06-agentes-de-ia.md#detector-de-e-mail));
    - **nome do solicitante** (desde a 0.1.12, D1 do 0013): o tipo é `nome`. Ver [Nome do solicitante](#nome-do-solicitante);
-10. `validarPedido` da cópia em `src/vendor/construir/pedido.mjs` (a mesma regra do `/construir`, conferida por SHA-256
+11. `validarPedido` da cópia em `src/vendor/construir/pedido.mjs` (a mesma regra do `/construir`, conferida por SHA-256
     em teste) → 422 com a mesma mensagem e os `erros` dele;
-11. evento `pedido_gerado` e a resposta. Desde a 0.1.12, o evento grava `depois: { "confirmaSemDadoPessoal": true }`,
+12. evento `pedido_gerado` e a resposta. Desde a 0.1.12, o evento grava `depois: { "confirmaSemDadoPessoal": true }`,
     um booleano fixo, sem texto (C-30); `antes` fica nulo. O histórico mostra "Gerou o Pedido de Construção de
     <DEC-id>, com a confirmação de que o texto não tem dado pessoal". O evento gravado antes da 0.1.12, sem o
     `depois`, continua com "Gerou o Pedido de Construção de <DEC-id>" (`textoDoEvento`, `src/components/rotulos.ts`).
@@ -93,7 +100,7 @@ Formato (seção 3.1 da spec do `/construir`), com as chaves sempre nesta ordem:
   e comentários.
 - **Determinístico** (RNF-15): só dado imutável, chaves em ordem fixa, dois espaços de recuo e quebra de linha no fim.
   O mesmo DEC gera sempre o mesmo arquivo, byte a byte, enquanto a demanda não está em status final (passo 4) e
-  enquanto a geração é aceita (o nome conferido no passo 9 é o atual; ver abaixo). O mesmo DEC gerado na 0.1.11 e na
+  enquanto a geração é aceita (o nome conferido no passo 10 é o atual; ver abaixo). O mesmo DEC gerado na 0.1.11 e na
   0.1.12 dá arquivos diferentes, por causa do `aprovadoPor`.
 
 O pedido é **baixado e copiado à mão** para `pedidos/` da estruturaAutonoma. O sistema não envia nada ao `/construir`
@@ -182,18 +189,24 @@ parágrafo por linha, só com as linhas que valem e nesta ordem:
    "ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.";
 4. `risco.`: "Parecer de risco (risco.conteudo): corrija num parecer de risco novo.";
 5. `decisao.`: "Opção escolhida (decisao.opcaoEscolhida): corrija num pacote novo.";
-6. sempre que houver linha de 2 a 5: "Atenção: com este pacote aprovado, outro pacote desta demanda não pode ser
-   aprovado nesta versão. Fale com o CTO antes de refazer o texto.";
+6. sempre que houver linha de 2 a 5 (texto da 0.1.13): "Depois de corrigir, crie um pacote novo e aprove-o: o pacote
+   aprovado mais novo substitui este, e só ele gera o Pedido de Construção.";
 7. nenhuma linha de 2 a 5 valeu (por exemplo, erro do `validarPedido` fora desses caminhos): "Corrija criando uma
    versão nova da ESP e um pacote novo.".
 
 Nenhuma linha traz valor do pedido. A correção depende sempre de um DEC novo: título e descrição do pedido vêm da cópia
 gravada no DEC, então editar a demanda só muda o pedido de um DEC criado depois; ESP ou RSK novos deixam o DEC
-desatualizado (409, passo 6). E, pela A-02 ([cap. 04](04-versoes-e-decisao.md#rf-13-decisão)), com um DEC aprovado
-nenhum outro DEC da mesma demanda é aprovado (409 "outro pacote desta demanda já está aprovado."). Na 0.1.12, a recusa
-num DEC aprovado não tem saída dentro da demanda: a saída é encerrar a demanda e abrir outra com o texto limpo. A
-mudança da A-02 (o DEC aprovado mais novo substitui o anterior, opção (b) decidida por Fabiano em 04/11) está no
-pedido `DEC-DEM-20261104-0014-v1` (E5 do 0013) e não entrou nesta versão.
+desatualizado (409, passo 7). Desde a 0.1.13, o DEC novo pode ser aprovado com o antigo já aprovado, e a aprovação
+completa dele substitui o antigo ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)). A saída, dentro da
+mesma demanda:
+
+1. Corrija o texto no lugar que a orientação indica (demanda, ESP, RSK ou o próprio DEC).
+2. Crie um DEC novo. Ele leva a cópia nova do título e da descrição e cita a ESP e o RSK de maior versão.
+3. Aprove o DEC novo. Se o antigo foi aprovado com o CTO e a administradora, o novo precisa do mesmo nível
+   (`cto_e_administradora`): um DEC só do CTO recebe 409 (S-01).
+4. Gere o Pedido do DEC novo. O antigo passa a responder 409 (passo 6) e não mostra mais a seção do pedido na T11.
+
+Até a 0.1.12, a A-02 recusava a aprovação do DEC novo, e a única saída era encerrar a demanda e abrir outra.
 
 ### Na T11
 
@@ -213,6 +226,11 @@ ordem, o texto da seção, o aviso de C-28, a caixa de confirmação e o botão 
   alerta com o texto, a lista `erros` (campo e tipo, sem valor) e a orientação de [Corrigir uma recusa](#corrigir-uma-recusa).
   O 422 sem a confirmação, que só chega por quem chama a ação sem a tela, mostra a mensagem do servidor, sem lista nem
   orientação.
+- DEC substituído (desde a 0.1.13): a seção não aparece (`secaoDoPedido` devolve `'nenhuma'` com `substituidoPor`
+  preenchido), e a T11 mostra o selo "Substituído" e o aviso com o link para o DEC que gera
+  ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)). Numa aba aberta antes da substituição, o clique em
+  "Gerar" recebe o 409 do passo 6 e mostra "Não foi possível concluir: o pacote foi substituído por <id>, …", com o foco
+  no alerta, sem lista nem orientação.
 
 Os textos do aviso, da caixa, do erro da caixa e da orientação foram escritos na triagem do 0013 e esperam a revisão da
 `ux-ui-design` ([cap. 08](08-painel.md#pendências-de-interface-conhecidas)).
@@ -221,4 +239,7 @@ Os textos do aviso, da caixa, do erro da caixa e da orientação foram escritos 
 
 `GET /api/pacotes-decisao?statusDecisao=<valor>` (pessoa ou qualquer agente), com `limit` (1 a 100, padrão 20) e
 `offset`. `statusDecisao` aceita `pendente`, `aprovada`, `devolvida` e `arquivada`; sem ele, lista todos. `pendente` é
-derivado: é o DEC sem linha em `decisao`, inclusive o que tem só uma das duas aprovações.
+derivado: é o DEC sem linha em `decisao`, inclusive o que tem só uma das duas aprovações. Desde a 0.1.13, `aprovada`
+traz também o DEC substituído, com `substituido: true` e `substituidoPor` com o id do aprovado vigente; não há filtro
+nem status próprio para ele ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)). Quem busca o DEC que
+gera filtra `substituido: false`.

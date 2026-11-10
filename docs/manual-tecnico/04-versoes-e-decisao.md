@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.10: nomes do 201 tirados da demanda travada nos três `POST` e guarda dos `extras` também em `criarPacoteDecisaoComNomes`, no RF-10); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` e teste estático dos `extras` do DEC, no RF-10); 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
+| Atualizado em | 10/11/2026 (0.1.13: o DEC aprovado mais novo substitui o anterior, no lugar da recusa da A-02, com a recusa do DEC só do CTO sobre um aprovado de dupla aprovação, no RF-13 e no RF-14); 04/11/2026 (0.1.10: nomes do 201 tirados da demanda travada nos três `POST` e guarda dos `extras` também em `criarPacoteDecisaoComNomes`, no RF-10); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` e teste estático dos `extras` do DEC, no RF-10); 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-08 a RF-14 |
-| Fontes no código | `src/modules/especificacoes/`, `src/modules/pareceres-risco/`, `src/modules/pacotes-decisao/` (`criar.ts`, `decidir.ts`, `desatualizado.ts`, `consultas.ts`, `schemas.ts`), `src/modules/versoes.ts`, `drizzle/0003_rls_privilegios_dominio.sql` |
+| Fontes no código | `src/modules/especificacoes/`, `src/modules/pareceres-risco/`, `src/modules/pacotes-decisao/` (`criar.ts`, `decidir.ts`, `desatualizado.ts`, `substituido.ts`, `consultas.ts`, `schemas.ts`), `src/modules/demandas/consultas.ts` (`PacoteResumo`), `src/modules/historico/registrar.ts`, `src/modules/versoes.ts`, `drizzle/0003_rls_privilegios_dominio.sql` |
 
 Toda gravação de ESP, RSK ou DEC é uma versão nova. Criar, decidir e gerar o Pedido fazem `SELECT … FOR UPDATE` na
 linha da demanda:
@@ -152,7 +152,10 @@ Conferências, nesta ordem, dentro de uma transação:
 3. já tem decisão → 409 "este pacote já tem decisão registrada.";
 4. não é o DEC mais novo da demanda → 409 "a demanda tem um pacote mais novo; só o mais novo pode ser decidido."
    (A-01 da 08);
-5. aprovar com outro DEC da demanda já aprovado → 409 "outro pacote desta demanda já está aprovado." (A-02 da 08);
+5. outro DEC da demanda já aprovado **não** recusa a aprovação, desde a 0.1.13 (A-02 revista pela opção (b) do E5 do
+   0013, decidida por Fabiano em 04/11). A aprovação completa deste DEC substitui o aprovado anterior, com a regra de
+   nível do S-01 ([Substituição do DEC aprovado](#substituição-do-dec-aprovado)). Até a 0.1.12, a resposta era 409
+   "outro pacote desta demanda já está aprovado." (A-02 da 08); a mensagem saiu do código;
 6. aprovar DEC desatualizado → 409;
 7. o DEC cita rascunho de agente e `revisouRascunhosDeAgente` não é `true` → 400 no campo;
 8. `devolvida` ou `arquivada`: grava a decisão, e a demanda muda pelo ator `sistema` (`em_analise` ou `encerrada`);
@@ -169,9 +172,84 @@ Regras de papel e nível:
   no modo `cto_com_referencia`; o modo em vigor é `somente_propria` (`MODO_APROVACAO_ADMINISTRADORA` em
   `decidir.ts`, P1-a), então só a própria administradora, com conta e 2FA, registra a aprovação dela.
 - Nível `cto`: só a conta `cto` aprova (P1-b); a administradora recebe 403. A aprovação grava a decisão na hora.
+  Desde a 0.1.13 (S-01 da revisão do 0014), se o aprovado vigente da demanda é de nível `cto_e_administradora`, a
+  aprovação da `cto` recebe 409 antes de gravar ([Substituição do DEC aprovado](#substituição-do-dec-aprovado)).
 - A aprovação **não** muda o status da demanda (P1-d).
 
 O histórico leva o papel, a opção e, na da administradora, a referência e a data do documento; nunca o comentário.
+
+### Substituição do DEC aprovado
+
+Desde a 0.1.13 (pedido `DEC-DEM-20261104-0014-v1`, opção (b) do E5 do 0013, decidida por Fabiano em 04/11), o DEC
+aprovado mais novo da demanda substitui o aprovado anterior. Uma recusa do Pedido de Construção, inclusive a falsa
+(`Santos` cidade, `Rosa` no começo da frase), ou uma correção de ESP, RSK, título, descrição ou opção depois da
+aprovação, passa a ter saída dentro da demanda: crie um DEC novo e aprove-o. Fontes: `substituido.ts`, `decidir.ts`
+(`fecharAprovacao` e `aprovar`), `consultas.ts` e `src/modules/demandas/consultas.ts`.
+
+**Termos.**
+
+- **Aprovado vigente** (ou aprovado mais novo): o DEC de maior `versao` da demanda com decisão `aprovada`
+  (`aprovadoVigente` e `aprovadoMaisNovo`). A comparação é pela versão, e não pela data, para não depender do relógio.
+  Pela regra 4 (A-01), só o DEC mais novo se decide, então o vigente é sempre o último aprovado.
+- **Substituído:** o DEC com decisão `aprovada` que não é o aprovado vigente. É calculado na leitura
+  (`expressaoSubstituidoPor`), como o desatualizado: não há coluna, migration nem status novo, e o `statusDecisao`
+  continua `aprovada`. DEC pendente, com só uma das duas aprovações, devolvido ou arquivado nunca é substituído e não
+  substitui nada.
+
+**Quando acontece.** Na gravação da decisão `aprovada`: no nível `cto`, na aprovação da `cto`; no nível
+`cto_e_administradora`, na segunda aprovação (RF-14). A primeira aprovação da dupla não substitui: até a segunda, o
+anterior continua vigente e continua gerando o Pedido. Valem todas as regras de hoje (2FA, matriz, P1-a, P1-b, mesma
+opção, documento da administradora, revisão de rascunho, desatualizado, A-01, status final), e a aprovação que
+substitui não muda o status da demanda (P1-d), também com a demanda em `aprovada`, `em_construcao` ou `devolvida`.
+
+**Regra de nível (S-01).** Um DEC só do CTO não substitui um aprovado vigente que exigiu o CTO e a administradora. Na
+aprovação de um DEC de nível `cto`, depois do P1-b e antes de gravar, o sistema lê o vigente sob a trava da demanda. Se
+ele é `cto_e_administradora`, a resposta é 409:
+
+```json
+{ "erro": "conflito", "mensagem": "o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora." }
+```
+
+(`MENSAGENS_DECISAO.nivelMenorQueOVigente`). Nada é gravado: nem aprovação, nem decisão, nem evento, e o vigente
+continua vigente. A administradora num DEC `cto` continua recebendo o 403 do P1-b, que vem antes. O inverso é
+permitido: um DEC `cto_e_administradora`, com as duas aprovações, substitui um vigente `cto`. O nível é escolhido por
+quem cria o DEC (RF-10), e a criação não é recusada: o DEC `cto` recusado pode ser devolvido ou arquivado, e a saída é
+um DEC novo de nível `cto_e_administradora`. A T11 desse DEC `cto` mostra o formulário de aprovar, e a recusa só aparece
+depois do envio, no alerta "Não foi possível concluir: …".
+
+**Na leitura.** A vista do DEC (`PacoteDecisaoVista`) e o resumo da lista de DEC da demanda (`PacoteResumo`) têm
+`substituido` (booleano) e `substituidoPor` (o id do aprovado vigente, ou `null`). Saem em
+`GET /api/pacotes-decisao/:decId`, `GET /api/pacotes-decisao`, `GET /api/demandas/:id/pacotes-decisao` e em
+`pacotesDecisao` de `GET /api/demandas/:id`, também na vista mínima do agente (são id e booleano, sem texto livre).
+`substituidoPor` aponta sempre para o vigente **atual**: com v1, v2 e v3 aprovados, v1 e v2 apontam para o v3, o único
+que gera. O filtro `statusDecisao=aprovada` (RF-23) continua trazendo o substituído, marcado com `substituido: true`.
+
+**No histórico.** Na mesma transação, depois de `aprovacao_registrada` e `decisao_registrada`, a aprovação que
+substitui grava o evento `pacote_decisao_substituido`, com `entidadeId` igual ao DEC substituído e
+`depois: { "substituido": <DEC substituído>, "substituidoPor": <DEC aprovado agora> }`, só os dois ids, sem comentário,
+opção nem nome (C-30). A T05 mostra "<DEC substituído> foi substituído por <DEC aprovado>, aprovado depois", com Antes e
+Depois vazios. Se `substituidoPor` não tem o formato de id de DEC, a frase é "<DEC substituído> foi substituído por um
+pacote aprovado depois" (`textoDoEvento`, `src/components/rotulos.ts`). Cada substituição grava o seu evento: com v1, v2
+e v3 aprovados nessa ordem, ficam v1→v2 e v2→v3.
+
+**Concorrência (C-13).** O vigente é lido sob a trava da demanda e antes do insert em `decisao`. Duas aprovações do
+mesmo DEC ao mesmo tempo dão uma `aprovada` e um 409 "este pacote já tem decisão registrada.", com um evento de
+substituição só. Uma geração do DEC antigo ao mesmo tempo que a aprovação do novo ou termina antes dela (o pedido sai
+legítimo e o `pedido_gerado` fica antes da substituição no histórico) ou recebe o 409 do substituído
+([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)).
+
+**No painel.** Na T11 do DEC substituído: o selo "Substituído" (cinza) depois do selo da decisão; um alerta de atenção
+"Este pacote foi substituído por <id>, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de
+Construção. Não use um pedido gerado deste pacote.", com o link "Abrir <id>" para a T11 do vigente, antes do alerta de
+desatualizado (com os dois valendo, aparecem os dois); sem a seção do Pedido de Construção e sem o lembrete de levar a
+demanda a "Aprovada" (P1-d). Na T05, o selo "Substituído" ao lado de "Aprovada" na linha do DEC substituído. Os textos
+são da triagem do 0014 e esperam a revisão da `ux-ui-design` ([cap. 08](08-painel.md#pendências-de-interface-conhecidas)).
+
+**Regra de uso (S-02, risco aceito no RSK do 0014).** Não use Pedido de Construção gerado de DEC substituído. O sistema
+recusa gerar de novo do substituído, mas não alcança um pedido já baixado e copiado para `pedidos/` da
+estruturaAutonoma antes da substituição, nem uma construção em curso, inclusive com a demanda em `em_construcao`: nada
+avisa o `/construir`. Antes de usar um pedido, confira na T05 (ou em `GET /api/pacotes-decisao/:decId`) que o DEC dele
+não tem `substituido: true`. O controle é só de processo; a consulta pelo `/construir` fica para um pedido futuro.
 
 ## RF-14. Dupla aprovação
 
@@ -183,9 +261,21 @@ Nível `cto_e_administradora`:
    sistema; aqui só a referência). Faltando, 400 nos campos.
 3. O mesmo papel de novo → 409 "a aprovação do CTO já está registrada." (ou da administradora).
 4. A segunda aprovação precisa ser da **mesma opção** da primeira; senão 409 citando quem aprovou primeiro.
-5. Com as duas, a decisão `aprovada` é gravada.
+5. Com as duas, a decisão `aprovada` é gravada. Se a demanda já tinha um aprovado vigente, ele passa a ser substituído
+   nesse momento, e não na primeira aprovação ([Substituição do DEC aprovado](#substituição-do-dec-aprovado)).
 
-Limite conhecido (médio do reteste da 08, aberto): a regra 4 da decisão (nunca dois DEC aprovados) junto com a regra do
-desatualizado pode deixar a demanda sem saída. Se o v1 é aprovado e depois entra uma ESP ou um RSK novos, o pedido do
-v1 dá 409 por estar desatualizado, e o v2 não pode ser aprovado porque o v1 já está. A saída é decisão de Fabiano ou
-do `tech-lead` ([CHANGELOG](../../CHANGELOG.md)).
+A regra de nível do S-01 não se aplica a este nível: um DEC `cto_e_administradora` nunca tem nível menor que o vigente.
+
+Limite conhecido. O médio do reteste da 08 (a A-02, que impedia dois DEC aprovados, junto com a regra do desatualizado
+deixava a demanda sem saída) foi fechado na 0.1.13: com o v1 aprovado e uma ESP ou um RSK novos, o v1 fica desatualizado,
+e o v2, que cita as versões novas, pode ser aprovado e substitui o v1. Ficam abertos, da revisão do 0014
+([CHANGELOG](../../CHANGELOG.md)):
+
+- **S-02 (médio):** um Pedido de Construção já copiado do DEC substituído continua valendo do lado do `/construir`. A
+  regra de uso está em [Substituição do DEC aprovado](#substituição-do-dec-aprovado).
+- **S-04 (baixo, desde a 0.1.0):** com o v1 aprovado e o v2 pendente, arquivar o v2 leva a demanda a `encerrada` se ela
+  estiver em `pronta_para_decisao` (transição `decisao_arquivada`, [cap. 03](03-demandas.md#rf-07-status-e-transições)), e
+  aí o v1 também deixa de gerar (M-08, passo 4 do [cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)). É decisão da pessoa; para descartar um DEC novo sem encerrar a demanda,
+  prefira devolvê-lo.
+- A T11 não avisa, antes do envio, que aprovar um DEC pendente substitui o aprovado vigente, nem, na T11 do vigente,
+  que há um DEC mais novo pendente. Fica para a `ux-ui-design`.

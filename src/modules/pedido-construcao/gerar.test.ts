@@ -763,6 +763,8 @@ function decVista(over: Partial<PacoteDecisaoVista> = {}): PacoteDecisaoVista {
       { papel: 'cto', nome: 'Pessoa Ficticia CTO', opcao: 'A', registradaEm: criadaEm, referenciaDocumento: null, dataDocumento: null },
     ],
     desatualizado: false,
+    substituido: false,
+    substituidoPor: null,
     decisao: { opcaoEscolhida: 'A', comentarios: 'Comentário fictício', decididaPor: 'Pessoa Ficticia CTO', decididaEm: new Date('2026-10-23T02:00:00Z') },
     rascunhosCitados: [],
     especificacaoCitada: { sistemaAlvo: 'meu-sistema', repositorioDestino: 'fabianojp06/meu-sistema', criteriosAceitePreliminares: ['Critério fictício'], definicaoDePronto: ['pnpm test verde'] },

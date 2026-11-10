@@ -9,6 +9,7 @@ import type { PacoteDecisaoVista } from '../modules/pacotes-decisao/consultas';
 import { LIMITE_REFERENCIA_DOCUMENTO, registrarDecisaoSchema } from '../modules/pacotes-decisao/schemas';
 import {
   alertaDeDesatualizado,
+  alertaDeSubstituido,
   AVISO_DECISAO,
   chegadaNaDecisao,
   decisaoSuja,
@@ -64,6 +65,8 @@ function pacote(extra: Partial<PacoteDecisaoVista> = {}): PacoteDecisaoVista {
     statusDecisao: 'pendente',
     aprovadores: [],
     desatualizado: false,
+    substituido: false,
+    substituidoPor: null,
     decisao: null,
     rascunhosCitados: [],
     especificacaoCitada: {
@@ -566,5 +569,31 @@ describe('bordas da tela de decisão (qa-automacao)', () => {
     const p = pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto, aprovacaoAdm] });
     expect(formularioDaConta(p, CTO).tipo).toBe('sem_formulario');
     expect(formularioDaConta(p, ADM).tipo).toBe('sem_formulario');
+  });
+});
+
+// 0.1.13 (DEC-DEM-20261104-0014-v1, S5): o DEC aprovado que um aprovado mais novo substituiu mostra o aviso com o link
+// para o substituto. Textos da triagem, para revisão da ux-ui-design.
+describe('alertaDeSubstituido (0.1.13)', () => {
+  const V2 = `DEC-${ID}-v2`;
+
+  it('os textos: o aviso cita o id do substituto e manda não usar pedido deste pacote; o link leva o id', () => {
+    expect(TEXTOS_DECISAO.substituido(V2)).toBe(
+      `Este pacote foi substituído por ${V2}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`,
+    );
+    expect(TEXTOS_DECISAO.abrirSubstituto(V2)).toBe(`Abrir ${V2}`);
+  });
+
+  it('sem substituto: null; com o id do substituto: o texto e o link para a T11 dele', () => {
+    expect(alertaDeSubstituido(pacote())).toBeNull();
+    expect(alertaDeSubstituido(pacote({ statusDecisao: 'aprovada', substituidoPor: null }))).toBeNull();
+    expect(alertaDeSubstituido(pacote({ statusDecisao: 'aprovada', substituido: true, substituidoPor: V2 }))).toEqual({
+      texto: TEXTOS_DECISAO.substituido(V2),
+      link: { rotulo: `Abrir ${V2}`, href: `/pacotes-decisao/${V2}` },
+    });
+  });
+
+  it('a mensagem outroAprovado (A-02) saiu do fluxo de aprovação', () => {
+    expect(MENSAGENS_DECISAO).not.toHaveProperty('outroAprovado');
   });
 });

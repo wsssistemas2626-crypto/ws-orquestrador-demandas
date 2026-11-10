@@ -103,6 +103,8 @@ function pacote(extra: Partial<PacoteDecisaoVista> = {}): PacoteDecisaoVista {
     statusDecisao: 'pendente',
     aprovadores: [],
     desatualizado: false,
+    substituido: false,
+    substituidoPor: null,
     decisao: null,
     rascunhosCitados: [],
     especificacaoCitada: {
@@ -158,6 +160,46 @@ describe('T11: acesso e leitura', () => {
     const { exigirPessoa } = await import('../../../../modules/acesso/exigir-pessoa');
     vi.mocked(exigirPessoa).mockResolvedValue(CTO);
     await expect(generateMetadata({ params: Promise.resolve({ decId: DEC }) })).resolves.toEqual({ title: 'Decisão do pacote' });
+  });
+});
+
+// 0.1.13 (DEC-DEM-20261104-0014-v1, S5): o DEC aprovado que um aprovado mais novo substituiu. O axe desta tela fica no
+// e2e da 04-regressao.
+describe('T11: DEC substituído (0.1.13)', () => {
+  const V2 = `DEC-${ID}-v2`;
+  const aprovado = (extra: Partial<PacoteDecisaoVista> = {}) =>
+    pacote({
+      statusDecisao: 'aprovada',
+      aprovadores: [{ papel: 'cto', nome: CTO.nome, opcao: 'A', registradaEm: APROVADO, referenciaDocumento: null, dataDocumento: null }],
+      decisao: { opcaoEscolhida: 'A', comentarios: null, decididaPor: CTO.nome, decididaEm: APROVADO },
+      ...extra,
+    });
+
+  it('selo "Substituído", o aviso com o link para o substituto, sem a seção do Pedido de Construção e sem o lembrete de P1-d', async () => {
+    mPacote.mockResolvedValue(aprovado({ substituido: true, substituidoPor: V2 }));
+    const s = await pagina();
+    expect(s).toContain('>Substituído</span>');
+    expect(s).toContain(
+      `Este pacote foi substituído por ${V2}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`,
+    );
+    expect(s).toMatch(new RegExp(`<a [^>]*href="/pacotes-decisao/${V2}"[^>]*>Abrir ${V2}</a>`));
+    expect(s).not.toMatch(/<h2[^>]*>Pedido de Construção<\/h2>/);
+    expect(s).not.toContain('Gerar Pedido de Construção');
+    expect(s).not.toContain('A demanda continua em Pronta para decisão');
+    // O aviso vem antes do alerta de desatualizado, e os dois aparecem quando os dois valem.
+    mPacote.mockResolvedValue(aprovado({ substituido: true, substituidoPor: V2, desatualizado: true }));
+    const ambos = await pagina();
+    expect(ambos.indexOf(`Abrir ${V2}`)).toBeGreaterThan(0);
+    expect(ambos.indexOf(`Abrir ${V2}`)).toBeLessThan(ambos.indexOf('Este pacote está desatualizado'));
+  });
+
+  it('controle: o aprovado mais novo não tem selo nem aviso, e mostra a seção do pedido e o lembrete', async () => {
+    mPacote.mockResolvedValue(aprovado());
+    const s = await pagina();
+    expect(s).not.toContain('Substituído');
+    expect(s).not.toContain('Abrir DEC-');
+    expect(s).toMatch(/<h2[^>]*>Pedido de Construção<\/h2>/);
+    expect(s).toContain('A demanda continua em Pronta para decisão');
   });
 });
 

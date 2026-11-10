@@ -17,6 +17,8 @@ export type AcaoEvento =
   | 'pacote_decisao_criado'
   | 'aprovacao_registrada'
   | 'decisao_registrada'
+  // 0.1.13: a aprovação do DEC mais novo substituiu o aprovado anterior; `depois` leva só os dois ids (decidir.ts).
+  | 'pacote_decisao_substituido'
   | 'agente_ligado'
   | 'agente_desligado'
   | 'teto_alterado'

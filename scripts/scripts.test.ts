@@ -362,9 +362,9 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     expect(await precoVigente(b.db, 'modelo-ficticio', new Date('2026-10-22T12:00:00Z'))).toEqual({ entradaPorMilhao: 3, saidaPorMilhao: 15 });
     expect(await contar(b, 'select count(*)::int as n from configuracao_agente where ligado')).toBe(0);
 
-    // Uma demanda de cada tipo, mais as nove próprias do e2e (08-correcao e DEC-DEM-20261102-0002-v1); uma delas com ESP,
-    // RSK e DEC gravados como rascunho de agente (para a T43).
-    expect(TOTAL_DEMANDAS_DO_SEED).toBe(14);
+    // Uma demanda de cada tipo, mais as dez próprias do e2e (08-correcao, DEC-DEM-20261102-0002-v1 e, na 0.1.13, a da
+    // substituição do pacote); uma delas com ESP, RSK e DEC gravados como rascunho de agente (para a T43).
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(15);
     const tipos = (await b.poolMigrator.query('select distinct tipo from demanda order by tipo')).rows.map((r) => r.tipo);
     expect(tipos).toEqual(['bug', 'estudo', 'melhoria', 'novo_projeto', 'produto_proprio']);
     expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
@@ -431,7 +431,17 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     expect(TITULOS_DO_E2E.rskDuploClique).toBe('Duplo clique no parecer de risco (fictício)');
     expect(TITULOS_DO_E2E.espListaDeTextos).toBe('Lista de textos da especificação (fictício)');
     for (const t of [TITULOS_DO_E2E.decisao, TITULOS_DO_E2E.rskDuploClique, TITULOS_DO_E2E.espListaDeTextos]) expect(tipoDe(t), t).toBe('melhoria');
-    expect(titulos).toHaveLength(9);
+    // 0.1.13 (DEC-DEM-20261104-0014-v1, S6): a demanda do caminho completo da substituição (R1 da 01), com "Santos" no
+    // contexto e no nome fictício do solicitante, para a recusa por nome do primeiro pacote.
+    expect(TITULOS_DO_E2E.substituicao).toBe('Frete da filial: substituição do pacote (fictício)');
+    expect(tipoDe(TITULOS_DO_E2E.substituicao)).toBe('melhoria');
+    const substituicao = (
+      await b.poolMigrator.query('select solicitante_nome, solicitante_papel, linha_servico_provavel, contexto from demanda where titulo = $1', [TITULOS_DO_E2E.substituicao])
+    ).rows;
+    expect(substituicao).toEqual([
+      { solicitante_nome: 'Carla Santos Ficticia', solicitante_papel: 'operacoes', linha_servico_provavel: 'sob_medida', contexto: 'A filial de Santos calcula o frete à mão.' },
+    ]);
+    expect(titulos).toHaveLength(10);
     // A conta cto fica com as cinco de antes (uma de cada tipo), e a administradora com nenhuma, como antes da 08-correcao.
     const doSeedPor = (email: string) => contar(b, `select count(*)::int as n from demanda d join "user" u on u.id = d.autor_id where u.email = $1`, [email]);
     expect(await doSeedPor(CONTAS_FICTICIAS.cto.email)).toBe(5);

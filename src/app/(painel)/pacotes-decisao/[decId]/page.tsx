@@ -4,7 +4,8 @@
 // fora do formato ou que não existe: 404 (03, 2.8). O conteúdo é o copiado no pacote; a revisão de C-14 vem antes do
 // formulário; quem vê o formulário segue a 03 (formularioDaConta), e a regra que vale é a do servidor. Tudo é texto: o
 // React escapa título, opções e comentários (C-18). A seção do Pedido de Construção (T44) vem depois de "Registrar
-// decisão", só com a decisão aprovada completa (secaoDoPedido); Estudo mostra só a frase da 03, sem botão.
+// decisão", só com a decisão aprovada completa (secaoDoPedido); Estudo mostra só a frase da 03, sem botão. O DEC
+// substituído por um aprovado mais novo (0.1.13) mostra o selo, o aviso com o link para o substituto e não tem a seção.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -12,6 +13,7 @@ import type { ReactNode } from 'react';
 import { Alerta } from '../../../../components/Alerta';
 import {
   alertaDeDesatualizado,
+  alertaDeSubstituido,
   chegadaNaDecisao,
   formularioDaConta,
   itensDaRevisao,
@@ -25,7 +27,7 @@ import {
 } from '../../../../components/dados-da-decisao';
 import { RE_ID_DEC } from '../../../../components/dados-do-pacote';
 import { secaoDoPedido, TEXTOS_PEDIDO } from '../../../../components/dados-do-pedido';
-import { COR_DECISAO, ROTULO_DECISAO, ROTULO_NIVEL_APROVACAO, SELO_DESATUALIZADO, SELO_RASCUNHO } from '../../../../components/rotulos';
+import { COR_DECISAO, ROTULO_DECISAO, ROTULO_NIVEL_APROVACAO, SELO_DESATUALIZADO, SELO_RASCUNHO, SELO_SUBSTITUIDO } from '../../../../components/rotulos';
 import { Selo } from '../../../../components/Selo';
 import { formatarDataHora } from '../../../../lib/fuso';
 import { exigirPessoaNaPagina } from '../../../../modules/acesso/exigir-pessoa';
@@ -69,11 +71,13 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
 
   const t = TEXTOS_DECISAO;
   const chegada = chegadaNaDecisao(await searchParams, p);
+  const substituido = alertaDeSubstituido(p);
   const desatualizado = alertaDeDesatualizado(p, d);
   const aprovacoes = linhasDeAprovacao(p);
   const formulario = formularioDaConta(p, pessoa);
   const decidida = textoDaDecisaoRegistrada(p);
-  const lembrete = p.statusDecisao === 'aprovada' && d.status === 'pronta_para_decisao';
+  // P1-d: o lembrete de levar a demanda a Aprovada é do DEC que vale; o substituído não o mostra (0.1.13).
+  const lembrete = p.statusDecisao === 'aprovada' && !p.substituido && d.status === 'pronta_para_decisao';
   const pedido = secaoDoPedido(p);
 
   return (
@@ -82,6 +86,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
         <p className="flex flex-wrap items-center gap-3">
           <span className="font-mono">{p.id}</span>
           <Selo cor={COR_DECISAO[p.statusDecisao]}>{ROTULO_DECISAO[p.statusDecisao]}</Selo>
+          {p.substituido ? <Selo cor={SELO_SUBSTITUIDO.cor}>{SELO_SUBSTITUIDO.texto}</Selo> : null}
           {p.desatualizado ? <Selo cor={SELO_DESATUALIZADO.cor}>{SELO_DESATUALIZADO.texto}</Selo> : null}
           {p.rascunhoAgente ? (
             <Selo cor={SELO_RASCUNHO.cor} tracejado={SELO_RASCUNHO.tracejado}>
@@ -121,6 +126,14 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
           <p>{t.lembrete}</p>
           <Link href={`/demandas/${p.demandaId}`} className={CLASSE_LINK}>
             {t.irParaDemanda}
+          </Link>
+        </Alerta>
+      ) : null}
+      {substituido ? (
+        <Alerta tipo="atencao" className="flex flex-col items-start gap-2">
+          <p>{substituido.texto}</p>
+          <Link href={substituido.link.href} className={CLASSE_LINK}>
+            {substituido.link.rotulo}
           </Link>
         </Alerta>
       ) : null}

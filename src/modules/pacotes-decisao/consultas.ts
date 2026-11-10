@@ -1,6 +1,6 @@
 // Leitura do pacote de decisão (RF-10, RF-12, RF-23). `statusDecisao`, `aprovadores` e `decisao` são derivados das
 // tabelas `decisao` e `aprovacao` (pendente = sem linha em decisao); `desatualizado` é a mesma expressão que a transição
-// para `aprovada` usa (RF-07, RF-12). A autoria aparece como nas outras versões: pessoa pelo nome da conta, agente pelo
+// para `aprovada` usa (RF-07, RF-12); `substituido` e `substituidoPor` (0.1.13) vêm de expressaoSubstituidoPor. A autoria aparece como nas outras versões: pessoa pelo nome da conta, agente pelo
 // nome do agente, nunca pelo id interno da conta. `especificacaoCitada` e `niveisRisco` existem para a revisão visível
 // na tela de decisão (C-14); são os da ESP e do RSK citados, e não os mais novos.
 import { asc, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
@@ -25,6 +25,7 @@ import {
 } from '../demandas/consultas';
 import { expressaoDesatualizado } from './desatualizado';
 import type { FiltroPacotes } from './schemas';
+import { expressaoSubstituidoPor } from './substituido';
 
 export type Aprovador = {
   papel: PapelAprovacao;
@@ -58,6 +59,10 @@ export type PacoteDecisaoVista = {
   statusDecisao: StatusDecisao;
   aprovadores: Aprovador[];
   desatualizado: boolean;
+  // 0.1.13: aprovado e substituído por um aprovado mais novo da demanda (substituido.ts); `substituidoPor` é o id do
+  // aprovado mais novo atual. Fora de `aprovada`, `false` e `null`.
+  substituido: boolean;
+  substituidoPor: string | null;
   decisao: DecisaoVista | null;
   rascunhosCitados: string[];
   especificacaoCitada: {
@@ -98,6 +103,7 @@ function selecao(db: Db) {
         juridico: rskCitado.riscoJuridicoNivel,
       },
       desatualizado: sql<boolean>`${expressaoDesatualizado()}`,
+      substituidoPor: sql<string | null>`${expressaoSubstituidoPor()}`,
     })
     .from(pacoteDecisao)
     .innerJoin(espCitada, eq(espCitada.id, pacoteDecisao.especificacaoId))
@@ -137,6 +143,8 @@ async function aprovadoresDe(db: Db, ids: string[]): Promise<Map<string, Aprovad
 // Campo a campo: autor_id, execucao_agente_id e as versões numéricas citadas ficam fora da vista.
 function vistaDe(l: Linha, aprovadores: Aprovador[]): PacoteDecisaoVista {
   const { p } = l;
+  const statusDecisao = l.d?.statusDecisao ?? 'pendente';
+  const substituidoPor = statusDecisao === 'aprovada' ? (l.substituidoPor ?? null) : null;
   const rascunhosCitados = [
     ...(p.rascunhoAgente ? [p.id] : []),
     ...(l.esp.rascunhoAgente ? [p.especificacaoId] : []),
@@ -159,9 +167,11 @@ function vistaDe(l: Linha, aprovadores: Aprovador[]): PacoteDecisaoVista {
     autor: responsavelDe(p.autorTipo, p.autorId, l.autorNome),
     rascunhoAgente: p.rascunhoAgente,
     criadaEm: p.criadaEm,
-    statusDecisao: l.d?.statusDecisao ?? 'pendente',
+    statusDecisao,
     aprovadores,
     desatualizado: l.desatualizado === true,
+    substituido: substituidoPor !== null,
+    substituidoPor,
     decisao: l.d
       ? { opcaoEscolhida: l.d.opcaoEscolhida, comentarios: l.d.comentarios, decididaPor: l.decisorNome, decididaEm: l.d.decididaEm }
       : null,
@@ -222,6 +232,9 @@ export function vistaDoPacotePara(ator: Ator, v: PacoteDecisaoVista, nomes: read
     statusDecisao: v.statusDecisao,
     aprovadores: v.aprovadores.map((a) => ({ papel: a.papel, opcao: a.opcao, registradaEm: a.registradaEm, dataDocumento: a.dataDocumento })),
     desatualizado: v.desatualizado,
+    // 0.1.13 (E6): booleano e id, sem texto livre.
+    substituido: v.substituido,
+    substituidoPor: v.substituidoPor,
     decisao: v.decisao
       ? { opcaoEscolhida: v.decisao.opcaoEscolhida, comentarios: textoMinimoOuNulo(v.decisao.comentarios, nomes), decididaEm: v.decisao.decididaEm }
       : null,

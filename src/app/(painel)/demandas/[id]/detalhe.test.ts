@@ -93,6 +93,8 @@ const pacote = (v: number, extra: Partial<PacoteResumo> = {}): PacoteResumo => (
   rascunhoAgente: false,
   statusDecisao: 'pendente',
   desatualizado: false,
+  substituido: false,
+  substituidoPor: null,
   ...extra,
 });
 

@@ -400,6 +400,77 @@ describe('PATCH /api/pacotes-decisao/:decId/decisao: demanda em status final (M-
   });
 });
 
+// 0.1.13 (DEC-DEM-20261104-0014-v1, R4 da 01): o DEC mais novo da demanda é aprovado pela rota mesmo com outro DEC da
+// demanda já aprovado, e o anterior fica substituído. As regras de acesso da rota continuam (2FA, token de agente, sem
+// credencial) e, recusada, nada é gravado nem substituído.
+describe('PATCH /api/pacotes-decisao/:decId/decisao: aprovação que substitui (0.1.13)', () => {
+  async function comV2Pendente(): Promise<{ demandaId: string; v1: string; v2: string }> {
+    const { demandaId, decId: v1 } = await prepararDec();
+    expect((await decidir(v1, APROVAR_A)).status).toBe(200);
+    const v2 = (
+      await criarPacoteDecisao(
+        deps,
+        novaAutora(),
+        demandaId,
+        criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo', opcaoA: { descricao: 'Opção A' }, opcaoB: { descricao: 'Opção B' }, nivelAprovacaoRequerido: 'cto' }),
+      )
+    ).id;
+    return { demandaId, v1, v2 };
+  }
+  const substituicoes = async (demandaId: string) =>
+    (
+      await b.poolMigrator.query<{ entidade_id: string; depois: unknown }>(
+        `select entidade_id, depois from evento where demanda_id = $1 and acao = 'pacote_decisao_substituido' order by id`,
+        [demandaId],
+      )
+    ).rows;
+
+  it('cto com 2FA e Origin do painel: 200 com resultado aprovada; o v1 fica substituido: true, apontando o v2', async () => {
+    const { demandaId, v1, v2 } = await comV2Pendente();
+    const r = await decidir(v2, { statusDecisao: 'aprovada', opcaoEscolhida: 'B' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ resultado: 'aprovada', pacote: { id: v2, statusDecisao: 'aprovada', substituido: false, substituidoPor: null } });
+    expect(await substituicoes(demandaId)).toEqual([{ entidade_id: v1, depois: { substituido: v1, substituidoPor: v2 } }]);
+    expect(await statusDa(demandaId)).toBe('pronta_para_decisao');
+  });
+
+  it('sem 2FA, por token de agente ou sem credencial: 403 ou 401, nada gravado e nada substituído', async () => {
+    const { demandaId, v2 } = await comV2Pendente();
+    expect((await decidir(v2, APROVAR_A, { cookie: cookieCtoSem2fa })).status).toBe(403);
+    for (const agente of AGENTES) expect((await decidir(v2, APROVAR_A, { bearer: tokens[agente] })).status, agente).toBe(403);
+    expect((await decidir(v2, APROVAR_A, {})).status).toBe(401);
+    await semMudanca(v2);
+    expect(await substituicoes(demandaId)).toEqual([]);
+  });
+
+  // S-01 da 04-revisao: o DEC só do CTO não substitui um aprovado de dupla aprovação. 409 com a mensagem fixa, antes de
+  // gravar: nenhuma linha em aprovacao ou decisao e nenhum evento de substituição.
+  it('v1 aprovado pelo CTO e pela administradora; v2 só do CTO → 409 com a mensagem fixa, nada gravado e nada substituído', async () => {
+    const { demandaId, decId: v1 } = await prepararDec({ nivel: 'cto_e_administradora' });
+    expect((await decidir(v1, APROVAR_A)).status).toBe(200);
+    expect((await decidir(v1, { ...APROVAR_A, ...DOC }, adm())).status).toBe(200);
+    const v2 = (
+      await criarPacoteDecisao(
+        deps,
+        novaAutora(),
+        demandaId,
+        criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo', opcaoA: { descricao: 'Opção A' }, opcaoB: { descricao: 'Opção B' }, nivelAprovacaoRequerido: 'cto' }),
+      )
+    ).id;
+    const r = await decidir(v2, { statusDecisao: 'aprovada', opcaoEscolhida: 'B' });
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual({
+      erro: 'conflito',
+      mensagem:
+        'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora.',
+    });
+    await semMudanca(v2);
+    expect(await substituicoes(demandaId)).toEqual([]);
+    expect(await contar('aprovacao', v1)).toBe(2);
+    expect(await contar('decisao', v1)).toBe(1);
+  });
+});
+
 describe('log da rota da decisão (C-21)', () => {
   it('uma linha por requisição, com o padrão da rota; sem id, corpo, sentinela nem token', async () => {
     const { decId } = await prepararDec();

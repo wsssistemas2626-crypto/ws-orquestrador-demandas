@@ -28,6 +28,7 @@ import {
   ROTULO_URGENCIA,
   SELO_DESATUALIZADO,
   SELO_RASCUNHO,
+  SELO_SUBSTITUIDO,
 } from '../../../../components/rotulos';
 import { Selo } from '../../../../components/Selo';
 import { Tabela } from '../../../../components/Tabela';
@@ -211,6 +212,12 @@ function Versoes({ d }: { d: DemandaVista }) {
       <Selo key="decisao" cor={COR_DECISAO[p.statusDecisao]}>
         {ROTULO_DECISAO[p.statusDecisao]}
       </Selo>,
+      // 0.1.13: o aprovado que um aprovado mais novo da demanda substituiu.
+      p.substituido ? (
+        <Selo key="substituido" cor={SELO_SUBSTITUIDO.cor}>
+          {SELO_SUBSTITUIDO.texto}
+        </Selo>
+      ) : null,
       p.desatualizado ? (
         <Selo key="desatualizado" cor={SELO_DESATUALIZADO.cor}>
           {SELO_DESATUALIZADO.texto}

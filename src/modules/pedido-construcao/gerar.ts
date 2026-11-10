@@ -3,7 +3,9 @@
 //   2. a confirmação de que o texto não tem dado pessoal (D3 do 0013): sem ela, ou `false`, 422 antes de tocar o banco
 //      (não diz se o DEC existe);
 //   3. a demanda do DEC (404 se o DEC não existe), travada como na decisão; demanda em status final → 409 (M-08). Só
-//      depois, o DEC, lido sob a trava, com decisão `aprovada` completa, ou 409 (CA-22.4); desatualizado → 409 (A-03);
+//      depois, o DEC, lido sob a trava, com decisão `aprovada` completa, ou 409 (CA-22.4); substituído por um aprovado
+//      mais novo da demanda → 409 (0.1.13: só o aprovado mais novo gera, e nunca há dois pedidos válidos da mesma
+//      demanda); desatualizado → 409 (A-03);
 //   4. demanda do tipo estudo, pela cópia gravada no DEC → 422 (CA-22.3);
 //   5. a montagem, só com a ESP e o RSK citados no DEC;
 //   6. e-mail, telefone ou CPF em qualquer campo (C-28) e o nome do solicitante da demanda travada, inteiro ou em parte,
@@ -45,6 +47,8 @@ export const MENSAGENS_PEDIDO = {
   naoPassou: 'O pedido não passou na validação do /construir. Nada foi entregue.',
   // D3 do 0013: texto da 02-triagem, para revisão da ux-ui-design. Sem lista: não diz nada do DEC.
   semConfirmacao: 'Confirme que o título, a descrição, a ESP e o parecer de risco não têm dado pessoal de ninguém. Nada foi entregue.',
+  // 0.1.13: texto da 02-triagem do DEC-DEM-20261104-0014-v1, para revisão da ux-ui-design. Só o id do DEC que gera.
+  substituido: (id: string) => `o pacote foi substituído por ${id}, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção.`,
 } as const;
 
 // CNPJ fica de fora no pedido (decisão da 04, C-28); a minimização da T24 usa os quatro.
@@ -75,6 +79,9 @@ export async function gerarPedido(
     if (ehStatusFinal(demandaTravada.status)) throw new ErroDominio('conflito', MENSAGENS_PEDIDO.demandaFinal);
     const dec = await obterPacoteDecisao(tx, decId);
     if (dec.statusDecisao !== 'aprovada') throw new ErroDominio('conflito', MENSAGENS_PEDIDO.naoAprovado);
+    // 0.1.13: lido junto com o DEC, sob a trava: uma aprovação do DEC mais novo ao mesmo tempo espera esta transação ou já
+    // é vista. Vem antes do desatualizado, porque aponta o DEC que gera.
+    if (dec.substituidoPor) throw new ErroDominio('conflito', MENSAGENS_PEDIDO.substituido(dec.substituidoPor));
     // A-03 (08-correcao): ESP ou RSK gravada depois da aprovação substitui a citada; o pedido não sai com a versão velha.
     if (dec.desatualizado) throw new ErroDominio('conflito', MENSAGENS_PEDIDO.desatualizado);
     if (dec.demandaTipo === 'estudo') throw new ErroDominio('nao_processavel', MENSAGENS_PEDIDO.estudo);

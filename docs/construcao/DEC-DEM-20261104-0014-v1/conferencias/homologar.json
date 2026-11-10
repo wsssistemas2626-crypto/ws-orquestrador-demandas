@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "url": "http://127.0.0.1:3200",
+  "verificacoes": [
+    {
+      "nome": "subir",
+      "ok": true,
+      "detalhe": "http://127.0.0.1:3200"
+    },
+    {
+      "nome": "saude",
+      "ok": true,
+      "detalhe": "http://127.0.0.1:3200/api/saude respondeu 200"
+    },
+    {
+      "nome": "e2e",
+      "ok": true,
+      "detalhe": "144 passed"
+    },
+    {
+      "nome": "derrubar",
+      "ok": true,
+      "detalhe": "projeto e volumes removidos"
+    }
+  ],
+  "sha": "ec8ab4729ebb618ed141c1a2fb4b53ed53482d5d",
+  "em": "2026-11-10T12:32:20.386Z"
+}

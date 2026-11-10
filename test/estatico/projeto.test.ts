@@ -24,10 +24,10 @@ type PackageJson = {
 const pkg = JSON.parse(ler('package.json')) as PackageJson;
 
 describe('package.json', () => {
-  // 0.1.12: DEC-DEM-20261104-0013-v1 (Pedido de Construção sem nome de pessoa).
-  it('versão 0.1.12, privado, ESM, Node 24 e pnpm 12.6.0 fixo (C-39)', () => {
+  // 0.1.13: DEC-DEM-20261104-0014-v1 (o DEC aprovado mais novo substitui o anterior).
+  it('versão 0.1.13, privado, ESM, Node 24 e pnpm 12.6.0 fixo (C-39)', () => {
     expect(pkg.name).toBe('ws-orquestrador-demandas');
-    expect(pkg.version).toBe('0.1.12');
+    expect(pkg.version).toBe('0.1.13');
     expect(pkg.private).toBe(true);
     expect(pkg.type).toBe('module');
     expect(pkg.packageManager).toBe('pnpm@12.6.0');

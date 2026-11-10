@@ -8,20 +8,28 @@
 // nome do solicitante no texto recusa com `<caminho>: nome`, sem o valor, num 422 só com o C-28; D2, aprovadoPor com o
 // papel. Todos os POST que devem passar, ou que provam outra recusa (C-28, Estudo), mandam a confirmação.
 //
-// C-36 (06-T43-tech-lead, "C-36 no e2e"): esta spec não cria nenhuma demanda. Com A-02 (08-correcao: só um DEC aprovado
-// por demanda), cada teste usa uma demanda própria do seed fictício (T33; scripts/seed-ficticio.ts, TITULOS_DO_E2E),
-// achada por GET /api/demandas: três de tipo novo_projeto e uma de tipo estudo. Cada teste cria, pela API e com a
-// sessão da conta "cto", a própria ESP, o próprio RSK e um DEC de nível "Só o CTO", e aprova o DEC pela API.
-//   - conta "cto": 0 demandas e 12 versões (4 testes × ESP, RSK e DEC);
+// C-36 (06-T43-tech-lead, "C-36 no e2e"): esta spec não cria nenhuma demanda. Cada teste usa uma demanda própria do
+// seed fictício (T33; scripts/seed-ficticio.ts, TITULOS_DO_E2E), para começar sem DEC aprovado, achada por GET
+// /api/demandas: três de tipo novo_projeto, uma de tipo estudo e, desde a 0.1.13, uma de tipo melhoria (a da
+// substituição). Cada teste cria, pela API e com a sessão da conta "cto", a própria ESP, o próprio RSK e um DEC de
+// nível "Só o CTO", e aprova o DEC pela API; o caminho completo da 0.1.13 cria dois DEC e aprova o segundo pela tela.
+//   - conta "cto": 0 demandas e 16 versões (4 testes × ESP, RSK e DEC; o caminho completo, ESP, RSK e dois DEC);
 //   - conta "administradora": 0 demandas e 0 versões.
 // O teste de C-28 também troca o solicitante da própria demanda (PATCH, duas vezes) para provar o D1 e devolve o nome
-// do seed no fim, mesmo se falhar.
+// do seed no fim, mesmo se falhar. O caminho completo troca o contexto da demanda dele pela tela e devolve o do seed
+// no fim, pela API, mesmo se falhar.
+//
+// DEC-DEM-20261104-0014-v1 (04-regressao, 0.1.13): o DEC aprovado mais novo substitui o anterior, e só ele gera. O
+// caminho completo (R1 da 01): aprovar o v1; gerar recusa pelo nome ("Santos" no contexto); o contexto é corrigido em
+// "Editar dados"; o v2 é aprovado pela tela em outra aba; o "Gerar" da aba velha do v1 mostra o 409 do substituído;
+// a T11 do v1 mostra o aviso e o link; o v2 gera, e o v1 continua 409 pela API. A linha 6 da orientação mudou. O axe
+// roda também na recusa por nome, na aba velha com o 409 e no substituído.
 // Cada DEC cita a ESP e o RSK da própria demanda, criados no próprio teste: um teste não depende do outro e cada um
 // roda sozinho. O caso de C-28 é uma ESP com um e-mail fictício, na demanda própria dele.
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { CONTAS_FICTICIAS, TITULOS_DO_E2E } from '../scripts/seed-ficticio';
+import { api, demandaDoSeed as demandaMelhoriaDoSeed, entrarComo, semViolacoes } from './apoio';
 
 type Versao = { id: string };
 type ListaDemandas = { itens: { id: string; titulo: string }[] };
@@ -39,8 +47,13 @@ const ORIENTACAO = {
   nome: 'O nome do solicitante, inteiro ou em parte com inicial maiúscula, está nos campos da lista. Tire o nome e gere de novo.',
   demanda: 'Título e descrição (demanda.titulo, demanda.descricao): corrija na demanda, em "Editar dados".',
   esp: 'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
-  aviso: 'Atenção: com este pacote aprovado, outro pacote desta demanda não pode ser aprovado nesta versão. Fale com o CTO antes de refazer o texto.',
+  // 0.1.13: a linha 6 diz que o pacote novo, aprovado, substitui este (antes, que outro pacote não se aprovava).
+  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais novo substitui este, e só ele gera o Pedido de Construção.',
 } as const;
+// 0.1.13: o 409 do DEC substituído (gerar.ts, MENSAGENS_PEDIDO.substituido) e o aviso da T11 dele (dados-da-decisao.ts).
+const SUBSTITUIDO = (id: string) => `o pacote foi substituído por ${id}, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção.`;
+const AVISO_SUBSTITUIDO = (id: string) =>
+  `Este pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`;
 const HISTORICO_COM_CONFIRMACAO = (decId: string) => `Gerou o Pedido de Construção de ${decId}, com a confirmação de que o texto não tem dado pessoal`;
 
 // DEC-<demanda>-v<n> → a demanda.
@@ -256,8 +269,8 @@ test('C-28: ESP com e-mail fictício → "O pedido não passou na validação do
   const alerta = page.getByRole('alert').filter({ hasText: 'O pedido não passou na validação do /construir.' });
   await expect(alerta).toContainText('O pedido não passou na validação do /construir. Nada foi entregue. Erros:');
   await expect(alerta.getByRole('listitem')).toHaveText(['especificacao.conteudo: e-mail']);
-  // D1 do 0013 (E5): a orientação diz onde corrigir o campo e avisa do A-02, um parágrafo por linha; a frase única de
-  // antes só vale quando nenhum campo do pedido está na lista.
+  // D1 do 0013 (E5): a orientação diz onde corrigir o campo e, desde a 0.1.13, que o pacote novo aprovado substitui
+  // este, um parágrafo por linha; a frase única de antes só vale quando nenhum campo do pedido está na lista.
   await expect(alerta.locator('p')).toHaveText([`${NAO_PASSOU} Erros:`, ORIENTACAO.esp, ORIENTACAO.aviso]);
   await expect(alerta).not.toContainText('Corrija criando uma versão nova da ESP e um pacote novo.');
   // O foco vai ao alerta, no invólucro focável dele.
@@ -318,4 +331,113 @@ test('Estudo: "Demanda do tipo Estudo não gera Pedido de Construção." e nenhu
   const r = await postDaApi(page, decId);
   expect(r.status()).toBe(422);
   expect(await r.json()).toEqual({ erro: 'nao_processavel', mensagem: 'demanda do tipo estudo não gera Pedido de Construção' });
+});
+
+// 0.1.13 (DEC-DEM-20261104-0014-v1): o contexto do seed tem "Santos", parte do nome do solicitante fictício "Carla
+// Santos Ficticia" (R1 da 01: a cidade, recusada pelo D1); a correção troca a cidade pela região.
+const CONTEXTO_DO_SEED = 'A filial de Santos calcula o frete à mão.';
+const CONTEXTO_CORRIGIDO = 'A filial do litoral calcula o frete à mão.';
+
+test('0.1.13, caminho completo: v1 aprovado recusa pelo nome; contexto corrigido; v2 aprovado em outra aba; a aba velha do v1 dá o 409 do substituído; só o v2 gera', async ({
+  page,
+  context,
+}) => {
+  await entrarComo(page, 'cto');
+  const demandaId = await demandaMelhoriaDoSeed(page, TITULOS_DO_E2E.substituicao);
+  // Numa execução repetida contra o mesmo banco, a anterior pode ter parado com o contexto corrigido.
+  const contextoDe = async () => (await api<{ contexto: string | null }>(page, 'GET', `/api/demandas/${demandaId}`)).contexto;
+  if ((await contextoDe()) !== CONTEXTO_DO_SEED) await api(page, 'PATCH', `/api/demandas/${demandaId}`, { contexto: CONTEXTO_DO_SEED });
+  try {
+    await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/especificacoes`, espConstruida);
+    await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/pareceres-risco`, rskValido);
+    const v1 = (await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/pacotes-decisao`, decValido)).id;
+    await aprovar(page, v1);
+
+    // 1. A recusa por nome no v1 (D1 do 0013), com a linha 6 nova: o pacote novo, aprovado, substitui este.
+    await page.goto(`/pacotes-decisao/${v1}`);
+    await caixa(page).check();
+    await gerar(page).click();
+    const recusa = page.getByRole('alert').filter({ hasText: 'O pedido não passou na validação do /construir.' });
+    await expect(recusa.getByRole('listitem')).toHaveText(['demanda.descricao: nome']);
+    await expect(recusa.locator('p')).toHaveText([`${NAO_PASSOU} Erros:`, ORIENTACAO.nome, ORIENTACAO.demanda, ORIENTACAO.aviso]);
+    await expect(recusa).not.toContainText('Santos');
+    await semViolacoes(page, 'T11 com a recusa por nome e a linha 6 nova');
+
+    // 2. O contexto corrigido em "Editar dados" (T06). O v1 guarda a cópia antiga e continua recusando.
+    await page.goto(`/demandas/${demandaId}/editar`);
+    await page.getByLabel('Contexto', { exact: true }).fill(CONTEXTO_CORRIGIDO);
+    await page.getByRole('button', { name: 'Salvar alterações' }).click();
+    await expect(page).toHaveURL(new RegExp(`/demandas/${demandaId}\\?aviso=alteracoes-salvas$`));
+    const ainda = await postDaApi(page, v1);
+    expect(ainda.status()).toBe(422);
+    expect(await ainda.json()).toEqual({ erro: 'nao_processavel', mensagem: NAO_PASSOU, erros: ['demanda.descricao: nome'] });
+
+    // 3. A aba velha: a T11 do v1 aberta com a seção do pedido; o v2, com o contexto novo, é aprovado pela tela em outra
+    // aba (E5 da 01).
+    await page.goto(`/pacotes-decisao/${v1}`);
+    await expect(gerar(page)).toBeVisible();
+    const v2 = (await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/pacotes-decisao`, decValido)).id;
+    const outraAba = await context.newPage();
+    await outraAba.goto(`/pacotes-decisao/${v2}`);
+    await outraAba.getByRole('group', { name: 'Decisão (obrigatório)', exact: true }).getByRole('radio', { name: 'Aprovar', exact: true }).check();
+    await outraAba.getByRole('radio', { name: /^Opção A/ }).check();
+    await outraAba.getByRole('button', { name: 'Registrar decisão' }).click();
+    await outraAba.getByRole('dialog', { name: 'Confirmar a decisão?' }).getByRole('button', { name: 'Confirmar e registrar' }).click();
+    await expect(outraAba.getByRole('alert').filter({ hasText: 'Decisão registrada' })).toHaveText('Decisão registrada: Aprovada, opção A.');
+    await outraAba.close();
+
+    await caixa(page).check();
+    await gerar(page).click();
+    const conflito = page.getByRole('alert').filter({ hasText: 'Não foi possível concluir' });
+    await expect(conflito).toHaveText(`Não foi possível concluir: ${SUBSTITUIDO(v2)}`);
+    await expect(conflito.locator('xpath=..')).toBeFocused();
+    await expect(conflito.getByRole('listitem')).toHaveCount(0);
+    await expect(bloco(page)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /^Baixar / })).toHaveCount(0);
+    await expect(page.locator('main')).not.toContainText('"pedido"');
+    await semViolacoes(page, 'T11 da aba velha com o 409 do substituído');
+
+    // 4. A T11 do v1 recarregada: substituído, com o aviso e o link para o v2, sem a seção do pedido.
+    await page.reload();
+    await expect(page.getByText('Substituído', { exact: true })).toBeVisible();
+    await expect(page.getByText(AVISO_SUBSTITUIDO(v2), { exact: true })).toBeVisible();
+    await expect(secao(page)).toHaveCount(0);
+    await expect(gerar(page)).toHaveCount(0);
+    await semViolacoes(page, 'T11 do v1 substituído');
+    // A API recusa o v1 com o 409 do substituído, e nada é entregue.
+    const doV1 = await postDaApi(page, v1);
+    expect(doV1.status()).toBe(409);
+    expect(doV1.headers()['content-disposition']).toBeUndefined();
+    expect(await doV1.json()).toEqual({ erro: 'conflito', mensagem: SUBSTITUIDO(v2) });
+
+    // 5. O link leva ao v2, que gera: o mesmo conteúdo na tela e na API (CA-22.2), sem o nome e com o contexto novo.
+    await page.getByRole('link', { name: `Abrir ${v2}`, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/pacotes-decisao/${v2}$`));
+    await caixa(page).check();
+    await gerar(page).click();
+    await expect(page.getByRole('status')).toHaveText('Pedido de Construção gerado.');
+    const doV2 = await postDaApi(page, v2);
+    expect(doV2.status()).toBe(200);
+    const json = await doV2.text();
+    expect(await bloco(page).textContent()).toBe(json);
+    const pedido = JSON.parse(json) as { pedido: string; decisao: { id: string }; demanda: { descricao: string } };
+    expect(pedido).toMatchObject({ pedido: v2, decisao: { id: v2, aprovadoPor: 'cto' } });
+    expect(pedido.demanda.descricao).toContain(CONTEXTO_CORRIGIDO);
+    expect(json).not.toMatch(/Santos|Carla/);
+
+    // 6. O histórico: a substituição com os dois ids, sem texto livre; nenhum pedido do v1, dois do v2.
+    const historico = (await api<Historico>(page, 'GET', `/api/demandas/${demandaId}/historico`)).itens;
+    expect(historico.filter((e) => e.acao === 'pacote_decisao_substituido' && e.entidadeId === v1).map((e) => e.depois)).toEqual([
+      { substituido: v1, substituidoPor: v2 },
+    ]);
+    // pedidosGerados lê o histórico da demanda inteira: o filtro separa o v1 do v2.
+    const gerados = await pedidosGerados(page, v2);
+    expect(gerados.filter((e) => e.entidadeId === v1)).toEqual([]);
+    expect(gerados.filter((e) => e.entidadeId === v2)).toEqual([
+      { entidadeId: v2, antes: null, depois: CONFIRMADO },
+      { entidadeId: v2, antes: null, depois: CONFIRMADO },
+    ]);
+  } finally {
+    if ((await contextoDe()) !== CONTEXTO_DO_SEED) await api(page, 'PATCH', `/api/demandas/${demandaId}`, { contexto: CONTEXTO_DO_SEED });
+  }
 });

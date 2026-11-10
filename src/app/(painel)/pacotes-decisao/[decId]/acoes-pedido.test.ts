@@ -35,9 +35,10 @@ const EMAIL_FICTICIO = 'pessoa.ficticia@cliente.test';
 // D3 do 0013: a tela manda a confirmação de que o texto não tem dado pessoal (a caixa marcada da T11).
 const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
 // D1 do 0013: a orientação do 422 de dado pessoal na ESP (linhas 3 e 6 de orientacaoDoPedido).
+// 0.1.13: a linha 6 diz que o pacote aprovado mais novo substitui este (antes, que outro pacote não se aprovava).
 const ORIENTACAO_ESP = [
   'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
-  'Atenção: com este pacote aprovado, outro pacote desta demanda não pode ser aprovado nesta versão. Fale com o CTO antes de refazer o texto.',
+  'Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais novo substitui este, e só ele gera o Pedido de Construção.',
 ];
 
 let b: BancoDeTeste;
@@ -172,6 +173,29 @@ describe('gerarPedidoNoPainel (T44)', () => {
       .from(evento)
       .where(and(eq(evento.entidadeId, decId), eq(evento.acao, 'pedido_gerado')));
     expect(eventos).toEqual([]);
+  });
+
+  // 0.1.13 (S3, caso 8): a aba velha da T11 do v1, depois de o v2 ser aprovado. A tela mostra o alerta da 2.8, sem lista
+  // nem orientação.
+  it('DEC substituído por um aprovado mais novo: 409, e a tela mostra "Não foi possível concluir: o pacote foi substituído por …"', async () => {
+    const v1 = await novoPacote('novo_projeto', espConstruida);
+    const demandaId = v1.slice('DEC-'.length, v1.lastIndexOf('-v'));
+    const v2 = await criarPacoteDecisao(
+      deps,
+      cto,
+      demandaId,
+      criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo (fictício)', opcaoA: { descricao: 'A (fictício)' }, opcaoB: { descricao: 'B (fictício)' }, nivelAprovacaoRequerido: 'cto' }),
+    );
+    await registrarDecisao(deps, cto, v2.id, { statusDecisao: 'aprovada', opcaoEscolhida: 'B' });
+    const r = await gerarPedidoNoPainel({ decId: v1, ...CONFIRMADO });
+    expect(r).toEqual({ ok: false, erro: 'conflito', mensagem: MENSAGENS_PEDIDO.substituido(v2.id) });
+    if (r.ok) return;
+    expect(erroDoPedido(r)).toEqual({
+      texto: `Não foi possível concluir: o pacote foi substituído por ${v2.id}, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção.`,
+      erros: [],
+      orientacao: [],
+    });
+    expect(await gerarPedidoNoPainel({ decId: v2.id, ...CONFIRMADO })).toMatchObject({ ok: true, dados: { nomeArquivo: `${v2.id}.json` } });
   });
 
   it('C-17: id fora do formato ou de outra versão é recusado antes do banco; DEC que não existe dá 404; sem sessão, 401', async () => {

@@ -38,6 +38,10 @@ export const TEXTOS_DECISAO = {
   desatualizadoRsk: (id: string) =>
     `Este pacote está desatualizado. A demanda já tem ${id}, mais novo que o citado aqui. Ele não pode ser aprovado; você pode devolvê-lo ou arquivá-lo. Para aprovar, crie um pacote novo.`,
   criarPacoteNovo: 'Criar pacote novo',
+  // 0.1.13: textos da 02-triagem do DEC-DEM-20261104-0014-v1, para revisão da ux-ui-design.
+  substituido: (id: string) =>
+    `Este pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`,
+  abrirSubstituto: (id: string) => `Abrir ${id}`,
   alertaRascunho: (ids: string) => `Este pacote cita conteúdo gerado por agente de IA: ${ids}. Leia cada um antes de decidir.`,
   // Revisão de C-14 (04): a 03 não a desenha; os rótulos são os de T07, T08 e T11.
   revisao: 'Revisão antes de decidir',
@@ -356,6 +360,14 @@ export function alertaDeDesatualizado(
         ? TEXTOS_DECISAO.desatualizadoRsk(rsk)
         : TEXTOS_DECISAO.desatualizadoEsp(esp ?? p.especificacaoId);
   return { texto, link: { rotulo: TEXTOS_DECISAO.criarPacoteNovo, href: `/demandas/${d.id}/pacotes-decisao/novo` } };
+}
+
+// Alerta do DEC aprovado e substituído por um aprovado mais novo da demanda (0.1.13): o texto e o link para a T11 do
+// substituto, o único que gera o Pedido de Construção. O nome acessível do link leva o id.
+export function alertaDeSubstituido(p: Pick<PacoteDecisaoVista, 'substituidoPor'>): { texto: string; link: { rotulo: string; href: string } } | null {
+  if (p.substituidoPor === null) return null;
+  const id = p.substituidoPor;
+  return { texto: TEXTOS_DECISAO.substituido(id), link: { rotulo: TEXTOS_DECISAO.abrirSubstituto(id), href: `/pacotes-decisao/${id}` } };
 }
 
 // --- revisão antes de decidir (C-14) ---

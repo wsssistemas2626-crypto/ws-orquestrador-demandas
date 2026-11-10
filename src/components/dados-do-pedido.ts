@@ -47,7 +47,8 @@ const ORIENTACAO = {
   esp: 'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
   risco: 'Parecer de risco (risco.conteudo): corrija num parecer de risco novo.',
   decisao: 'Opção escolhida (decisao.opcaoEscolhida): corrija num pacote novo.',
-  aviso: 'Atenção: com este pacote aprovado, outro pacote desta demanda não pode ser aprovado nesta versão. Fale com o CTO antes de refazer o texto.',
+  // 0.1.13: texto da 02-triagem do DEC-DEM-20261104-0014-v1, para revisão da ux-ui-design.
+  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais novo substitui este, e só ele gera o Pedido de Construção.',
 } as const;
 
 // Os começos de caminho de cada linha por campo (2 a 5), na ordem em que as linhas saem.
@@ -59,8 +60,8 @@ const CAMPOS_DA_ORIENTACAO: ReadonlyArray<readonly [string, readonly string[]]> 
 ];
 
 // A orientação do 422 de validação, uma linha por parágrafo: (1) a do nome, se algum erro é `: nome`; (2 a 5) onde
-// corrigir cada campo da lista; (6) o aviso de que outro pacote da demanda não se aprova depois deste, sempre que houver
-// linha de 2 a 5; (7) sem nenhuma de 2 a 5, a frase de antes.
+// corrigir cada campo da lista; (6) que o pacote novo, aprovado, substitui este e passa a ser o único que gera (0.1.13),
+// sempre que houver linha de 2 a 5; (7) sem nenhuma de 2 a 5, a frase de antes.
 export function orientacaoDoPedido(erros: readonly string[]): string[] {
   const linhas: string[] = [];
   if (erros.some((e) => e.endsWith(': nome'))) linhas.push(ORIENTACAO.nome);
@@ -73,9 +74,10 @@ export type SecaoDoPedido = 'nenhuma' | 'estudo' | 'gerar';
 
 // Só com a decisão aprovada completa (03, T11): a aprovação parcial ainda não tem linha em `decisao`. O tipo que conta
 // é o copiado no pacote, o mesmo que gerarPedido usa (CA-22.3). DEC desatualizado (ESP ou RSK mais nova depois da
-// aprovação) não mostra a seção: gerarPedido o recusa com 409 (08-correcao, A-03).
-export function secaoDoPedido(p: Pick<PacoteDecisaoVista, 'statusDecisao' | 'decisao' | 'demandaTipo' | 'desatualizado'>): SecaoDoPedido {
-  if (p.statusDecisao !== 'aprovada' || !p.decisao || p.desatualizado) return 'nenhuma';
+// aprovação) não mostra a seção: gerarPedido o recusa com 409 (08-correcao, A-03). DEC substituído por um aprovado mais
+// novo da demanda também não (0.1.13): só o aprovado mais novo gera, e a T11 mostra o aviso com o link para ele.
+export function secaoDoPedido(p: Pick<PacoteDecisaoVista, 'statusDecisao' | 'decisao' | 'demandaTipo' | 'desatualizado' | 'substituidoPor'>): SecaoDoPedido {
+  if (p.statusDecisao !== 'aprovada' || !p.decisao || p.desatualizado || p.substituidoPor !== null) return 'nenhuma';
   return p.demandaTipo === 'estudo' ? 'estudo' : 'gerar';
 }
 
