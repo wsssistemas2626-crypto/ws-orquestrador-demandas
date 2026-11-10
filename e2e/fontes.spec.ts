@@ -7,17 +7,29 @@ import { api, entrarComo, expect, test } from './apoio';
 // (o mesmo DEC da axe-todas).
 const TITULO_BUG_DO_SEED = 'Pedidos do marketplace duplicados no ERP (fictício)';
 
+// Seletor do id em mono: só o visível dentro do `main`. A partir da T09 a fila terá tabela e cartões no DOM, um deles com
+// display: none; e o conteúdo de um Suspense ainda não revelado fica num nó escondido, sem pedir fonte.
+const MONO_VISIVEL = 'main .font-mono:visible';
+
+const familiasCarregadas = (page: Page) =>
+  page.evaluate(() => [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family.replace(/^['"]|['"]$/g, '')));
+
 // O ouvinte entra antes da primeira navegação do teste: o contexto é novo, sem cache, e cada woff2 gera resposta.
+// Sem corrida com o streaming: a lista da T03 chega por Suspense depois do `load`, e o `document.fonts.ready` lido antes
+// de ela aparecer resolve sem a Noto Sans Mono pedida. Por isso, com mono, o teste espera o id visível antes do `ready`
+// e confere a carga até ela terminar (toPass), e não numa leitura só.
 async function conferirFontes(page: Page, caminho: string, temMono: boolean) {
   const respostas: { url: string; tipo: string | undefined }[] = [];
   page.on('response', (r) => {
     if (r.url().endsWith('.woff2')) respostas.push({ url: r.url(), tipo: r.headers()['content-type'] });
   });
   await page.goto(caminho);
+  if (temMono) await page.locator(MONO_VISIVEL).first().waitFor();
   await page.evaluate(() => document.fonts.ready);
   const r = await page.evaluate(() => {
     const primeira = (ff: string) => ff.split(',')[0]!.trim().replace(/^['"]|['"]$/g, '');
-    const mono = document.querySelector('.font-mono');
+    // O mesmo elemento que a espera achou: o primeiro .font-mono visível do main.
+    const mono = [...document.querySelectorAll('main .font-mono')].find((e) => e.getClientRects().length > 0) ?? null;
     // O src vem com a base da folha: o build grava a URL relativa ao CSS (`../media/x.woff2`), e é contra ela que o
     // navegador a resolve.
     const regras: { base: string; src: string }[] = [];
@@ -26,12 +38,15 @@ async function conferirFontes(page: Page, caminho: string, temMono: boolean) {
     return {
       corpo: primeira(getComputedStyle(document.body).fontFamily),
       mono: mono ? primeira(getComputedStyle(mono).fontFamily) : null,
-      carregadas: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family.replace(/^['"]|['"]$/g, '')),
       regras,
     };
   });
-  expect(r.carregadas).toContain(r.corpo);
-  if (temMono) expect(r.carregadas).toContain(r.mono);
+  // A família de fato carregada (status `loaded`), lida de novo até passar ou até 5 s (o tempo padrão do expect).
+  await expect(async () => {
+    const carregadas = await familiasCarregadas(page);
+    expect(carregadas).toContain(r.corpo);
+    if (temMono) expect(carregadas).toContain(r.mono);
+  }).toPass({ timeout: 5_000 });
   expect(r.regras.length).toBeGreaterThan(0);
   const origem = new URL(page.url()).origin;
   // Cada parte do src é local(...) ou url(...) de .woff2 que, resolvida contra a folha, fica na mesma origem, em
