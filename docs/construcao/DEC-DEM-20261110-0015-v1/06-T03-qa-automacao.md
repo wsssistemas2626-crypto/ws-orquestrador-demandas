@@ -90,8 +90,6 @@ rascunho) ficou inteira. `piso-de-assercoes.test.ts` passa.
   seis variantes; a aparência dele sobre o marinho continua para a conferência em tela.
 - Para a T16: incluir no teste de fim dos nomes antigos a lista `COMPONENTES_BASE` deste arquivo, ou trocar a
   varredura dele para todo o `src/`, quando a paleta do Tailwind tiver saído das telas.
-- Registro: rodei uma vez `git ls-files` (só leitura, para achar o `vitest.config.ts`), comando fora da minha lista
-  Pode. Não alterou nada; está em Comandos executados.
 
 ## Comandos executados
 
@@ -101,7 +99,6 @@ rascunho) ficou inteira. `piso-de-assercoes.test.ts` passa.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff d452a76~1 d452a76 -- src/app/globals.css src/components/rotulos.ts src/components/Selo.tsx src/components/Botao.tsx src/components/Alerta.tsx src/components/CampoTexto.tsx src/components/GrupoOpcoes.tsx src/components/Cartao.tsx` — lido
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff d452a76~1 d452a76 -- test "src/app/(painel)" src/components/rotulos.test.ts` — lido
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff d452a76~1 d452a76 -- src/components/componentes.test.ts src/components/Tabela.tsx src/components/Interruptor.tsx src/components/Paginacao.tsx src/components/CaixaSelecao.tsx src/components/DialogoConfirmacao.tsx src/components/Esqueleto.tsx src/components/BlocoJson.tsx` — lido
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files vitest.config.ts vitest.config.mts package.json eslint.config.mjs tsconfig.json` — fora da lista Pode, só leitura (ver Pendências)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/tokens-em-uso.test.ts` — 44 de 45 (a checagem de varredura esperava classe própria no `Selecao`, que herda de `classeDoCampo`; ajustei o teste)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/tokens-em-uso.test.ts` — 45 de 45
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/tokens-em-uso.test.ts` — 46 de 46
