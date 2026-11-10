@@ -123,8 +123,8 @@ describe('ResultadoDaFila: com dados', () => {
   it('rótulos de 2.6, selo de status com texto, "Não informada" e data com <time>', () => {
     expect(s).toContain('<td class="px-3 py-2 align-top">Bug</td>');
     expect(s).toContain('<td class="px-3 py-2 align-top">Estudo</td>');
-    expect(s).toMatch(/bg-blue-100[^>]*>Em análise<\/span>/);
-    expect(s).toMatch(/bg-amber-100[^>]*>Aguardando informação<\/span>/);
+    expect(s).toMatch(/data-cor="violeta"[^>]*>Em análise<\/span>/);
+    expect(s).toMatch(/data-cor="ambar"[^>]*>Aguardando informação<\/span>/);
     expect(s).toContain('<td class="px-3 py-2 align-top">Alta</td>');
     expect(s).toContain('<td class="px-3 py-2 align-top">Automação e integração</td>');
     expect(s.match(/<td class="px-3 py-2 align-top">Não informada<\/td>/g)).toHaveLength(2);
@@ -189,13 +189,13 @@ describe('ErroDaFila e CarregandoFila', () => {
     const s = html(h(ErroDaFila));
     expect(s).toContain(`<p id="${ID_RESULTADO}" tabindex="-1">Não foi possível carregar as demandas. Tente de novo em instantes.</p>`);
     expect(s).toMatch(/<button type="button"[^>]*>Tentar de novo<\/button>/);
-    expect(s).toContain('border-perigo');
+    expect(s).toContain('border-erro');
   });
 
   it('carregando: tabela com aria-busy, 5 linhas de esqueleto e o texto oculto "Carregando demandas…" uma vez', () => {
     const s = html(h(CarregandoFila));
     expect(s).toContain('<table aria-busy="true"');
-    expect(s.match(/<tr class="border-t border-borda">/g)).toHaveLength(5);
+    expect(s.match(/<tr class="border-t border-linha">/g)).toHaveLength(5);
     expect(s.match(/Carregando demandas…/g)).toHaveLength(1);
     expect(s).toContain('<span class="sr-only">Carregando demandas…</span>');
     expect(s).not.toContain(`id="${ID_RESULTADO}"`);

@@ -18,6 +18,19 @@ type Props = {
   valorPadrao?: string;
   onMudar?: (valor: string) => void;
   className?: string;
+  // 0.2.0 (03, 2.6 do pedido 0015): `cartao` põe cada opção num cartão clicável inteiro, com os mesmos ids, `name` e
+  // aria-* da lista; o rótulo estica a área de clique ao cartão todo (after:absolute).
+  variante?: 'lista' | 'cartao';
+};
+
+const CLASSE_DA_OPCAO: Readonly<Record<'lista' | 'cartao', string>> = {
+  lista: 'flex flex-col',
+  cartao:
+    'relative flex flex-col rounded-campo border border-tinta-suave bg-branco px-3 py-2 has-[:checked]:border-2 has-[:checked]:border-marinho has-[:checked]:bg-nevoa',
+};
+const CLASSE_DO_ROTULO: Readonly<Record<'lista' | 'cartao', string>> = {
+  lista: '',
+  cartao: 'flex-1 cursor-pointer after:absolute after:inset-0',
 };
 
 const idDaOpcao = (nome: string, valor: string) => `${nome}-${valor === '' ? 'vazio' : valor}`;
@@ -31,21 +44,25 @@ export function opcaoMarcavel(opcoes: readonly OpcaoDoGrupo[], valor: string): b
   return opcao !== undefined && !opcao.desabilitada;
 }
 
-export function GrupoOpcoes({ nome, legenda, opcoes, dica, erro, valor, valorPadrao, onMudar, className }: Props) {
+export function GrupoOpcoes({ nome, legenda, opcoes, dica, erro, valor, valorPadrao, onMudar, className, variante = 'lista' }: Props) {
   const aoMudar = (e: ChangeEvent<HTMLInputElement>) => {
     if (opcaoMarcavel(opcoes, e.target.value)) onMudar?.(e.target.value);
   };
   const descricaoDoGrupo = [dica ? `${nome}-dica` : null, erro ? `${nome}-erro` : null].filter(Boolean).join(' ') || undefined;
   return (
-    <fieldset aria-describedby={descricaoDoGrupo} className={className ? `flex flex-col gap-1 ${className}` : 'flex flex-col gap-1'}>
+    <fieldset
+      aria-describedby={descricaoDoGrupo}
+      className={`flex flex-col ${variante === 'cartao' ? 'gap-2' : 'gap-1'}${className ? ` ${className}` : ''}`}
+    >
       <legend className="font-medium">{legenda}</legend>
       {dica ? <Dica id={nome}>{dica}</Dica> : null}
       {erro ? <MensagemDeErro id={nome}>{erro}</MensagemDeErro> : null}
       {opcoes.map((o) => {
         const id = idDaOpcao(nome, o.valor);
         const idDica = o.dica ? `${id}-dica` : undefined;
+        const classeDoRotulo = [CLASSE_DO_ROTULO[variante], o.desabilitada ? 'text-texto-suave' : ''].filter(Boolean).join(' ');
         return (
-          <div key={o.valor} className="flex flex-col">
+          <div key={o.valor} className={CLASSE_DA_OPCAO[variante]}>
             <div className="flex min-h-11 items-center gap-2">
               <input
                 type="radio"
@@ -56,9 +73,9 @@ export function GrupoOpcoes({ nome, legenda, opcoes, dica, erro, valor, valorPad
                 aria-describedby={idDica}
                 {...(valor !== undefined ? { checked: valor === o.valor, onChange: aoMudar } : { defaultChecked: valorPadrao === o.valor, onChange: aoMudar })}
                 onClick={o.desabilitada ? impedir : undefined}
-                className="h-5 w-5 accent-primaria"
+                className="h-5 w-5 shrink-0 accent-acao-escura"
               />
-              <label htmlFor={id} className={o.desabilitada ? 'text-texto-suave' : undefined}>
+              <label htmlFor={id} className={classeDoRotulo || undefined}>
                 {o.rotulo}
               </label>
             </div>

@@ -4,9 +4,10 @@
 // enviar, pelo servidor).
 import type { InputHTMLAttributes } from 'react';
 
-// Classes comuns dos campos: borda com contraste ≥ 3:1 (03, 2.1) e alvo de 44 px.
+// Classes comuns dos campos: borda tinta-suave com contraste ≥ 3:1 (03, 2.2 do pedido 0015: 4,5 sobre branco), erro em
+// erro, 16 px (nunca menor no celular) e alvo de 44 px.
 export const classeDoCampo = (comErro: boolean): string =>
-  `min-h-11 w-full rounded-campo border bg-fundo px-3 py-2 text-texto ${comErro ? 'border-2 border-perigo' : 'border-borda'}`;
+  `min-h-11 w-full rounded-campo border bg-branco px-3 py-2 text-base text-tinta ${comErro ? 'border-2 border-erro' : 'border-tinta-suave'}`;
 
 // Os ids da dica e do erro, na ordem em que o leitor de tela os lê.
 export function descritores(id: string, dica?: string, erro?: string, extra?: string): string | undefined {

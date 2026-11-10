@@ -27,9 +27,9 @@ export function Interruptor({ rotulo, ligado, onAlternar, desabilitado = false, 
       >
         <span
           aria-hidden="true"
-          className={`flex h-7 w-14 items-center rounded-full border-2 p-0.5 ${ligado ? 'justify-end border-primaria bg-primaria' : 'justify-start border-borda bg-fundo-suave'}`}
+          className={`flex h-7 w-14 items-center rounded-full border-2 p-0.5 ${ligado ? 'justify-end border-acao-escura bg-acao-escura' : 'justify-start border-tinta-suave bg-superficie'}`}
         >
-          <span className={`h-5 w-5 rounded-full border ${ligado ? 'border-white bg-white' : 'border-borda bg-fundo'}`} />
+          <span className={`h-5 w-5 rounded-full border ${ligado ? 'border-branco bg-branco' : 'border-tinta-suave bg-branco'}`} />
         </span>
       </button>
       <span>{ocupado ? 'Alterando…' : ligado ? 'Ligado' : 'Desligado'}</span>

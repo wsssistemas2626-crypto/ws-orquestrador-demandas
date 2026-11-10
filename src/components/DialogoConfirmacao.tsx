@@ -69,7 +69,7 @@ export function DialogoConfirmacao({
       ref={dialogo}
       aria-labelledby={idTitulo}
       onCancel={aoCancelar}
-      className="m-auto max-w-lg rounded-campo border border-borda bg-fundo p-6 text-texto backdrop:bg-black/50"
+      className="m-auto max-w-lg rounded-cartao border border-linha bg-branco p-6 text-tinta backdrop:bg-tinta/50"
     >
       <h2 id={idTitulo} ref={cabecalho} tabIndex={-1} className="text-xl font-semibold">
         {titulo}

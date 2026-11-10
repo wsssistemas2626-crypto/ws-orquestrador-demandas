@@ -110,11 +110,11 @@ function linhasDoHistorico(p: string): string[][] {
   const i = p.indexOf(TEXTOS_DETALHE.historico.legenda);
   if (i < 0) throw new Error('a página não tem a tabela do histórico');
   const tabela = p.slice(i, p.indexOf('</table>', i));
-  return [...tabela.matchAll(/<tr class="border-t border-borda">([\s\S]*?)<\/tr>/g)].map((l) => [...l[1]!.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((c) => texto(c[1]!)));
+  return [...tabela.matchAll(/<tr class="border-t border-linha">([\s\S]*?)<\/tr>/g)].map((l) => [...l[1]!.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((c) => texto(c[1]!)));
 }
 
 // Alerta de topo pelo tipo (a classe do Alerta da 2.3) e pelo texto.
-const ALERTA = { erro: 'border-perigo bg-red-50', informacao: 'border-primaria bg-blue-50', atencao: 'border-atencao-texto bg-atencao-fundo' } as const;
+const ALERTA = { erro: 'border-erro bg-erro-fundo', informacao: 'border-acao-escura bg-nevoa', atencao: 'border-atencao bg-atencao-fundo' } as const;
 const temAlerta = (p: string, tipo: keyof typeof ALERTA, frase: string) =>
   [...p.matchAll(new RegExp(`<div class="rounded-campo border-l-4 px-4 py-3 ${ALERTA[tipo]}[^"]*">([\\s\\S]*?)</div>`, 'g'))].some((m) => texto(m[1]!).includes(frase));
 const contar = (p: string, trecho: string) => p.split(trecho).length - 1;

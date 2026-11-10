@@ -1,14 +1,15 @@
 // Alerta (03, 2.3): informação, atenção, erro e sucesso. Só o resultado de um envio (erro ou sucesso, `envio`) vai em
-// role="alert"; os demais são estáticos, lidos na ordem da página.
+// role="alert"; os demais são estáticos, lidos na ordem da página. Cores da 0.2.0 (03, 2.1 e 2.6 do pedido 0015): cada
+// tipo com o par de tokens de texto e fundo e a borda esquerda de 4 px.
 import type { ReactNode } from 'react';
 
 export type TipoAlerta = 'informacao' | 'atencao' | 'erro' | 'sucesso';
 
 const ESTILOS: Readonly<Record<TipoAlerta, string>> = {
-  informacao: 'border-primaria bg-blue-50 text-texto',
-  atencao: 'border-atencao-texto bg-atencao-fundo text-atencao-texto',
-  erro: 'border-perigo bg-red-50 text-perigo',
-  sucesso: 'border-sucesso bg-green-50 text-sucesso',
+  informacao: 'border-acao-escura bg-nevoa text-tinta',
+  atencao: 'border-atencao bg-atencao-fundo text-atencao',
+  erro: 'border-erro bg-erro-fundo text-erro',
+  sucesso: 'border-positivo bg-positivo-fundo text-positivo',
 };
 
 type Props = { tipo: TipoAlerta; envio?: boolean; titulo?: string; children: ReactNode; className?: string };

@@ -9,8 +9,8 @@ import type { StatusDecisao } from '../modules/demandas/consultas';
 import type { EventoVisivel } from '../modules/historico/consultas';
 import { RE_ID_DEC } from './dados-do-pacote';
 
-// Cores dos selos (03, 2.2): texto 800 sobre fundo 100 da mesma cor (Selo.tsx).
-export type CorSelo = 'slate' | 'blue' | 'amber' | 'violet' | 'green' | 'cyan' | 'emerald' | 'orange' | 'gray' | 'red';
+// Cores dos selos (0.2.0: 03, 2.5 do pedido 0015, D-03): nomes de token; o par texto/fundo de cada uma está no Selo.tsx.
+export type CorSelo = 'azul' | 'violeta' | 'ambar' | 'petroleo' | 'verde' | 'marinho' | 'verde-cheio' | 'laranja' | 'cinza' | 'vermelho';
 
 export const ROTULO_STATUS: Readonly<Record<StatusDemanda, string>> = {
   nova: 'Nova',
@@ -25,15 +25,15 @@ export const ROTULO_STATUS: Readonly<Record<StatusDemanda, string>> = {
 };
 
 export const COR_STATUS: Readonly<Record<StatusDemanda, CorSelo>> = {
-  nova: 'slate',
-  em_analise: 'blue',
-  aguardando_informacao: 'amber',
-  pronta_para_decisao: 'violet',
-  aprovada: 'green',
-  em_construcao: 'cyan',
-  entregue: 'emerald',
-  devolvida: 'orange',
-  encerrada: 'gray',
+  nova: 'azul',
+  em_analise: 'violeta',
+  aguardando_informacao: 'ambar',
+  pronta_para_decisao: 'petroleo',
+  aprovada: 'verde',
+  em_construcao: 'marinho',
+  entregue: 'verde-cheio',
+  devolvida: 'laranja',
+  encerrada: 'cinza',
 };
 
 export const ROTULO_DECISAO: Readonly<Record<StatusDecisao, string>> = {
@@ -44,20 +44,20 @@ export const ROTULO_DECISAO: Readonly<Record<StatusDecisao, string>> = {
 };
 
 export const COR_DECISAO: Readonly<Record<StatusDecisao, CorSelo>> = {
-  pendente: 'amber',
-  aprovada: 'green',
-  devolvida: 'orange',
-  arquivada: 'gray',
+  pendente: 'petroleo',
+  aprovada: 'verde',
+  devolvida: 'laranja',
+  arquivada: 'cinza',
 };
 
 export const ROTULO_NIVEL: Readonly<Record<NivelRisco, string>> = { baixo: 'Baixo', medio: 'Médio', alto: 'Alto' };
-export const COR_NIVEL: Readonly<Record<NivelRisco, CorSelo>> = { baixo: 'green', medio: 'amber', alto: 'red' };
+export const COR_NIVEL: Readonly<Record<NivelRisco, CorSelo>> = { baixo: 'verde', medio: 'ambar', alto: 'vermelho' };
 
 export type SeloFixo = { texto: string; cor: CorSelo; tracejado: boolean };
-export const SELO_RASCUNHO: SeloFixo = { texto: 'Rascunho de agente', cor: 'violet', tracejado: true };
-export const SELO_DESATUALIZADO: SeloFixo = { texto: 'Desatualizado', cor: 'red', tracejado: false };
+export const SELO_RASCUNHO: SeloFixo = { texto: 'Rascunho de agente', cor: 'violeta', tracejado: true };
+export const SELO_DESATUALIZADO: SeloFixo = { texto: 'Desatualizado', cor: 'vermelho', tracejado: false };
 // 0.1.13: o DEC aprovado que um aprovado mais novo da demanda substituiu. Texto da triagem, para revisão da ux-ui-design.
-export const SELO_SUBSTITUIDO: SeloFixo = { texto: 'Substituído', cor: 'gray', tracejado: false };
+export const SELO_SUBSTITUIDO: SeloFixo = { texto: 'Substituído', cor: 'cinza', tracejado: false };
 
 export const ROTULO_TIPO: Readonly<Record<TipoDemanda, string>> = {
   bug: 'Bug',

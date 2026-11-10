@@ -1,19 +1,52 @@
-/* Design system mínimo do painel (03, seção 2.1). Tokens do Tailwind 4 em @theme; a base vale para toda tela. */
+/* Design system do painel. Tokens da 0.2.0 (03, 2.1 do pedido 0015; manual MKT-2026-005) no @theme do Tailwind 4:
+   único lugar com hexadecimal (RF-01). A base vale para toda tela. */
 @import 'tailwindcss';
 
 @theme {
-  --color-texto: #1f2937;
-  --color-texto-suave: #4b5563;
-  --color-fundo: #ffffff;
-  --color-fundo-suave: #f3f4f6;
-  --color-borda: #6b7280;
-  --color-primaria: #1d4ed8;
-  --color-perigo: #b91c1c;
-  --color-sucesso: #166534;
-  --color-atencao-texto: #78350f;
-  --color-atencao-fundo: #fef3c7;
+  --color-marinho: #12385f;
+  --color-marinho-luz: #1f4f86;
+  --color-acao: #1a6ae0;
+  --color-acao-escura: #1354b4;
+  --color-azul-claro: #7db0f5;
+  --color-nevoa: #eaf1fd;
+  --color-tinta: #0f1620;
+  --color-tinta-media: #4a5763;
+  --color-tinta-suave: #6b7885;
+  --color-linha: #dfe4ea;
+  --color-superficie: #f6f8fa;
+  --color-branco: #ffffff;
+  --color-texto-claro: #dfe6ee;
+  --color-texto-claro-apoio: #b9c5d2;
+  --color-positivo: #0f7a52;
+  --color-positivo-fundo: #e7f4ee;
+  --color-atencao: #8a5a00;
+  --color-atencao-fundo: #fdf3e0;
+  --color-erro: #b42318;
+  --color-erro-fundo: #fdecea;
+  --color-selo-violeta: #5b3fa0;
+  --color-selo-violeta-fundo: #efe9fb;
+  --color-selo-petroleo: #0b5d6b;
+  --color-selo-petroleo-fundo: #ddf2f5;
+  --color-selo-verde: #1d6b3a;
+  --color-selo-verde-fundo: #e3f3e8;
+  --color-selo-marinho-fundo: #e6edf5;
+  --color-selo-laranja: #9a3412;
+  --color-selo-laranja-fundo: #fdebdd;
+  --color-selo-cinza-fundo: #eceff3;
 
-  --radius-campo: 6px;
+  /* D-01: nomes da 0.1.13 como apelidos, só até a T16. Tela nova não os usa. */
+  --color-texto: var(--color-tinta);
+  --color-texto-suave: var(--color-tinta-media);
+  --color-fundo: var(--color-branco);
+  --color-fundo-suave: var(--color-superficie);
+  --color-borda: var(--color-tinta-suave);
+  --color-primaria: var(--color-acao-escura);
+  --color-perigo: var(--color-erro);
+  --color-sucesso: var(--color-positivo);
+  --color-atencao-texto: var(--color-atencao);
+
+  --radius-campo: 10px;
+  --radius-cartao: 16px;
 }
 
 /* Famílias (ADR-13, RF-02): Noto Sans e Noto Sans Mono do próprio app (src/app/fontes.ts), pelas variáveis que o
@@ -25,46 +58,64 @@
 
 @layer base {
   :root {
-    /* Altura do cabeçalho fixo: o elemento focado nunca fica embaixo dele (03, 2.7; WCAG 2.4.11). */
+    /* Altura do cabeçalho fixo: o elemento focado nunca fica embaixo dele (03, 2.7; WCAG 2.4.11). A T05 troca pelos
+       valores da casca. */
     --altura-cabecalho: 4.5rem;
+    /* Cor do anel de foco no claro (03, 2.1 do pedido 0015). */
+    --cor-foco: var(--color-acao-escura);
+  }
+
+  /* Foco branco dentro de toda superfície marinho (casca, gaveta, Próxima ação): 03, 2.1. */
+  .superficie-escura {
+    --cor-foco: var(--color-branco);
   }
 
   html {
     font-family: var(--font-sans);
     font-size: 16px;
     line-height: 1.5;
-    color: var(--color-texto);
-    background-color: var(--color-fundo);
+    color: var(--color-tinta);
+    background-color: var(--color-superficie);
     scroll-padding-top: var(--altura-cabecalho);
   }
 
+  /* Escala da 03, 2.3: h1 28 px (22 px abaixo de 768 px) / 800 / 1,2 / −0,02 em, em marinho; h2 18 / 700; h3 16 / 600. */
   h1 {
-    font-size: 1.5rem;
-    line-height: 1.3;
-    font-weight: 700;
+    font-size: 1.375rem;
+    line-height: 1.2;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--color-marinho);
+  }
+
+  @media (min-width: 768px) {
+    h1 {
+      font-size: 1.75rem;
+    }
   }
 
   h2 {
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     line-height: 1.3;
     font-weight: 700;
   }
 
   h3 {
-    font-size: 1.125rem;
+    font-size: 1rem;
     line-height: 1.3;
     font-weight: 600;
   }
 
   a {
-    color: var(--color-primaria);
+    color: var(--color-acao-escura);
     text-decoration: underline;
     text-underline-offset: 2px;
   }
 
-  /* Foco visível em todo elemento focável, nunca removido (03, 2.1; WCAG 2.4.7). */
+  /* Foco visível em todo elemento focável, nunca removido (03, 2.4; WCAG 2.4.7). A cor vem de --cor-foco, que troca
+     pela superfície. */
   :focus-visible {
-    outline: 2px solid var(--color-primaria);
+    outline: 2px solid var(--cor-foco);
     outline-offset: 2px;
   }
 

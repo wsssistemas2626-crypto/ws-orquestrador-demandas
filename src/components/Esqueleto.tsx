@@ -8,7 +8,7 @@ export function Esqueleto({ rotulo, linhas = 3, alturaLinha = 'h-6' }: Props) {
       <span className="sr-only">{rotulo}</span>
       <div aria-hidden="true" className="flex flex-col gap-2">
         {Array.from({ length: linhas }, (_, i) => (
-          <div key={i} className={`${alturaLinha} rounded-campo bg-fundo-suave motion-safe:animate-pulse`} />
+          <div key={i} className={`${alturaLinha} rounded-campo bg-linha motion-safe:animate-pulse`} />
         ))}
       </div>
     </div>

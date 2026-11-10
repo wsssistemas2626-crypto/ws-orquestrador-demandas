@@ -367,7 +367,7 @@ describe('ResultadoDaFila e CarregandoFila: bordas', () => {
   it('cada status aparece com o seu rótulo e a cor de 2.2', () => {
     const itens = STATUS.map((s, i) => demanda(i + 1, { status: s }));
     const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens, total: itens.length }));
-    for (const st of STATUS) expect(s).toMatch(new RegExp(`bg-${COR_STATUS[st]}-100[^>]*>${ROTULO_STATUS[st]}</span>`));
+    for (const st of STATUS) expect(s).toMatch(new RegExp(`data-cor="${COR_STATUS[st]}"[^>]*>${ROTULO_STATUS[st]}</span>`));
     expect(s.match(/<tbody[\s\S]*?<\/tbody>/)?.[0].match(/<tr/g)).toHaveLength(STATUS.length);
   });
 

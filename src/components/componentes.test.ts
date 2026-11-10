@@ -7,10 +7,11 @@ import { Alerta } from './Alerta';
 import { AreaTexto } from './AreaTexto';
 import { AvisosDaMoldura } from './AvisosDaMoldura';
 import { BlocoJson } from './BlocoJson';
-import { Botao } from './Botao';
+import { Botao, classeDoBotao } from './Botao';
 import { CabecalhoPainel, ehPaginaAtual } from './CabecalhoPainel';
 import { CaixaSelecao } from './CaixaSelecao';
-import { CampoTexto } from './CampoTexto';
+import { Cartao } from './Cartao';
+import { CampoTexto, classeDoCampo } from './CampoTexto';
 import { DialogoConfirmacao } from './DialogoConfirmacao';
 import { Esqueleto } from './Esqueleto';
 import { GrupoOpcoes, opcaoMarcavel } from './GrupoOpcoes';
@@ -18,6 +19,7 @@ import { Interruptor } from './Interruptor';
 import { Paginacao } from './Paginacao';
 import { RegiaoAviso } from './RegiaoAviso';
 import { ResumoErros } from './ResumoErros';
+import type { CorSelo } from './rotulos';
 import { Selecao } from './Selecao';
 import { Selo } from './Selo';
 import { Tabela } from './Tabela';
@@ -45,10 +47,40 @@ describe('Botao', () => {
     expect(s).toContain('>Salvando…</button>');
   });
   it('variantes primário, secundário, perigo e link', () => {
-    expect(html(h(Botao, { variante: 'primario' }, 'x'))).toContain('bg-primaria');
-    expect(html(h(Botao, { variante: 'secundario' }, 'x'))).toContain('border-borda');
-    expect(html(h(Botao, { variante: 'perigo' }, 'x'))).toContain('bg-perigo');
+    expect(html(h(Botao, { variante: 'primario' }, 'x'))).toContain('bg-acao');
+    expect(html(h(Botao, { variante: 'secundario' }, 'x'))).toContain('border-tinta-suave');
+    expect(html(h(Botao, { variante: 'perigo' }, 'x'))).toContain('bg-erro');
     expect(html(h(Botao, { variante: 'link' }, 'x'))).toContain('underline');
+  });
+  // 0.2.0 (T03; 03, 2.6): variações novas, com os tokens da 03, 2.1.
+  it('variantes sobre-escuro e claro-sobre-escuro', () => {
+    const escuro = html(h(Botao, { variante: 'sobre-escuro' }, 'Sair'));
+    for (const c of ['border-azul-claro', 'bg-transparent', 'text-branco', 'hover:bg-marinho-luz']) expect(escuro).toContain(c);
+    const claro = classeDoBotao('claro-sobre-escuro');
+    for (const c of ['bg-branco', 'text-marinho', 'font-bold', 'min-h-11']) expect(claro).toContain(c);
+  });
+  it('estado aria-disabled: continua focável (sem disabled), com o visual indisponível e o motivo ligado', () => {
+    const s = html(h(Botao, { type: 'submit', 'aria-disabled': true, 'aria-describedby': 'motivo' }, 'Aprovar a opção A'));
+    expect(s).toContain('aria-disabled="true"');
+    expect(s).toContain('aria-describedby="motivo"');
+    expect(s).not.toContain('disabled=""');
+    for (const c of ['aria-disabled:bg-selo-cinza-fundo', 'aria-disabled:text-tinta-media', 'aria-disabled:border-dashed', 'aria-disabled:border-tinta-suave'])
+      expect(s).toContain(c);
+  });
+  it('nenhuma variante usa cor da paleta do Tailwind nem o branco literal', () => {
+    for (const v of ['primario', 'secundario', 'perigo', 'link', 'sobre-escuro', 'claro-sobre-escuro'] as const)
+      expect(classeDoBotao(v), v).not.toMatch(/\b(?:bg|text|border)-(?:white|black|(?:slate|gray|blue|red|green|amber|violet|cyan|emerald|orange)-\d+)\b/);
+  });
+});
+
+describe('Cartao (03, 2.4 e 2.6)', () => {
+  it('section com borda linha, fundo branco, raio de cartão e preenchimento 16/24, sem sombra', () => {
+    const s = html(h(Cartao, { id: 'c1', rotuloPor: 'c1-titulo', children: h('h2', { id: 'c1-titulo' }, 'Resumo') }));
+    expect(s).toMatch(/^<section[^>]*id="c1"/);
+    expect(s).toContain('aria-labelledby="c1-titulo"');
+    for (const c of ['rounded-cartao', 'border', 'border-linha', 'bg-branco', 'p-4', 'md:p-6']) expect(s).toContain(c);
+    expect(s).not.toMatch(/shadow/);
+    expect(s).toContain('>Resumo</h2></section>');
   });
 });
 
@@ -90,6 +122,14 @@ describe('CampoTexto, AreaTexto, Selecao e CaixaSelecao (03, 2.5)', () => {
     expect(s).toMatch(/<select[^>]*id="status"/);
     expect(s.indexOf('Todos')).toBeLessThan(s.indexOf('Nova'));
   });
+  // 0.2.0 (T03; 03, 2.3 e 2.6): borda tinta-suave (4,5:1), erro em erro, raio de campo e 16 px.
+  it('campos com os tokens da 0.2.0: borda tinta-suave, erro em erro, fundo branco, raio de campo e 16 px', () => {
+    const limpo = classeDoCampo(false);
+    for (const c of ['border-tinta-suave', 'bg-branco', 'text-tinta', 'rounded-campo', 'text-base', 'min-h-11']) expect(limpo).toContain(c);
+    const comErro = classeDoCampo(true);
+    for (const c of ['border-2', 'border-erro']) expect(comErro).toContain(c);
+    expect(comErro).not.toContain('border-tinta-suave');
+  });
   it('CaixaSelecao com rótulo, não ícone', () => {
     const s = html(h(CaixaSelecao, { id: 'mostrar', rotulo: 'Mostrar senha' }));
     expect(s).toContain('type="checkbox"');
@@ -117,6 +157,25 @@ describe('GrupoOpcoes (03, 2.3 e T05)', () => {
     expect(s).toMatch(/id="status-aprovada"[^>]*aria-disabled="true"|aria-disabled="true"[^>]*id="status-aprovada"/);
     expect(s).toContain('aria-describedby="status-aprovada-dica"');
     expect(s).toContain('id="status-aprovada-dica"');
+  });
+  // 0.2.0 (T03; 03, 2.6): variante cartão, com os mesmos ids, name e aria-* da lista.
+  it('variante cartão: cada opção num cartão de 44 px com borda tinta-suave; marcada com borda marinho e fundo nevoa', () => {
+    const props = {
+      nome: 'opcao',
+      legenda: 'Opção',
+      opcoes: [
+        { valor: 'A', rotulo: 'Opção A' },
+        { valor: 'B', rotulo: 'Opção B', desabilitada: true, dica: 'Indisponível (fictício).' },
+      ],
+    };
+    const lista = html(h(GrupoOpcoes, props));
+    const cartao = html(h(GrupoOpcoes, { ...props, variante: 'cartao' as const }));
+    const atributos = (s: string) => [...s.matchAll(/<(?:input|label|p|fieldset|legend)\b([^>]*)>/g)].map((m) => m[1]!.replace(/\s*class="[^"]*"/, ''));
+    expect(atributos(cartao)).toEqual(atributos(lista));
+    expect(cartao.match(/type="radio"/g)).toHaveLength(2);
+    for (const c of ['rounded-campo', 'border-tinta-suave', 'min-h-11', 'has-[:checked]:border-2', 'has-[:checked]:border-marinho', 'has-[:checked]:bg-nevoa'])
+      expect(cartao).toContain(c);
+    expect(lista).not.toContain('has-[:checked]');
   });
   it('a opção indisponível não chega ao onMudar, nem pelo teclado', () => {
     const opcoes = [
@@ -182,13 +241,43 @@ describe('Interruptor (03, 2.3 e T12)', () => {
 });
 
 describe('Selo, Alerta, ResumoErros e RegiaoAviso', () => {
-  it('Selo é texto, com 800 sobre 100 da mesma cor, e o rascunho tem borda tracejada', () => {
-    const s = html(h(Selo, { cor: 'violet', children: 'Pronta para decisão' }));
-    expect(s).toContain('bg-violet-100');
-    expect(s).toContain('text-violet-800');
-    expect(s).toContain('>Pronta para decisão</span>');
+  it('Selo é texto, com o texto e o fundo do token da cor, e o rascunho tem borda tracejada', () => {
+    const s = html(h(Selo, { cor: 'violeta', children: 'Em análise' }));
+    expect(s).toContain('bg-selo-violeta-fundo');
+    expect(s).toContain('text-selo-violeta');
+    expect(s).toContain('>Em análise</span>');
     expect(s).not.toContain('border-dashed');
-    expect(html(h(Selo, { cor: 'violet', tracejado: true, children: 'Rascunho de agente' }))).toContain('border-dashed');
+    expect(html(h(Selo, { cor: 'violeta', tracejado: true, children: 'Rascunho de agente' }))).toContain('border-dashed');
+  });
+  // 0.2.0 (T03; 03, 2.5; D-15): data-cor com o nome da cor, 13 px, peso 700, pílula; cada cor com o par de tokens.
+  it('Selo: data-cor, 13 px em peso 700, e o par texto/fundo de cada cor da 03, 2.5', () => {
+    const PARES: ReadonlyArray<readonly [CorSelo, string, string]> = [
+      ['azul', 'text-acao-escura', 'bg-nevoa'],
+      ['violeta', 'text-selo-violeta', 'bg-selo-violeta-fundo'],
+      ['ambar', 'text-atencao', 'bg-atencao-fundo'],
+      ['petroleo', 'text-selo-petroleo', 'bg-selo-petroleo-fundo'],
+      ['verde', 'text-selo-verde', 'bg-selo-verde-fundo'],
+      ['marinho', 'text-marinho', 'bg-selo-marinho-fundo'],
+      ['verde-cheio', 'text-branco', 'bg-selo-verde'],
+      ['laranja', 'text-selo-laranja', 'bg-selo-laranja-fundo'],
+      ['cinza', 'text-tinta-media', 'bg-selo-cinza-fundo'],
+      ['vermelho', 'text-erro', 'bg-erro-fundo'],
+    ];
+    for (const [cor, texto, fundo] of PARES) {
+      const s = html(h(Selo, { cor, children: 'Texto' }));
+      expect(s, cor).toMatch(new RegExp(`^<span data-cor="${cor}"`));
+      expect(s.split('"'), cor).toEqual(expect.arrayContaining([expect.stringMatching(new RegExp(`(?:^| )${texto}(?: |$)`))]));
+      expect(s.split('"'), cor).toEqual(expect.arrayContaining([expect.stringMatching(new RegExp(`(?:^| )${fundo}(?: |$)`))]));
+      for (const c of ['text-[0.8125rem]', 'font-bold', 'rounded-full']) expect(s, cor).toContain(c);
+      expect(s, cor).toContain('>Texto</span>');
+    }
+  });
+  it('Alerta de informação: fundo nevoa, texto tinta, borda esquerda de 4 px acao-escura (03, 2.6)', () => {
+    const s = html(h(Alerta, { tipo: 'informacao', children: 'Info.' }));
+    for (const c of ['bg-nevoa', 'text-tinta', 'border-l-4', 'border-acao-escura']) expect(s).toContain(c);
+    expect(html(h(Alerta, { tipo: 'erro', children: 'x' }))).toContain('bg-erro-fundo');
+    expect(html(h(Alerta, { tipo: 'sucesso', children: 'x' }))).toContain('bg-positivo-fundo');
+    expect(html(h(Alerta, { tipo: 'atencao', children: 'x' }))).toContain('bg-atencao-fundo');
   });
   it('Alerta de envio (erro e sucesso) em role="alert"; o resto, estático', () => {
     expect(html(h(Alerta, { tipo: 'erro', envio: true, children: 'Falhou.' }))).toContain('role="alert"');
