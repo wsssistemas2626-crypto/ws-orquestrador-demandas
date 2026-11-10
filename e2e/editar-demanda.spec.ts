@@ -1,7 +1,7 @@
 // T39: T06 Editar dados da demanda (03, T06; RF-06). A demanda é criada pela API com a sessão da conta fictícia; a tela
 // abre com os valores atuais, salva só o que mudou e volta ao detalhe (T05) com o alerta da 03.
-import { expect, test, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string; titulo: string; contexto: string | null; urgencia: string | null; atualizadaEm: string };
 type Historico = { itens: { acao: string; antes: Record<string, unknown> | null; depois: Record<string, unknown> | null }[] };

@@ -5,7 +5,7 @@
 //   - procurarEmPaginas (N-03): percorre a lista de 100 em 100 até o `total`;
 //   - proximoId (B-01): o id da versão seguinte à mais nova, sem supor v1.
 // Uso por conta deste arquivo: "cto" 0 demandas e 0 versões; "administradora" 0 e 0.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './apoio';
 import { prepararEspERsk, procurarEmPaginas, proximoId, type ChamadasDaPreparacao } from './preparacao';
 
 const DEMANDA = 'DEM-20261102-0099';

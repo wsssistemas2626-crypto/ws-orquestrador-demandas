@@ -30,9 +30,9 @@
 // conferem que surgiu exatamente uma versão nova, na frente das de antes.
 // Uso por conta deste arquivo: "cto" 2 demandas e 9 versões; "administradora" 0 e 0.
 import { randomUUID } from 'node:crypto';
-import { expect, test, type Page, type Request } from '@playwright/test';
+import { type Page, type Request } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
-import { api, demandaDoSeed, entrarComo, semViolacoes } from './apoio';
+import { api, demandaDoSeed, entrarComo, expect, semViolacoes, test } from './apoio';
 import { proximoId } from './preparacao';
 
 type Demanda = { id: string };

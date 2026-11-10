@@ -2,8 +2,8 @@
 // fictícia, e as contagens vêm da própria API: o mesmo teste roda no banco novo do e2e e na homologação (BASE_URL), que
 // já pode ter outras demandas. O estado "Nenhuma demanda ainda" (banco sem nenhuma demanda) não existe no e2e, porque o
 // seed cria cinco; ele é conferido no HTML do servidor (src/app/(painel)/demandas/fila.test.ts).
-import { expect, test, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string; status: string };
 type Lista = { itens: Demanda[]; total: number };

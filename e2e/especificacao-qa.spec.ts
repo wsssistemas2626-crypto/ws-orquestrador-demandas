@@ -8,8 +8,8 @@
 //   - duplo clique em "Gravar": um envio só, uma ESP só, e a resposta da Server Action sem o que foi digitado.
 // Os dados de cada teste são criados aqui, pela conta "administradora" (o limite por ator, C-36, conta por conta).
 // Nenhum teste depende de outro ter rodado antes.
-import { expect, test, type Page, type Request } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Page, type Request } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string };
 type Versao = { id: string };

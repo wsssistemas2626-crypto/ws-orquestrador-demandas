@@ -10,8 +10,8 @@
 //   - conta "administradora": 0 demandas e 0 versões.
 // O POST de outra origem do caso C-15 leva corpo vazio: se o Origin passasse, a validação recusaria com 400 e nada seria
 // gravado.
-import { expect, test, type Page } from '@playwright/test';
-import { api, entrarComo } from './apoio';
+import { type Page } from '@playwright/test';
+import { api, entrarComo, expect, test } from './apoio';
 
 type Versao = { id: string };
 type ListaDemandas = { itens: { id: string; titulo: string }[] };

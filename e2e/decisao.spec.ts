@@ -31,9 +31,9 @@
 //     a substituição termina com um só aprovado mais novo, o do teste;
 //   - rodam em qualquer banco: C-14, M-01, P1-b, a dupla aprovação e o de 404 e sessão.
 // Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
-import { api, demandaDoSeed, entrarComo, semViolacoes } from './apoio';
+import { api, demandaDoSeed, entrarComo, expect, semViolacoes, test } from './apoio';
 import { prepararEspERsk, procurarEmPaginas, proximoId, TAMANHO_DA_PAGINA } from './preparacao';
 
 type Versao = { id: string };

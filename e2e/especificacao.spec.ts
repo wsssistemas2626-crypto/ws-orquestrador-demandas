@@ -1,8 +1,8 @@
 // T41: Lista de textos (03, 2.4), T07 Nova versão da ESP e T10 Ver ESP (03, T07 e T10; RF-08, RF-11, RF-15, RF-19).
 // Os dados são criados pela API com a sessão da conta fictícia "administradora": o limite por ator (C-36: 30 demandas e
 // 60 versões por hora) conta por conta, e os outros e2e criam sobretudo com a "cto".
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Locator, type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string; status: string };
 type Versao = { id: string };

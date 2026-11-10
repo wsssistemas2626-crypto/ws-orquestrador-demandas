@@ -15,9 +15,9 @@
 // pendente. Na T12, o diálogo de ligar fecha com "Cancelar" e nada muda (os agentes seguem como o seed os deixou). Na T02,
 // a conta `sem2fa` só chega ao passo 2 com a senha certa e nunca verifica um código, como nas specs da T37: continua sem
 // 2FA e nenhuma falha de senha ou de código é somada a ela. Na T01, o erro é o de campo vazio, que não chega ao servidor.
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
-import { api, entrarComo, entrarSoComSenha, ipFicticio, semViolacoes } from './apoio';
+import { api, entrarComo, entrarSoComSenha, expect, ipFicticio, semViolacoes, test } from './apoio';
 
 type ListaDemandas = { itens: { id: string; titulo: string }[] };
 type Pacote = { id: string; rascunhoAgente: boolean; statusDecisao: string };

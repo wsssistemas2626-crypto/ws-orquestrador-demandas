@@ -1,6 +1,5 @@
 // T36: moldura do painel (03, 2.7) e páginas comuns de erro (03, 2.8).
-import { expect, test } from '@playwright/test';
-import { entrarComo, semViolacoes } from './apoio';
+import { entrarComo, expect, semViolacoes, test } from './apoio';
 
 test('moldura: pular para o conteúdo, navegação principal, página atual, um h1, lang pt-BR e axe', async ({ page }) => {
   await entrarComo(page, 'cto');

@@ -14,10 +14,10 @@
 // quatro agentes a desligados, pela API. Desligar o que já está desligado não grava nada, e os agentes que nenhum teste
 // liga continuam "Nunca alterado". Só o agente de risco recebe o modelo fictício do seed (pela API, como o painel não
 // escolhe modelo), para poder ligar; o de consolidação fica sem modelo, para a falha ao ligar.
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { MODELO_FICTICIO } from '../scripts/seed-ficticio';
 import { AGENTES, type Agente } from '../src/modules/acesso/ator';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type ConfiguracaoAgente = { agente: Agente; ligado: boolean; atualizadoEm: string | null; atualizadoPor: { nome: string } | null };
 

@@ -2,17 +2,57 @@
 // sessão da página. Tudo pela API do próprio sistema (Better Auth e rotas), para o mesmo teste rodar contra a
 // homologação (BASE_URL).
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect as expectBase, test as testBase, type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
 import { relogioDoSistema } from '../src/lib/relogio';
 import { codigoTotp } from '../test/sessao';
 import { procurarEmPaginas, TAMANHO_DA_PAGINA } from './preparacao';
+import { origemDaUrl, problemasDaVigia, type Coletor } from './vigia';
 
 // 03, seção 5, e RNF-11: as regras do axe que toda tela cumpre.
 export const TAGS_AXE = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const;
 
+const MENSAGEM_CSP = /Content Security Policy/i;
+
+// CV-03 (04, DEC-DEM-20261110-0015-v1): fixture automática herdada por todo spec, que importa `test` e `expect` daqui.
+// Reprova o teste com requisição a outra origem (inclusive websocket), com evento securitypolicyviolation e com
+// mensagem de CSP no console. Console, função exposta e script inicial ficam no contexto, e não só na página: valem
+// também para a aba aberta por `context.newPage()` no meio do teste.
+export const test = testBase.extend<{ vigiaDeOrigemECsp: Coletor }>({
+  vigiaDeOrigemECsp: [
+    async ({ page, context, baseURL }, use) => {
+      if (!baseURL) throw new Error('e2e: baseURL ausente no playwright.config.ts');
+      const doApp = new URL(baseURL).origin;
+      const c: Coletor = { outraOrigem: [], csp: [] };
+      const anotar = (url: string) => {
+        const o = origemDaUrl(url);
+        if (o !== null && o !== doApp) c.outraOrigem.push(url);
+      };
+      context.on('request', (r) => anotar(r.url()));
+      const vigiarWebsocket = (p: Page) => p.on('websocket', (ws) => anotar(ws.url()));
+      vigiarWebsocket(page);
+      context.on('page', vigiarWebsocket);
+      context.on('console', (m) => {
+        if (MENSAGEM_CSP.test(m.text())) c.csp.push(m.text());
+      });
+      await context.exposeFunction('__vigiaCsp', (texto: string) => {
+        c.csp.push(texto);
+      });
+      await context.addInitScript(() => {
+        document.addEventListener('securitypolicyviolation', (e) => {
+          void (window as unknown as { __vigiaCsp: (t: string) => Promise<void> }).__vigiaCsp(`${e.violatedDirective} ${e.blockedURI}`);
+        });
+      });
+      await use(c);
+      expectBase(problemasDaVigia(c), 'CV-03: nenhuma requisição a outra origem nem violação de CSP').toEqual([]);
+    },
+    { auto: true },
+  ],
+});
+export const expect = expectBase;
+
 function origem(): string {
-  const base = test.info().project.use.baseURL;
+  const base = testBase.info().project.use.baseURL;
   if (!base) throw new Error('e2e: baseURL ausente no playwright.config.ts');
   return new URL(base).origin;
 }

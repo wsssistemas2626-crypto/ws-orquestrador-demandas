@@ -2,8 +2,8 @@
 // (os agentes nascem desligados, e nenhum teste liga): vale o modo manual. Os modos "ligado" e "suspenso" e o "Preencher
 // à mão" são conferidos no HTML (src/app/(painel)/demandas/nova/formularios.test.ts), porque ligar o agente mudaria a
 // configuração para os outros testes do mesmo banco.
-import { expect, test, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 const RESUMO = 'Corrija os campos abaixo para continuar.';
 

@@ -11,8 +11,8 @@
 // corpo vazio ou inválido: se o controle falhasse, a validação recusaria com 400 e nada seria gravado.
 //   - conta "cto": 0 demandas e 1 versão (o RSK do caso C-18);
 //   - conta "administradora": 0 demandas e 0 versões.
-import { expect, test, type APIResponse, type Page } from '@playwright/test';
-import { api, entrarComo, ipFicticio } from './apoio';
+import { type APIResponse, type Page } from '@playwright/test';
+import { api, entrarComo, expect, ipFicticio, test } from './apoio';
 
 type Versao = { id: string };
 type ListaDemandas = { itens: { id: string; titulo: string }[] };

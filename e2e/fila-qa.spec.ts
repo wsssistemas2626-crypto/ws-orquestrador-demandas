@@ -4,8 +4,8 @@
 //   - "Filtrar" sem mudar nada e "Limpar filtros" do formulário, com o foco no resultado;
 //   - o formulário sem script: GET comum, e as opções "Todos" (valor vazio) não viram filtro inválido.
 // Os dados são criados pela API, e as contagens vêm da própria API, como no fila.spec.ts.
-import { expect, test, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string };
 type Lista = { total: number };

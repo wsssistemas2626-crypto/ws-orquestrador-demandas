@@ -2,8 +2,8 @@
 // C-18). Os dados são criados pela API com a sessão da conta fictícia. A maioria dos testes usa a conta
 // "administradora": o limite de 30 demandas por hora (C-36) conta por ator, e os outros e2e criam com a conta "cto". Os
 // dois testes que precisam de um pacote aprovado usam a "cto", porque só ela aprova um DEC de nível "cto" (P1-b).
-import { expect, test, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string; status: string };
 type Versao = { id: string };
