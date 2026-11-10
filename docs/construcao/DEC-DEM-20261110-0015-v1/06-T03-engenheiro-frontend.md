@@ -130,7 +130,6 @@ Testes existentes que mudaram:
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -12` — topo 88e0e7e (06-T02-testes)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/contraste-tokens.test.ts test/estatico/cores-so-por-token.test.ts test/estatico/painel-qa.test.ts src/components/componentes.test.ts src/components/rotulos.test.ts "src/app/(painel)/demandas/fila-qa.test.ts"` — visto falhando (painel-qa 43 de 50, contraste 50 de 51, CA-01.3 e os demais)
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/cores-so-por-token.test.ts -t "CA-01.1|CA-01.2"` — 5 passaram, 13 pulados
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — 1 erro, no teste novo do `Cartao` (`children` no `createElement`)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/contraste-tokens.test.ts test/estatico/cores-so-por-token.test.ts test/estatico/painel-qa.test.ts src/components/componentes.test.ts src/components/rotulos.test.ts "src/app/(painel)/demandas/fila-qa.test.ts"` — 229 de 229
