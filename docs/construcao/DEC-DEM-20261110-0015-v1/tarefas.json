@@ -1,0 +1,19 @@
+[
+  { "id": "T01", "titulo": "Vigia de origem e CSP em todo e2e, teste estático de recurso externo e piso de asserções", "engenheiro": "engenheiro-frontend", "fase": "Vigilância", "risco": "alto" },
+  { "id": "T02", "titulo": "Fontes Noto servidas pelo próprio app", "engenheiro": "engenheiro-frontend", "fase": "Identidade", "risco": "alto" },
+  { "id": "T03", "titulo": "Tokens da marca, contraste, foco e componentes base", "engenheiro": "engenheiro-frontend", "fase": "Identidade", "risco": "baixo" },
+  { "id": "T04", "titulo": "Marca e moldura pública: Entrar, 2FA, sem permissão, erro e 404", "engenheiro": "engenheiro-frontend", "fase": "Identidade", "risco": "alto" },
+  { "id": "T05", "titulo": "Casca do painel e gaveta", "engenheiro": "engenheiro-frontend", "fase": "Identidade", "risco": "alto" },
+  { "id": "T06", "titulo": "Seed fictício das demandas dos e2e novos", "engenheiro": "engenheiro-backend", "fase": "Fila", "risco": "baixo" },
+  { "id": "T07", "titulo": "Leituras novas da fila, só SELECT", "engenheiro": "engenheiro-dados-bd", "fase": "Fila", "risco": "alto" },
+  { "id": "T08", "titulo": "Regras de exibição da fila", "engenheiro": "engenheiro-backend", "fase": "Fila", "risco": "baixo" },
+  { "id": "T09", "titulo": "T03 Fila: contadores, tabela densa, cartões e filtros", "engenheiro": "engenheiro-frontend", "fase": "Fila", "risco": "alto" },
+  { "id": "T10", "titulo": "Regras de exibição da demanda: barra de etapas e Próxima ação", "engenheiro": "engenheiro-backend", "fase": "Demanda", "risco": "baixo" },
+  { "id": "T11", "titulo": "T05 no arranjo A2", "engenheiro": "engenheiro-frontend", "fase": "Demanda", "risco": "alto" },
+  { "id": "T12", "titulo": "T11: um formulário, três botões", "engenheiro": "engenheiro-frontend", "fase": "Decisão", "risco": "alto" },
+  { "id": "T13", "titulo": "T11 no arranjo A (computador) e C2 (celular)", "engenheiro": "engenheiro-frontend", "fase": "Decisão", "risco": "alto" },
+  { "id": "T14", "titulo": "T04, T06, T07 e T08 com cartões e tokens", "engenheiro": "engenheiro-frontend", "fase": "Demais telas", "risco": "baixo" },
+  { "id": "T15", "titulo": "T09, T10 e T12 com cartões e tokens", "engenheiro": "engenheiro-frontend", "fase": "Demais telas", "risco": "baixo" },
+  { "id": "T16", "titulo": "Axe em T01 a T12 nas duas larguras, alvo de toque e fim dos nomes antigos de token", "engenheiro": "engenheiro-frontend", "fase": "Demais telas", "risco": "baixo" },
+  { "id": "T17", "titulo": "Versão 0.2.0 e capturas de tela", "engenheiro": "engenheiro-frontend", "fase": "Fechamento", "risco": "alto" }
+]
