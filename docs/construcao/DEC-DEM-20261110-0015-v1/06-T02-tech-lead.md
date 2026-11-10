@@ -90,7 +90,6 @@ Pendências.
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat f6e8b4b176b9ad49a7f1734ebe75d2943d94af57~1 f6e8b4b176b9ad49a7f1734ebe75d2943d94af57` — 12 arquivos
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff f6e8b4b176b9ad49a7f1734ebe75d2943d94af57~1 f6e8b4b176b9ad49a7f1734ebe75d2943d94af57 -- e2e package.json src test vitest.config.ts` — diff do código
-- `grep -n "^### T02\|^### T03\|^## Fase 2" /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md` — só leitura, para achar a T02 no plano (Grep não existia na sessão); fora da lista Pode, declarado
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff f6e8b4b176b9ad49a7f1734ebe75d2943d94af57~1 f6e8b4b176b9ad49a7f1734ebe75d2943d94af57 -- pnpm-lock.yaml` — só as entradas dos dois pacotes
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d f6e8b4b176b9ad49a7f1734ebe75d2943d94af57 -- src/proxy.ts src/proxy.test.ts next.config.ts src/app/api src/db drizzle src/modules/acesso src/worker src/jobs src/agents src/lib/auth.ts src/lib/auth-cliente.ts src/lib/qr.ts src/lib/log.ts src/lib/erros.ts src/instrumentation.ts pnpm-workspace.yaml "src/app/(painel)/configuracao/agentes/acoes.ts" "src/app/(painel)/demandas/[id]/acoes.ts" "src/app/(painel)/demandas/[id]/editar/acoes.ts" "src/app/(painel)/demandas/[id]/especificacoes/nova/acoes.ts" "src/app/(painel)/demandas/[id]/pacotes-decisao/novo/acoes.ts" "src/app/(painel)/demandas/[id]/pareceres-risco/novo/acoes.ts" "src/app/(painel)/demandas/nova/acoes.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes.ts"` — vazio (G4, CV-01)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d f6e8b4b176b9ad49a7f1734ebe75d2943d94af57 --stat -- src/modules package.json` — só `package.json`, 2 inserções
@@ -99,7 +98,6 @@ Pendências.
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — em segundo plano: 208 arquivos, 4578 de 4578, saída 0
-- `wc -l /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/tasks/bnn7si54h.output` — só leitura, para achar o fim da saída do `pnpm test` (438 linhas); fora da lista Pode, declarado
 
 ## Critério de pronto atendido
 
