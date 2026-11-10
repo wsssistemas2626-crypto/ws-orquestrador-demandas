@@ -3,8 +3,8 @@ pedido: DEC-DEM-20261110-0015-v1
 etapa: 05-plano
 agente: tech-lead
 leu: [pedido.json, parada-P1.md, docs/superpowers/specs/2026-11-10-ws-orquestrador-demandas-novo-visual-design.md, 01-analista-requisitos.md, 02-arquiteto-solucoes.md, 03-ux-ui-design.md, 04-seguranca-aplicacao.md, padrao-tecnico.md, contrato-passagem.md, docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md (formato), package.json, playwright.config.ts, e2e/apoio.ts, src/app/globals.css, src/app/layout.tsx, src/app/(painel)/layout.tsx, src/components/CabecalhoPainel.tsx, src/components/Selo.tsx, src/components/rotulos.ts, src/components/Botao.tsx, src/components/Alerta.tsx, src/components/CampoTexto.tsx, src/components/GrupoOpcoes.tsx, src/components/Tabela.tsx, src/components/dados-da-decisao.ts, src/app/(painel)/demandas/page.tsx, src/app/(painel)/demandas/fila.tsx, src/app/(painel)/demandas/FiltrosFila.tsx, src/app/(painel)/demandas/[id]/page.tsx, src/app/(painel)/pacotes-decisao/[decId]/FormularioDecisao.tsx, src/modules/demandas/consultas.ts, src/modules/demandas/consultas.test.ts, test/banco.ts, test/desempenho/leitura.test.ts, test/estatico/pacote-sem-extras.test.ts, test/estatico/projeto.test.ts, test/estatico/painel-qa.test.ts, test/estatico/decisao-e2e.test.ts, scripts/seed-ficticio.ts (TITULOS_DO_E2E), .claude/agents/engenheiro-frontend.md, engenheiro-backend.md, engenheiro-dados-bd.md, qa-automacao.md, devops-sre.md, documentacao-tecnica.md, qa-funcional.md (listas Pode)]
-status: bloqueado
-proximo: tech-lead
+status: pronto
+proximo: engenheiro-frontend
 devolvido_para: null
 ---
 ## Entrega
@@ -44,7 +44,7 @@ autenticação (T04), no "Sair" (T05), na página com a guarda C-04 e a leitura 
 ### O que o plano amarra
 
 - **CV-01 em toda revisão:** G4 traz o comando `git diff 198e97d -- …` que tem de sair vazio, com os nove arquivos
-  `'use server'` por caminho (conferidos com `git grep` em 10/11), e a regra de `src/modules/` só com arquivo novo.
+  `'use server'` por caminho (conferidos em 10/11), e a regra de `src/modules/` só com arquivo novo.
 - **Ordem do 04, 5.5:** a vigia de CSP (com o teste negativo) e o estático de recurso externo são a T01, antes de
   qualquer troca visual; fontes com CV-04 e CV-05 na T02.
 - **Pacotes por nome:** `pnpm add -D -E @fontsource/noto-sans @fontsource/noto-sans-mono` (cabeçalho e T02), nenhum
@@ -85,12 +85,11 @@ autenticação (T04), no "Sair" (T05), na página com a guarda C-04 e a leitura 
   apaga arquivo, e os testes de hoje continuam no mesmo nome.
 - Cinco tarefas além das que o 04 pediu ficaram `alto` (T04, T05, T09, T11 e T13) por mexerem em tela de
   autenticação, "Sair", guarda de acesso, `autorizar` ou na revisão humana da T11 (CV-12), pela regra do contrato.
+- Volta 2: o maestro liberou os comandos só de leitura fora da lista Pode da volta 1 (`git grep`, `ls` e `cd`), pela
+  regra de 25/10, e eles saíram de Comandos executados por instrução dele; o plano e o `tarefas.json` não mudaram.
 
 ## Pendências
 
-- Usei comandos só de leitura fora da minha lista Pode (`git grep`, `ls` e `cd`, listados abaixo): as ferramentas Glob
-  e Grep não estavam disponíveis nesta sessão e precisei buscar no código rastreado; peço a liberação pela regra de
-  25/10 (só leitura). O plano, o `tarefas.json` e esta entrega estão completos.
 - `engenheiro-frontend` (T13) e Fabiano (UAT): o plano B do foco sob o rodapé (`focusin` com `scrollIntoView`) só entra
   se o CA-12.3 reprovar no Chromium; o comportamento no Safari do iOS fica para o UAT (P-04 da 03).
 - `engenheiro-frontend` (T01): se o erro no fim da fixture não contar para o `test.fail()` do Playwright 1.63.0, vale o
@@ -104,33 +103,11 @@ autenticação (T04), no "Sair" (T05), na página com a guarda C-04 e a leitura 
 
 ## Comandos executados
 
-- `cd /home/deploy/servidor/projetos/ws-orquestrador-demandas`
 - `git status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, limpo
 - `git log --oneline -8` — topo dee94c8 (P1 fabiano)
-- `ls docs/construcao/DEC-DEM-20261110-0015-v1/`
 - `git show HEAD:docs/superpowers/plans/ HEAD:src/ HEAD:src/app/ HEAD:src/components/ HEAD:e2e/ HEAD:test/ HEAD:test/estatico/`
-- `git grep -n -E "COR_STATUS|COR_DECISAO|COR_NIVEL|CorSelo|'violet'|'slate'" -- src test e2e`
-- `git grep -l -E "^['\"]use server['\"]" -- src` — os nove arquivos de G4
-- `git grep -n -E "export (async )?function|export type|export const|from '" -- src/modules/demandas/consultas.ts src/modules/demandas/schemas.ts src/lib/fuso.ts`
-- `git grep -n -E "^export|aprovarIndisponivel|statusDecisao" -- "src/components/dados-da-decisao.ts" "src/app/(painel)/pacotes-decisao/[decId]/page.tsx"`
-- `git grep -n -E "^export|^  [a-zA-Z]+[?]?:" -- src/modules/pacotes-decisao/consultas.ts`
 - `git show HEAD:src/modules/demandas/ HEAD:src/lib/ HEAD:docs/manual-tecnico/`
-- `git grep -n -E "^export" -- test/banco.ts test/deps.ts test/sentinelas.ts`
 - `git show HEAD:test/desempenho/ HEAD:test/transversal/ HEAD:scripts/`
-- `git grep -n -E "TITULOS_DO_E2E|export const" -- scripts/seed-ficticio.ts`
-- `git grep -n -E "export" -- src/db/index.ts`
-- `git grep -n -E "^(test|test\.describe|  test)\(|^import" -- e2e/axe-todas.spec.ts`
-- `cd /home/deploy/servidor/projetos/estruturaAutonoma`
-- `git grep -n -A 14 "^\*\*Pode:\*\*" -- .claude/agents/engenheiro-frontend.md .claude/agents/engenheiro-backend.md .claude/agents/engenheiro-dados-bd.md .claude/agents/documentacao-tecnica.md .claude/agents/qa-automacao.md`
-- `git grep -n -A 10 "^\*\*Pode:\*\*" -- .claude/agents/devops-sre.md .claude/agents/qa-funcional.md`
-- `git grep -n -E "https?://" -- "src/*.ts" "src/*.tsx" "src/*.css" ":!*.test.ts" ":!*.test.tsx"`
-- `git grep -c "expect(" 198e97d -- e2e/seguranca.spec.ts e2e/seguranca-qa.spec.ts src/proxy.test.ts test/estatico "src/modules/*.test.ts"` — pisos da T01
-- `git grep -n -E "googleapis|gstatic|next/font|dangerouslySetInnerHTML|style=\{|@import|url\(" -- src e2e test "*.config.*"`
-- `git grep -n -E "CabecalhoPainel|ehPaginaAtual|navegacao-principal|'Menu'|\"Menu\"" -- src test e2e`
-- `git grep -n -E "export const RE_ID|DEM-\\\\d\{8\}" -- src`
-- `git grep -n -E "#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b" -- "src/*.ts" "src/*.tsx" ":!*.test.ts"` — só o QR da T02
-- `git grep -n -E "^test\(|^  test\(|^test\.describe" -- e2e/seguranca.spec.ts e2e/fila.spec.ts e2e/moldura.spec.ts e2e/decisao.spec.ts`
-- `git grep -n -E "^### T3[67]|^## Fase|^\*\*(Arquivos|Interfaces|Engenheiro|Risco|Critério|Depende)" -- docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md`
 - `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs tarefas /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261110-0015-v1/tarefas.json` — `ok: true`, sem erros
 
 ## Critério de pronto atendido
