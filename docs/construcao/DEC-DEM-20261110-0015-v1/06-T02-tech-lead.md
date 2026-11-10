@@ -2,102 +2,112 @@
 pedido: DEC-DEM-20261110-0015-v1
 etapa: 06-T02-revisao
 agente: tech-lead
-leu: [contrato-passagem.md, padrao-tecnico.md, docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md (G1 a G7 e T02), 06-T02-engenheiro-frontend.md, commit f6e8b4b (diff de e2e/fontes.spec.ts, package.json, pnpm-lock.yaml, src/app/fontes.ts, src/app/globals.css, src/app/layout.tsx, src/app/layout.test.ts, test/estatico/fontes.test.ts, test/next-font-local.ts, vitest.config.ts), src/app/globals.css]
+leu: [contrato-passagem.md, padrao-tecnico.md (seção 12), 06-T02-tech-lead.md (revisão anterior), 06-T02-qa-automacao.md, 06-T02-engenheiro-frontend.md (volta 1), commit 1c8dd70 (diff de e2e/fontes.spec.ts), e2e/fontes.spec.ts, test/estatico/fontes-qa.test.ts]
 status: pronto
 proximo: qa-automacao
 devolvido_para: null
 ---
 ## Entrega
 
-Revisão da T02 (Fontes Noto servidas pelo próprio app, `engenheiro-frontend`, risco alto), commit
-`f6e8b4b176b9ad49a7f1734ebe75d2943d94af57`. **Aprovada, sem Critical nem Important.** Três pontos Minor, em
-Pendências.
+Segunda revisão da T02 (Fontes Noto servidas pelo próprio app, `engenheiro-frontend`, risco alto), só sobre a correção
+do teste instável que a `06-T02-testes` devolveu. Commit da correção: `1c8dd70`; commit da construção informado:
+`f106749` (os outros dois só registram passagens). **Aprovada, sem Critical nem Important.** A revisão anterior
+(commit `f6e8b4b`) continua valendo para o resto da tarefa.
 
-### Conferência contra o plano
+### O que mudou
 
-- `src/app/fontes.ts`: igual ao código do plano (seis caminhos literais, `display: 'swap'` nos dois, as duas
-  variáveis, `adjustFontFallback` e `fallback` como no plano). Nenhum `.style` e nenhum `.js` do `@fontsource`.
-- `src/app/layout.tsx`: só `className={`${fonteSans.variable} ${fonteMono.variable}`}` no `<html>`, como o plano manda.
-- `src/app/globals.css`: `--font-sans` e `--font-mono` saíram do `@theme` e entraram no `@theme inline`, com os valores
-  do plano; nada de `url(` nem `@import` com URL. O `html { font-family: var(--font-sans) }` da base continua e o e2e
-  prova que o `body` usa a família carregada.
-- `test/estatico/fontes.test.ts`: idêntico ao do plano. `e2e/fontes.spec.ts`: igual ao do plano, com o desvio 1 da
-  entrega (abaixo) e a T11 implementada.
-- `package.json`: só as duas linhas `@fontsource` em `devDependencies`, versão exata 5.3.0 (CV-05, D-13).
-  `pnpm-lock.yaml`: só `importers`, `packages` (com `integrity: sha512-…`) e `snapshots` (`{}`) dos dois pacotes.
+`git diff --stat bae998e f106749`: no código, só `e2e/fontes.spec.ts` (19 linhas a mais, 4 a menos). Desde o commit
+revisado antes (`f6e8b4b`), as únicas outras mudanças de código são os dois arquivos do qa-automacao
+(`e2e/fontes-qa.spec.ts` e `test/estatico/fontes-qa.test.ts`). `playwright.config.ts`, `vitest.config.ts`,
+`package.json`, `pnpm-lock.yaml` e `pnpm-workspace.yaml` sem diff. Árvore de trabalho limpa: a sonda temporária
+`e2e/tmp-corrida-fontes.spec.ts` não ficou no repositório nem em commit.
 
-### Desvios declarados pelo engenheiro (aceitos)
+### A correção resolve a causa
 
-1. **`e2e/fontes.spec.ts`, forma do `src`** (`e2e/fontes.spec.ts:21-25` e `:37-47`): o build grava a URL relativa à
-   folha (`../media/…`), e o plano esperava `/_next/static/media/…` literal. A nova conferência exige a forma
-   `url(….woff2)`/`local(…)` e, depois de resolver contra o `href` da folha, a **mesma origem** e o caminho
-   `/_next/static/media/<arquivo>.woff2`. A garantia do CV-04 é a mesma ou maior: URL absoluta de outra origem e
-   `//outra-origem/…` resolvem para outra origem e reprovam. Aceito.
-2. **`test/next-font-local.ts` e o alias em `vitest.config.ts`** (`vitest.config.ts:6-10`): fora da lista de arquivos
-   da T02, mas dentro da coluna "Edita" do `engenheiro-frontend` em G1 (`test/`, `*.config.*`). Sem ele o
-   `src/app/layout.test.ts`, que já existia, quebra na carga (`next/font/local` só existe no compilador do Next). O
-   substituto fica em `test/`, não é importado pelo app, e a regex do alias é exata (`^next\/font\/local$`). É o
-   mínimo para manter o teste existente vivo sem mexer no layout. Aceito.
-3. **`src/app/layout.test.ts:13`**: só o literal da regex do `<html>` mudou (G3.2 permite texto literal, com
-   explicação na entrega). Nenhuma asserção apagada; o teste ficou mais forte (prova que as duas variáveis chegam ao
-   `<html>`). O piso de asserções da T01 passou. Aceito.
-4. **T11 do e2e** (`e2e/fontes.spec.ts:62-68`): o plano deixou só o comentário; a implementação usa GET da API e a
-   demanda de tipo bug do seed, sem criar demanda (G3.10, C-36). Aceito.
+- **Causa** (a mesma que o qa-automacao apontou): a lista da T03 chega por `<Suspense>` depois do `load`; o
+  `document.fonts.ready` lido antes da revelação resolve sem a Noto Sans Mono pedida, e a leitura única seguinte a
+  encontrava `loading`.
+- **`e2e/fontes.spec.ts:27`**: com `temMono`, espera `main .font-mono:visible` antes do `ready`. Ataca a causa: o texto
+  mono só pede a fonte quando é desenhado, e a espera garante que ele foi desenhado antes do `ready`.
+- **`e2e/fontes.spec.ts:45-49`**: a carga é relida até passar, por até 5 s (`toPass({ timeout: 5_000 })`), em vez de
+  uma leitura só. É retentativa da leitura, não do teste: `retries` e o tempo-limite do `playwright.config.ts` não
+  mudaram. Sem `waitForTimeout`.
+- **`e2e/fontes.spec.ts:32`**: a família do mono passa a vir do primeiro `.font-mono` desenhado dentro do `main`, e não
+  do primeiro do documento, que podia estar no nó escondido do Suspense.
 
-### Checklist da seção 12 do padrão técnico
+### Nenhuma asserção saiu nem afrouxou (G3.2, CV-20)
+
+| Asserção de antes | Agora |
+|---|---|
+| `expect(r.carregadas).toContain(r.corpo)` | `expect(carregadas).toContain(r.corpo)` (`:47`), mesmo valor esperado, lido de novo a cada tentativa |
+| `if (temMono) expect(r.carregadas).toContain(r.mono)` | `if (temMono) expect(carregadas).toContain(r.mono)` (`:48`) |
+| `@font-face` só `local(...)`/`.woff2` da mesma origem em `/_next/static/media/` | sem mudança (`:50`, `:57`, `:61`) |
+| respostas `.woff2` da mesma origem com `font/woff2` | sem mudança (`:64`, `:65`) |
+
+- O critério continua o mesmo: status `loaded` da família que o corpo e o id de fato usam. A janela de 5 s só tira a
+  corrida; se a fonte não carregar, o teste reprova como antes.
+- `r.mono` nulo continua reprovando (`toContain(null)`), e a espera do `:27` já falha antes se não houver id visível.
+- Piso da CV-20: linhas com `expect(` em `e2e/fontes.spec.ts` passaram de 7 para 8 (`:45`, `:47`, `:48`, `:50`, `:57`,
+  `:61`, `:64`, `:65`); o piso de `test/estatico/fontes-qa.test.ts:250` é 7 e passa (rodei `test/estatico`: 227 de
+  227).
+- O desvio de `toPass` em vez do `expect.poll` sugerido pelo qa-automacao é aceito: mesma retentativa, e as duas linhas
+  de asserção ficam iguais às de antes. Com `expect.poll`, o piso do arquivo cairia para 5.
+
+### Checklist da seção 12 do padrão técnico (só sobre esta volta)
 
 | Item | Resultado |
 |---|---|
-| Faz o que o plano pede, nem mais nem menos; arquivos fora da tarefa não mudaram | Sim. Os dois arquivos a mais (`test/next-font-local.ts`, `vitest.config.ts`) e o literal de `layout.test.ts` são o mínimo para a suíte existente rodar, estão na coluna "Edita" de G1 e estão explicados na entrega. G4 (CV-01): `git diff 198e97d` nas superfícies congeladas saiu **vazio**; `src/modules` sem diff; `package.json` só com as duas linhas; `pnpm-workspace.yaml` sem diff |
-| Teste para cada comportamento novo, e ele falharia sem o código | Sim. `fontes.test.ts` foi visto falhando (5 de 5) antes do `pnpm add` e de `fontes.ts`; o e2e foi visto falhando (3 de 3) e a família carregada já passava, o que mostra que as asserções não são vazias; `layout.test.ts` reprova se o layout deixar de pôr as variáveis |
-| Nenhum segredo, `.env` ou dado pessoal real | Sim. O e2e usa o seed fictício (título "(fictício)") |
-| Entrada externa validada com Zod; erro sem vazar detalhe | Não se aplica: nenhuma rota nem Server Action |
-| Banco: migration, migrator, RLS | Não se aplica: sem banco |
-| Nada duplica função existente | Sim. `conferirFontes` é nova e só do spec; o substituto de `next/font/local` não existia |
-| Textos em pt-BR; axe sem violação nas telas tocadas | Nenhum texto de tela mudou. O engenheiro declara `pnpm test:e2e` 150 de 150 com a `axe-todas` sem violação; o e2e não está na minha lista Pode e fica conferido de novo na `06-T02-testes` |
-| Minor vai para Pendências | Sim (três, abaixo) |
-| PR: `/code-review` e `/security-review` | Não se aplica nesta etapa: fica com a `08-revisao` (G2) |
+| Faz o que o plano pede, nem mais nem menos; arquivos fora da tarefa não mudaram | Sim. Só `e2e/fontes.spec.ts`, e só `conferirFontes` e duas constantes; o resto da T02 é o que foi aprovado na revisão anterior |
+| Teste para cada comportamento novo, e ele falharia sem o código | Sim. As asserções da CV-04 são as mesmas; a forma antiga foi vista falhando 2 de 90 na sonda com carga e 2 de 6 no qa-automacao; a nova passou 90 de 90 na sonda e 6 de 6 nas rodadas do arquivo, e 154 de 154 na e2e inteira, segundo a entrega do engenheiro |
+| Nenhum segredo, `.env` ou dado pessoal real | Sim. Seed fictício, conta `cto` de teste |
+| Entrada externa validada com Zod | Não se aplica: só teste |
+| Banco | Não se aplica |
+| Nada duplica função existente | Sim. `familiasCarregadas` é local ao spec; o `fontes-qa.spec.ts` tem leitura parecida, mas é arquivo do qa-automacao com propósito próprio (ligar família a arquivo) |
+| Textos em pt-BR; axe sem violação nas telas tocadas | Nenhuma tela mudou |
+| Minor vai para Pendências | Sim (abaixo) |
+| PR: `/code-review` e `/security-review` | Não se aplica nesta etapa: fica com a `08-revisao` |
 
 ### Verificação local
 
-- `pnpm test test/estatico src/app/layout.test.ts`: 21 arquivos, 208 de 208.
-- `pnpm test` (suíte inteira): 208 arquivos, 4578 de 4578, código de saída 0.
+- `pnpm test test/estatico`: 21 arquivos, 227 de 227 (piso da CV-20 e regras da vigia sobre o `e2e/`).
 - `pnpm lint` e `pnpm typecheck`: limpos.
+- A suíte de unidade inteira não roda o `e2e/`; a única mudança de código é um spec do Playwright, coberto pelos testes
+  estáticos acima. O `pnpm test:e2e` não está na minha lista Pode e fica com a `06-T02-testes`.
 
 ## Decisões tomadas
 
-- Aprovar sem devolver: nenhum achado Critical ou Important; os desvios mantêm ou fortalecem a garantia do plano.
-- Aceitar o alias do Vitest em vez de pedir mudança no layout: o layout fica como o plano o escreve e o teste do `lang`
-  continua vivo, com o substituto isolado em `test/`.
-- Aceitar a conferência do `src` pela URL resolvida contra a folha: é o endereço que o navegador pede, e reprova
-  qualquer outra origem, que é o que o CV-04 quer.
+- Aprovar sem devolver: a correção ataca a causa (espera o id desenhado antes do `ready`) e mantém as duas asserções
+  com o mesmo texto e o mesmo valor esperado.
+- Aceitar `toPass` com 5 s explícitos: é retentativa da leitura dentro do teste, igual em efeito ao `expect.poll`, sem
+  mexer em `retries` nem no tempo-limite global.
+- Aceitar a espera também na T11: não muda o que é conferido e protege a T13, que vai refazer a tela.
 
 ## Pendências
 
-- Minor (para a `08-revisao`): `test/estatico/fontes.test.ts:58-60` diz "nenhum arquivo de src/ importa código dos
-  pacotes", mas confere só três arquivos (`layout.tsx`, `fontes.ts`, `globals.css`). O código é o do plano, então não
-  é desvio do engenheiro; uma varredura de `src/**/*.{ts,tsx,css}` cobriria um import futuro em outro arquivo. Razão:
-  o nome do teste promete mais do que ele confere.
-- Minor (para a `08-revisao`): `src/app/layout.test.ts:13` fixa o formato de classe do substituto
-  (`fonte-teste-<variável>`). Se o substituto mudar, o teste do `lang` quebra por motivo alheio ao `lang`. Aceitável
-  agora; registrar se o substituto for reaproveitado em outra tarefa.
-- Minor (do engenheiro, para a `10-documentacao`): a soma exata dos seis woff2 não foi impressa; o teste só garante
-  ≤ 300 KB. Se o CHANGELOG quiser o número, ele sai do `pnpm build` ou do tamanho dos arquivos no `node_modules`.
-- Para a `06-T02-testes`: rodar `pnpm test:e2e` (fora da lista Pode do tech-lead), com atenção ao `e2e/fontes.spec.ts`
-  e à `axe-todas`.
+- Minor (para a `08-revisao`): `e2e/fontes.spec.ts:32` usa `getClientRects().length > 0`, e a espera do `:27` usa o
+  `:visible` do Playwright, que também exclui `visibility: hidden` e caixa vazia. O comentário diz que é "o mesmo
+  elemento", mas os dois critérios podem divergir. Hoje não muda nada (todo `.font-mono` tem a mesma família pela
+  classe). Razão: se a T09 trouxer variante escondida por `visibility`, a leitura da família pode vir de outro nó que o
+  da espera; trocar por `page.locator(MONO_VISIVEL).first().evaluate(...)` alinharia os dois.
+- Minor (para o qa-automacao): o piso de `e2e/fontes.spec.ts` em `fontes-qa.test.ts:250` pode ficar em 7. A linha a
+  mais (`:45`, `await expect(async () => {`) é o invólucro do `toPass`, não uma asserção nova; subir o piso para 8 não
+  protege nada a mais.
+- Minor (do engenheiro, para o qa-automacao e a `08-revisao`): `--repeat-each` acima de 3 em spec que chama
+  `entrarComo` esbarra no limite de taxa do login (`429` em `sign-in/email` e `two-factor/verify-totp`). Quem for
+  provar estabilidade de teste com login deve usar várias rodadas curtas.
+- Para a `06-T02-testes`: repetir `e2e/fontes.spec.ts` (fora da lista Pode do tech-lead) e a e2e inteira para
+  confirmar a estabilidade da T03.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat f6e8b4b176b9ad49a7f1734ebe75d2943d94af57~1 f6e8b4b176b9ad49a7f1734ebe75d2943d94af57` — 12 arquivos
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff f6e8b4b176b9ad49a7f1734ebe75d2943d94af57~1 f6e8b4b176b9ad49a7f1734ebe75d2943d94af57 -- e2e package.json src test vitest.config.ts` — diff do código
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff f6e8b4b176b9ad49a7f1734ebe75d2943d94af57~1 f6e8b4b176b9ad49a7f1734ebe75d2943d94af57 -- pnpm-lock.yaml` — só as entradas dos dois pacotes
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d f6e8b4b176b9ad49a7f1734ebe75d2943d94af57 -- src/proxy.ts src/proxy.test.ts next.config.ts src/app/api src/db drizzle src/modules/acesso src/worker src/jobs src/agents src/lib/auth.ts src/lib/auth-cliente.ts src/lib/qr.ts src/lib/log.ts src/lib/erros.ts src/instrumentation.ts pnpm-workspace.yaml "src/app/(painel)/configuracao/agentes/acoes.ts" "src/app/(painel)/demandas/[id]/acoes.ts" "src/app/(painel)/demandas/[id]/editar/acoes.ts" "src/app/(painel)/demandas/[id]/especificacoes/nova/acoes.ts" "src/app/(painel)/demandas/[id]/pacotes-decisao/novo/acoes.ts" "src/app/(painel)/demandas/[id]/pareceres-risco/novo/acoes.ts" "src/app/(painel)/demandas/nova/acoes.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes.ts"` — vazio (G4, CV-01)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d f6e8b4b176b9ad49a7f1734ebe75d2943d94af57 --stat -- src/modules package.json` — só `package.json`, 2 inserções
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — f106749, 1b0136d, 1c8dd70, bae998e, …, f6e8b4b
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat bae998e f106749` — no código, só `e2e/fontes.spec.ts`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 1c8dd70~1 1c8dd70 -- e2e` — só `conferirFontes` e duas constantes
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico src/app/layout.test.ts` — 208 de 208
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat f6e8b4b f106749 -- e2e src test playwright.config.ts vitest.config.ts package.json pnpm-lock.yaml pnpm-workspace.yaml` — `e2e/fontes.spec.ts` e os dois arquivos do qa-automacao
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico` — 21 arquivos, 227 de 227
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — em segundo plano: 208 arquivos, 4578 de 4578, saída 0
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 
 ## Critério de pronto atendido
 
