@@ -186,7 +186,7 @@ export function FormularioEntrar({ destino, sessaoTerminou }: Props) {
           />
           <CaixaSelecao id={ID_MOSTRAR} rotulo="Mostrar senha" checked={mostrarSenha} onChange={(e) => setMostrarSenha(e.target.checked)} />
           <div>
-            <Botao type="submit" carregando={enviando} textoCarregando="Verificando…">
+            <Botao type="submit" carregando={enviando} textoCarregando="Verificando…" className="w-full">
               Continuar
             </Botao>
           </div>
@@ -226,8 +226,8 @@ export function FormularioEntrar({ destino, sessaoTerminou }: Props) {
               />
             </>
           )}
-          <div className="flex flex-wrap items-center gap-4">
-            <Botao type="submit" carregando={enviando} textoCarregando="Verificando…">
+          <div className="flex flex-col items-center gap-2">
+            <Botao type="submit" carregando={enviando} textoCarregando="Verificando…" className="w-full">
               Entrar
             </Botao>
             <Botao variante="link" onClick={trocarModo} disabled={enviando}>
