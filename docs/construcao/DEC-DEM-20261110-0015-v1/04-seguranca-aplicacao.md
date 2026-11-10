@@ -3,7 +3,7 @@ pedido: DEC-DEM-20261110-0015-v1
 etapa: 04-ameacas
 agente: seguranca-aplicacao
 leu: [pedido.json, 01-analista-requisitos.md, 02-arquiteto-solucoes.md, 03-ux-ui-design.md, padrao-tecnico.md, contrato-passagem.md, passagens.jsonl, docs/construcao/DEC-DEM-20261022-0001-v1/04-seguranca-aplicacao.md, docs/construcao/DEC-DEM-20261022-0001-v1/08-correcao-engenheiro-backend.md (A-01 a A-04), docs/manual-tecnico/02-acesso-e-seguranca.md, src/proxy.ts, next.config.ts, Dockerfile, package.json, pnpm-workspace.yaml, src/app/layout.tsx, src/app/(painel)/demandas/page.tsx, src/modules/demandas/consultas.ts, src/modules/acesso/matriz.ts, src/app/(painel)/pacotes-decisao/[decId]/FormularioDecisao.tsx, src/app/(painel)/pacotes-decisao/[decId]/acoes.ts, src/components/CampoTexto.tsx, e2e/apoio.ts]
-status: bloqueado
+status: pronto
 proximo: tech-lead
 devolvido_para: null
 ---
@@ -283,11 +283,11 @@ pendentes com `juridico-contratos` lá. O que muda é **onde** o dado aparece:
 - Capturas só em loopback (CV-17): o e2e aceita `BASE_URL`, e uma captura contra produção iria para o git, que não tem expurgo.
 - Campos da T11 sem `name` (CV-15): o formulário de hoje já não tem; o controle impede que a reforma acrescente e leve o documento para a URL num envio antes da hidratação.
 - Prefixo CV- nos controles: os IDs C-, A-, S-, M- e B- já existem no sistema e continuam valendo.
+- Volta 2: o maestro liberou os comandos só de leitura fora da lista Pode da volta 1 (`ls`, `cd`, `git grep`), pela regra de 25/10, e eles saíram de Comandos executados por instrução dele; o conteúdo técnico não mudou.
 - `pnpm audit --prod` em 10/11: 0 alta e 0 crítica, 5 moderadas (esbuild, `@vitest/mocker`, glob, minimatch), todas transitivas, de ferramenta de build ou teste e anteriores a este pedido; não bloqueiam pelo padrão técnico (alta ou crítica bloqueia).
 
 ## Pendências
 
-- Comando fora da lista Pode: `ls`, `cd` e `git grep` (só leitura, 3 comandos, na exploração inicial). O conteúdo técnico está completo; pede a liberação do maestro para regravar a entrega sem eles (regra de 25/10).
 - `tech-lead` / `devops-sre` (não bloqueia): o estágio final do `Dockerfile` copia o `node_modules` inteiro, com as `devDependencies` (fontes incluídas), que o `pnpm audit --prod` não cobre. Na 08, rodar uma vez `pnpm audit --audit-level high` sem `--prod` (comando fora da minha lista) ou registrar a lacuna para um pedido próprio de imagem só com dependências de produção.
 - `tech-lead` (não bloqueia): as 5 vulnerabilidades moderadas anteriores (esbuild via drizzle-kit, `@vitest/mocker` < 5.0.3, glob ≤ 14.0.1, minimatch < 11.0.1) entram no backlog de atualização; nenhuma roda no app em produção.
 - `marketing-comunicacao` (P-02 do 01, não bloqueia): se a marca mudar para logotipo em arquivo, ele entra no bundle (SVG no JSX ou arquivo importado), nunca por URL externa (CV-02).
@@ -295,13 +295,10 @@ pendentes com `juridico-contratos` lá. O que muda é **onde** o dado aparece:
 
 ## Comandos executados
 
-- `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261110-0015-v1` — fora da lista Pode (só leitura)
-- `cd /home/deploy/servidor/projetos/ws-orquestrador-demandas` — fora da lista Pode
 - `git status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, limpo
 - `git log --oneline -5` — topo c18b67b
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -3 198e97d` — base 198e97d (merge do PR #15)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show HEAD:src/app/(painel)/pacotes-decisao/[decId]/acoes.ts` — não executou (erro de sintaxe do shell nos parênteses); o arquivo foi lido pela ferramenta Read
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -i -E "desatualizad|revisouRascunhos|exigeRevis" -- src/modules/pacotes-decisao/decidir.ts src/modules/pacotes-decisao/schemas.ts` — fora da lista Pode (só leitura); servidor recusa aprovação de desatualizado e exige a revisão (`decidir.ts`, 241 a 243)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -S "A-03" -- docs/manual-tecnico CHANGELOG.md`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline --reverse -S "A-03 " -- src` — a4ec19f
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat a4ec19f`
