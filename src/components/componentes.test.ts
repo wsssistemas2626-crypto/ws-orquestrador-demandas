@@ -358,23 +358,43 @@ describe('DialogoConfirmacao (03, 2.3)', () => {
 });
 
 describe('CabecalhoPainel (03, 2.7)', () => {
+  // 0.2.0 (T05; 03, 3.2 e 3.3): o header da casca. A marca vem em três blocos de texto (MarcaWs) e cada item do menu
+  // tem um ícone SVG aria-hidden antes do texto; o "Menu" controla a gaveta (`gaveta-menu`), e não mais a navegação.
   it('nome do sistema com link para a fila, navegação "Principal", conta e botão de menu', () => {
     const s = html(h(CabecalhoPainel, { nome: 'Pessoa Ficticia CTO', papel: 'cto' }));
     expect(s).toMatch(/^<header/);
-    expect(s).toMatch(/<a[^>]*href="\/demandas"[^>]*>WS Orquestrador de Demandas<\/a>/);
+    expect(s).toMatch(/<a[^>]*href="\/demandas"[^>]*><span[^>]*>WS<\/span> <span[^>]*><span[^>]*>Orquestrador<\/span> <span[^>]*>de Demandas<\/span><\/span><\/a>/);
     expect(s).toContain('aria-label="Principal"');
     for (const [texto, href] of [
       ['Demandas', '/demandas'],
       ['Nova demanda', '/demandas/nova'],
       ['Agentes e teto', '/configuracao/agentes'],
     ])
-      expect(s).toMatch(new RegExp(`href="${href}"[^>]*>${texto}</a>`));
+      expect(s).toMatch(new RegExp(`href="${href}"[^>]*>(?:<svg[^>]*aria-hidden="true"[\\s\\S]*?</svg>)?${texto}</a>`));
     // Na fila, só "Demandas" é a página atual.
-    expect(s).toMatch(/<a aria-current="page"[^>]*href="\/demandas">Demandas<\/a>/);
+    expect(s).toMatch(/<a aria-current="page"[^>]*href="\/demandas">(?:<svg[\s\S]*?<\/svg>)?Demandas<\/a>/);
     expect(s.match(/aria-current="page"/g)).toHaveLength(1);
     expect(s).toContain('Pessoa Ficticia CTO (CTO)');
-    expect(s).toMatch(/aria-expanded="false"[^>]*>Menu</);
+    expect(s).toMatch(/aria-expanded="false"[^>]*>(?:<svg[\s\S]*?<\/svg>)?Menu</);
+    expect(s).toContain('aria-controls="gaveta-menu"');
     expect(s).toContain('>Sair</button>');
+  });
+
+  // 0.2.0 (T05; ADR-15, D-09): a gaveta é um <dialog> fechado e vazio até abrir; o menu lateral e a conta só aparecem a
+  // partir de 768 px, e a barra com "Menu" só abaixo. Um só nav "Principal" e um só "Sair" no HTML do servidor.
+  it('casca: gaveta fechada e vazia, menu lateral só a partir de 768 px, barra só abaixo, superfície escura', () => {
+    const s = html(h(CabecalhoPainel, { nome: 'Pessoa Ficticia CTO', papel: 'cto' }));
+    expect(s).toMatch(/<dialog id="gaveta-menu" aria-label="Menu"[^>]*><\/dialog>/);
+    expect(s).not.toMatch(/<dialog[^>]*\bopen\b/);
+    expect(s.match(/aria-label="Principal"/g)).toHaveLength(1);
+    expect(s.match(/>Sair<\/button>/g)).toHaveLength(1);
+    expect(s).toMatch(/<header class="[^"]*\bsuperficie-escura\b[^"]*\bbg-marinho\b/);
+    // A barra do celular (com "Menu") some a partir de 768 px; o menu lateral só aparece a partir de 768 px.
+    expect(s).toMatch(/<div class="[^"]*\bmd:hidden\b[^"]*"><button[^>]*aria-expanded="false"/);
+    expect(s).toMatch(/<div class="[^"]*\bhidden\b[^"]*\bmd:flex\b[^"]*">[\s\S]*aria-label="Principal"/);
+    // Ícones decorativos: todo SVG da casca fica fora da leitura.
+    expect(s.match(/<svg\b/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(s.match(/<svg\b(?![^>]*aria-hidden="true")/g)).toBeNull();
   });
 
   it('página atual: telas da demanda contam como "Demandas"; "Nova demanda" e "Agentes e teto" têm o próprio item', () => {

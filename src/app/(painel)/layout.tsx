@@ -1,8 +1,10 @@
-// Moldura do painel (03, 2.7): "Pular para o conteúdo" como primeiro elemento focável, cabeçalho com a navegação e a
-// conta, os avisos de agentes suspensos (RF-18) e de capacidade de ids (RNF-09) e o `main` da tela.
+// Casca do painel (03, seção 3 do pedido 0015; ADR-15): "Pular para o conteúdo" como primeiro elemento focável; o
+// menu (lateral a partir de 768 px, barra e gaveta abaixo) com a conta; e, na coluna do conteúdo, os avisos de agentes
+// suspensos (RF-18) e de capacidade de ids (RNF-09) acima do `main` da tela.
 //
 // Quem decide acesso é a página, com exigirPessoaNaPagina (C-04), que leva a /entrar com o caminho certo. A moldura só
-// lê a pessoa para mostrar o nome: sem sessão válida, não mostra nada além do conteúdo, e a página redireciona.
+// lê a pessoa para mostrar o nome e o papel, que vão ao menu por prop (CV-16): sem sessão válida, não mostra nada além
+// do conteúdo, e a página redireciona.
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
@@ -47,15 +49,19 @@ export default async function LayoutPainel({ children }: Readonly<{ children: Re
     <>
       <a
         href="#conteudo"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-campo focus:bg-fundo focus:px-4 focus:py-2"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-campo focus:bg-branco focus:px-4 focus:py-2 focus:text-acao-escura"
       >
         Pular para o conteúdo
       </a>
-      <CabecalhoPainel nome={moldura.pessoa.nome} papel={moldura.pessoa.papel} />
-      <AvisosDaMoldura tetoMensal={moldura.tetoMensal} suspenso={moldura.suspenso} totalDemandas={moldura.totalDemandas} />
-      <main id="conteudo" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-6">
-        {children}
-      </main>
+      <div className="md:flex">
+        <CabecalhoPainel nome={moldura.pessoa.nome} papel={moldura.pessoa.papel} />
+        <div className="min-w-0 flex-1">
+          <AvisosDaMoldura tetoMensal={moldura.tetoMensal} suspenso={moldura.suspenso} totalDemandas={moldura.totalDemandas} />
+          <main id="conteudo" tabIndex={-1} className="mx-auto w-full max-w-300 px-4 py-6 md:px-6 xl:px-8 xl:py-8">
+            {children}
+          </main>
+        </div>
+      </div>
     </>
   );
 }

@@ -47,6 +47,9 @@
 
   --radius-campo: 10px;
   --radius-cartao: 16px;
+
+  /* Ponto de quebra do computador (03, seção 0; G3.6 do plano): `xl:` a partir de 1200 px. `md:` (768 px) é o padrão. */
+  --breakpoint-xl: 75rem;
 }
 
 /* Famílias (ADR-13, RF-02): Noto Sans e Noto Sans Mono do próprio app (src/app/fontes.ts), pelas variáveis que o
@@ -58,11 +61,17 @@
 
 @layer base {
   :root {
-    /* Altura do cabeçalho fixo: o elemento focado nunca fica embaixo dele (03, 2.7; WCAG 2.4.11). A T05 troca pelos
-       valores da casca. */
-    --altura-cabecalho: 4.5rem;
+    /* Folga do topo para o elemento focado nunca ficar embaixo da barra fixa (03, 2.4 do pedido 0015; WCAG 2.4.11):
+       abaixo de 768 px, a barra de 56 px + 8 px; a partir de 768 px a casca é lateral e não cobre o topo. */
+    --altura-cabecalho: 4rem;
     /* Cor do anel de foco no claro (03, 2.1 do pedido 0015). */
     --cor-foco: var(--color-acao-escura);
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --altura-cabecalho: 1rem;
+    }
   }
 
   /* Foco branco dentro de toda superfície marinho (casca, gaveta, Próxima ação): 03, 2.1. */
@@ -119,6 +128,20 @@
     outline-offset: 2px;
   }
 
+  /* Gaveta do menu (03, 3.3 e 2.4; ADR-15): a página atrás não rola enquanto ela está aberta (classe posta por
+     classList); entra pela esquerda em 200 ms, a única animação do painel; véu de tinta a 50 %. */
+  html.gaveta-aberta {
+    overflow: hidden;
+  }
+
+  dialog#gaveta-menu[open] {
+    animation: gaveta-entra 200ms ease-out;
+  }
+
+  dialog#gaveta-menu::backdrop {
+    background-color: color-mix(in srgb, var(--color-tinta) 50%, transparent);
+  }
+
   /* Sem animação além de transição curta, e nenhuma com prefers-reduced-motion (03, seção 5). */
   @media (prefers-reduced-motion: reduce) {
     *,
@@ -129,5 +152,14 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+@keyframes gaveta-entra {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
   }
 }

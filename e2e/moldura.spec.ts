@@ -24,7 +24,8 @@ test('moldura: a conta aparece com o papel, o link de pular leva ao main e a tel
   await page.keyboard.press('Enter');
   await expect(page.locator('main#conteudo')).toBeFocused();
   await page.setViewportSize({ width: 320, height: 640 });
-  const menu = page.getByRole('button', { name: 'Menu' });
+  // `exact`: com a gaveta aberta (T05 do pedido 0015) também existe o botão "Fechar menu".
+  const menu = page.getByRole('button', { name: 'Menu', exact: true });
   await expect(menu).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('navigation', { name: 'Principal' })).toBeHidden();
   await menu.click();

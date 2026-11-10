@@ -200,7 +200,7 @@ describe('CabecalhoPainel: um item atual por rota do painel (03, 1 e 2.7)', () =
     navegacao.caminho = caminho;
     const s = html(h(CabecalhoPainel, { nome: 'Pessoa Ficticia CTO', papel: 'cto' }));
     expect(s.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(s).toMatch(new RegExp(`<a aria-current="page"[^>]*>${atual}</a>`));
+    expect(s).toMatch(new RegExp(`<a aria-current="page"[^>]*>(?:<svg[\\s\\S]*?</svg>)?${atual}</a>`));
   });
 
   it('fora do painel (sem caminho, raiz ou /sem-permissao), nenhum item atual', () => {

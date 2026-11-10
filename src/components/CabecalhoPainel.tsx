@@ -1,101 +1,65 @@
 'use client';
 
-// Cabeçalho do painel (03, 2.7): nome do sistema (link para a fila), navegação "Principal" com a página atual em
-// aria-current, a conta ("<Nome> (CTO)") e "Sair". Em tela estreita, a navegação vira o botão "Menu" com aria-expanded.
-// Ao trocar de tela pelo painel, o foco vai ao h1 da tela nova; na primeira carga, não (o primeiro Tab é o "Pular para
-// o conteúdo").
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import { authClient } from '../lib/auth-cliente';
+// Casca do painel (03, seção 3; ADR-15; pedido 0015, T05): o `header` (banner) marinho, com o foco branco
+// (`superficie-escura`). A partir de 768 px é o menu lateral fixo na altura da janela (216 px até 1199 px, 248 px a
+// partir de 1200 px): marca com link para a fila, nav "Principal" com os três itens, a conta "<Nome> (<Papel>)" e
+// "Sair". Abaixo de 768 px, o mesmo `header` é a barra de 56 px com "Menu" e a marca compacta, e o menu vira a gaveta
+// (GavetaMenu). Um só banner e um só nav "Principal" expostos em cada largura.
+//
+// A casca não decide acesso (CV-16): nome e papel chegam por prop do layout do servidor (exigirPessoa), e quem decide é
+// a página (C-04). Mantém o nome de hoje (os testes de hoje importam este arquivo) e reexporta ehPaginaAtual.
+import { usePathname } from 'next/navigation';
+import { useRef, useState } from 'react';
 import type { Papel } from '../modules/acesso/ator';
-import { Botao } from './Botao';
+import { BotaoSair } from './casca/BotaoSair';
+import { FocoNaTrocaDeTela } from './casca/FocoNaTrocaDeTela';
+import { GavetaMenu, ID_GAVETA } from './casca/GavetaMenu';
+import { ItensDoMenu } from './casca/ItensDoMenu';
+import { MarcaWs } from './marca/MarcaWs';
 import { ROTULO_PAPEL } from './rotulos';
 
-const LINKS = [
-  { href: '/demandas', texto: 'Demandas' },
-  { href: '/demandas/nova', texto: 'Nova demanda' },
-  { href: '/configuracao/agentes', texto: 'Agentes e teto' },
-] as const;
-
-// Telas que pertencem à fila: detalhe, edição e as versões de ESP, RSK e DEC. "Nova demanda" tem item próprio.
-const DA_FILA = /^\/(demandas|especificacoes|pareceres-risco|pacotes-decisao)(\/|$)/;
-
-export function ehPaginaAtual(href: string, caminho: string | null): boolean {
-  if (!caminho) return false;
-  if (href === '/demandas') return DA_FILA.test(caminho) && caminho !== '/demandas/nova';
-  return caminho === href || caminho.startsWith(`${href}/`);
-}
+export { ehPaginaAtual } from './casca/navegacao';
 
 type Props = { nome: string; papel: Papel };
 
 export function CabecalhoPainel({ nome, papel }: Props) {
   const caminho = usePathname();
-  const router = useRouter();
-  const [menuAberto, setMenuAberto] = useState(false);
-  const [saindo, setSaindo] = useState(false);
-  // O caminho da última tela focada. Comparar o caminho, e não "já rodou uma vez", porque o efeito roda duas vezes na
-  // mesma tela em modo estrito do React.
-  const caminhoAnterior = useRef(caminho);
-
-  useEffect(() => {
-    if (caminhoAnterior.current === caminho) return;
-    caminhoAnterior.current = caminho;
-    const h1 = document.querySelector<HTMLElement>('main h1');
-    if (!h1) return;
-    if (!h1.hasAttribute('tabindex')) h1.setAttribute('tabindex', '-1');
-    h1.focus();
-  }, [caminho]);
-
-  // "Sair" pelo cliente do Better Auth (T37): a sessão acaba no servidor, e entrar de novo pede o código (C-05).
-  async function sair() {
-    setSaindo(true);
-    try {
-      await authClient().signOut();
-    } finally {
-      router.replace('/entrar');
-      router.refresh();
-    }
-  }
+  const [gavetaAberta, setGavetaAberta] = useState(false);
+  const botaoMenu = useRef<HTMLButtonElement>(null);
+  const conta = `${nome} (${ROTULO_PAPEL[papel]})`;
 
   return (
-    <header className="sticky top-0 z-10 border-b border-borda bg-fundo">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-4 py-1">
-        <Link href="/demandas" className="inline-flex min-h-11 items-center font-semibold text-texto no-underline">
-          WS Orquestrador de Demandas
-        </Link>
-        <button
-          type="button"
-          className="inline-flex min-h-11 min-w-11 items-center rounded-campo border border-borda px-3 md:hidden"
-          aria-expanded={menuAberto}
-          aria-controls="navegacao-principal"
-          onClick={() => setMenuAberto((v) => !v)}
-        >
-          Menu
-        </button>
-        <nav id="navegacao-principal" aria-label="Principal" className={`${menuAberto ? 'block' : 'hidden'} w-full md:block md:w-auto`}>
-          <ul className="flex flex-col gap-1 md:flex-row md:gap-2">
-            {LINKS.map((l) => (
-              <li key={l.href}>
-                <Link
-                  href={l.href}
-                  aria-current={ehPaginaAtual(l.href, caminho) ? 'page' : undefined}
-                  onClick={() => setMenuAberto(false)}
-                  className="inline-flex min-h-11 items-center rounded-campo px-2 text-primaria underline-offset-4 hover:underline aria-[current=page]:font-semibold aria-[current=page]:underline aria-[current=page]:decoration-2"
-                >
-                  {l.texto}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="flex items-center gap-3 md:ml-auto">
-          <span>{`${nome} (${ROTULO_PAPEL[papel]})`}</span>
-          <Botao variante="secundario" onClick={sair} disabled={saindo}>
-            Sair
-          </Botao>
+    <>
+      <FocoNaTrocaDeTela />
+      <header className="superficie-escura sticky top-0 z-20 bg-marinho text-texto-claro md:flex md:h-screen md:w-54 md:shrink-0 md:flex-col md:overflow-y-auto xl:w-62">
+        <div className="flex h-14 items-center gap-3 px-4 md:hidden">
+          <button
+            ref={botaoMenu}
+            type="button"
+            aria-expanded={gavetaAberta}
+            aria-controls={ID_GAVETA}
+            onClick={() => setGavetaAberta(true)}
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center gap-2 rounded-campo border border-azul-claro px-3 font-medium text-branco hover:bg-marinho-luz"
+          >
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true" focusable="false">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            Menu
+          </button>
+          <MarcaWs variante="escura" compacta comLink />
         </div>
-      </div>
-    </header>
+        <div className="hidden flex-1 flex-col gap-6 px-4 py-6 md:flex">
+          <MarcaWs variante="escura" comLink />
+          <nav aria-label="Principal">
+            <ItensDoMenu caminho={caminho} />
+          </nav>
+          <div className="mt-auto flex flex-col gap-3 border-t border-marinho-luz pt-4">
+            <p className="text-sm text-texto-claro">{conta}</p>
+            <BotaoSair className="w-full" />
+          </div>
+        </div>
+      </header>
+      <GavetaMenu aberta={gavetaAberta} caminho={caminho} conta={conta} botaoMenu={botaoMenu} aoFechar={() => setGavetaAberta(false)} />
+    </>
   );
 }
