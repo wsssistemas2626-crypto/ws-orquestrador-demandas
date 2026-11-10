@@ -103,6 +103,8 @@ rodada, como o plano previa: o código de hoje está limpo.
 - Vigia no contexto, não só na página: cobre a segunda aba dos specs que já a usam, sem mudar spec.
 - `import { type Page } from '@playwright/test'` em vez de `import type`: mexe só nos nomes da linha que já existia, e
   o lint aceita.
+- Volta 2: o maestro liberou o `tail` só de leitura da volta 1 (resumo da saída temporária do `pnpm test`), e ele
+  saiu de Comandos executados por instrução dele; nenhum código mudou nesta volta.
 
 ## Pendências
 
@@ -119,7 +121,6 @@ rodada, como o plano previa: o código de hoje está limpo.
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 4491 de 4491
-- `tail -n 12 /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/tasks/bg2njxfsq.output` — só leitura do resumo da rodada anterior, gravado na pasta temporária da sessão; fora da lista Pode, feito por engano no lugar do Read; declarado aqui
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 145 de 145 (vigia.spec como falha esperada)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/vigia.spec.ts` — 1 de 1 (a edição que tirava o `test.fail()` ainda não tinha sido aplicada)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/vigia.spec.ts` — sem `test.fail()`: falhou pela vigia (saída acima), como esperado
