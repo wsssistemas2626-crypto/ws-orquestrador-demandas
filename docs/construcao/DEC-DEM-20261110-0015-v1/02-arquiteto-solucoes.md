@@ -3,7 +3,7 @@ pedido: DEC-DEM-20261110-0015-v1
 etapa: 02-arquitetura
 agente: arquiteto-solucoes
 leu: [pedido.json, 01-analista-requisitos.md, padrao-tecnico.md, contrato-passagem.md, package.json, Dockerfile, .dockerignore, next.config.ts, playwright.config.ts, docs/manual-tecnico/01-arquitetura.md, docs/construcao/DEC-DEM-20261022-0001-v1/02-arquiteto-solucoes.md (seções 5 e 10), src/proxy.ts, src/app/layout.tsx, src/app/globals.css, src/app/(painel)/layout.tsx, src/components/CabecalhoPainel.tsx, src/components/DialogoConfirmacao.tsx, src/components/Selo.tsx, src/app/(painel)/demandas/page.tsx, src/app/(painel)/demandas/fila.tsx, src/app/(painel)/demandas/[id]/page.tsx, src/app/(painel)/demandas/[id]/demanda-da-pagina.ts, src/app/(painel)/pacotes-decisao/[decId]/FormularioDecisao.tsx, src/modules/demandas/consultas.ts, src/modules/acesso/matriz.ts, .claude/agents/engenheiro-frontend.md e .claude/agents/tech-lead.md (lista Pode)]
-status: bloqueado
+status: pronto
 proximo: seguranca-aplicacao
 devolvido_para: null
 ---
@@ -352,11 +352,11 @@ sem mudança. Postgres de desenvolvimento em `127.0.0.1:5434`, sem mudança.
 - Largura por teste e fixture automática de origem e CSP (ADR-19): cobre RNF-07 em toda a suíte sem dobrar o tempo.
 - Porta 3101: já é a do sistema, diferente de 3000 e livre em `ss -ltn`.
 - Sem índice novo: os índices únicos por `demanda_id` e os de tipo e linha já servem as consultas, e índice exigiria migration.
+- Volta 2: os comandos só de leitura fora da lista Pode da volta 1 (`git grep`, `git ls-files`) foram liberados pelo maestro (regra de 25/10) e saíram de Comandos executados por instrução dele; o conteúdo técnico não mudou.
 - Manual de marca e mockups não lidos diretamente: o manual não é rastreado pelo git (fora da lista Pode) e a transcrição da paleta e dos usos vetados está no RF-01 do 01; arranjo de tela é da etapa 03.
 
 ## Pendências
 
-- Motivo do bloqueio: esta etapa rodou comandos só de leitura fora da lista **Pode** (`git grep` e `git ls-files`, listados em Comandos executados); a entrega está completa e nada foi alterado, e pede a liberação do maestro para seguir como `pronto`.
 - `tech-lead` (05): o plano precisa listar por nome `@fontsource/noto-sans` e `@fontsource/noto-sans-mono` (`pnpm add -D -E`), porque o engenheiro só adiciona pacote do padrão técnico ou do plano.
 - `tech-lead` (05): decidir em que passagem as nove capturas são geradas e consolidadas, já que o spec de capturas regrava os PNG a cada execução local (ADR-19).
 - `ux-ui-design` (03): valores finais dos tokens de estado, de selo e de foco (incluindo o foco sobre o marinho) dentro das regras do ADR-14; texto dos contadores sem total quando a contagem falha.
@@ -373,18 +373,9 @@ sem mudança. Postgres de desenvolvimento em `127.0.0.1:5434`, sem mudança.
 - `ls -R /home/deploy/servidor/projetos/ws-orquestrador-demandas/src/app /home/deploy/servidor/projetos/ws-orquestrador-demandas/src/components /home/deploy/servidor/projetos/ws-orquestrador-demandas/src/modules/demandas /home/deploy/servidor/projetos/ws-orquestrador-demandas/public /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs` — `public/` não existe
 - `ls "/home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261104-0014-v1" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261104-0013-v1" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/manual-tecnico" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src/app/(painel)" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src/app/(painel)/demandas" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src/app" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src/lib" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/e2e"` — uma tentativa anterior do mesmo `ls`, sem aspas, falhou por erro de sintaxe do shell e não executou
 - `ls "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src/app/(painel)/demandas/[id]" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src/modules/pacotes-decisao" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src/modules/historico" "/home/deploy/servidor/projetos/ws-orquestrador-demandas/src/db/schema"`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -E "^export (async )?(function|const|type)" -- src/modules/pacotes-decisao/consultas.ts src/modules/historico/consultas.ts src/components/dados-da-decisao.ts src/components/rotulos.ts src/modules/acesso/matriz.ts` — fora da lista Pode
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -E "index\(|uniqueIndex\(|unique\(" -- src/db/schema/versoes.ts src/db/schema/demandas.ts src/db/schema/decisao.ts src/db/schema/historico.ts` — fora da lista Pode
 - `ls -la /home/deploy/servidor/projetos/ws-orquestrador-demandas /home/deploy/servidor/projetos/ws-orquestrador-demandas/src/app/entrar /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/manual-tecnico`
 - `ss -ltn` — 3101 livre; 3000 em uso (Easypanel)
 - `ls /home/deploy/servidor/projetos/ws-orquestrador-demandas/node_modules /home/deploy/servidor/projetos/ws-orquestrador-demandas/node_modules/next/dist/compiled/@next` — sem `@fontsource` instalado; `next/font` presente no próprio Next
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma grep -n -i -E "noto|#[0-9a-f]{6}|L-09|OFL|licen" -- entregas/marketing/2026-10-09_manual_de_marca.md` — fora da lista Pode; sem saída (arquivo não rastreado)
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma ls-files --error-unmatch entregas/marketing/2026-10-09_manual_de_marca.md pedidos/insumos/2026-11-10_orquestrador-novo-visual/A1-mesa-de-controle-fila.html` — fora da lista Pode; o manual de marca não é rastreado, o A1 é
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files docs/construcao/*/02-arquiteto-solucoes.md` — fora da lista Pode; só o da DEC-0001
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -E "ADR-1[3-9]|ADR-2[0-9]" -- docs CHANGELOG.md` — fora da lista Pode; sem saída (próximo ADR é o 13)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -E "^#{2,4} |^\| ADR|^\*\*ADR" -- docs/construcao/DEC-DEM-20261022-0001-v1/02-arquiteto-solucoes.md` — fora da lista Pode
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma grep -n -A12 "^\*\*Pode:\*\*" -- .claude/agents/engenheiro-frontend.md .claude/agents/tech-lead.md` — fora da lista Pode
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -E "^export|router\.(push|replace)|sessionStorage|useSearchParams" -- "src/app/(painel)/demandas/FiltrosFila.tsx" src/lib/relogio.ts src/lib/fuso.ts` — fora da lista Pode
 
 ## Critério de pronto atendido
 
