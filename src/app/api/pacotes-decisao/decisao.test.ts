@@ -442,6 +442,33 @@ describe('PATCH /api/pacotes-decisao/:decId/decisao: aprovação que substitui (
     await semMudanca(v2);
     expect(await substituicoes(demandaId)).toEqual([]);
   });
+
+  // S-01 da 04-revisao: o DEC só do CTO não substitui um aprovado de dupla aprovação. 409 com a mensagem fixa, antes de
+  // gravar: nenhuma linha em aprovacao ou decisao e nenhum evento de substituição.
+  it('v1 aprovado pelo CTO e pela administradora; v2 só do CTO → 409 com a mensagem fixa, nada gravado e nada substituído', async () => {
+    const { demandaId, decId: v1 } = await prepararDec({ nivel: 'cto_e_administradora' });
+    expect((await decidir(v1, APROVAR_A)).status).toBe(200);
+    expect((await decidir(v1, { ...APROVAR_A, ...DOC }, adm())).status).toBe(200);
+    const v2 = (
+      await criarPacoteDecisao(
+        deps,
+        novaAutora(),
+        demandaId,
+        criarPacoteDecisaoSchema.parse({ resumoExecutivo: 'Resumo', opcaoA: { descricao: 'Opção A' }, opcaoB: { descricao: 'Opção B' }, nivelAprovacaoRequerido: 'cto' }),
+      )
+    ).id;
+    const r = await decidir(v2, { statusDecisao: 'aprovada', opcaoEscolhida: 'B' });
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual({
+      erro: 'conflito',
+      mensagem:
+        'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora.',
+    });
+    await semMudanca(v2);
+    expect(await substituicoes(demandaId)).toEqual([]);
+    expect(await contar('aprovacao', v1)).toBe(2);
+    expect(await contar('decisao', v1)).toBe(1);
+  });
 });
 
 describe('log da rota da decisão (C-21)', () => {

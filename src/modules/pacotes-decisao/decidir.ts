@@ -9,9 +9,10 @@
 //   5. desatualizado, relido sob a trava → 409 só para aprovar (CA-12.2, CA-12.3);
 //   6. rascunho de agente citado sem a confirmação de revisão → 400 (CA-13.4);
 //   7. devolvida ou arquivada: grava a decisão, e a demanda muda pelo ator sistema (RF-07);
-//   8. aprovada: o papel é o da conta (C-11, P1-a); nível cto só por conta cto (P1-b); nível cto_e_administradora com
-//      as duas aprovações, a mesma opção e a referência ao documento assinado da administradora. A aprovação não muda
-//      o status da demanda (P1-d).
+//   8. aprovada: o papel é o da conta (C-11, P1-a); nível cto só por conta cto (P1-b), e só se o aprovado vigente da
+//      demanda não exigiu a administradora → 409, antes de gravar (S-01 da 04-revisao do 0014); nível
+//      cto_e_administradora com as duas aprovações, a mesma opção e a referência ao documento assinado da
+//      administradora. A aprovação não muda o status da demanda (P1-d).
 // A aprovação completa do DEC mais novo substitui o aprovado anterior da demanda (0.1.13, opção b do E5 do 0013, no
 // lugar da recusa do A-02): o anterior fica `substituido` na leitura (substituido.ts), o histórico grava a substituição
 // com os dois ids, e só o aprovado mais novo gera o Pedido de Construção (gerar.ts).
@@ -32,7 +33,7 @@ import { registrarEvento } from '../historico/registrar';
 import { travarDemanda } from '../versoes';
 import { obterPacoteDecisao, type PacoteDecisaoVista } from './consultas';
 import type { RegistrarDecisao } from './schemas';
-import { aprovadoMaisNovo } from './substituido';
+import { aprovadoMaisNovo, aprovadoVigente } from './substituido';
 
 // P1-a: só a própria administradora, com conta e 2FA, registra a aprovação de papel `administradora`. Trocar para
 // 'cto_com_referencia' deixa o CTO registrar em nome dela, com a referência ao documento assinado.
@@ -48,6 +49,9 @@ export const MENSAGENS_DECISAO = {
   naoEhOMaisNovo: 'a demanda tem um pacote mais novo; só o mais novo pode ser decidido.',
   // M-08: texto decidido na 02-triagem do DEC-DEM-20261103-0007-v1, para revisão da ux-ui-design.
   demandaFinal: 'a demanda está em status final; o pacote não pode mais ser decidido.',
+  // S-01 da 04-revisao do DEC-DEM-20261104-0014-v1: texto fixo, sem id nem nome, para revisão da ux-ui-design.
+  nivelMenorQueOVigente:
+    'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora.',
   revisarRascunhos: 'Marque que revisou os rascunhos de agente para registrar a decisão.',
   semReferencia: 'Informe o identificador do documento assinado.',
   semDataDocumento: 'Informe a data da assinatura.',
@@ -181,6 +185,11 @@ async function aprovar(c: Contexto, entrada: Aprovar): Promise<ResultadoDecisao>
   if (c.pacote.nivelAprovacaoRequerido === 'cto') {
     // P1-b: DEC de nível cto só é aprovado pela conta cto.
     if (papel !== 'cto') throw semPermissao();
+    // S-01 (04-revisao do 0014): o DEC só do CTO não substitui um aprovado que exigiu a administradora. Lido sob a trava
+    // e antes de gravar: a recusa não deixa aprovação, decisão nem evento. O nível do DEC vem de quem o criou
+    // (criar.ts), por isso a guarda fica aqui, na aprovação que substituiria.
+    const vigente = await aprovadoVigente(c.tr.tx, c.pacote.demandaId);
+    if (vigente?.nivel === 'cto_e_administradora') throw conflito(MENSAGENS_DECISAO.nivelMenorQueOVigente);
     await gravarAprovacao(c, entrada, papel);
     return fecharAprovacao(c, entrada.opcaoEscolhida, comentarios);
   }

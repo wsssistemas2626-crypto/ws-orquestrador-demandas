@@ -352,11 +352,78 @@ describe('S2: aprovar o DEC mais novo com outro DEC da demanda já aprovado', ()
     }
   });
 
-  it('v1 de dupla aprovação substituído por um v2 só do CTO: a regra vale entre níveis diferentes', async () => {
+});
+
+// S-01 da 04-revisao: uma aprovação só do CTO não substitui um DEC aprovado com a assinatura da administradora. A recusa
+// vem sob a trava e antes de gravar: nem aprovação, nem decisão, nem evento. O inverso continua: um DEC de dupla
+// aprovação substitui um aprovado só do CTO, com as duas aprovações.
+describe('S-01: o nível do DEC que substitui não é menor que o do aprovado vigente', () => {
+  const eventosDoDec = async (demandaId: string, decId: string) => (await eventosDa(demandaId)).filter((e) => e.entidadeId === decId);
+
+  it('v1 de dupla aprovação aprovado; v2 só do CTO aprovado pela cto → 409 nivelMenorQueOVigente, nada gravado, v1 não substituído', async () => {
     const { demandaId, v1 } = await comV1Aprovado('cto_e_administradora');
     const v2 = await novoDec(demandaId);
-    expect((await registrarDecisao(deps, cto, v2, aprovar('B'))).resultado).toBe('aprovada');
+    const eventosAntes = (await eventosDa(demandaId)).length;
+    for (const opcao of ['B', 'A'] as const) {
+      await expect(registrarDecisao(deps, cto, v2, aprovar(opcao)), opcao).rejects.toMatchObject({
+        codigo: 'conflito',
+        mensagem: MENSAGENS_DECISAO.nivelMenorQueOVigente,
+      });
+    }
+    expect(await aprovacoesDo(v2)).toEqual([]);
+    expect(await decisoesDo(v2)).toEqual([]);
+    // Nenhum evento novo na demanda: nem aprovacao_registrada, nem decisao_registrada, nem a substituição.
+    expect((await eventosDa(demandaId)).length).toBe(eventosAntes);
+    const acoesDoV2 = (await eventosDoDec(demandaId, v2)).map((e) => e.acao);
+    expect(acoesDoV2).not.toContain('aprovacao_registrada');
+    expect(acoesDoV2).not.toContain('decisao_registrada');
+    expect(await substituicoesDa(demandaId)).toEqual([]);
+    expect(await campos(v1)).toEqual({ statusDecisao: 'aprovada', substituido: false, substituidoPor: null });
+    expect(await campos(v2)).toEqual({ statusDecisao: 'pendente', substituido: false, substituidoPor: null });
+    expect(await aprovadoMaisNovo(b.db, demandaId)).toBe(v1);
+  });
+
+  it('a mensagem é fixa, em minúscula (a tela acrescenta o prefixo) e sem id nem nome', () => {
+    expect(MENSAGENS_DECISAO.nivelMenorQueOVigente).toBe(
+      'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora.',
+    );
+  });
+
+  it('o v2 só do CTO recusado ainda pode ser devolvido; um v3 de dupla aprovação, com as duas aprovações, substitui o v1', async () => {
+    const { demandaId, v1 } = await comV1Aprovado('cto_e_administradora');
+    const v2 = await novoDec(demandaId);
+    await expect(registrarDecisao(deps, cto, v2, aprovar('B'))).rejects.toMatchObject({ codigo: 'conflito' });
+    expect((await registrarDecisao(deps, cto, v2, decisaoDe({ statusDecisao: 'devolvida' }))).resultado).toBe('devolvida');
+    expect(await campos(v1)).toEqual({ statusDecisao: 'aprovada', substituido: false, substituidoPor: null });
+
+    const v3 = await novoDec(demandaId, 'cto_e_administradora');
+    expect((await registrarDecisao(deps, administradora, v3, aprovar('B', DOC))).resultado).toBe('aprovacao_parcial');
+    expect((await registrarDecisao(deps, cto, v3, aprovar('B'))).resultado).toBe('aprovada');
+    expect((await obterPacoteDecisao(b.db, v1)).substituidoPor).toBe(v3);
+    expect((await substituicoesDa(demandaId)).map((e) => e.depois)).toEqual([{ substituido: v1, substituidoPor: v3 }]);
+  });
+
+  it('um v2 de dupla aprovação substitui um v1 aprovado só do CTO; depois, um v3 só do CTO não substitui o v2', async () => {
+    const { demandaId, v1 } = await comV1Aprovado('cto');
+    const v2 = await novoDec(demandaId, 'cto_e_administradora');
+    expect((await registrarDecisao(deps, cto, v2, aprovar('A'))).resultado).toBe('aprovacao_parcial');
+    expect((await registrarDecisao(deps, administradora, v2, aprovar('A', DOC))).resultado).toBe('aprovada');
     expect((await obterPacoteDecisao(b.db, v1)).substituidoPor).toBe(v2);
+    expect(await aprovacoesDo(v2)).toHaveLength(2);
+
+    const v3 = await novoDec(demandaId);
+    await expect(registrarDecisao(deps, cto, v3, aprovar('A'))).rejects.toMatchObject({ codigo: 'conflito', mensagem: MENSAGENS_DECISAO.nivelMenorQueOVigente });
+    expect(await aprovacoesDo(v3)).toEqual([]);
+    expect(await decisoesDo(v3)).toEqual([]);
+    expect(await campos(v2)).toEqual({ statusDecisao: 'aprovada', substituido: false, substituidoPor: null });
+    expect((await substituicoesDa(demandaId)).map((e) => e.depois)).toEqual([{ substituido: v1, substituidoPor: v2 }]);
+  });
+
+  it('a administradora no v2 só do CTO segue com 403 (P1-b), antes da recusa de nível', async () => {
+    const { demandaId } = await comV1Aprovado('cto_e_administradora');
+    const v2 = await novoDec(demandaId);
+    await expect(registrarDecisao(deps, administradora, v2, aprovar('A', DOC))).rejects.toMatchObject({ codigo: 'sem_permissao' });
+    expect(await aprovacoesDo(v2)).toEqual([]);
   });
 });
 
