@@ -475,7 +475,7 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
 
   it('T06: os oito títulos dos e2e novos, cada um uma vez, melhoria, sob_medida e só com dado fictício', async () => {
     expect(TITULOS_DO_E2E).toMatchObject({
-      textoDeTerceiro: '<script>window.__xss=1</script> Pedido ‮ com texto de terceiro <img src=x onerror="window.__xss=2"> (fictício)',
+      textoDeTerceiro: `<script>window.__xss=1</script> Pedido ${String.fromCodePoint(0x202e)} com texto de terceiro <img src=x onerror="window.__xss=2"> (fictício)`,
       etapasSemVersoes: 'Etapas sem versões (fictício)',
       etapasDupla: 'Etapas com uma de duas aprovações (fictício)',
       decisaoOpcaoB: 'Aprovar a opção B (fictício)',
@@ -484,6 +484,8 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
       decisaoCelularDupla: 'Decisão no celular, dupla aprovação (fictício)',
       decisaoRecomendaB: 'Recomendação do agente cita a opção B (fictício)',
     });
+    // O caractere de direção vem de código no seed (sem-controle-bidi), mas o título que a tela recebe continua com ele.
+    expect(TITULOS_DO_E2E.textoDeTerceiro).toContain(String.fromCodePoint(0x202e));
     for (const chave of NOVAS_DA_T06) {
       const titulo = TITULOS_DO_E2E[chave];
       expect(titulo, chave).toContain('(fictício)');

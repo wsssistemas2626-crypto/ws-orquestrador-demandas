@@ -2,141 +2,128 @@
 pedido: DEC-DEM-20261110-0015-v1
 etapa: 06-T06-construcao
 agente: engenheiro-backend
-leu: [pedido.json, padrao-tecnico.md, contrato-passagem.md, tarefas.json, 05-tech-lead.md, docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md (G1 a G7, T05 a T08), scripts/seed-ficticio.ts, scripts/scripts.test.ts, src/modules/pacotes-decisao/criar.ts, src/modules/pacotes-decisao/decidir.ts, src/modules/pacotes-decisao/schemas.ts, src/modules/especificacoes/servico.ts, src/modules/especificacoes/schemas.ts, src/modules/pareceres-risco/servico.ts, src/modules/pareceres-risco/schemas.ts, src/modules/demandas/schemas.ts, src/modules/limites.ts, src/db/schema/decisao.ts, src/db/schema/versoes.ts (NIVEIS_RISCO), src/agents/consolidacao.ts, src/agents/insumo-tecnico.ts, test/estatico/piso-de-assercoes.test.ts, test/estatico/sem-recurso-externo.test.ts, test/estatico/decisao-e2e.test.ts, e2e/apoio.ts, e2e/preparacao.ts, e2e/decisao.spec.ts (cabeçalho e idDoDecDeRascunhoDoSeed), e2e/axe-todas.spec.ts]
+leu: [pedido.json, padrao-tecnico.md, contrato-passagem.md, tarefas.json, 05-tech-lead.md, 06-T06-tech-lead.md, 06-T06-engenheiro-backend.md (entrega anterior), docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md (G1 a G7, T05 a T08), scripts/seed-ficticio.ts, scripts/scripts.test.ts, src/modules/pacotes-decisao/criar.ts, src/modules/pacotes-decisao/decidir.ts, src/modules/pacotes-decisao/schemas.ts, src/modules/especificacoes/servico.ts, src/modules/especificacoes/schemas.ts, src/modules/pareceres-risco/servico.ts, src/modules/pareceres-risco/schemas.ts, src/modules/demandas/schemas.ts, src/modules/limites.ts, src/db/schema/decisao.ts, src/db/schema/versoes.ts (NIVEIS_RISCO), src/agents/consolidacao.ts, src/agents/insumo-tecnico.ts, test/estatico/piso-de-assercoes.test.ts, test/estatico/sem-recurso-externo.test.ts, test/estatico/decisao-e2e.test.ts, vitest.config.ts, e2e/apoio.ts, e2e/preparacao.ts, e2e/decisao.spec.ts (cabeçalho e idDoDecDeRascunhoDoSeed), e2e/axe-todas.spec.ts]
 status: pronto
 proximo: tech-lead
 devolvido_para: null
 ---
 ## Entrega
 
-T06, seed fictício das demandas dos e2e novos (D-07, G3.10). Só `scripts/` mudou; nenhum arquivo de `src/`, nenhuma
-superfície congelada do G4 e nenhuma regra de `src/modules/`.
+T06, seed fictício das demandas dos e2e novos (D-07, G3.10). **Volta 2**, pelo parecer 1 de `06-T06-tech-lead.md`: o
+U+202E (RIGHT-TO-LEFT OVERRIDE) estava **cru** no literal de `scripts/seed-ficticio.ts:162` e de
+`scripts/scripts.test.ts:478` (Trojan Source, CVE-2021-42574), e não como sequência de escape, como a volta 1 dizia. O
+teste estático novo confirmou a falha nas duas linhas. Agora o caractere vem de código (`String.fromCodePoint(0x202e)`)
+e o título que a tela recebe continua com ele. O resto da tarefa não mudou.
 
-### Arquivos alterados
+### O que mudou nesta volta
 
-- `scripts/seed-ficticio.ts`
-  - `TITULOS_DO_E2E` ganha as oito chaves da tabela da T06: `textoDeTerceiro`, `etapasSemVersoes`, `etapasDupla`,
-    `decisaoOpcaoB`, `decisaoDevolverComOpcao`, `decisaoCelularCto`, `decisaoCelularDupla`, `decisaoRecomendaB`. Os
-    títulos são os do plano, letra a letra. O U+202E do `textoDeTerceiro` está escrito como `‮` no código.
-  - `RECOMENDACAO_DO_E2E = 'Recomendo a opção B (fictício).'` é exportada para o e2e da T13 procurar o texto sem
-    copiá-lo.
-  - `DEMANDAS_DO_E2E` ganha as oito demandas: tipo `melhoria`, linha `sob_medida`, solicitante `Pessoa Ficticia Produto`,
-    papel `produto`, cada uma com contexto, porque a descrição do Pedido sai do contexto. Elas são criadas pela conta
-    `sem2fa`, como as dez de antes. `TOTAL_DEMANDAS_DO_SEED` continua derivado e agora vale 23.
-  - A função nova `criarVersoesDoE2E` roda na mesma transação do seed, depois das demandas, e usa os serviços de hoje
-    (`criarEspecificacao`, `criarParecerRisco`, `criarPacoteDecisao`, `registrarDecisao`). Toda entrada passa pelo
-    schema Zod da rota:
-    - `etapasDupla` recebe a ESP v1, o RSK v1 e o DEC v1 de pessoa, nível `cto_e_administradora`, mais a aprovação do
-      CTO na opção A pela conta `cto`. O DEC fica pendente, com uma de duas aprovações e sem linha em `decisao`.
-    - `decisaoRecomendaB` recebe a ESP, o RSK e o DEC de agente (`insumo_tecnico`, `risco`, `consolidacao`), como a
-      primeira demanda. O DEC é a saída de exemplo da consolidação com a recomendação trocada por
-      `RECOMENDACAO_DO_E2E`, conferida de novo por `criarPacoteDecisaoSchema`, no nível `NIVEL_DO_DEC_DE_AGENTE`.
-- `scripts/scripts.test.ts`: é o teste do seed que já existia, e o plano manda mudá-lo porque ele conta as demandas.
-  Cada mudança em asserção que já existia está abaixo:
-  - linhas 365 a 376: `TOTAL_DEMANDAS_DO_SEED` passou de 15 para 23. A consulta do `comPacote` ganhou
-    `where demanda_titulo <> all($1)`, com os títulos do e2e. A asserção continua a mesma (um único DEC fora do e2e, o
-    de agente da primeira demanda); os DECs das demandas do e2e têm teste próprio.
-  - no teste "as demandas próprias do e2e": as 16 demandas sem versão continuam conferidas como antes (`nova`, 0, 0, 0,
-    autora `sem2fa`). `etapasDupla` e `decisaoRecomendaB` passam a ser conferidas como `pronta_para_decisao` com 1, 1
-    e 1. Uma asserção nova garante que só essas duas saem da regra. `toHaveLength(10)` passou a 18.
-  - no teste "duas subidas ao mesmo tempo" (qa-automacao T33): antes ele esperava um aviso e um job, agora espera três,
-    um por DEC, todos pendentes e com payload só `{ decId }` (C-22). A asserção de antes ficou de pé para o DEC de
-    agente da primeira demanda, filtrada pelo id dele, e a contagem de DECs (3) foi acrescentada.
-  - Nenhuma asserção foi apagada. O arquivo não está na lista do piso de asserções (CV-20).
+- `test/estatico/sem-controle-bidi.test.ts` (novo): varre `src/`, `scripts/`, `test/` e `e2e/` (`.ts`, `.tsx`, `.css`)
+  e os `*.config.*` da raiz, e reprova qualquer caractere de U+202A a U+202E e de U+2066 a U+2069, dizendo arquivo,
+  linha e código (`scripts/x.ts:2: U+202E`). A classe da regex é montada com `String.fromCodePoint` e `new RegExp`: nem
+  o caractere nem a sequência de escape aparecem no arquivo, e ele varre a si mesmo. Cinco testes:
+  1. a varredura enxerga o código (falha se o glob quebrar), inclusive os dois arquivos do achado e o próprio teste;
+  2. a lista cobre os nove controles, de U+202A a U+202E e de U+2066 a U+2069;
+  3. reprova cada controle plantado (texto montado com `String.fromCodePoint`), com arquivo, linha e código;
+  4. deixa passar os vizinhos dos intervalos (U+2029, U+202F, U+2065, U+206A) e a forma por código;
+  5. nenhum arquivo do repositório tem controle bidirecional cru.
+- `scripts/seed-ficticio.ts`:
+  - constante local `const RLO = String.fromCodePoint(0x202e);`, com comentário da razão, antes de `TITULOS_DO_E2E`;
+  - `textoDeTerceiro` passou a template literal com `${RLO}` no lugar do caractere cru. O texto é o mesmo, letra a
+    letra; a chave perde o tipo literal no `as const` e fica `string`, e nenhum consumidor depende do literal
+    (`pnpm typecheck` limpo);
+  - o comentário da linha 160 cita `criarVersoesDoE2E`, e não `VERSOES_DO_E2E`, que não existe (parecer 1, passo 3).
+- `scripts/scripts.test.ts`:
+  - linha 478: o título esperado é montado do mesmo jeito, com `${String.fromCodePoint(0x202e)}`; a asserção é a mesma;
+  - asserção nova: `expect(TITULOS_DO_E2E.textoDeTerceiro).toContain(String.fromCodePoint(0x202e))`, para o e2e
+    continuar recebendo o caractere. O laço logo abaixo, que já existia, confere que o título gravado no banco é igual
+    a `TITULOS_DO_E2E.textoDeTerceiro`, portanto **o título no banco continua com o U+202E**.
+  - Nenhuma asserção foi apagada.
 
-### Testes criados (em `scripts/scripts.test.ts`, bloco "seed fictício")
+### Visto falhando antes da correção
 
-1. `T06: os oito títulos dos e2e novos, cada um uma vez, melhoria, sob_medida e só com dado fictício`: confere os oito
-   títulos exatos, "(fictício)" em cada um, uma linha por título, tipo, linha, solicitante `Pessoa Ficticia …`,
-   contexto preenchido, e que o título com marcação é gravado como veio.
-2. `T06: etapasDupla tem ESP v1, RSK v1 e um DEC v1 de pessoa, cto_e_administradora, pendente, com a aprovação do CTO
-   na opção A`: uma aprovação só, papel `cto`, opção A, registrada pela conta `cto@ficticio.test`, sem referência a
-   documento. Nenhuma decisão gravada e um evento `aprovacao_registrada`.
-3. `T06: decisaoRecomendaB tem ESP, RSK e um DEC de agente (rascunho), cuja recomendação cita a opção B`: autoria dos
-   três agentes, `rascunho_agente = true`, recomendação igual a `RECOMENDACAO_DO_E2E` e com "opção B", nível
-   `cto_e_administradora`, sem aprovação e sem decisão.
-4. `T06: rodar o seed de novo não duplica demanda, versão, aprovação nem aviso`: idempotência. Com 23 demandas e 3 de
-   cada versão, um segundo `seedFicticio` devolve `recusado`, e as contagens das oito tabelas não mudam.
+`pnpm -C <repo> test test/estatico/sem-controle-bidi.test.ts` com o teste novo e o código ainda sem mudança: 5 testes,
+**1 falhou** e 4 passaram. Trecho:
 
-### Visto falhando antes do código
+```
+FAIL  test/estatico/sem-controle-bidi.test.ts > sem caractere de controle bidirecional cru no fonte > nenhum arquivo do repositório tem controle bidirecional cru
+AssertionError: expected [ …(2) ] to deeply equal []
++ [
++   "scripts/scripts.test.ts:478: U+202E",
++   "scripts/seed-ficticio.ts:162: U+202E",
++ ]
+```
 
-`pnpm -C <repo> test scripts/scripts.test.ts --reporter=json --outputFile=<scratchpad>/t06-vermelho.json` (relatório
-fora do repositório): 45 testes, **7 falharam** e 38 passaram. Trechos:
+Confirma o parecer 1: o caractere estava cru exatamente nas duas linhas apontadas, e em nenhum outro arquivo varrido.
 
-- `AssertionError: expected 15 to be 23 // Object.is equality` (`scripts.test.ts:368`)
-- `AssertionError: expected [ 15, 1, 1, 1, +0 ] to deeply equal [ 15, 3, 3, 3, 1 ]` (idempotência)
-- `TypeError: Cannot read properties of undefined (reading 'status')` (`etapasDupla` e `decisaoRecomendaB` não existiam)
-- `AssertionError: expected [ 'DEC-DEM-20261022-0001-v1' ] to have a length of 3 but got 1` (avisos e jobs)
+### Depois da correção
 
-### Depois do código
-
-- `scripts/scripts.test.ts`: 45 de 45.
-- `pnpm test` (suíte inteira): **218 arquivos, 4824 de 4824 testes**, 0 falhas.
-- `pnpm typecheck`: limpo (a primeira rodada acusou o TS2698 no spread de `PROMPTS.consolidacao.exemploSaida`, corrigido
-  passando o resultado por `criarPacoteDecisaoSchema.parse`).
+- `test/estatico/sem-controle-bidi.test.ts` e `scripts/scripts.test.ts`: 2 arquivos, 50 de 50 (5 + 45). No log, o
+  `seed_ficticio` `semeado` com `quantidade: 23` e a segunda execução `recusado`.
+- `pnpm test` (suíte inteira): **219 arquivos, 4829 de 4829 testes**, 0 falhas.
 - `pnpm lint`: limpo.
+- `pnpm typecheck`: limpo.
+- `git status`: modificados `scripts/scripts.test.ts` e `scripts/seed-ficticio.ts`; novo
+  `test/estatico/sem-controle-bidi.test.ts`. `git diff --stat`: 8 inserções e 3 remoções nos dois arquivos de
+  `scripts/`. Nenhum arquivo temporário no repositório (relatórios JSON ficaram no scratchpad da sessão).
+
+### O que segue da volta 1, sem mudança
+
+- `TITULOS_DO_E2E` com as oito chaves da tabela da T06 (`textoDeTerceiro`, `etapasSemVersoes`, `etapasDupla`,
+  `decisaoOpcaoB`, `decisaoDevolverComOpcao`, `decisaoCelularCto`, `decisaoCelularDupla`, `decisaoRecomendaB`);
+  `RECOMENDACAO_DO_E2E` exportada; `DEMANDAS_DO_E2E` com as oito demandas (tipo `melhoria`, linha `sob_medida`,
+  solicitante `Pessoa Ficticia Produto`, contexto preenchido, conta `sem2fa`); `TOTAL_DEMANDAS_DO_SEED` derivado (23).
+- `criarVersoesDoE2E` na mesma transação do seed, pelos serviços de `src/modules/` e com toda entrada pelo schema Zod
+  da rota: `etapasDupla` com ESP v1, RSK v1 e DEC v1 de pessoa (`cto_e_administradora`) e a aprovação do CTO na opção
+  A pela conta `cto`; `decisaoRecomendaB` com ESP, RSK e DEC de agente, recomendação `RECOMENDACAO_DO_E2E` revalidada
+  por `criarPacoteDecisaoSchema.parse`.
+- Os quatro testes T06 de `scripts/scripts.test.ts` e as mudanças explicadas nas asserções antigas (contagem 23,
+  filtro por título no `comPacote`, `toHaveLength(18)`, três avisos e jobs no teste da T33). Vermelho da volta 1: 7
+  falhas de 45; verde: 45 de 45.
 
 ### Desvios do plano
 
-- **Autoria das versões da `etapasDupla`:** o plano pede tudo "com a conta fictícia cto". A aprovação é da `cto`, como
-  pedido, porque é quem o e2e vê como aprovador, e aprovação não entra no limite C-36. A ESP, o RSK e o DEC de pessoa
-  são da `sem2fa` (papel cto), pela mesma razão de as demandas do e2e serem dela: o limite de 60 versões por hora
-  (`LIMITE_POR_HORA.artefato`) da conta "cto" fica todo para as specs, que criam ESP, RSK e DEC pela API com ela. A
-  regra de negócio não muda: a mesma função, com um ator de papel cto.
-- **Texto da ESP, do RSK e do DEC da `etapasDupla`:** o plano não dá o texto, então escrevi um curto e inventado
-  (`ESP_DO_E2E`, `RSK_DO_E2E`, `DEC_DO_E2E`, sistema `painel-ficticio`, riscos baixos). A `decisaoRecomendaB` usa as
-  saídas de exemplo dos prompts, como a primeira demanda.
-- **`RECOMENDACAO_DO_E2E` exportada:** é um nome a mais, que não está no G7. Serve para o e2e da T13 não repetir o
-  literal.
+- Os da volta 1, aceitos na revisão: autoria `sem2fa` (papel cto) da ESP, do RSK e do DEC da `etapasDupla`, com a
+  aprovação pela `cto`; textos curtos inventados para ESP, RSK e DEC dessa demanda; `RECOMENDACAO_DO_E2E` exportada.
+- Nesta volta: o teste estático também varre os `*.config.*` da raiz, além das quatro pastas do parecer. Custa nada e
+  fecha o mesmo vetor nos arquivos de configuração. `RLO` é constante **local** do seed, não exportada, para não somar
+  nome fora do G7; o teste monta o caractere por conta própria.
 
 ## Decisões tomadas
 
-- As versões do e2e são criadas pelos serviços de `src/modules/` na transação do seed, e não por SQL. Assim valem as
-  mesmas regras da API: trava, limite, evento, status pelo ator sistema e aviso. Uma falha desfaz o seed inteiro, como
-  o teste "falha no meio do seed" já cobre.
-- A recomendação trocada é conferida de novo pelo schema do DEC, e não espalhada direto. Toda entrada do seed passa
-  pelo Zod.
-- O U+202E fica escrito como `‮`, para o caractere invisível de direção não ficar cru no fonte, onde o ESLint e a
-  revisão poderiam não enxergá-lo.
-- No teste antigo, mudei a consulta (filtrando pelo título ou pelo id) em vez de mudar o número esperado. O que ele
-  provava (um DEC de agente fora do e2e, um aviso e um job dele com payload só `{ decId }`) continua provado, e o que
-  é novo ganhou asserção própria.
+- O caractere de direção vem de `String.fromCodePoint(0x202e)`, e não de sequência de escape no literal: a ferramenta
+  de edição decodifica a sequência digitada e grava o caractere cru, que foi a causa do achado.
+- O teste estático monta a classe da regex por código e se inclui na varredura: assim ele próprio não pode guardar o
+  caractere, e um caso plantado prova que a regra reprova.
+- A mensagem de falha diz arquivo, linha e código (U+XXXX), e não o caractere, para o relatório não carregar o mesmo
+  problema.
+- Na entrega, o caractere é citado só como U+202E e o escape como "sequência de escape", sem digitá-los.
 
 ## Pendências
 
-- `engenheiro-frontend` (T09 a T13), sem bloquear: agora o seed tem **dois** DECs de agente pendentes, o da primeira
-  demanda e o da `decisaoRecomendaB`. A função `idDoDecDeRascunhoDoSeed` de `e2e/decisao.spec.ts` pega o primeiro DEC
-  pendente com `rascunhoAgente` na lista da API. Hoje isso não quebra nada, porque nenhum teste daquela spec registra
-  decisão nele e nenhum e2e confere o texto da recomendação de exemplo (conferido com `git log -S`). A
-  `axe-todas.spec.ts` usa `DEC-<bug>-v1` direto. Se um e2e novo decidir no DEC achado por essa função, ele pode pegar
-  o da `decisaoRecomendaB`, que a T13 precisa pendente. O melhor é procurar pelo título.
-- `engenheiro-frontend`: a `etapasDupla` nasce em `pronta_para_decisao`, com a aprovação do CTO já gravada. A conta
-  "cto" verá "aprovação do CTO já registrada" na T11 dela, e só a "administradora" consegue completar a decisão.
-- Não rodei `pnpm test:e2e` nesta etapa: o comando é do `engenheiro-frontend` (G1). Os e2e que leem as demandas do seed
-  rodam na próxima tarefa de tela e na homologação.
-- Minor: os testes novos dependem do seed feito no teste "seed cria contas…" do mesmo `describe`, como os testes
-  vizinhos de hoje já dependem.
+- `engenheiro-frontend` (T09 a T13): ao usar `TITULOS_DO_E2E.textoDeTerceiro` nos e2e, importe a constante e nunca
+  copie o título; se precisar do caractere à parte, use `String.fromCodePoint(0x202e)`. O teste
+  `sem-controle-bidi` varre `e2e/` e reprova o caractere cru.
+- `engenheiro-frontend` (T12 e T13), sem bloquear: há dois DECs de agente pendentes no seed. `idDoDecDeRascunhoDoSeed`
+  de `e2e/decisao.spec.ts` pode achar o da `decisaoRecomendaB`; o melhor é procurar o DEC pela demanda do seed, pelo
+  título.
+- `engenheiro-frontend` (T11 a T13): nenhum e2e deve decidir a `etapasDupla`, que nasce em `pronta_para_decisao` com a
+  aprovação do CTO já gravada.
+- Não rodei `pnpm test:e2e`: o comando é do `engenheiro-frontend` (G1).
+- Minor (parecer 3 da revisão): os testes do bloco "seed fictício" dependem do seed feito no primeiro teste do
+  `describe`; dívida do bloco, não desta tarefa.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, limpo no início
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format=%h -- scripts test/banco.ts test/sessao.ts` — achar o teste do seed
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format= -- src/modules/pacotes-decisao src/modules/especificacoes src/modules/pareceres-risco` — achar os serviços
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — topo c1a8e5c (06-T05-testes)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format= -- src/modules/limites.ts src/modules/limites src/modules/versoes.ts src/modules/demandas/servico.ts src/modules/especificacoes/servico.ts src/modules/pareceres-risco/servico.ts e2e/apoio.ts`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only --format= -1 -- src/agents`
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — antes do código; saída truncada pela ferramenta, falhou (exit 1)
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts --reporter=json --outputFile=/tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/scratchpad/t06-vermelho.json` — 7 falharam, 38 passaram (vermelho)
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts --reporter=json --outputFile=/tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/scratchpad/t06-verde.json` — 45 de 45
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=json --outputFile=/tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/scratchpad/t06-suite.json` — exit 0 (rodada antes do ajuste de tipo; repetida abaixo)
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — TS2698 em `scripts/seed-ficticio.ts:402`, corrigido
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, árvore limpa no início
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/sem-controle-bidi.test.ts --reporter=json --outputFile=/tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/scratchpad/t06-bidi-vermelho.json` — vermelho: 1 falhou, 4 passaram (relatório truncava a lista)
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/sem-controle-bidi.test.ts` — vermelho: 1 falhou, 4 passaram; achados `scripts/scripts.test.ts:478: U+202E` e `scripts/seed-ficticio.ts:162: U+202E`
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/sem-controle-bidi.test.ts scripts/scripts.test.ts` — 2 arquivos, 50 de 50
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=json --outputFile=/tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/scratchpad/t06-bidi-suite.json` — exit 0 (relatório grande demais para ler; repetida abaixo)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — só `scripts/scripts.test.ts` e `scripts/seed-ficticio.ts` modificados
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — 2 arquivos, 222 inserções, 15 remoções
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "rascunhoAgente" --name-only --format=%h -- e2e` — `e2e/axe-todas.spec.ts`, `e2e/decisao.spec.ts`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "parecer de risco aponta" --name-only --format=%h -- e2e src test` — só `src/agents/consolidacao.ts`
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 218 arquivos, 4824 de 4824
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
+- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 219 arquivos, 4829 de 4829
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — `scripts/scripts.test.ts` e `scripts/seed-ficticio.ts` modificados, `test/estatico/sem-controle-bidi.test.ts` novo
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — 2 arquivos, 8 inserções, 3 remoções
 
 ## Critério de pronto atendido
 

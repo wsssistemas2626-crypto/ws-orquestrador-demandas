@@ -143,6 +143,9 @@ const DEMANDAS: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
 // DEC-DEM-20261102-0002-v1: a `decisao` é a demanda da decisao.spec (antes criada pela API na primeira vez que um teste
 // precisava, e de novo a cada worker novo do Playwright), e a `rskDuploClique` e a `espListaDeTextos` são as do duplo
 // clique e da T07 da parecer-risco-qa.spec. Com elas, a conta "cto" sai de 30 de 30 demandas na suíte para 27 de 30.
+// U+202E (RIGHT-TO-LEFT OVERRIDE) vem de código, e não cru no literal: cru, ele inverte o resto da linha no editor e no
+// diff ("Trojan Source", CVE-2021-42574); test/estatico/sem-controle-bidi.test.ts reprova o caractere cru no fonte.
+const RLO = String.fromCodePoint(0x202e);
 export const TITULOS_DO_E2E = {
   duplaAprovacao: 'Dupla aprovação do pacote (fictício)',
   pedidoGerar: 'Portal do pedido: gerar e baixar (fictício)',
@@ -157,9 +160,9 @@ export const TITULOS_DO_E2E = {
   // ("Santos" no contexto), contexto corrigido, DEC novo, aprovar e gerar.
   substituicao: 'Frete da filial: substituição do pacote (fictício)',
   // 0.2.0 (DEC-DEM-20261110-0015-v1, T06, D-07): as dos e2e novos do visual, pelo mesmo limite C-36. Só a `etapasDupla` e
-  // a `decisaoRecomendaB` nascem com ESP, RSK e DEC (VERSOES_DO_E2E); as outras, sem versão, e o e2e cria as dele. A
+  // a `decisaoRecomendaB` nascem com ESP, RSK e DEC (criarVersoesDoE2E); as outras, sem versão, e o e2e cria as dele. A
   // `textoDeTerceiro` traz marcação e o caractere de direção U+202E, que a tela tem de mostrar como texto.
-  textoDeTerceiro: '<script>window.__xss=1</script> Pedido ‮ com texto de terceiro <img src=x onerror="window.__xss=2"> (fictício)',
+  textoDeTerceiro: `<script>window.__xss=1</script> Pedido ${RLO} com texto de terceiro <img src=x onerror="window.__xss=2"> (fictício)`,
   etapasSemVersoes: 'Etapas sem versões (fictício)',
   etapasDupla: 'Etapas com uma de duas aprovações (fictício)',
   decisaoOpcaoB: 'Aprovar a opção B (fictício)',
