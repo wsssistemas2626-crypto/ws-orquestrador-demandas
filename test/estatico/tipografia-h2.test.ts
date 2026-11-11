@@ -1,5 +1,6 @@
 // test/estatico/tipografia-h2.test.ts — RF-01 e 03, 2.3 (T16 do DEC-DEM-20261110-0015-v1; Minor 1 da 06-T15-tech-lead):
-// todo `h2` do painel usa a escala da 03 (18 px, peso 700, entrelinha 1,3), que vem da regra de `h2` do globals.css.
+// todo `h2` do painel usa a escala da 03 (18 px, peso 700, entrelinha 1,3), que vem da regra de `h2` do globals.css. Desde
+// a T17, o `h3` também (16 px, peso 600; describe no fim do arquivo).
 // Nenhum `h2` de src/ sobrescreve o tamanho nem o peso por classe (`text-xl font-semibold` era o `h2` da 0.1.13). A cor,
 // o espaço e o `sr-only` continuam livres.
 import { globSync, readFileSync } from 'node:fs';
@@ -48,5 +49,35 @@ describe('03, 2.3 (T16): h2 só com a escala do globals.css', () => {
 
   it('nenhum h2 de src/ sobrescreve tamanho ou peso', () => {
     expect(codigo.flatMap((a) => h2ForaDaEscala(a, ler(a)))).toEqual([]);
+  });
+});
+
+// T17 do DEC-DEM-20261110-0015-v1 (Minor 3 da 06-T16-tech-lead): o mesmo vale para o `h3`, que a 03, 2.3 põe em 16 px,
+// peso 600, entrelinha 1,3, pela regra de `h3` do globals.css. O `h3` de `ListaDeVersoes` da T05 estava em
+// `text-lg font-semibold` (18 px). A exceção é a mesma etiqueta da 03, 2.3 (Mono, caixa alta).
+const RE_H3 = /<h3\b[^>]*>/g;
+
+export function h3ForaDaEscala(arquivo: string, fonte: string): string[] {
+  const achados: string[] = [];
+  for (const m of fonte.matchAll(RE_H3)) {
+    if (ETIQUETA.test(m[0])) continue;
+    const linha = fonte.slice(0, m.index).split('\n').length;
+    for (const c of m[0].matchAll(RE_TAMANHO_OU_PESO)) achados.push(`${arquivo}:${linha}: ${c[0]}`);
+  }
+  return achados;
+}
+
+describe('03, 2.3 (T17): h3 só com a escala do globals.css', () => {
+  it('os casos plantados reprovam e a cor, o espaço e o sr-only passam', () => {
+    expect(h3ForaDaEscala('X.tsx', '<h3 className="text-lg font-semibold">')).toEqual(['X.tsx:1: text-lg', 'X.tsx:1: font-semibold']);
+    expect(h3ForaDaEscala('X.tsx', 'a\nb\n<h3\n  className="md:text-xl text-tinta-media"\n>')).toEqual(['X.tsx:3: md:text-xl']);
+    expect(h3ForaDaEscala('X.tsx', '<h3 id="a" className="sr-only text-erro mt-2 text-marinho">')).toEqual([]);
+    expect(h3ForaDaEscala('X.tsx', '<h2 className="text-xl font-semibold">')).toEqual([]);
+    expect(h3ForaDaEscala('X.tsx', '<h3 className="font-mono text-xs font-semibold uppercase">')).toEqual([]);
+    expect(h3ForaDaEscala('X.tsx', '<h3 className="font-mono text-xs">')).toEqual(['X.tsx:1: text-xs']);
+  });
+
+  it('nenhum h3 de src/ sobrescreve tamanho ou peso', () => {
+    expect(codigo.flatMap((a) => h3ForaDaEscala(a, ler(a)))).toEqual([]);
   });
 });

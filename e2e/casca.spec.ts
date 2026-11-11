@@ -251,4 +251,28 @@ test.describe('celular (390 × 844)', () => {
     await abrirGaveta(page);
     await semViolacoes(page, 'gaveta aberta em 390 px');
   });
+
+  // T17 (DEC-DEM-20261110-0015-v1): a captura gaveta-aberta-390 mostrou "Fechar menu" cortado pela borda direita da
+  // gaveta. A marca e o botão não cabem lado a lado nos 288 px úteis da gaveta de 320 px, e a linha não quebrava: o botão
+  // saía da caixa e o conteúdo ganhava rolagem lateral. Pelo desenho da 03, 3.3, o botão fica na linha de baixo, à
+  // direita. Em 390 px (gaveta de 320 px) e em 320 px (gaveta de 272 px), todo controle da gaveta fica inteiro dentro dela.
+  test('03, 3.3: em 390 e em 320 px, "Fechar menu" e todo controle inteiros dentro da gaveta, sem rolagem lateral', async ({ page }) => {
+    await entrarComo(page, 'cto');
+    for (const largura of [390, 320]) {
+      await page.setViewportSize({ width: largura, height: 844 });
+      await page.goto('/demandas');
+      await abrirGaveta(page);
+      const r = await gaveta(page).evaluate((d) => {
+        const caixa = d.getBoundingClientRect();
+        const conteudo = d.firstElementChild as HTMLElement;
+        const fora = [...d.querySelectorAll('a, button')]
+          .map((e) => ({ nome: (e.textContent ?? '').trim(), c: e.getBoundingClientRect() }))
+          .filter(({ c }) => c.left < caixa.left || c.right > caixa.right)
+          .map(({ nome, c }) => `${nome} ${Math.round(c.left)}–${Math.round(c.right)}`);
+        return { fora, rolagem: conteudo.scrollWidth, largura: conteudo.clientWidth };
+      });
+      expect(r.fora, `${largura} px: controles fora da gaveta`).toEqual([]);
+      expect(r.rolagem, `${largura} px: rolagem lateral dentro da gaveta`).toBeLessThanOrEqual(r.largura);
+    }
+  });
 });

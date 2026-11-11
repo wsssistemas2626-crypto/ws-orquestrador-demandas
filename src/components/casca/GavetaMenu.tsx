@@ -120,9 +120,11 @@ export function GavetaMenu({ aberta, caminho, conta, botaoMenu, aoFechar }: Prop
     >
       {aberta ? (
         <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
-          <div className="flex items-start justify-between gap-3">
+          {/* T17: a marca e "Fechar menu" não cabem lado a lado nos 288 px úteis da gaveta de 320 px. A linha quebra, e o
+              botão desce para a linha de baixo, à direita, como no desenho da 03, 3.3 (e2e/casca.spec.ts). */}
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <MarcaWs variante="escura" />
-            <Botao id={ID_FECHAR} variante="sobre-escuro" className="shrink-0 px-3" onClick={() => fechar('menu')}>
+            <Botao id={ID_FECHAR} variante="sobre-escuro" className="ml-auto shrink-0 px-3" onClick={() => fechar('menu')}>
               <Icone>
                 <path d="M6 6l12 12M18 6 6 18" />
               </Icone>

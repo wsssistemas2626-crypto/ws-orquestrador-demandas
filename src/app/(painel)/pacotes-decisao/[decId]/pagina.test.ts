@@ -830,8 +830,10 @@ describe('T16: links soltos da T11 com alvo de toque de 44 px abaixo de 768 px (
     mDemanda.mockResolvedValue(demanda({ especificacoes: [resumo(`ESP-${ID}-v3`), resumo(ESP)] }));
     s = await pagina();
     const desatualizado = s.slice(s.indexOf('Este pacote está desatualizado.'));
-    const abertura = /<a [^>]*href="\/demandas\/DEM-20261022-0042\/pacotes-decisao\/novo"[^>]*>/.exec(desatualizado)?.[0] ?? '';
-    expect(classes(abertura)).toEqual(expect.arrayContaining([...ALVO, 'text-acao-escura', 'underline']));
+    // T17 (Minor 1 da 06-T16-tech-lead, volta 2): o mesmo auxiliar `link()` dos outros dois casos, com o `ID` do fixture.
+    expect(classes(link(desatualizado, `/demandas/${ID}/pacotes-decisao/novo`, 'Criar pacote novo'))).toEqual(
+      expect.arrayContaining([...ALVO, 'text-acao-escura', 'underline']),
+    );
   });
 
   it('controle: os links dentro de frase do cabeçalho (a demanda e os "Ver" entre parênteses) não ganham o alvo de 44 px', async () => {

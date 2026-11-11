@@ -250,7 +250,7 @@ function ListaDeVersoes({ titulo, botao, vazio, children }: { titulo: string; bo
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-lg font-semibold">{titulo}</h3>
+        <h3>{titulo}</h3>
         {botao}
       </div>
       {vazio ? <p>{vazio}</p> : children}
