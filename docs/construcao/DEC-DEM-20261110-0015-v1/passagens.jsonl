@@ -122,3 +122,4 @@
 {"pedido":"DEC-DEM-20261110-0015-v1","etapa":"06-T17-revisao","de":"tech-lead","para":"qa-automacao","status":"pronto","volta":0,"inicio":"2026-11-11T14:41:11.000Z","fim":"2026-11-11T14:48:27.937Z","minutos":7,"motivo":null}
 {"pedido":"DEC-DEM-20261110-0015-v1","etapa":"06-T17-testes","de":"qa-automacao","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-11-11T14:48:28.000Z","fim":"2026-11-11T15:37:29.340Z","minutos":49,"motivo":null}
 {"pedido":"DEC-DEM-20261110-0015-v1","etapa":"07-qa-funcional","de":"qa-funcional","para":"maestro","status":"pronto","volta":0,"inicio":"2026-11-11T15:37:32.000Z","fim":"2026-11-11T15:43:56.850Z","minutos":6,"motivo":null}
+{"pedido":"DEC-DEM-20261110-0015-v1","etapa":"08-revisao","de":"maestro","para":"devops-sre","status":"pronto","volta":0,"inicio":"2026-11-11T15:43:57.000Z","fim":"2026-11-11T15:52:08.936Z","minutos":8,"motivo":null}
