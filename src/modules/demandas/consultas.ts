@@ -2,13 +2,15 @@
 // leitura própria de pessoa (T17), nunca na vista da demanda. A autoria aparece como `responsavel` (pessoa pelo nome da
 // conta, agente pelo nome do agente), nunca pelo id interno da conta.
 import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import type pg from 'pg';
 import type { Db } from '../../db';
 import { decisao, demanda, especificacaoTecnica, execucaoAgente, pacoteDecisao, parecerRisco, user } from '../../db/schema';
 import type { Anexo, LinhaServico, PapelSolicitante, Urgencia } from '../../db/schema/demandas';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import { AGENTES, atorDesconhecido, ehIntegracao, type Agente, type Ator, type Integracao } from '../acesso/ator';
+import { AGENTES, atorDesconhecido, ehIntegracao, type Agente, type Ator, type AtorIntegracao, type Integracao } from '../acesso/ator';
 import { MENSAGENS_ACESSO } from '../acesso/mensagens';
 import { minimizarValor } from '../dados-pessoais/minimizar';
+import { executarComOrcamento } from '../integracoes/tempo-limite';
 import { expressaoDesatualizado } from '../pacotes-decisao/desatualizado';
 import { expressaoSubstituidoPor } from '../pacotes-decisao/substituido';
 import type { FiltroDemandas, Status, Tipo } from './schemas';
@@ -267,6 +269,61 @@ export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | 
       return vistaMinimaDaDemanda(d);
     case 'integracao':
       throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
+// IN-08 e ADR-23: o que a integração vê da demanda que ela criou. Seis chaves, sem texto livre, solicitante, autoria,
+// versões nem execuções.
+export type DemandaVistaDaIntegracao = { id: string; titulo: string; tipo: Tipo; status: Status; criadaEm: Date; atualizadaEm: Date };
+
+// Lista de permissão, chave a chave: campo novo da demanda não sai para a integração sem entrar aqui (IN-08). O título
+// passa pelo M-1, com o nome do solicitante atual.
+export const vistaDaIntegracao = (
+  d: Pick<DemandaVista, 'id' | 'titulo' | 'tipo' | 'status' | 'solicitanteNome' | 'criadaEm' | 'atualizadaEm'>,
+): DemandaVistaDaIntegracao => ({
+  id: d.id,
+  titulo: textoMinimo(d.titulo, nomesDoSolicitante(d.solicitanteNome)),
+  tipo: d.tipo,
+  status: d.status,
+  criadaEm: d.criadaEm,
+  atualizadaEm: d.atualizadaEm,
+});
+
+// ADR-23 e D-16: a autoria entra no mesmo WHERE do id. Demanda de outro autor e id que não existe dão o mesmo
+// "não encontrado", da mesma consulta, sem nenhuma leitura a mais num caso que no outro (sem oráculo de existência).
+export async function obterDemandaDaIntegracao(db: Db, ator: AtorIntegracao, id: string): Promise<DemandaVistaDaIntegracao> {
+  const [l] = await db
+    .select({
+      id: demanda.id,
+      titulo: demanda.titulo,
+      tipo: demanda.tipo,
+      status: demanda.status,
+      solicitanteNome: demanda.solicitanteNome,
+      criadaEm: demanda.criadaEm,
+      atualizadaEm: demanda.atualizadaEm,
+    })
+    .from(demanda)
+    .where(and(eq(demanda.id, id), eq(demanda.autorTipo, 'integracao'), eq(demanda.autorId, ator.integracao)));
+  if (!l) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
+  return vistaDaIntegracao(l);
+}
+
+// O GET por id decide pelo tipo do ator antes de qualquer leitura: integração nunca passa por obterDemanda (D-16) e lê
+// na transação com o orçamento de tempo dela (ADR-28, IN-14). Pessoa, agente e sistema seguem como hoje.
+export async function lerDemandaPara(
+  deps: { db: Db; pool: pg.Pool },
+  ator: Ator,
+  id: string,
+): Promise<DemandaVista | DemandaVistaMinima | DemandaVistaDaIntegracao> {
+  switch (ator.tipo) {
+    case 'integracao':
+      return executarComOrcamento(deps.pool, ator, 'padrao', undefined, ({ tx }) => obterDemandaDaIntegracao(tx, ator, id));
+    case 'pessoa':
+    case 'agente':
+    case 'sistema':
+      return vistaDaDemandaPara(ator, await obterDemanda(deps.db, id));
     default:
       return atorDesconhecido(ator);
   }
