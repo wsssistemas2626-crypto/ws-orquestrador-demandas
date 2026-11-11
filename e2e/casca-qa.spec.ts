@@ -36,10 +36,14 @@ async function demandaBugDoSeed(page: Page): Promise<string> {
   return bug.id;
 }
 
-// Igual ao casca.spec: o clique antes da hidratação não abre; o botão só abre, então repetir é seguro.
+// Igual ao casca.spec: o clique antes da hidratação pode não abrir; o botão só abre, então repetir é seguro.
+// 06-T13-testes: só repete o clique se a gaveta ainda estiver fechada. Com a hidratação lenta (suíte inteira), o clique
+// anterior pode abrir a gaveta depois de 1 s de espera (o React reaplica o clique feito antes da hidratação); aí o
+// clique seguinte em "Menu" cai no véu do <dialog> modal ("subtree intercepts pointer events") e nunca passa, como na
+// falha vista uma vez na 06-T13-construcao. A gaveta continua tendo de abrir pelo "Menu"; nada do que vem depois muda.
 async function abrirGaveta(page: Page): Promise<void> {
   await expect(async () => {
-    await botaoMenu(page).click({ timeout: 1_000 });
+    if (!(await gaveta(page).isVisible())) await botaoMenu(page).click({ timeout: 1_000 });
     await expect(gaveta(page)).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 10_000 });
 }

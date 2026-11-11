@@ -781,3 +781,151 @@ describe('T13: arranjo A e C2 (RF-12; CV-12, CV-18, CV-19)', () => {
     expect(s).not.toContain('rodape-da-decisao');
   });
 });
+
+// 06-T13-testes (qa-automacao), DEC-DEM-20261110-0015-v1: a T13 muda só classe por largura (md:, max-md:, xl:) sobre
+// um DOM só. Então, se nenhuma exigência de aprovação está dentro de algo que uma classe esconde em alguma largura
+// (hidden, md:hidden, max-md:hidden, xl:hidden, sr-only, invisible) nem atrás de `hidden`, `inert` ou `aria-hidden`, ela
+// está à vista no computador e no celular. Vale para cada conta que decide, com e sem rascunho citado, atual e
+// desatualizado. O e2e (decisao-celular-qa.spec.ts) confere no navegador que elas continuam obrigatórias.
+describe('T13: nenhuma exigência de aprovação escondida em alguma largura (06-T13-testes, qa-automacao)', () => {
+  const VAZIOS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+  const ESCONDE = /^(?:hidden|invisible|sr-only|collapse)$/;
+  const nomeDa = (tag: string) => /^<\/?([a-zA-Z][a-zA-Z0-9-]*)/.exec(tag)![1]!.toLowerCase();
+
+  // As tags abertas em `pos` (ancestrais), mais a própria tag quando `pos` cai dentro de uma.
+  function envoltorio(html: string, pos: number): string[] {
+    const inicio = html.lastIndexOf('<', pos);
+    const dentroDeTag = inicio >= 0 && html.indexOf('>', inicio) >= pos && !html.startsWith('</', inicio);
+    const corte = dentroDeTag ? inicio : pos;
+    const pilha: string[] = [];
+    for (const [tag] of html.slice(0, corte).matchAll(/<\/?[a-zA-Z][a-zA-Z0-9-]*\b[^>]*>/g)) {
+      const nome = nomeDa(tag);
+      if (tag.startsWith('</')) {
+        const i = pilha.map(nomeDa).lastIndexOf(nome);
+        if (i >= 0) pilha.length = i;
+      } else if (!tag.endsWith('/>') && !VAZIOS.has(nome)) pilha.push(tag);
+    }
+    if (dentroDeTag) pilha.push(html.slice(inicio, html.indexOf('>', inicio) + 1));
+    return pilha;
+  }
+
+  // O que, numa tag, esconde o conteúdo em alguma largura; null quando nada esconde.
+  function oQueEsconde(tag: string): string | null {
+    const classes = (/\sclass="([^"]*)"/.exec(tag)?.[1] ?? '').split(/\s+/).filter(Boolean);
+    const classe = classes.find((c) => ESCONDE.test(c.split(':').at(-1)!));
+    if (classe) return `classe ${classe}`;
+    const semClasse = tag.replace(/\sclass="[^"]*"/, '');
+    if (/\s(?:hidden|inert)(?=[\s=/>])/.test(semClasse)) return 'atributo hidden ou inert';
+    if (/\saria-hidden="true"/.test(semClasse)) return 'aria-hidden';
+    return null;
+  }
+
+  function escondido(html: string, marca: string): string | null {
+    const pos = html.indexOf(marca);
+    expect(pos, `${marca}: está na página`).toBeGreaterThanOrEqual(0);
+    for (const tag of envoltorio(html, pos)) {
+      const motivo = oQueEsconde(tag);
+      if (motivo) return `${motivo} em ${tag.slice(0, 120)}`;
+    }
+    return null;
+  }
+
+  it('casos plantados: a conferência acusa o "Voltar" (md:hidden), o recolhível (max-md:hidden), sr-only, hidden, inert e aria-hidden', async () => {
+    mPacote.mockResolvedValue(pacote({ rascunhoAgente: true, rascunhosCitados: [DEC] }));
+    const s = await pagina();
+    expect(escondido(s, 'Voltar para a demanda')).toMatch(/^classe md:hidden em <a /);
+    expect(escondido(s, 'Critérios de aceite preliminares')).toMatch(/^classe max-md:hidden em <div id="detalhes-do-pacote"/);
+    expect(escondido(s, '>Opções</h2>')).toMatch(/^classe max-md:hidden/);
+    for (const [html, motivo] of [
+      ['<div class="flex xl:sr-only"><p>alvo</p></div>', /^classe xl:sr-only/],
+      ['<section hidden=""><p>alvo</p></section>', /^atributo hidden ou inert/],
+      ['<div inert=""><input id="alvo"/></div>', /^atributo hidden ou inert/],
+      ['<div aria-hidden="true"><span>alvo</span></div>', /^aria-hidden/],
+      ['<input class="max-md:invisible" id="alvo"/>', /^classe max-md:invisible/],
+    ] as const)
+      expect(escondido(html, 'alvo'), html).toMatch(motivo);
+    // Controle: irmão escondido e fechado antes não conta; overflow-hidden não esconde o conteúdo.
+    expect(escondido('<div class="hidden"><p>x</p></div><div class="overflow-hidden md:block"><p>alvo</p></div>', 'alvo')).toBeNull();
+  });
+
+  type Caso = { nome: string; conta: AtorPessoa; nivel: PacoteDecisaoVista['nivelAprovacaoRequerido']; aprovadores: PacoteDecisaoVista['aprovadores']; fixada: string | null; documento: boolean };
+  const aprovacao = (papel: 'cto' | 'administradora', opcao: 'A' | 'B'): PacoteDecisaoVista['aprovadores'][number] => ({
+    papel,
+    nome: papel === 'cto' ? CTO.nome : ADM.nome,
+    opcao,
+    registradaEm: APROVADO,
+    referenciaDocumento: papel === 'cto' ? null : 'DOC-FICTICIO-1',
+    dataDocumento: papel === 'cto' ? null : '2026-10-23',
+  });
+  const CASOS: readonly Caso[] = [
+    { nome: 'nível cto, conta cto', conta: CTO, nivel: 'cto', aprovadores: [], fixada: null, documento: false },
+    { nome: 'dupla, o CTO aprova primeiro', conta: CTO, nivel: 'cto_e_administradora', aprovadores: [], fixada: null, documento: false },
+    { nome: 'dupla, a administradora aprova primeiro', conta: ADM, nivel: 'cto_e_administradora', aprovadores: [], fixada: null, documento: true },
+    {
+      nome: 'dupla, a administradora depois do CTO na A',
+      conta: ADM,
+      nivel: 'cto_e_administradora',
+      aprovadores: [aprovacao('cto', 'A')],
+      fixada: 'O CTO aprovou a opção A. A sua aprovação vale para a mesma opção. Para discordar, escolha devolver ou arquivar.',
+      documento: true,
+    },
+    {
+      nome: 'dupla, o CTO depois da administradora na B',
+      conta: CTO,
+      nivel: 'cto_e_administradora',
+      aprovadores: [aprovacao('administradora', 'B')],
+      fixada: 'A administradora aprovou a opção B. A sua aprovação vale para a mesma opção. Para discordar, escolha devolver ou arquivar.',
+      documento: false,
+    },
+  ];
+
+  it.each(CASOS)('$nome: revisão, alertas, aprovações, opções ou frase fixada, documento, caixa de revisão e os três botões à vista nas duas larguras', async (caso) => {
+    mExigir.mockResolvedValue(caso.conta);
+    for (const rascunho of [false, true])
+      for (const desatualizado of [false, true]) {
+        const r = `${caso.nome}, rascunho ${rascunho}, desatualizado ${desatualizado}`;
+        mPacote.mockResolvedValue(
+          pacote({
+            nivelAprovacaoRequerido: caso.nivel,
+            aprovadores: caso.aprovadores,
+            desatualizado,
+            rascunhoAgente: rascunho,
+            rascunhosCitados: rascunho ? [DEC] : [],
+            recomendacao: 'Opção B, pela entrega menor (fictício).',
+          }),
+        );
+        mDemanda.mockResolvedValue(desatualizado ? demanda({ especificacoes: [resumo(`ESP-${ID}-v3`), resumo(ESP)] }) : demanda());
+        const s = await pagina();
+        const nivel = caso.nivel === 'cto' ? 'Só o CTO' : 'CTO e administradora';
+        const marcas = [
+          // C-14 e CV-12: a revisão sempre visível, o repositório (cabeçalho e revisão), os níveis e o nível de aprovação.
+          '>Revisão antes de decidir<',
+          'Repositório destino: wsssistemas2626-crypto/sistema-ficticio<',
+          '>wsssistemas2626-crypto/sistema-ficticio<',
+          'Risco técnico: Alto',
+          'Risco operacional: Médio',
+          'Risco jurídico: Baixo',
+          `>Nível de aprovação: ${nivel}<`,
+          '>Resumo executivo<',
+          // P-01: a recomendação em texto.
+          'Opção B, pela entrega menor (fictício).',
+          // O formulário e o que vale para as três ações.
+          '<form',
+          `id="${idDoCampo('comentarios')}"`,
+          'id="decisao-consequencia-devolver"',
+          'id="decisao-consequencia-arquivar"',
+          'id="rodape-da-decisao"',
+          'id="decisao-aprovar"',
+          'id="decisao-devolver"',
+          'id="decisao-arquivar"',
+          ...(caso.nivel === 'cto' ? [] : ['>Aprovações<', caso.conta.papel === 'cto' ? 'CTO: pendente.' : 'Administradora: pendente.']),
+          ...(rascunho ? ['Este pacote cita conteúdo gerado por agente de IA', '>Rascunho de agente<', `id="${idDoCampo('revisouRascunhosDeAgente')}"`] : []),
+          ...(desatualizado ? ['Este pacote está desatualizado.', '>Desatualizado<', 'id="decisao-aprovar-indisponivel"'] : []),
+          ...(!desatualizado && caso.fixada ? [caso.fixada] : []),
+          ...(!desatualizado && !caso.fixada ? [`id="${idDoCampo('opcaoEscolhida')}-A"`, `id="${idDoCampo('opcaoEscolhida')}-B"`] : []),
+          ...(!desatualizado && caso.documento ? [`id="${idDoCampo('referenciaDocumento')}"`, `id="${idDoCampo('dataDocumento')}"`] : []),
+        ];
+        for (const m of marcas) expect(escondido(s, m), `${r}: ${m}`).toBeNull();
+      }
+  });
+});
