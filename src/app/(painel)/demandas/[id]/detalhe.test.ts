@@ -16,6 +16,7 @@ import { obterEspecificacao } from '../../../../modules/especificacoes/consultas
 import { listarHistorico, type EventoVisivel } from '../../../../modules/historico/consultas';
 import { obterPacoteDecisao, type PacoteDecisaoVista } from '../../../../modules/pacotes-decisao/consultas';
 import type { EtapaDaDemanda, ProximaAcao } from '../../../../components/dados-das-etapas';
+import { agenteNaFrase, ARTEFATO_DO_AGENTE, NOME_AGENTE } from '../../../../components/rotulos';
 import { BarraDeEtapas } from './BarraDeEtapas';
 import { CartaoProximaAcao } from './CartaoProximaAcao';
 import {
@@ -819,5 +820,191 @@ describe('page.tsx: acesso, leituras e seções', () => {
   it('sem urgência informada: o cabeçalho não mostra "Urgência:"', async () => {
     mObter.mockResolvedValue(demanda({ urgencia: null }));
     expect(await detalhe(ID)).not.toContain('Urgência:');
+  });
+});
+
+// 06-T11-testes (qa-automacao): bordas da T05 no arranjo A2 que a construção não cobria. A ligação da página com as
+// regras da T10 (o que ela passa a etapasDaDemanda e a proximaAcao), a leitura do DEC (CV-09) quando é negada, falha ou
+// vem incoerente, e a integridade das âncoras da página em cada linha do cartão que aponta para uma seção.
+describe('page.tsx no arranjo A2: bordas (06-T11-testes)', () => {
+  const detalhe = async (id: string, p: Record<string, string | string[] | undefined> = {}) =>
+    html(await PaginaDemanda({ params: Promise.resolve({ id }), searchParams: Promise.resolve(p) }));
+  const ESP_SEM_DUVIDA = { id: `ESP-${ID}-v1`, duvidasEmAberto: [] } as unknown as Awaited<ReturnType<typeof obterEspecificacao>>;
+  const ESP_COM_DUVIDAS = { id: `ESP-${ID}-v1`, duvidasEmAberto: ['Qual o volume diário? (fictício)'] } as unknown as Awaited<ReturnType<typeof obterEspecificacao>>;
+  const decidida = (opcaoEscolhida: 'A' | 'B') => ({ opcaoEscolhida, comentarios: 'SENTINELA-COMENTARIO', decididaPor: 'SENTINELA-QUEM-DECIDIU', decididaEm: CRIADA });
+  const cartao = (p: string) => {
+    const i = p.indexOf('<section aria-labelledby="proxima-acao"');
+    return p.slice(i, p.indexOf('</section>', i));
+  };
+  const itensDaBarra = (p: string) => {
+    const i = p.indexOf('<ol aria-label="Etapas da demanda"');
+    return [...p.slice(i, p.indexOf('</ol>', i)).matchAll(/<li\b([^>]*)>([\s\S]*?)<\/li>/g)].map((m) => ({ atributos: m[1]!, corpo: m[2]! }));
+  };
+  // Toda âncora da página (href="#x") tem um elemento com id="x": nenhum link leva a uma seção que não existe.
+  const ancorasSemAlvo = (p: string) => [...new Set([...p.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]!))].filter((a) => !p.includes(`id="${a}"`));
+
+  // ESP v1, RSK v1 e DEC v1 aprovado na opção dada, com a vista lida pela página.
+  const comAprovado = (status: DemandaVista['status'], opcao: 'A' | 'B' = 'B') => {
+    mObter.mockResolvedValue(
+      demanda({ status, especificacoes: [versao('ESP', 1)], pareceresRisco: [versao('RSK', 1)], pacotesDecisao: [pacote(1, { statusDecisao: 'aprovada' })] }),
+    );
+    mEsp.mockResolvedValue(ESP_SEM_DUVIDA);
+    mDec.mockResolvedValue(vistaDoDec(1, { statusDecisao: 'aprovada', decisao: decidida(opcao) } as unknown as Partial<PacoteDecisaoVista>));
+  };
+
+  beforeEach(() => {
+    mExigirNaPagina.mockReset().mockResolvedValue(CTO);
+    mAutorizar.mockClear();
+    mObter.mockReset().mockResolvedValue(demanda());
+    mTexto.mockReset().mockResolvedValue({ situacao: 'sem_texto' });
+    mHistorico.mockReset().mockResolvedValue([evento('demanda_criada')]);
+    mEsp.mockReset();
+    mDec.mockReset();
+  });
+
+  it('CV-09: ler_pacote_decisao negado → a página falha com o erro da autorização, sem ler DEC, histórico, texto nem ESP', async () => {
+    const { autorizar: autorizarReal } = await vi.importActual<typeof import('../../../../modules/acesso/matriz')>('../../../../modules/acesso/matriz');
+    mObter.mockResolvedValue(demanda({ especificacoes: [versao('ESP', 1)], pareceresRisco: [versao('RSK', 1)], pacotesDecisao: [pacote(1)] }));
+    mAutorizar.mockImplementation((ator, acao) => {
+      if (acao === 'ler_pacote_decisao') throw new Error('SENTINELA-NEGADO');
+      autorizarReal(ator, acao);
+    });
+    try {
+      await expect(detalhe(ID)).rejects.toThrow('SENTINELA-NEGADO');
+    } finally {
+      mAutorizar.mockImplementation(autorizarReal);
+    }
+    expect(mAutorizar).toHaveBeenCalledWith(CTO, 'ler_pacote_decisao');
+    expect(mDec).not.toHaveBeenCalled();
+    expect(mHistorico).not.toHaveBeenCalled();
+    expect(mTexto).not.toHaveBeenCalled();
+    expect(mEsp).not.toHaveBeenCalled();
+  });
+
+  it('CV-09: com três DECs, só o mais novo (d.pacotesDecisao[0]) é lido, uma vez, e é ele que a barra mostra', async () => {
+    mObter.mockResolvedValue(
+      demanda({ pacotesDecisao: [pacote(3), pacote(2, { statusDecisao: 'devolvida' }), pacote(1, { statusDecisao: 'arquivada' })] }),
+    );
+    mDec.mockResolvedValue(vistaDoDec(3));
+    const p = await detalhe(ID);
+    expect(mDec).toHaveBeenCalledExactlyOnceWith(DB, `DEC-${ID}-v3`);
+    const decisao = itensDaBarra(p)[3]!.corpo;
+    expect(decisao).toContain(`>DEC-${ID}-v3</span>`);
+    expect(decisao).toContain('>Decisão pendente</span>');
+  });
+
+  it('falha na leitura do DEC sobe para a tela de erro de hoje (a página rejeita, sem HTML parcial)', async () => {
+    mObter.mockResolvedValue(demanda({ pacotesDecisao: [pacote(1)] }));
+    mDec.mockRejectedValue(new Error('SENTINELA-ERRO do DEC'));
+    await expect(detalhe(ID)).rejects.toThrow('SENTINELA-ERRO do DEC');
+  });
+
+  it('DEC lido incoerente com a vista da demanda (outro id) vira erro, e não uma barra com estado errado', async () => {
+    mObter.mockResolvedValue(demanda({ pacotesDecisao: [pacote(1)] }));
+    mDec.mockResolvedValue(vistaDoDec(2));
+    await expect(detalhe(ID)).rejects.toThrow('etapas: DEC mais novo incoerente');
+  });
+
+  it('a barra usa a vista lida do DEC: aprovado na opção B → "Aprovada, opção B" feita e o Pedido "Ainda não gerado" atual; nada da decisão a mais na tela', async () => {
+    comAprovado('aprovada', 'B');
+    const p = await detalhe(ID);
+    const [, , , decisao, pedido] = itensDaBarra(p);
+    expect(decisao!.corpo).toContain('>Aprovada, opção B</span>');
+    expect(decisao!.corpo).toContain('data-marca="feita"');
+    expect(decisao!.atributos).not.toContain('aria-current');
+    expect(pedido!.corpo).toContain('>Ainda não gerado</span>');
+    expect(pedido!.atributos).toContain('aria-current="step"');
+    // Linha 10 do RF-09, com o link para a decisão aprovada.
+    expect(cartao(p)).toContain('Gerar o Pedido de Construção e, quando a construção começar, mudar o status para Em construção.');
+    expect(cartao(p)).toMatch(new RegExp(`<a [^>]*href="/pacotes-decisao/DEC-${ID}-v1"[^>]*>Abrir a decisão aprovada</a>`));
+    // CV-09: comentário e quem decidiu ficam fora da T05.
+    expect(p).not.toContain('SENTINELA');
+  });
+
+  it('a barra usa o histórico lido: pedido_gerado do aprovado vigente → Pedido "Gerado" com o id do DEC; com tudo feito, nenhuma etapa atual', async () => {
+    comAprovado('aprovada', 'A');
+    mHistorico.mockResolvedValue([
+      evento('pedido_gerado', { entidade: 'pacote_decisao', entidadeId: `DEC-${ID}-v1` } as unknown as Partial<EventoVisivel>),
+      evento('demanda_criada'),
+    ]);
+    const p = await detalhe(ID);
+    const pedido = itensDaBarra(p)[4]!;
+    expect(pedido.corpo).toContain('>Gerado</span>');
+    expect(pedido.corpo).toContain(`>DEC-${ID}-v1</span>`);
+    expect(pedido.corpo).toContain('data-marca="feita"');
+    expect(p).not.toContain('aria-current="step"');
+  });
+
+  it('agente trabalhando (linha 2): o cartão diz o que esperar e quem age, sem link; o aviso de agente trabalhando continua no topo', async () => {
+    const d = demanda({ agentesEmAndamento: [{ agente: 'risco', status: 'em_andamento' }] });
+    mObter.mockResolvedValue(d);
+    const p = await detalhe(ID);
+    const c = cartao(p);
+    expect(c).toContain(`Esperar o ${agenteNaFrase('risco')} terminar ${ARTEFATO_DO_AGENTE.risco}.`);
+    expect(c).toMatch(new RegExp(`Quem age:</span> ${NOME_AGENTE.risco}<`));
+    expect(c).not.toContain('<a ');
+    const [aviso] = alertasDoTopo(d, [evento('demanda_criada')], false);
+    expect(aviso?.tipo).toBe('informacao');
+    expect(p).toContain(aviso!.texto);
+  });
+
+  it('aguardando informação com a seção de dúvidas: barra "Com dúvidas em aberto" atual; o cartão leva à seção de dúvidas', async () => {
+    mObter.mockResolvedValue(demanda({ status: 'aguardando_informacao', especificacoes: [versao('ESP', 1)] }));
+    mEsp.mockResolvedValue(ESP_COM_DUVIDAS);
+    const p = await detalhe(ID);
+    const especificacao = itensDaBarra(p)[1]!;
+    expect(especificacao.corpo).toContain('>Com dúvidas em aberto</span>');
+    expect(especificacao.atributos).toContain('aria-current="step"');
+    expect(cartao(p)).toMatch(new RegExp(`<a href="#${ID_SECAO.duvidas}"[^>]*>Ver as dúvidas em aberto</a>`));
+    expect(p).toContain(`id="${ID_SECAO.duvidas}"`);
+  });
+
+  it('aguardando informação sem a seção de dúvidas (temSecaoDeDuvidas = false): o cartão leva a Mudar status, nunca a uma âncora que não existe', async () => {
+    mObter.mockResolvedValue(demanda({ status: 'aguardando_informacao', especificacoes: [versao('ESP', 1)] }));
+    mEsp.mockResolvedValue(ESP_SEM_DUVIDA);
+    const p = await detalhe(ID);
+    expect(p).not.toContain(`id="${ID_SECAO.duvidas}"`);
+    expect(cartao(p)).not.toContain(`href="#${ID_SECAO.duvidas}"`);
+    expect(cartao(p)).toMatch(new RegExp(`<a href="#${ID_SECAO.status}"[^>]*>Mudar o status</a>`));
+  });
+
+  it.each([
+    ['nova, sem versões', () => undefined],
+    [
+      'aguardando informação com dúvidas',
+      () => {
+        mObter.mockResolvedValue(demanda({ status: 'aguardando_informacao', especificacoes: [versao('ESP', 1)] }));
+        mEsp.mockResolvedValue(ESP_COM_DUVIDAS);
+      },
+    ],
+    [
+      'aguardando informação sem dúvidas',
+      () => {
+        mObter.mockResolvedValue(demanda({ status: 'aguardando_informacao', especificacoes: [versao('ESP', 1)] }));
+        mEsp.mockResolvedValue(ESP_SEM_DUVIDA);
+      },
+    ],
+    ['em construção (linha 11)', () => comAprovado('em_construcao')],
+    ['devolvida (linha 12)', () => comAprovado('devolvida')],
+    [
+      'encerrada (linha 1)',
+      () => {
+        mObter.mockResolvedValue(demanda({ status: 'encerrada' }));
+      },
+    ],
+  ] satisfies ReadonlyArray<readonly [string, () => void]>)('%s: toda âncora da página (cabeçalho, "Nesta página", alertas e Próxima ação) tem alvo', async (_nome, preparar) => {
+    preparar();
+    const p = await detalhe(ID);
+    expect(p).toContain('<section aria-labelledby="proxima-acao"');
+    expect(ancorasSemAlvo(p)).toEqual([]);
+  });
+
+  it('linhas 11 e 12 na página: o link do cartão vai ao h2 focável de Mudar status', async () => {
+    for (const status of ['em_construcao', 'devolvida'] as const) {
+      comAprovado(status);
+      const p = await detalhe(ID);
+      expect(cartao(p), status).toMatch(new RegExp(`<a href="#${ID_SECAO.status}"[^>]*>Mudar o status</a>`));
+      expect(p, status).toMatch(new RegExp(`<h2 id="${ID_SECAO.status}" tabindex="-1"`));
+    }
   });
 });

@@ -172,6 +172,9 @@ test.describe('celular (390 × 844)', () => {
     expect(Math.min(alvo?.width ?? 0, alvo?.height ?? 0)).toBeGreaterThanOrEqual(44);
 
     await abrirGaveta(page);
+    // 06-T11-testes: a medida espera o fim da entrada de 200 ms, como no teste do clique acima. Medida durante a
+    // animação, a caixa vinha com a fração de pixel do transform (272.00000762939453) e o teste falhava às vezes.
+    await gaveta(page).evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)));
     // min(320 px, 85 %) em 320 px: 272 px, e o véu fica à direita.
     expect(await largura(page, 'dialog#gaveta-menu')).toBe(272);
     await expect(gaveta(page).getByRole('button', { name: 'Sair' })).toBeInViewport();

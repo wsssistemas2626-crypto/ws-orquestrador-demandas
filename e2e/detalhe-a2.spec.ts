@@ -136,6 +136,55 @@ test('CA-10.2: o histórico mostra todos os eventos, em lista, do mais novo para
   await expect(page.getByText('Ver histórico completo')).toHaveCount(0);
 });
 
+// 06-T11-testes (qa-automacao): a forma da barra nas duas larguras (03, 5.4), que o axe e as asserções de texto não
+// pegam. A partir de 1200 px, as cinco etapas lado a lado na mesma linha; abaixo, uma por linha, na mesma coluna.
+test('barra (03, 5.4): cinco etapas lado a lado em 1280 px; uma por linha, na ordem, em 390 px', async ({ page }) => {
+  await abrir(page, TITULOS_DO_E2E.etapasDupla);
+  const caixas = async () => {
+    const itens = await barra(page).getByRole('listitem').all();
+    expect(itens).toHaveLength(5);
+    return Promise.all(
+      itens.map(async (li, i) => {
+        const c = await li.boundingBox();
+        if (!c) throw new Error(`e2e: etapa ${i + 1} sem caixa`);
+        return c;
+      }),
+    );
+  };
+  let c = await caixas();
+  for (let i = 1; i < 5; i++) {
+    expect(Math.abs(c[i]!.y - c[0]!.y), `1280 px: etapa ${i + 1} na linha da 1`).toBeLessThanOrEqual(1);
+    expect(c[i]!.x, `1280 px: etapa ${i + 1} à direita da ${i}`).toBeGreaterThanOrEqual(c[i - 1]!.x + c[i - 1]!.width);
+  }
+  await page.setViewportSize(CELULAR);
+  c = await caixas();
+  for (let i = 1; i < 5; i++) {
+    expect(Math.abs(c[i]!.x - c[0]!.x), `390 px: etapa ${i + 1} na coluna da 1`).toBeLessThanOrEqual(1);
+    expect(c[i]!.y, `390 px: etapa ${i + 1} abaixo da ${i}`).toBeGreaterThanOrEqual(c[i - 1]!.y + c[i - 1]!.height);
+  }
+});
+
+// 06-T11-testes (qa-automacao): alvo de toque de 44 px no celular (ESP, item 5; 03, 2.4) nos controles que a T11 pôs ou
+// mudou na T05: o link da trilha, "Editar dados" e "Mudar status" do cabeçalho, os links de "Nesta página" e o link da
+// Próxima ação.
+test('alvo de toque em 390 px: trilha, cabeçalho, "Nesta página" e Próxima ação com 44 px de altura ou mais', async ({ page }) => {
+  await page.setViewportSize(CELULAR);
+  await abrir(page, TITULOS_DO_E2E.etapasDupla);
+  const nesta = page.getByRole('navigation', { name: 'Nesta página' });
+  const alvos = [
+    ['trilha "Demandas"', page.getByRole('navigation', { name: 'Trilha' }).getByRole('link', { name: 'Demandas', exact: true })],
+    ['"Editar dados"', page.getByRole('link', { name: 'Editar dados', exact: true })],
+    ['"Mudar status" do cabeçalho', page.getByRole('link', { name: 'Mudar status', exact: true }).first()],
+    ...SECOES.map((nome) => [`"Nesta página" ${nome}`, nesta.getByRole('link', { name: nome, exact: true })] as const),
+    ['"Abrir a decisão" da Próxima ação', proximaAcao(page).getByRole('link', { name: 'Abrir a decisão' })],
+  ] as const;
+  for (const [nome, alvo] of alvos) {
+    const c = await alvo.boundingBox();
+    if (!c) throw new Error(`e2e: ${nome} sem caixa`);
+    expect(c.height, `${nome}: altura em 390 px`).toBeGreaterThanOrEqual(44);
+  }
+});
+
 test('"Mudar status" do cabeçalho leva o foco ao h2 Status; trilha com "Demandas" e o id atual', async ({ page }) => {
   const id = await abrir(page, TITULOS_DO_E2E.etapasDupla);
   const trilha = page.getByRole('navigation', { name: 'Trilha' });
