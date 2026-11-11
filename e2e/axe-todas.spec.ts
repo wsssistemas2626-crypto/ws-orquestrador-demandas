@@ -15,9 +15,9 @@
 // pendente. Na T12, o diálogo de ligar fecha com "Cancelar" e nada muda (os agentes seguem como o seed os deixou). Na T02,
 // a conta `sem2fa` só chega ao passo 2 com a senha certa e nunca verifica um código, como nas specs da T37: continua sem
 // 2FA e nenhuma falha de senha ou de código é somada a ela. Na T01, o erro é o de campo vazio, que não chega ao servidor.
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
-import { api, entrarComo, entrarSoComSenha, ipFicticio, semViolacoes } from './apoio';
+import { abrirGaveta, abrirRecolhivel, api, entrarComo, entrarSoComSenha, expect, ipFicticio, semViolacoes, semViolacoesNasDuasLarguras, test } from './apoio';
 
 type ListaDemandas = { itens: { id: string; titulo: string }[] };
 type Pacote = { id: string; rascunhoAgente: boolean; statusDecisao: string };
@@ -72,10 +72,18 @@ async function decDePessoaSoDoCto(page: Page): Promise<string> {
 
 // O axe conta como alvo pequeno o controle que, com a página rolada, fica sob o cabeçalho fixo da moldura (ver a
 // detalhe-demanda.spec). Depois de um foco que rolou a página, a verificação volta ao topo.
+// T16 do DEC-DEM-20261110-0015-v1 (G5, D-06): cada estado é conferido em 1280 × 720 e em 390 × 844, no mesmo estado da
+// página; a volta ao topo depois de cada troca de largura fica no semViolacoesNasDuasLarguras.
 async function axe(page: Page, rotulo: string): Promise<void> {
   await page.evaluate(() => window.scrollTo(0, 0));
-  await semViolacoes(page, rotulo);
+  await semViolacoesNasDuasLarguras(page, rotulo);
 }
+
+const CELULAR = { width: 390, height: 844 } as const;
+const COMPUTADOR = { width: 1280, height: 720 } as const;
+
+// `abrirRecolhivel` ("Mais filtros" na T03, "Ver vantagens…" na T11) e `abrirGaveta` vêm de e2e/apoio.ts (06-T16-testes,
+// Minor 2 da 06-T16-tech-lead).
 
 test('T01 Entrar: vazio, com erro e passo 2 (código)', async ({ page }) => {
   await page.setExtraHTTPHeaders({ 'x-real-ip': ipFicticio() });
@@ -114,7 +122,11 @@ test('T02 Configurar 2FA: passo 1, passo 2 e passo 2 com erro', async ({ page })
   await axe(page, 'T02 passo 2 com erro');
 });
 
-test('T03 Fila: com dados, filtrada, vazia com filtro e com filtro inválido', async ({ page }) => {
+// 06-T16-testes (volta 3): a T03 era um teste só, com 11 análises do axe, e levou 28,1 s de 30 s com a suíte rodando
+// sozinha. Virou três testes, cada um com o próprio login e os mesmos estados, conferências e axe de antes. Cada estado
+// é aberto pelo endereço (os quatro do computador) ou parte de /demandas (os dois do celular), então nenhum depende do
+// teste anterior.
+test('T03 Fila: com dados e filtrada', async ({ page }) => {
   await entrarComo(page, 'cto');
   await page.goto('/demandas');
   await expect(page.getByRole('heading', { level: 1, name: 'Demandas' })).toBeVisible();
@@ -124,7 +136,10 @@ test('T03 Fila: com dados, filtrada, vazia com filtro e com filtro inválido', a
   await page.goto('/demandas?tipo=bug');
   await expect(page.locator('main caption')).toHaveText('Demandas com tipo Bug, da mais nova para a mais antiga');
   await axe(page, 'T03 filtrada');
+});
 
+test('T03 Fila: vazia com filtro e com filtro inválido', async ({ page }) => {
+  await entrarComo(page, 'cto');
   await page.goto('/demandas?status=entregue&tipo=produto_proprio&linhaServicoProvavel=indefinida');
   await expect(page.getByText('Nenhuma demanda com esses filtros.')).toBeVisible();
   await axe(page, 'T03 vazia com filtro');
@@ -132,6 +147,20 @@ test('T03 Fila: com dados, filtrada, vazia com filtro e com filtro inválido', a
   await page.goto('/demandas?status=qualquer-coisa');
   await expect(page.locator('main').getByText('Algum filtro do endereço não é válido. Mostrando todas as demandas.')).toBeVisible();
   await axe(page, 'T03 com filtro inválido');
+});
+
+test('T03 Fila em 390 px: com "Mais filtros" aberto e com a gaveta do menu aberta', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  // T16: os dois estados que só existem abaixo de 768 px, "Mais filtros" aberto e a gaveta do menu aberta. A gaveta fecha
+  // quando a janela passa de 768 px, por isso o axe dela roda só em 390 × 844.
+  await page.setViewportSize(CELULAR);
+  await page.goto('/demandas');
+  await expect(page.locator('main').getByRole('status')).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
+  await abrirRecolhivel(page, /^Mais filtros/);
+  await axe(page, 'T03 com "Mais filtros" aberto');
+  await abrirGaveta(page);
+  await semViolacoes(page, 'T03 com a gaveta aberta (390 × 844)');
+  await page.setViewportSize(COMPUTADOR);
 });
 
 test('T04 Nova demanda: vazia, com erro e preenchida sem salvar', async ({ page }) => {
@@ -158,7 +187,8 @@ test('T05 Detalhe: com versões e rascunhos de agente, sem versões e com erro a
   const bug = await demandaDoSeed(page, 'bug');
   await page.goto(`/demandas/${bug}`);
   await expect(page.getByRole('heading', { level: 1, name: SEED.bug })).toBeVisible();
-  await expect(page.getByText(`ESP-${bug}-v1`, { exact: true })).toBeVisible();
+  // T11 do DEC-DEM-20261110-0015-v1: o id da ESP também aparece na barra de etapas; a versão é conferida na seção dela.
+  await expect(page.getByRole('region', { name: 'Versões', exact: true }).getByText(`ESP-${bug}-v1`, { exact: true })).toBeVisible();
   await expect(page.getByText('Rascunho de agente').first()).toBeVisible();
   await axe(page, 'T05 com versões e rascunhos');
 
@@ -270,34 +300,73 @@ test('T10 Ver versão: ESP de agente, RSK de agente e versão não encontrada', 
   await axe(page, 'T10 versão não encontrada');
 });
 
-test('T11 Decisão: pendente com rascunhos, com erro, com o diálogo aberto e na conta administradora', async ({ page }) => {
-  await entrarComo(page, 'cto');
+// 06-T16-testes (volta 3): a T11 era um teste só, com 12 análises do axe e duas contas, e levou 15,4 s com a suíte
+// rodando sozinha. Virou três testes, cada um com o próprio login e os mesmos estados, conferências e axe de antes. O
+// segundo abre o DEC do seed já em 1280 × 720, onde as opções e a revisão ficam sempre abertas, como estavam no teste
+// único depois de a janela voltar de 390 px. O pacote do seed continua pendente ao fim de cada um.
+
+// O DEC de rascunho de agente do seed, conferido pendente pela API antes de abrir a tela.
+async function decDoSeedPendente(page: Page): Promise<string> {
   const bug = await demandaDoSeed(page, 'bug');
   const decId = `DEC-${bug}-v1`;
   const pacote = await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`);
   expect(pacote).toMatchObject({ rascunhoAgente: true, statusDecisao: 'pendente' });
-  const registrar = page.getByRole('button', { name: 'Registrar decisão' });
+  return decId;
+}
+
+// 0.2.0 (T12): o botão principal "Aprovar" ("Aprovar a opção A" com a opção marcada) no lugar de "Registrar decisão".
+const botaoAprovar = (page: Page) =>
+  page.getByRole('group', { name: 'Ações da decisão', exact: true }).getByRole('button', { name: /^Aprovar( a opção [AB])?$/ });
+
+test('T11 Decisão: pendente com rascunhos e com o recolhível aberto', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const decId = await decDoSeedPendente(page);
 
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Decisão: /);
   await expect(page.getByRole('region', { name: 'Revisão antes de decidir' })).toBeVisible();
   await axe(page, 'T11 pendente com rascunhos');
+  // T16: o recolhível das opções e da revisão aberto (o botão só existe abaixo de 768 px).
+  await page.setViewportSize(CELULAR);
+  await abrirRecolhivel(page, /^Ver /);
+  await axe(page, 'T11 com o recolhível aberto');
+  await page.setViewportSize(COMPUTADOR);
+});
+
+test('T11 Decisão: com erro e com o diálogo aberto', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const decId = await decDoSeedPendente(page);
+  const registrar = botaoAprovar(page);
+
+  await page.goto(`/pacotes-decisao/${decId}`);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Decisão: /);
+  // Sem o axe da carga antes, o clique podia chegar antes da hidratação e virar um envio nativo do formulário. A
+  // espera é a mesma da reflow-qa: as props do React no <form>.
+  await page.waitForFunction(() => {
+    const f = document.querySelector('main form');
+    return f !== null && Object.keys(f).some((k) => k.startsWith('__reactProps$'));
+  });
 
   await registrar.click();
   await expect(resumoDeErros(page)).toBeFocused();
   await axe(page, 'T11 com erro');
 
-  await page.getByRole('group', { name: 'Decisão (obrigatório)', exact: true }).getByRole('radio', { name: 'Aprovar', exact: true }).check();
   await page.getByRole('radio', { name: /^Opção A/ }).check();
   await page.getByRole('checkbox', { name: 'Revisei os rascunhos de agente citados neste pacote (obrigatório)' }).check();
   await registrar.click();
   const dialogo = page.getByRole('dialog', { name: 'Confirmar a decisão?' });
   await expect(dialogo).toBeVisible();
-  await semViolacoes(page, 'T11 com o diálogo aberto');
+  await semViolacoesNasDuasLarguras(page, 'T11 com o diálogo aberto');
   // "Voltar" fecha sem registrar: o pacote do seed continua pendente para a decisao.spec.
   await dialogo.getByRole('button', { name: 'Voltar' }).click();
   await expect(dialogo).toBeHidden();
   expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
+});
+
+test('T11 Decisão na conta administradora: em dupla aprovação e no DEC só do CTO', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const decId = await decDoSeedPendente(page);
+  const registrar = botaoAprovar(page);
 
   // Só do CTO: DEC de pessoa de nível cto, criado antes de trocar de conta.
   const soDoCto = await decDePessoaSoDoCto(page);
@@ -343,7 +412,7 @@ test('T12 Agentes e teto: inicial, com erro de teto, com o diálogo de ligar e n
   await interruptor.click();
   const dialogo = page.getByRole('dialog', { name: 'Ligar o agente orquestrador?' });
   await expect(dialogo).toBeVisible();
-  await semViolacoes(page, 'T12 com o diálogo de ligar');
+  await semViolacoesNasDuasLarguras(page, 'T12 com o diálogo de ligar');
   await dialogo.getByRole('button', { name: 'Cancelar' }).click();
   await expect(dialogo).toBeHidden();
   await expect(interruptor).toHaveAttribute('aria-checked', 'false');

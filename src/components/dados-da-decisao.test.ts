@@ -8,21 +8,26 @@ import { MENSAGENS_DECISAO } from '../modules/pacotes-decisao/decidir';
 import type { PacoteDecisaoVista } from '../modules/pacotes-decisao/consultas';
 import { LIMITE_REFERENCIA_DOCUMENTO, registrarDecisaoSchema } from '../modules/pacotes-decisao/schemas';
 import {
+  ACOES_DA_DECISAO,
   alertaDeDesatualizado,
   alertaDeSubstituido,
   AVISO_DECISAO,
   chegadaNaDecisao,
   decisaoSuja,
   entradaDaDecisao,
+  envioDaDecisao,
   errosDaApiDecisao,
   formularioDaConta,
+  ID_DOS_BOTOES,
   itensDaRevisao,
   linhasDeAprovacao,
   LIMITE_REFERENCIA,
   opcoesDaDecisao,
   opcoesDaEscolha,
   rascunhosEmTexto,
+  rotuloDoPrincipal,
   secoesDasOpcoes,
+  separarRevisao,
   textoDaDecisaoRegistrada,
   textoDoDialogo,
   TEXTOS_DECISAO,
@@ -118,14 +123,16 @@ describe('textos da 03, T11, iguais aos do servidor onde o servidor também fala
     expect([t.legendaDecisao, t.aprovar, t.devolver, t.arquivar]).toEqual(['Decisão (obrigatório)', 'Aprovar', 'Devolver para nova análise', 'Arquivar']);
     expect([t.dicaAprovarIndisponivel, t.dicaDevolver, t.dicaArquivar]).toEqual([
       'Indisponível: pacote desatualizado.',
-      'Devolver para nova análise: a demanda volta para Em análise.',
+      'Devolver: a demanda volta para Em análise.',
       'Arquivar: a demanda vai para Encerrada.',
     ]);
+    // 0.2.0 (03, seção 9): os três botões e o grupo deles.
+    expect([t.aprovarOpcao('A'), t.aprovarOpcao('B'), t.devolverCurto, t.grupoAcoes]).toEqual(['Aprovar a opção A', 'Aprovar a opção B', 'Devolver', 'Ações da decisão']);
     expect(t.legendaOpcao).toBe('Opção escolhida (obrigatório)');
     expect([t.referencia, t.dicaReferencia, t.dataAssinatura, t.comentarios, t.revisei, t.registrar, t.registrando]).toEqual([
-      'Identificador do documento assinado (obrigatório)',
+      'Identificador do documento assinado (obrigatório para aprovar)',
       'Exemplo: número do documento no sistema de assinatura.',
-      'Data da assinatura (obrigatório)',
+      'Data da assinatura (obrigatório para aprovar)',
       'Comentários (opcional)',
       'Revisei os rascunhos de agente citados neste pacote (obrigatório)',
       'Registrar decisão',
@@ -144,6 +151,15 @@ describe('textos da 03, T11, iguais aos do servidor onde o servidor também fala
     expect(t.sucesso.completa.administradora).toBe('Aprovação da administradora registrada. O pacote está aprovado.');
     expect(t.sucesso.devolvida).toBe('Pacote devolvido para nova análise. A demanda voltou para Em análise.');
     expect(t.sucesso.arquivada).toBe('Pacote arquivado. A demanda foi para Encerrada.');
+  });
+
+  // 0.2.0 (T13; 03, seção 9): o cabeçalho e o celular da T11.
+  it('T13: linha do repositório destino, "Voltar para a demanda" e o botão do recolhível', () => {
+    const t = TEXTOS_DECISAO;
+    expect(t.repositorioNaLinha('wsssistemas2626-crypto/ficticio')).toBe('Repositório destino: wsssistemas2626-crypto/ficticio');
+    expect(t.repositorioNaLinha(null)).toBe('Repositório destino: Não informado');
+    expect(t.voltarParaDemanda).toBe('Voltar para a demanda');
+    expect(t.verDetalhes).toBe('Ver vantagens, desvantagens e a revisão do pacote');
   });
 });
 
@@ -191,7 +207,7 @@ describe('grupos do formulário', () => {
   it('"Aprovar" desatualizado fica no grupo, indisponível e explicado (CA-12.4); Devolver e Arquivar com a dica', () => {
     expect(opcoesDaDecisao(false)).toEqual([
       { valor: 'aprovada', rotulo: 'Aprovar' },
-      { valor: 'devolvida', rotulo: 'Devolver para nova análise', dica: 'Devolver para nova análise: a demanda volta para Em análise.' },
+      { valor: 'devolvida', rotulo: 'Devolver para nova análise', dica: 'Devolver: a demanda volta para Em análise.' },
       { valor: 'arquivada', rotulo: 'Arquivar', dica: 'Arquivar: a demanda vai para Encerrada.' },
     ]);
     expect(opcoesDaDecisao(true)[0]).toEqual({ valor: 'aprovada', rotulo: 'Aprovar', desabilitada: true, dica: 'Indisponível: pacote desatualizado.' });
@@ -213,14 +229,12 @@ describe('grupos do formulário', () => {
 
 describe('validação no envio, na ordem da tela', () => {
   it('nada marcado: só "Escolha a decisão." (e a revisão, se houver rascunho)', () => {
-    expect(validarDecisao(valores(), ctx()).map((e) => [e.campo, e.mensagem, e.idCampo])).toEqual([
-      ['statusDecisao', 'Escolha a decisão.', `${idDoCampo('statusDecisao')}-aprovada`],
-    ]);
+    expect(validarDecisao(valores(), ctx()).map((e) => [e.campo, e.mensagem, e.idCampo])).toEqual([['statusDecisao', 'Escolha a decisão.', 'decisao-aprovar']]);
     expect(validarDecisao(valores(), ctx({ exigeRevisao: true })).map((e) => e.mensagem)).toEqual(['Escolha a decisão.', MENSAGENS_DECISAO.revisarRascunhos]);
   });
 
   it('desatualizado: o link do resumo leva à primeira opção disponível', () => {
-    expect(validarDecisao(valores(), ctx({ aprovarIndisponivel: true }))[0]!.idCampo).toBe(`${idDoCampo('statusDecisao')}-devolvida`);
+    expect(validarDecisao(valores(), ctx({ aprovarIndisponivel: true }))[0]!.idCampo).toBe('decisao-devolver');
   });
 
   it('Aprovar sem opção; administradora sem documento e sem data; comentário longo', () => {
@@ -263,6 +277,125 @@ describe('entrada da Server Action', () => {
   });
 });
 
+// 0.2.0 (DEC-DEM-20261110-0015-v1, T12; ADR-18): um formulário, três botões. O botão ativado define o statusDecisao uma
+// vez; o mesmo `v` vai ao diálogo e à Server Action (CV-10). As funções de validação e de entrada são as de cima, sem
+// mudança.
+describe('envioDaDecisao (ADR-18, CV-10, CV-11)', () => {
+  const v = valores({ opcaoEscolhida: 'B' });
+  const p = { especificacaoCitada: { repositorioDestino: 'wsssistemas2626-crypto/ficticio' }, nivelAprovacaoRequerido: 'cto' as const };
+
+  it('as três ações aceitas são as de hoje, na ordem dos botões', () => {
+    expect(ACOES_DA_DECISAO).toEqual(['aprovada', 'devolvida', 'arquivada']);
+  });
+
+  it('CV-10: botão com valor fora da lista (ou nulo) não faz nada', () => {
+    for (const b of ['x', '', null, undefined, 'pendente', 'APROVADA', ' aprovada']) expect(envioDaDecisao(v, ctx(), b), String(b)).toEqual({ tipo: 'nada' });
+  });
+
+  it('CV-10: o v devolvido é o que vai ao diálogo e à Server Action, com o statusDecisao do botão', () => {
+    const r = envioDaDecisao(v, ctx(), 'aprovada');
+    expect(r).toEqual({ tipo: 'confirmar', v: { ...v, statusDecisao: 'aprovada' } });
+    if (r.tipo !== 'confirmar') throw new Error('esperava confirmar');
+    expect(textoDoDialogo(r.v, ctx(), p)[0]).toContain('Aprovar a opção B.');
+    expect(entradaDaDecisao(r.v, ctx())).toMatchObject({ statusDecisao: 'aprovada', opcaoEscolhida: 'B' });
+    // Com a opção B marcada, "Devolver" grava devolvida, sem opção (CV-10, segundo e2e).
+    const d = envioDaDecisao(v, ctx(), 'devolvida');
+    if (d.tipo !== 'confirmar') throw new Error('esperava confirmar');
+    expect(textoDoDialogo(d.v, ctx(), p)[0]).toContain('Devolver para nova análise.');
+    expect(entradaDaDecisao(d.v, ctx())).toEqual({ statusDecisao: 'devolvida', revisouRascunhosDeAgente: false });
+    // O estado da tela não muda: o botão vale para este envio só.
+    expect(v.statusDecisao).toBe('');
+  });
+
+  it('CV-11: com o pacote desatualizado, "aprovada" não faz nada; devolver e arquivar seguem', () => {
+    const d = ctx({ aprovarIndisponivel: true });
+    expect(envioDaDecisao(v, d, 'aprovada')).toEqual({ tipo: 'nada' });
+    expect(envioDaDecisao(valores(), d, 'aprovada')).toEqual({ tipo: 'nada' });
+    expect(envioDaDecisao(v, d, 'devolvida').tipo).toBe('confirmar');
+    expect(envioDaDecisao(v, d, 'arquivada').tipo).toBe('confirmar');
+  });
+
+  it('CA-11.2: aprovar sem opção dá "Escolha a opção A ou a opção B." e não confirma', () => {
+    const r = envioDaDecisao(valores(), ctx(), 'aprovada');
+    expect(r.tipo).toBe('erros');
+    if (r.tipo === 'erros') {
+      expect(r.erros.map((e) => e.mensagem)).toEqual(['Escolha a opção A ou a opção B.']);
+      expect(r.erros[0]!.idCampo).toBe(`${idDoCampo('opcaoEscolhida')}-A`);
+    }
+  });
+
+  it('CA-11.4 e CV-14: com revisão exigida, as três ações pedem a caixa; marcada, as três confirmam', () => {
+    for (const b of ACOES_DA_DECISAO) {
+      const r = envioDaDecisao(v, ctx({ exigeRevisao: true }), b);
+      expect(r.tipo, b).toBe('erros');
+      if (r.tipo === 'erros') expect(r.erros.map((e) => e.mensagem), b).toEqual([MENSAGENS_DECISAO.revisarRascunhos]);
+      expect(envioDaDecisao({ ...v, revisouRascunhosDeAgente: true }, ctx({ exigeRevisao: true }), b).tipo, b).toBe('confirmar');
+    }
+  });
+
+  it('CA-11.5 e CA-11.6: documento obrigatório só para aprovar; ao devolver ou arquivar não vai na entrada', () => {
+    const doc = ctx({ pedeDocumento: true, opcaoFixada: { papel: 'cto', opcao: 'A' } });
+    const semDoc = envioDaDecisao(valores(), doc, 'aprovada');
+    expect(semDoc.tipo).toBe('erros');
+    if (semDoc.tipo === 'erros') expect(semDoc.erros.map((e) => e.campo)).toEqual(['referenciaDocumento', 'dataDocumento']);
+    const comDoc = valores({ referenciaDocumento: 'DOC-FICTICIO-1', dataDocumento: '2026-11-10' });
+    for (const b of ['devolvida', 'arquivada'] as const) {
+      const r = envioDaDecisao(comDoc, doc, b);
+      if (r.tipo !== 'confirmar') throw new Error(`esperava confirmar em ${b}`);
+      expect(entradaDaDecisao(r.v, doc), b).not.toHaveProperty('referenciaDocumento');
+      expect(entradaDaDecisao(r.v, doc), b).not.toHaveProperty('dataDocumento');
+      expect(entradaDaDecisao(r.v, doc), b).not.toHaveProperty('opcaoEscolhida');
+    }
+    const aprovar = envioDaDecisao(comDoc, doc, 'aprovada');
+    if (aprovar.tipo !== 'confirmar') throw new Error('esperava confirmar');
+    expect(entradaDaDecisao(aprovar.v, doc)).toEqual({
+      statusDecisao: 'aprovada',
+      opcaoEscolhida: 'A',
+      referenciaDocumento: 'DOC-FICTICIO-1',
+      dataDocumento: '2026-11-10',
+      revisouRascunhosDeAgente: false,
+    });
+  });
+
+  it('o que envioDaDecisao confirma, o schema da API aceita (as três ações, com e sem documento)', () => {
+    for (const b of ACOES_DA_DECISAO)
+      for (const c of [ctx(), ctx({ pedeDocumento: true }), ctx({ opcaoFixada: { papel: 'administradora', opcao: 'B' } })]) {
+        const r = envioDaDecisao(valores({ opcaoEscolhida: 'A', referenciaDocumento: 'DOC-FICTICIO-2', dataDocumento: '2026-11-10' }), c, b);
+        if (r.tipo !== 'confirmar') throw new Error(`esperava confirmar em ${b}`);
+        expect(registrarDecisaoSchema.safeParse(entradaDaDecisao(r.v, c)).success, `${b} ${JSON.stringify(c)}`).toBe(true);
+      }
+  });
+});
+
+describe('rotuloDoPrincipal (03, 6.4; CV-13)', () => {
+  it('"Aprovar" sem opção; "Aprovar a opção X" com a marcada ou a fixada; "Aprovar" com o pacote desatualizado', () => {
+    const c = { opcaoFixada: null, aprovarIndisponivel: false };
+    expect(rotuloDoPrincipal({ opcaoEscolhida: '' }, c)).toBe('Aprovar');
+    expect(rotuloDoPrincipal({ opcaoEscolhida: 'A' }, c)).toBe('Aprovar a opção A');
+    expect(rotuloDoPrincipal({ opcaoEscolhida: 'B' }, c)).toBe('Aprovar a opção B');
+    expect(rotuloDoPrincipal({ opcaoEscolhida: '' }, { ...c, opcaoFixada: { papel: 'cto', opcao: 'A' } })).toBe('Aprovar a opção A');
+    // A fixada vale sobre a marcada: é a que a entrada envia (entradaDaDecisao).
+    expect(rotuloDoPrincipal({ opcaoEscolhida: 'B' }, { ...c, opcaoFixada: { papel: 'cto', opcao: 'A' } })).toBe('Aprovar a opção A');
+    expect(rotuloDoPrincipal({ opcaoEscolhida: 'B' }, { ...c, aprovarIndisponivel: true })).toBe('Aprovar');
+    expect(rotuloDoPrincipal({ opcaoEscolhida: '' }, { opcaoFixada: { papel: 'cto', opcao: 'A' }, aprovarIndisponivel: true })).toBe('Aprovar');
+  });
+
+  it('o rótulo e o diálogo citam a mesma opção (o que se vê é o que se grava)', () => {
+    const p = { especificacaoCitada: { repositorioDestino: null }, nivelAprovacaoRequerido: 'cto_e_administradora' as const };
+    for (const [opcaoEscolhida, opcaoFixada] of [
+      ['A', null],
+      ['B', null],
+      ['', { papel: 'cto' as const, opcao: 'B' as const }],
+      ['A', { papel: 'administradora' as const, opcao: 'B' as const }],
+    ] as const) {
+      const c = ctx({ opcaoFixada });
+      const r = envioDaDecisao(valores({ opcaoEscolhida }), c, 'aprovada');
+      if (r.tipo !== 'confirmar') throw new Error('esperava confirmar');
+      expect(textoDoDialogo(r.v, c, p)[0]).toContain(`${rotuloDoPrincipal(r.v, c)}.`);
+    }
+  });
+});
+
 describe('erros da API', () => {
   it('400 campo a campo, com o caminho da Server Action ("decisao.") tirado e as mensagens da 03', () => {
     const r: Falha = {
@@ -290,6 +423,17 @@ describe('erros da API', () => {
     for (const motivo of [MENSAGENS_DECISAO.jaDecidido, MENSAGENS_DECISAO.desatualizado, MENSAGENS_DECISAO.opcaoDiferente.cto])
       expect(errosDaApiDecisao({ ok: false, erro: 'conflito', mensagem: motivo }, ctx()).alerta).toBe(`Não foi possível concluir: ${motivo}`);
     expect(errosDaApiDecisao({ ok: false, erro: 'sem_permissao', mensagem: 'x' }, ctx()).alerta).toBe('Sua conta não pode fazer esta ação. Se precisar, fale com o CTO.');
+  });
+
+  // D-T12-01 (06-T12-tech-lead, M1): desde a T12 não há rádio de decisão; o link do resumo leva ao botão principal, ou
+  // a "Devolver" com o pacote desatualizado (o principal não envia). Os ids são os dos três botões do formulário.
+  it('400 na decisão: o link do resumo leva ao botão principal, ou a "Devolver" com o pacote desatualizado', () => {
+    expect(ID_DOS_BOTOES).toEqual({ aprovada: 'decisao-aprovar', devolvida: 'decisao-devolver', arquivada: 'decisao-arquivar' });
+    const r: Falha = { ok: false, erro: 'entrada_invalida', mensagem: 'Corrija os campos abaixo para continuar.', campos: [{ campo: 'decisao', mensagem: 'Valor inválido.' }] };
+    expect(errosDaApiDecisao(r, ctx()).campos.map((c) => [c.campo, c.idCampo])).toEqual([['statusDecisao', 'decisao-aprovar']]);
+    expect(errosDaApiDecisao(r, ctx({ aprovarIndisponivel: true })).campos.map((c) => [c.campo, c.idCampo])).toEqual([['statusDecisao', 'decisao-devolver']]);
+    // Nenhum alvo aponta para o rádio de decisão que saiu na T12.
+    expect(JSON.stringify(errosDaApiDecisao(r, ctx()))).not.toContain(`${idDoCampo('statusDecisao')}-`);
   });
 });
 
@@ -351,6 +495,20 @@ describe('topo, revisão (C-14), opções e aprovações', () => {
     ]);
     const vazio = itensDaRevisao(pacote({ especificacaoCitada: { sistemaAlvo: null, repositorioDestino: null, criteriosAceitePreliminares: null, definicaoDePronto: [] } }));
     expect(vazio.slice(1, 5).map((i) => i.valor)).toEqual(['Não informado.', 'Não informado.', 'Nenhum item.', 'Nenhum item.']);
+  });
+
+  // 0.2.0 (T13; D-16, CV-12): no celular, só critérios e definição de pronto podem ficar no recolhível; o resto da
+  // revisão (C-14) fica sempre visível.
+  it('D-16 e CV-12: separarRevisao deixa no detalhe só critérios e definição de pronto, na ordem de hoje', () => {
+    const itens = itensDaRevisao(pacote({ rascunhosCitados: [ESP, RSK] }));
+    const { sempre, detalhe } = separarRevisao(itens);
+    expect(detalhe.map((i) => i.termo)).toEqual(['Critérios de aceite preliminares', 'Definição de pronto']);
+    expect(sempre.map((i) => i.termo)).toEqual(['Especificação técnica citada', 'Sistema alvo', 'Repositório destino', 'Parecer de risco citado', 'Níveis de risco', 'Nível de aprovação']);
+    // Nada some nem se repete: as duas partes juntas são os itens de hoje, com os valores e os rascunhos intactos.
+    expect([...sempre, ...detalhe].sort((a, b) => a.termo.localeCompare(b.termo))).toEqual([...itens].sort((a, b) => a.termo.localeCompare(b.termo)));
+    expect(sempre.filter((i) => i.rascunho).map((i) => i.valor)).toEqual([ESP, RSK]);
+    // Item que a regra não conhece fica visível: na dúvida, nada é recolhido.
+    expect(separarRevisao([{ termo: 'Outro (fictício)', valor: 'x' }])).toEqual({ sempre: [{ termo: 'Outro (fictício)', valor: 'x' }], detalhe: [] });
   });
 
   it('opções A e B com os subtítulos da 03 e "Não informado." no vazio', () => {
@@ -535,7 +693,7 @@ describe('bordas da tela de decisão (qa-automacao)', () => {
     };
     const e = errosDaApiDecisao(r, ctx({ aprovarIndisponivel: true }));
     expect(e.campos.map((c) => [c.campo, c.mensagem, c.idCampo])).toEqual([
-      ['statusDecisao', 'Escolha a decisão.', `${idDoCampo('statusDecisao')}-devolvida`],
+      ['statusDecisao', 'Escolha a decisão.', 'decisao-devolver'],
       ['referenciaDocumento', 'Este campo aceita até 200 caracteres.', idDoCampo('referenciaDocumento')],
     ]);
     expect(e.porCampo).toEqual({ statusDecisao: 'Escolha a decisão.', referenciaDocumento: 'Este campo aceita até 200 caracteres.' });
@@ -569,6 +727,108 @@ describe('bordas da tela de decisão (qa-automacao)', () => {
     const p = pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto, aprovacaoAdm] });
     expect(formularioDaConta(p, CTO).tipo).toBe('sem_formulario');
     expect(formularioDaConta(p, ADM).tipo).toBe('sem_formulario');
+  });
+});
+
+// 06-T12-testes (qa-automacao), DEC-DEM-20261110-0015-v1: com os três botões, cada exigência de aprovação de hoje
+// continua valendo em toda combinação de conta, pacote, campos e botão. O oráculo aqui é a regra escrita por extenso
+// (RF-11 e cap. 04), e não `validarDecisao`, para o teste reprovar também se a validação mudar junto com o envio.
+describe('envioDaDecisao: as exigências de aprovação de hoje em toda combinação (06-T12-testes, qa-automacao)', () => {
+  const BOTOES = ['aprovada', 'devolvida', 'arquivada', 'pendente', '', null, undefined] as const;
+  const FIXADAS = [null, { papel: 'cto' as const, opcao: 'A' as const }, { papel: 'administradora' as const, opcao: 'B' as const }];
+  const SIM_NAO = [false, true] as const;
+  const DOC = 'DOC-FICTICIO-7';
+  const DATA = '2026-11-10';
+  const p = { especificacaoCitada: { repositorioDestino: 'wsssistemas2626-crypto/ficticio' }, nivelAprovacaoRequerido: 'cto_e_administradora' as const };
+  const ehAcao = (b: (typeof BOTOES)[number]): b is 'aprovada' | 'devolvida' | 'arquivada' => b === 'aprovada' || b === 'devolvida' || b === 'arquivada';
+
+  it('confirma só com cada exigência da ação cumprida, e nunca pede o que a ação não exige', () => {
+    const contagem = { nada: 0, erros: 0, confirmar: 0 };
+    for (const botao of BOTOES)
+      for (const opcaoFixada of FIXADAS)
+        for (const pedeDocumento of SIM_NAO)
+          for (const exigeRevisao of SIM_NAO)
+            for (const aprovarIndisponivel of SIM_NAO)
+              for (const opcaoEscolhida of ['', 'A', 'B'] as const)
+                for (const referenciaDocumento of ['', '   ', DOC])
+                  for (const dataDocumento of ['', DATA])
+                    for (const revisouRascunhosDeAgente of SIM_NAO) {
+                      const c = ctx({ opcaoFixada, pedeDocumento, exigeRevisao, aprovarIndisponivel });
+                      const vv = Object.freeze(valores({ opcaoEscolhida, referenciaDocumento, dataDocumento, revisouRascunhosDeAgente }));
+                      const r = envioDaDecisao(vv, c, botao);
+                      contagem[r.tipo]++;
+                      const rotulo = JSON.stringify({ botao: String(botao), c, vv });
+                      // Botão fora da lista, e "Aprovar" com o pacote desatualizado (CV-11): nada, nem erro nem diálogo.
+                      if (!ehAcao(botao) || (botao === 'aprovada' && aprovarIndisponivel)) {
+                        expect(r, rotulo).toEqual({ tipo: 'nada' });
+                        continue;
+                      }
+                      // As exigências de hoje, na ordem da tela: opção (sem a fixada), documento e data (conta da
+                      // administradora), só para aprovar; a revisão dos rascunhos, nas três ações.
+                      const faltas: string[] = [];
+                      if (botao === 'aprovada' && !opcaoFixada && opcaoEscolhida === '') faltas.push('opcaoEscolhida');
+                      if (botao === 'aprovada' && pedeDocumento && referenciaDocumento.trim() === '') faltas.push('referenciaDocumento');
+                      if (botao === 'aprovada' && pedeDocumento && dataDocumento === '') faltas.push('dataDocumento');
+                      if (exigeRevisao && !revisouRascunhosDeAgente) faltas.push('revisouRascunhosDeAgente');
+                      if (faltas.length > 0) {
+                        expect(r.tipo, rotulo).toBe('erros');
+                        if (r.tipo === 'erros') expect(r.erros.map((e) => e.campo), rotulo).toEqual(faltas);
+                        continue;
+                      }
+                      expect(r.tipo, rotulo).toBe('confirmar');
+                      if (r.tipo !== 'confirmar') continue;
+                      expect(r.v, rotulo).toEqual({ ...vv, statusDecisao: botao });
+                      const e = entradaDaDecisao(r.v, c);
+                      expect(registrarDecisaoSchema.safeParse(e).success, rotulo).toBe(true);
+                      expect(e.statusDecisao, rotulo).toBe(botao);
+                      expect(e.revisouRascunhosDeAgente, rotulo).toBe(revisouRascunhosDeAgente);
+                      const [acao, repositorio, nivel] = textoDoDialogo(r.v, c, p);
+                      // C-14: o diálogo repete o repositório destino e o nível em toda ação.
+                      expect([repositorio, nivel], rotulo).toEqual(['Repositório destino: wsssistemas2626-crypto/ficticio.', 'Nível de aprovação: CTO e administradora.']);
+                      if (botao === 'aprovada') {
+                        // A opção gravada é a fixada pela primeira aprovação, senão a marcada; o botão e o diálogo dizem a mesma.
+                        const opcao = opcaoFixada?.opcao ?? opcaoEscolhida;
+                        expect(e.opcaoEscolhida, rotulo).toBe(opcao);
+                        expect(rotuloDoPrincipal(vv, c), rotulo).toBe(`Aprovar a opção ${opcao}`);
+                        expect(acao, rotulo).toContain(`Você vai registrar: Aprovar a opção ${opcao}.`);
+                        if (pedeDocumento) expect(e, rotulo).toMatchObject({ referenciaDocumento: DOC, dataDocumento: DATA });
+                        else for (const campo of ['referenciaDocumento', 'dataDocumento']) expect(e, rotulo).not.toHaveProperty(campo);
+                      } else {
+                        for (const campo of ['opcaoEscolhida', 'referenciaDocumento', 'dataDocumento']) expect(e, rotulo).not.toHaveProperty(campo);
+                        expect(acao, rotulo).toContain(botao === 'devolvida' ? 'Você vai registrar: Devolver para nova análise.' : 'Você vai registrar: Arquivar.');
+                      }
+                    }
+    // A malha passa pelos três resultados (asserção que nunca roda não conta).
+    expect(contagem.nada).toBeGreaterThan(1000);
+    expect(contagem.erros).toBeGreaterThan(500);
+    expect(contagem.confirmar).toBeGreaterThan(500);
+  });
+
+  it('CV-10: o botão vale sobre o statusDecisao que estiver no estado, só neste envio; o estado não muda', () => {
+    for (const anterior of ['', 'aprovada', 'devolvida', 'arquivada'] as const)
+      for (const botao of ACOES_DA_DECISAO) {
+        const vv = Object.freeze(valores({ statusDecisao: anterior, opcaoEscolhida: 'A' }));
+        const r = envioDaDecisao(vv, ctx(), botao);
+        expect(r.tipo, `${anterior} → ${botao}`).toBe('confirmar');
+        if (r.tipo === 'confirmar') expect(r.v.statusDecisao, `${anterior} → ${botao}`).toBe(botao);
+        expect(vv.statusDecisao).toBe(anterior);
+      }
+  });
+
+  it('CV-13: o formulário começa sem opção nem decisão, e o principal só diz uma opção quando a primeira aprovação a fixou', () => {
+    const inicio = valoresDaDecisao();
+    expect([inicio.statusDecisao, inicio.opcaoEscolhida]).toEqual(['', '']);
+    // Cada formulário ganha um objeto novo: marcar num não marca no outro.
+    expect(valoresDaDecisao()).not.toBe(inicio);
+    for (const pedeDocumento of SIM_NAO)
+      for (const exigeRevisao of SIM_NAO) {
+        expect(rotuloDoPrincipal(inicio, ctx({ pedeDocumento, exigeRevisao }))).toBe('Aprovar');
+        expect(rotuloDoPrincipal(inicio, ctx({ pedeDocumento, exigeRevisao, opcaoFixada: { papel: 'cto', opcao: 'B' } }))).toBe('Aprovar a opção B');
+      }
+    // "Aprovar" sem opção não escolhe por ninguém: dá o erro, e a opção continua vazia.
+    const r = envioDaDecisao(inicio, ctx(), 'aprovada');
+    expect(r.tipo).toBe('erros');
+    if (r.tipo === 'erros') expect(r.v.opcaoEscolhida).toBe('');
   });
 });
 

@@ -211,7 +211,7 @@ export function AssistenteDoisFatores() {
               erro={erroDoCampo(ID_SENHA)}
             />
             <div>
-              <Botao type="submit" carregando={enviando} textoCarregando="Verificando…">
+              <Botao type="submit" carregando={enviando} textoCarregando="Verificando…" className="w-full">
                 Continuar
               </Botao>
             </div>
@@ -222,18 +222,22 @@ export function AssistenteDoisFatores() {
           <form noValidate onSubmit={verificar} aria-busy={enviando} className="flex flex-col gap-4">
             <p>No aplicativo, escolha adicionar conta e leia o QR code.</p>
             {qr ? (
-              <svg
-                role="img"
-                aria-label={ALT_QR}
-                viewBox={`0 0 ${qr.lado} ${qr.lado}`}
-                width={200}
-                height={200}
-                shapeRendering="crispEdges"
-                className="border border-borda"
-              >
-                <rect width={qr.lado} height={qr.lado} fill="#ffffff" />
-                <path d={qr.d} fill="#000000" />
-              </svg>
+              // 0.2.0 (03, 7.2): o QR continua preto sobre branco, com 16 px de área branca em volta; a borda é só
+              // decorativa (`linha`), e a cor do desenho não muda.
+              <div className="self-start rounded-campo border border-linha bg-branco p-4">
+                <svg
+                  role="img"
+                  aria-label={ALT_QR}
+                  viewBox={`0 0 ${qr.lado} ${qr.lado}`}
+                  width={200}
+                  height={200}
+                  shapeRendering="crispEdges"
+                  className="block"
+                >
+                  <rect width={qr.lado} height={qr.lado} fill="#ffffff" />
+                  <path d={qr.d} fill="#000000" />
+                </svg>
+              </div>
             ) : null}
             <p>Não consegue ler o QR code? Digite esta chave no aplicativo:</p>
             <div className="flex flex-wrap items-center gap-3">
@@ -256,7 +260,7 @@ export function AssistenteDoisFatores() {
               erro={erroDoCampo(ID_CODIGO)}
             />
             <div>
-              <Botao type="submit" carregando={enviando} textoCarregando="Verificando…">
+              <Botao type="submit" carregando={enviando} textoCarregando="Verificando…" className="w-full">
                 Verificar
               </Botao>
             </div>
@@ -288,7 +292,7 @@ export function AssistenteDoisFatores() {
               erro={erroDoCampo(ID_GUARDEI)}
             />
             <div>
-              <Botao type="submit" disabled={enviando}>
+              <Botao type="submit" disabled={enviando} className="w-full">
                 Concluir
               </Botao>
             </div>

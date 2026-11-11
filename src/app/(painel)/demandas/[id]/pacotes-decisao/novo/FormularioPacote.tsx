@@ -5,6 +5,8 @@
 // de aprovação. Validação no envio (2.5); erros da API no mesmo resumo, e o 400 com `faltando` num alerta; o que foi
 // digitado nunca se perde; confirmação ao sair com conteúdo não salvo. A regra que vale é a do servidor
 // (gravarPacoteNoPainel). Gravado, vai à T11 do pacote novo.
+// 0.2.0 (T15; 03, 8.2 do pedido 0015): cada campo solto e cada fieldset fica num Cartao, sem mudar rótulo, legenda,
+// ordem nem campo; 20 px entre os blocos (03, 2.4).
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -12,6 +14,7 @@ import { Alerta } from '../../../../../../components/Alerta';
 import { AreaTexto } from '../../../../../../components/AreaTexto';
 import { Botao, classeDoBotao } from '../../../../../../components/Botao';
 import { useConfirmarSaida } from '../../../../../../components/CamposDaDemanda';
+import { Cartao } from '../../../../../../components/Cartao';
 import {
   caminhoDeChegadaDoPacote,
   campoDaOpcao,
@@ -106,27 +109,31 @@ export function FormularioPacote({ demandaId, idNovo, inicial }: Props) {
           </Alerta>
         </div>
       ) : null}
-      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-8">
-        {texto('resumoExecutivo', t.resumoExecutivo, { obrigatorio: true })}
+      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-5">
+        <Cartao>{texto('resumoExecutivo', t.resumoExecutivo, { obrigatorio: true })}</Cartao>
         {LETRAS.map((l) => (
-          <fieldset key={l} className="flex min-w-0 flex-col gap-4">
-            <legend className="mb-2 text-lg font-semibold">{t.opcao(l)}</legend>
-            {texto(campoDaOpcao(l, 'descricao'), t.descricao(l), { obrigatorio: true })}
-            {texto(campoDaOpcao(l, 'vantagens'), t.vantagens(l))}
-            {texto(campoDaOpcao(l, 'desvantagens'), t.desvantagens(l))}
-            {texto(campoDaOpcao(l, 'quandoEscolher'), t.quandoEscolher(l))}
-          </fieldset>
+          <Cartao key={l}>
+            <fieldset className="flex min-w-0 flex-col gap-4">
+              <legend className="mb-2 text-lg font-semibold">{t.opcao(l)}</legend>
+              {texto(campoDaOpcao(l, 'descricao'), t.descricao(l), { obrigatorio: true })}
+              {texto(campoDaOpcao(l, 'vantagens'), t.vantagens(l))}
+              {texto(campoDaOpcao(l, 'desvantagens'), t.desvantagens(l))}
+              {texto(campoDaOpcao(l, 'quandoEscolher'), t.quandoEscolher(l))}
+            </fieldset>
+          </Cartao>
         ))}
-        {texto('recomendacao', t.recomendacao, { dica: t.dicaRecomendacao })}
-        <GrupoOpcoes
-          nome={idDoCampo('nivelAprovacaoRequerido')}
-          legenda={t.nivel}
-          dica={t.dicaNivel}
-          opcoes={OPCOES_NIVEL}
-          erro={erros.porCampo.nivelAprovacaoRequerido}
-          valor={valores.nivelAprovacaoRequerido}
-          onMudar={(n) => setValores((v) => ({ ...v, nivelAprovacaoRequerido: n as NivelAprovacao }))}
-        />
+        <Cartao>{texto('recomendacao', t.recomendacao, { dica: t.dicaRecomendacao })}</Cartao>
+        <Cartao>
+          <GrupoOpcoes
+            nome={idDoCampo('nivelAprovacaoRequerido')}
+            legenda={t.nivel}
+            dica={t.dicaNivel}
+            opcoes={OPCOES_NIVEL}
+            erro={erros.porCampo.nivelAprovacaoRequerido}
+            valor={valores.nivelAprovacaoRequerido}
+            onMudar={(n) => setValores((v) => ({ ...v, nivelAprovacaoRequerido: n as NivelAprovacao }))}
+          />
+        </Cartao>
         <div className="flex flex-wrap items-center gap-4">
           <Botao type="submit" carregando={enviando} textoCarregando={t.gravando}>
             {t.gravar(idNovo)}

@@ -1,6 +1,5 @@
 // T36: moldura do painel (03, 2.7) e páginas comuns de erro (03, 2.8).
-import { expect, test } from '@playwright/test';
-import { entrarComo, semViolacoes } from './apoio';
+import { entrarComo, expect, semViolacoes, test } from './apoio';
 
 test('moldura: pular para o conteúdo, navegação principal, página atual, um h1, lang pt-BR e axe', async ({ page }) => {
   await entrarComo(page, 'cto');
@@ -25,7 +24,8 @@ test('moldura: a conta aparece com o papel, o link de pular leva ao main e a tel
   await page.keyboard.press('Enter');
   await expect(page.locator('main#conteudo')).toBeFocused();
   await page.setViewportSize({ width: 320, height: 640 });
-  const menu = page.getByRole('button', { name: 'Menu' });
+  // `exact`: com a gaveta aberta (T05 do pedido 0015) também existe o botão "Fechar menu".
+  const menu = page.getByRole('button', { name: 'Menu', exact: true });
   await expect(menu).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('navigation', { name: 'Principal' })).toBeHidden();
   await menu.click();

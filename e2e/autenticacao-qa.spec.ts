@@ -7,12 +7,12 @@
 //     chave em texto, e nenhum pedido da página leva o segredo para fora (03, T02).
 // Cada teste tem um IP fictício próprio (limite por IP, C-06). A conta `sem2fa` só passa pelo passo 1 e nunca verifica
 // um código: continua sem 2FA, como C-04 (c) precisa, e nenhuma falha de código é somada à conta.
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
 import { relogioDoSistema } from '../src/lib/relogio';
 import { lerQr } from '../test/leitor-qr';
 import { codigoTotp } from '../test/sessao';
-import { entrarSoComSenha, ipFicticio } from './apoio';
+import { entrarSoComSenha, expect, ipFicticio, test } from './apoio';
 
 // Só os alertas da tela: o anunciador de rota do Next também tem role="alert", fora do `main`.
 const alerta = (page: Page) => page.getByRole('main').getByRole('alert');

@@ -20,27 +20,73 @@ const codigo = (arquivo: string) =>
 describe('design system (03, 2.1)', () => {
   const css = ler('src/app/globals.css');
 
+  // 0.2.0 (T03): os tokens da 03, 2.1 do pedido 0015 (os apelidos da 0.1.13 saíram na T16, D-01: ver abaixo).
   it.each([
-    ['--color-texto', '#1f2937'],
-    ['--color-texto-suave', '#4b5563'],
-    ['--color-fundo', '#ffffff'],
-    ['--color-fundo-suave', '#f3f4f6'],
-    ['--color-borda', '#6b7280'],
-    ['--color-primaria', '#1d4ed8'],
-    ['--color-perigo', '#b91c1c'],
-    ['--color-sucesso', '#166534'],
-    ['--color-atencao-texto', '#78350f'],
-    ['--color-atencao-fundo', '#fef3c7'],
-    ['--radius-campo', '6px'],
+    ['--color-marinho', '#12385f'],
+    ['--color-marinho-luz', '#1f4f86'],
+    ['--color-acao', '#1a6ae0'],
+    ['--color-acao-escura', '#1354b4'],
+    ['--color-azul-claro', '#7db0f5'],
+    ['--color-nevoa', '#eaf1fd'],
+    ['--color-tinta', '#0f1620'],
+    ['--color-tinta-media', '#4a5763'],
+    ['--color-tinta-suave', '#6b7885'],
+    ['--color-linha', '#dfe4ea'],
+    ['--color-superficie', '#f6f8fa'],
+    ['--color-branco', '#ffffff'],
+    ['--color-texto-claro', '#dfe6ee'],
+    ['--color-texto-claro-apoio', '#b9c5d2'],
+    ['--color-positivo', '#0f7a52'],
+    ['--color-positivo-fundo', '#e7f4ee'],
+    ['--color-atencao', '#8a5a00'],
+    ['--color-atencao-fundo', '#fdf3e0'],
+    ['--color-erro', '#b42318'],
+    ['--color-erro-fundo', '#fdecea'],
+    ['--color-selo-violeta', '#5b3fa0'],
+    ['--color-selo-violeta-fundo', '#efe9fb'],
+    ['--color-selo-petroleo', '#0b5d6b'],
+    ['--color-selo-petroleo-fundo', '#ddf2f5'],
+    ['--color-selo-verde', '#1d6b3a'],
+    ['--color-selo-verde-fundo', '#e3f3e8'],
+    ['--color-selo-marinho-fundo', '#e6edf5'],
+    ['--color-selo-laranja', '#9a3412'],
+    ['--color-selo-laranja-fundo', '#fdebdd'],
+    ['--color-selo-cinza-fundo', '#eceff3'],
+    ['--radius-campo', '10px'],
+    ['--radius-cartao', '16px'],
   ])('token %s = %s, dentro do @theme', (token, valor) => {
     const tema = /@theme\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
-    expect(tema).toMatch(new RegExp(`${token}:\\s*${valor};`));
+    expect(tema).toMatch(new RegExp(`${token}:\\s*${valor.replace(/[()]/g, '\\$&')};`));
+  });
+
+  // 0.2.0 (T16, D-01): os apelidos da 0.1.13, que valiam só até a T16, saíram do @theme. Cada linha que conferia o apelido
+  // agora confere que ele não existe mais (a varredura das classes fica em test/estatico/classes-antigas.test.ts).
+  it.each([
+    ['--color-texto', 'var(--color-tinta)'],
+    ['--color-texto-suave', 'var(--color-tinta-media)'],
+    ['--color-fundo', 'var(--color-branco)'],
+    ['--color-fundo-suave', 'var(--color-superficie)'],
+    ['--color-borda', 'var(--color-tinta-suave)'],
+    ['--color-primaria', 'var(--color-acao-escura)'],
+    ['--color-perigo', 'var(--color-erro)'],
+    ['--color-sucesso', 'var(--color-positivo)'],
+    ['--color-atencao-texto', 'var(--color-atencao)'],
+  ])('apelido %s (era %s) não existe mais no globals.css', (token) => {
+    expect(css).not.toMatch(new RegExp(`${token}\\s*:`));
   });
 
   it('foco visível: contorno de 2 px na cor primária, afastado 2 px; base de 16 px e altura de linha 1,5', () => {
-    expect(css).toMatch(/:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--color-primaria\);[^}]*outline-offset:\s*2px;/);
+    expect(css).toMatch(/:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--cor-foco\);[^}]*outline-offset:\s*2px;/);
     expect(css).toMatch(/html\s*\{[^}]*font-size:\s*16px;[^}]*line-height:\s*1\.5;/);
     expect(css).toMatch(/scroll-padding-top:\s*var\(--altura-cabecalho\)/);
+  });
+
+  // 0.2.0 (T03; 03, 2.1): o foco tem token próprio, acao-escura no claro e branco dentro de superfície marinho.
+  it('--cor-foco: acao-escura na raiz e branco em .superficie-escura; fundo da tela superficie e h1 marinho', () => {
+    expect(css).toMatch(/:root\s*\{[^}]*--cor-foco:\s*var\(--color-acao-escura\);/);
+    expect(css).toMatch(/\.superficie-escura\s*\{[^}]*--cor-foco:\s*var\(--color-branco\);/);
+    expect(css).toMatch(/html\s*\{[^}]*color:\s*var\(--color-tinta\);[^}]*background-color:\s*var\(--color-superficie\);/);
+    expect(css).toMatch(/h1\s*\{[^}]*color:\s*var\(--color-marinho\);/);
   });
 
   it('o layout raiz carrega o globals.css', () => {

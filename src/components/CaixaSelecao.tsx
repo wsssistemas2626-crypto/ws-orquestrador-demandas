@@ -21,7 +21,7 @@ export function CaixaSelecao({ id, rotulo, obrigatorio, dica, erro, className, .
           aria-required={obrigatorio ? true : undefined}
           aria-invalid={erro ? true : undefined}
           aria-describedby={descritores(id, dica, erro)}
-          className="h-5 w-5 accent-primaria"
+          className="h-5 w-5 accent-acao-escura"
           {...resto}
         />
         <label htmlFor={id}>{rotulo}</label>

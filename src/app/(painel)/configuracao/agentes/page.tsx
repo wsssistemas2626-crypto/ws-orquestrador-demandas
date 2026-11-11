@@ -4,9 +4,12 @@
 // (situacaoDoWorker) e o último expurgo (ultimoExpurgo). As duas contas leem a página; só a de papel cto altera, e a
 // regra que vale é a das Server Actions (C-12, C-26): para a administradora, os controles aparecem desabilitados, com a
 // nota da 03 e os valores legíveis. O modelo de cada agente é configuração da API e não aparece (a 03 não o prevê).
+// 0.2.0 (T15; 03, 8.2 do pedido 0015): "Gasto do mês" e "Agentes" são cada uma um Cartao, com o mesmo `aria-labelledby`
+// e `h2`; a tabela continua com a rolagem própria de hoje; 20 px entre os blocos (03, 2.4).
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Alerta } from '../../../../components/Alerta';
+import { Cartao } from '../../../../components/Cartao';
 import {
   alertaDoTeto,
   alertasDoWorker,
@@ -32,12 +35,10 @@ export const metadata: Metadata = { title: TEXTOS_AGENTES.tituloAba };
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-4">
-      <h2 id={id} className="text-xl font-semibold">
-        {titulo}
-      </h2>
+    <Cartao rotuloPor={id} className="flex flex-col gap-4">
+      <h2 id={id}>{titulo}</h2>
       {children}
-    </section>
+    </Cartao>
   );
 }
 
@@ -68,7 +69,7 @@ export default async function PaginaAgentes() {
   const t = TEXTOS_AGENTES;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3">
         <h1>{t.titulo}</h1>
         <p>{t.introducao}</p>
@@ -104,7 +105,7 @@ export default async function PaginaAgentes() {
           <TabelaAgentes linhas={linhasDosAgentes(agentes)} podeAlterar={podeAlterarAgentes} />
         </Secao>
 
-        <p className="text-sm text-texto-suave">
+        <p className="text-sm text-tinta-media">
           {expurgo.texto}
           {expurgo.data ? (
             <>

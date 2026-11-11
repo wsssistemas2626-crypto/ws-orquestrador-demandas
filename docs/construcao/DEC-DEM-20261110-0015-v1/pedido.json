@@ -1,0 +1,42 @@
+{
+  "pedido": "DEC-DEM-20261110-0015-v1",
+  "demanda": {
+    "id": "DEM-20261110-0015",
+    "tipo": "melhoria",
+    "titulo": "Orquestrador 0.2.0: novo visual do painel (proposta A, Mesa de controle, com a decisão no celular da proposta C)",
+    "descricao": "O painel do Orquestrador (0.1.13, no ar em orquestrador.wsscloud.tech desde 10/11) funciona, mas não tem a identidade da WS nem uma tela de decisão boa no celular. Em 10/11 foram desenhadas 3 propostas de layout (https://claude.ai/artifact/1KC2xck7SjkDzMsQhnCwPF) e Fabiano escolheu, no mesmo dia, a proposta A (Mesa de controle) como base de todo o painel, mais a tela de decisão no celular da proposta C. As telas escolhidas estão em pedidos/insumos/2026-11-10_orquestrador-novo-visual/: A1-mesa-de-controle-fila.html (fila), A2-mesa-de-controle-demanda.html (demanda) e C2-decisao-no-celular.html (decisão em 390 px). Os mockups usam dados fictícios e estilos inline; são referência visual, não código para copiar. Identidade: manual de marca entregas/marketing/2026-10-09_manual_de_marca.md (Marinho #12385f, Azul de ação #1a6ae0, Azul de texto #1354b4, Tinta #0f1620, Superfície #f6f8fa, Azul névoa #eaf1fd; Noto Sans e Noto Sans Mono). Base: main (198e97d, versão 0.1.13)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261110-0015-v1",
+    "conteudo": "Só a camada visual muda: nenhuma regra de negócio, rota de API, server action, esquema de banco, migration, papel ou permissão muda, e nenhum controle de segurança é afrouxado (2FA, papéis, dupla aprovação, revisão de rascunhos, CSP, C-10, C-13, C-21, C-23, C-28, A-03, C-36). (1) Casca da proposta A em todas as telas autenticadas: menu lateral marinho com a marca WS, os itens do painel e a conta; no celular o menu vira uma gaveta acessível (botão com aria-expanded, foco preso enquanto aberta, Esc fecha). (2) Fila (T da lista de demandas) como na A1: contadores por status no topo que funcionam como filtro (botões com aria-pressed e o filtro refletido na URL), tabela densa com id, título, tipo, urgência, status, etapas ESP/RSK/DEC com texto acessível e idade; abaixo de 768 px a tabela vira lista de cartões. (3) Demanda como na A2: barra das 5 etapas, cartão 'Próxima ação' com o que falta e quem age, e histórico. (4) Decisão (T11): no computador, layout da A; abaixo de 768 px, o layout da C2: resumo, as opções como radios grandes com a recomendada marcada, identificador e data do documento assinado quando a regra exigir, a caixa 'Revisei os rascunhos de agente', e o rodapé fixo com o botão principal (texto com a opção escolhida, ex.: 'Aprovar a opção A') e Devolver e Arquivar; os campos e validações são os de hoje. (5) Tokens de cor e tipografia num só lugar (variáveis CSS), com contraste WCAG 2.2 AA verificado; foco visível em todo controle; alvo de toque mínimo de 44 px no celular. (6) Fontes Noto Sans e Noto Sans Mono servidas pelo próprio app (next/font/local ou arquivos em public/), sem chamada ao Google Fonts, e a CSP continua sem domínio externo. (7) T01 Entrar e a configuração da 2FA ganham a marca e as cores, sem mudar o fluxo. Testes: os testes de unidade e de tela atualizados só onde o texto ou o seletor mudou, sem apagar asserção de regra; axe sem violação nas telas T01 a T12 em computador e em 390 px; e2e dos caminhos de hoje passando, mais um e2e da aprovação em 390 px; capturas de tela das telas principais nas duas larguras anexadas na entrega. Mudam src/ (componentes, estilos e páginas), public/ ou a pasta das fontes, os testes, e2e/, o manual (capturas e textos de tela), package.json (versão 0.2.0) e CHANGELOG. Revisão da seguranca-aplicacao obrigatória, com foco na CSP e em nada de recurso externo."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261110-0015-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe em todas as telas de um sistema já no ar, com dados fictícios. Riscos: regressão de acessibilidade (axe em todas as telas nas duas larguras, foco e teclado na gaveta do menu); quebra dos e2e por troca de seletor, que tenta ser 'resolvida' apagando asserção (proibido: só muda seletor ou texto, a regra testada fica); mudança de comportamento escondida na reforma visual (a revisão compara rotas, actions e esquemas e eles não podem mudar); fonte ou recurso carregado de fora, abrindo a CSP (proibido); tela de decisão no celular que esconda uma exigência de hoje, como o documento assinado ou a revisão dos rascunhos (todas continuam visíveis e obrigatórias). Publicação no ar só com aprovação de Fabiano, depois do PR. Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261110-0015-v1",
+    "opcaoEscolhida": "Proposta A (Mesa de controle) como base de todo o painel, mais a tela de decisão no celular da proposta C, só na camada visual, sobre a main",
+    "aprovadoPor": "Fabiano",
+    "aprovadoEm": "2026-11-10"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Todas as telas autenticadas usam a casca da proposta A, com as cores e as fontes do manual de marca",
+    "A fila tem os contadores que filtram e vira lista de cartões abaixo de 768 px",
+    "A decisão em 390 px segue a C2, com todas as exigências de hoje visíveis e obrigatórias",
+    "Nenhuma rota, action, esquema, migration ou regra muda; nenhum controle de segurança é afrouxado",
+    "Fontes servidas pelo próprio app; a CSP não ganha domínio externo",
+    "axe sem violação em T01 a T12 no computador e em 390 px",
+    "A suíte e2e passa três vezes seguidas, com o e2e novo da aprovação em 390 px"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "Capturas de tela das telas principais no computador e em 390 px na entrega",
+    "CHANGELOG com a versão 0.2.0",
+    "PR com CI verde"
+  ]
+}

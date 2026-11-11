@@ -95,11 +95,11 @@ export const TEXTOS_DETALHE = {
       `O texto recebido foi apagado em ${data}, pela regra de retenção de ${dias} dias. Os dados da demanda continuam.`,
     semTexto: 'Esta demanda foi criada sem texto colado.',
   },
-  historico: {
-    legenda: 'Histórico da demanda, do mais novo para o mais antigo',
-    regiao: 'Tabela do histórico',
-    colunas: ['Data e hora', 'Quem', 'O que aconteceu', 'Antes', 'Depois'],
-  },
+  // 0.2.0 (T11 do DEC-DEM-20261110-0015-v1; 03, seção 9): trilha e cabeçalho da A2. O histórico virou lista
+  // (LinhaDoTempo, com os textos dela); a legenda e as colunas da tabela saíram.
+  trilha: 'Trilha',
+  trilhaDemandas: 'Demandas',
+  urgenciaNoCabecalho: (rotulo: string) => `Urgência: ${rotulo}`,
   aguardando: 'Esta demanda está aguardando informação.',
   vejaDuvidas: 'Veja as dúvidas em aberto.',
 } as const;

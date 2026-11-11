@@ -12,7 +12,7 @@
 // O que cria: as quatro contas de CONTAS_FICTICIAS (cto e administradora com 2FA ativo; sem2fa e configurar2fa, papel
 // cto, sem 2FA, para o e2e da T37), o preço de 'modelo-ficticio' (os agentes continuam desligados), uma demanda de cada
 // tipo e, numa delas, ESP, RSK e DEC gravados como rascunho de agente (para a T43), com os exemplos de saída dos prompts;
-// e as demandas próprias dos testes do e2e que aprovam um DEC (TITULOS_DO_E2E).
+// e as demandas próprias dos testes do e2e (TITULOS_DO_E2E), duas delas com versões de estado fixo (criarVersoesDoE2E).
 //
 // As senhas e os segredos TOTP abaixo são fictícios e públicos, escritos aqui de propósito: só servem a um banco
 // semeado por este script, e nenhum deles tem o formato do token de serviço.
@@ -34,6 +34,8 @@ import { criarEspecificacao } from '../src/modules/especificacoes/servico';
 import { registrarEvento } from '../src/modules/historico/registrar';
 import { saidaConsolidacaoSchema } from '../src/modules/agentes/schemas';
 import { criarPacoteDecisao, NIVEL_DO_DEC_DE_AGENTE } from '../src/modules/pacotes-decisao/criar';
+import { registrarDecisao } from '../src/modules/pacotes-decisao/decidir';
+import { criarPacoteDecisaoSchema, registrarDecisaoSchema } from '../src/modules/pacotes-decisao/schemas';
 import { criarParecerRiscoSchema } from '../src/modules/pareceres-risco/schemas';
 import { criarParecerRisco } from '../src/modules/pareceres-risco/servico';
 import { gravarConta } from './criar-usuario';
@@ -141,6 +143,9 @@ const DEMANDAS: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
 // DEC-DEM-20261102-0002-v1: a `decisao` é a demanda da decisao.spec (antes criada pela API na primeira vez que um teste
 // precisava, e de novo a cada worker novo do Playwright), e a `rskDuploClique` e a `espListaDeTextos` são as do duplo
 // clique e da T07 da parecer-risco-qa.spec. Com elas, a conta "cto" sai de 30 de 30 demandas na suíte para 27 de 30.
+// U+202E (RIGHT-TO-LEFT OVERRIDE) vem de código, e não cru no literal: cru, ele inverte o resto da linha no editor e no
+// diff ("Trojan Source", CVE-2021-42574); test/estatico/sem-controle-bidi.test.ts reprova o caractere cru no fonte.
+const RLO = String.fromCodePoint(0x202e);
 export const TITULOS_DO_E2E = {
   duplaAprovacao: 'Dupla aprovação do pacote (fictício)',
   pedidoGerar: 'Portal do pedido: gerar e baixar (fictício)',
@@ -154,7 +159,21 @@ export const TITULOS_DO_E2E = {
   // 0.1.13 (DEC-DEM-20261104-0014-v1, S6): o caminho completo da substituição (R1 da 01): aprovar, a recusa por nome
   // ("Santos" no contexto), contexto corrigido, DEC novo, aprovar e gerar.
   substituicao: 'Frete da filial: substituição do pacote (fictício)',
+  // 0.2.0 (DEC-DEM-20261110-0015-v1, T06, D-07): as dos e2e novos do visual, pelo mesmo limite C-36. Só a `etapasDupla` e
+  // a `decisaoRecomendaB` nascem com ESP, RSK e DEC (criarVersoesDoE2E); as outras, sem versão, e o e2e cria as dele. A
+  // `textoDeTerceiro` traz marcação e o caractere de direção U+202E, que a tela tem de mostrar como texto.
+  textoDeTerceiro: `<script>window.__xss=1</script> Pedido ${RLO} com texto de terceiro <img src=x onerror="window.__xss=2"> (fictício)`,
+  etapasSemVersoes: 'Etapas sem versões (fictício)',
+  etapasDupla: 'Etapas com uma de duas aprovações (fictício)',
+  decisaoOpcaoB: 'Aprovar a opção B (fictício)',
+  decisaoDevolverComOpcao: 'Devolver com a opção marcada (fictício)',
+  decisaoCelularCto: 'Decisão no celular, só o CTO (fictício)',
+  decisaoCelularDupla: 'Decisão no celular, dupla aprovação (fictício)',
+  decisaoRecomendaB: 'Recomendação do agente cita a opção B (fictício)',
 } as const;
+
+// A recomendação do DEC de agente da `decisaoRecomendaB`, que o e2e procura na T11 (P-01: em texto, sem opção marcada).
+export const RECOMENDACAO_DO_E2E = 'Recomendo a opção B (fictício).';
 
 // Todas com contexto: a `descricao` do Pedido de Construção sai dele, e o validarPedido recusa descrição vazia.
 const DO_PORTAL = {
@@ -223,7 +242,51 @@ const DEMANDAS_DO_E2E: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
     linhaServicoProvavel: 'sob_medida',
     contexto: 'A filial de Santos calcula o frete à mão.',
   },
+  // 0.2.0 (T06): todas melhoria, sob_medida, de "Pessoa Ficticia …", com contexto (a descrição do Pedido sai dele).
+  ...(
+    [
+      [TITULOS_DO_E2E.textoDeTerceiro, 'O título veio de um formulário de terceiro e traz marcação.'],
+      [TITULOS_DO_E2E.etapasSemVersoes, 'A demanda ainda não tem especificação, parecer de risco nem pacote.'],
+      [TITULOS_DO_E2E.etapasDupla, 'A mudança gera compromisso com o cliente e já tem a aprovação do CTO.'],
+      [TITULOS_DO_E2E.decisaoOpcaoB, 'A equipe quer aprovar a segunda opção do pacote.'],
+      [TITULOS_DO_E2E.decisaoDevolverComOpcao, 'O pacote volta para análise, mesmo com uma opção escolhida na tela.'],
+      [TITULOS_DO_E2E.decisaoCelularCto, 'Ajuste pequeno, decidido no celular só pelo CTO.'],
+      [TITULOS_DO_E2E.decisaoCelularDupla, 'Mudança com compromisso, decidida no celular com as duas aprovações.'],
+      [TITULOS_DO_E2E.decisaoRecomendaB, 'O agente de consolidação recomenda a segunda opção.'],
+    ] as const
+  ).map(([titulo, contexto]) => ({
+    titulo,
+    tipo: 'melhoria' as const,
+    solicitanteNome: 'Pessoa Ficticia Produto',
+    solicitantePapel: 'produto' as const,
+    linhaServicoProvavel: 'sob_medida' as const,
+    contexto,
+  })),
 ];
+
+// Versões das demandas do e2e da 0.2.0 (T06). A `etapasDupla` recebe ESP, RSK e DEC de pessoa, nível
+// cto_e_administradora, e a aprovação do CTO na opção A: a barra de etapas e a T11 mostram uma de duas aprovações. Texto
+// só inventado.
+const ESP_DO_E2E: z.input<typeof criarEspecificacaoSchema> = {
+  descricaoObjetiva: 'Mostrar na demanda em que etapa o pacote de decisão está (fictício).',
+  escopoInclui: ['Barra das etapas na demanda'],
+  sistemaAlvo: 'painel-ficticio',
+  repositorioDestino: 'wsssistemas2626-crypto/painel-ficticio',
+  criteriosAceitePreliminares: ['A barra mostra a etapa atual'],
+  definicaoDePronto: ['Testes automatizados verdes'],
+};
+const RSK_DO_E2E: z.input<typeof criarParecerRiscoSchema> = {
+  resumo: 'Risco baixo: a mudança é só de exibição (fictício).',
+  riscoTecnicoNivel: 'baixo',
+  riscoOperacionalNivel: 'baixo',
+  riscoJuridicoNivel: 'baixo',
+};
+const DEC_DO_E2E: z.input<typeof criarPacoteDecisaoSchema> = {
+  resumoExecutivo: 'Ajuste de exibição com compromisso com o cliente, que exige as duas aprovações (fictício).',
+  opcaoA: { descricao: 'Entregar a barra de etapas numa entrega só.' },
+  opcaoB: { descricao: 'Entregar a barra de etapas em duas entregas.' },
+  nivelAprovacaoRequerido: 'cto_e_administradora',
+};
 
 // Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e.
 export const TOTAL_DEMANDAS_DO_SEED = DEMANDAS.length + DEMANDAS_DO_E2E.length;
@@ -308,8 +371,39 @@ async function criarDemandas(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: Pe
   // As do e2e pela conta fictícia `sem2fa` (papel cto): o seed grava com a hora do sistema, e elas entrariam no limite
   // de 30 demandas por hora (C-36) da conta autora. A "cto" e a "administradora" já gastam esse limite nas specs; a
   // `sem2fa` nunca cria demanda no e2e. O limite e a regra de autoria não mudam.
-  for (const d of DEMANDAS_DO_E2E) await criarDemanda(deps, sem2fa, criarDemandaSchema.parse(d), t);
+  const idDoE2E = new Map<string, string>();
+  for (const d of DEMANDAS_DO_E2E) idDoE2E.set(d.titulo, (await criarDemanda(deps, sem2fa, criarDemandaSchema.parse(d), t)).id);
+  await criarVersoesDoE2E(t, deps, { cto, sem2fa }, idDoE2E);
   return entradas.length + DEMANDAS_DO_E2E.length;
+}
+
+// 0.2.0 (T06): as versões das duas demandas do e2e que precisam de estado fixo, pelos mesmos serviços da API e do
+// worker, na transação do seed. A ESP, o RSK e o DEC de pessoa da `etapasDupla` são da `sem2fa` (papel cto), pelo
+// mesmo motivo das demandas: o limite de 60 versões por hora (C-36) da "cto" fica todo para as specs. A aprovação é da
+// "cto", que é quem o e2e vê como aprovador; aprovação não entra nesse limite. A `decisaoRecomendaB` recebe os três
+// rascunhos de agente, como a primeira demanda, com a recomendação de RECOMENDACAO_DO_E2E.
+async function criarVersoesDoE2E(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: PessoasDoSeed, idDoE2E: ReadonlyMap<string, string>): Promise<void> {
+  const id = (titulo: string): string => {
+    const v = idDoE2E.get(titulo);
+    if (!v) throw new Error('seed: demanda do e2e não criada');
+    return v;
+  };
+  const dupla = id(TITULOS_DO_E2E.etapasDupla);
+  await criarEspecificacao(deps, sem2fa, dupla, criarEspecificacaoSchema.parse(ESP_DO_E2E), t);
+  await criarParecerRisco(deps, sem2fa, dupla, criarParecerRiscoSchema.parse(RSK_DO_E2E), t);
+  const dec = await criarPacoteDecisao(deps, sem2fa, dupla, criarPacoteDecisaoSchema.parse(DEC_DO_E2E), t);
+  await registrarDecisao(deps, cto, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }), t);
+
+  const recomendaB = id(TITULOS_DO_E2E.decisaoRecomendaB);
+  await criarEspecificacao(deps, agente('insumo_tecnico'), recomendaB, criarEspecificacaoSchema.parse(PROMPTS.insumo_tecnico.exemploSaida), t);
+  await criarParecerRisco(deps, agente('risco'), recomendaB, criarParecerRiscoSchema.parse(PROMPTS.risco.exemploSaida), t);
+  // A saída de exemplo do agente com a recomendação trocada, conferida de novo pelo schema do DEC.
+  const saidaRecomendaB = criarPacoteDecisaoSchema.parse({
+    ...saidaConsolidacaoSchema.parse(PROMPTS.consolidacao.exemploSaida),
+    recomendacao: RECOMENDACAO_DO_E2E,
+    nivelAprovacaoRequerido: NIVEL_DO_DEC_DE_AGENTE,
+  });
+  await criarPacoteDecisao(deps, agente('consolidacao'), recomendaB, saidaRecomendaB, t);
 }
 
 export async function seedFicticio(deps: DepsDoSeed, env: Record<string, string | undefined>): Promise<ResultadoSeed> {

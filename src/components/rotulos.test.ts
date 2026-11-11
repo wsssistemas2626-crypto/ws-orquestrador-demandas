@@ -40,20 +40,21 @@ describe('rótulos de enumeração (03, 2.2 e 2.6)', () => {
     });
   });
 
-  it('cores dos selos de status, de decisão e de nível (03, 2.2)', () => {
+  // 0.2.0 (T03, D-03): cores com os nomes da 03, 2.5 do pedido 0015.
+  it('cores dos selos de status, de decisão e de nível (03, 2.5 do pedido 0015)', () => {
     expect(COR_STATUS).toEqual({
-      nova: 'slate',
-      em_analise: 'blue',
-      aguardando_informacao: 'amber',
-      pronta_para_decisao: 'violet',
-      aprovada: 'green',
-      em_construcao: 'cyan',
-      entregue: 'emerald',
-      devolvida: 'orange',
-      encerrada: 'gray',
+      nova: 'azul',
+      em_analise: 'violeta',
+      aguardando_informacao: 'ambar',
+      pronta_para_decisao: 'petroleo',
+      aprovada: 'verde',
+      em_construcao: 'marinho',
+      entregue: 'verde-cheio',
+      devolvida: 'laranja',
+      encerrada: 'cinza',
     });
-    expect(COR_DECISAO).toEqual({ pendente: 'amber', aprovada: 'green', devolvida: 'orange', arquivada: 'gray' });
-    expect(COR_NIVEL).toEqual({ baixo: 'green', medio: 'amber', alto: 'red' });
+    expect(COR_DECISAO).toEqual({ pendente: 'petroleo', aprovada: 'verde', devolvida: 'laranja', arquivada: 'cinza' });
+    expect(COR_NIVEL).toEqual({ baixo: 'verde', medio: 'ambar', alto: 'vermelho' });
   });
 
   it('decisão, nível e selos especiais (03, 2.2)', () => {
@@ -64,10 +65,10 @@ describe('rótulos de enumeração (03, 2.2 e 2.6)', () => {
       arquivada: 'Arquivada',
     });
     expect(ROTULO_NIVEL).toEqual({ baixo: 'Baixo', medio: 'Médio', alto: 'Alto' });
-    expect(SELO_RASCUNHO).toEqual({ texto: 'Rascunho de agente', cor: 'violet', tracejado: true });
-    expect(SELO_DESATUALIZADO).toEqual({ texto: 'Desatualizado', cor: 'red', tracejado: false });
+    expect(SELO_RASCUNHO).toEqual({ texto: 'Rascunho de agente', cor: 'violeta', tracejado: true });
+    expect(SELO_DESATUALIZADO).toEqual({ texto: 'Desatualizado', cor: 'vermelho', tracejado: false });
     // 0.1.13: o DEC aprovado que um aprovado mais novo da demanda substituiu.
-    expect(SELO_SUBSTITUIDO).toEqual({ texto: 'Substituído', cor: 'gray', tracejado: false });
+    expect(SELO_SUBSTITUIDO).toEqual({ texto: 'Substituído', cor: 'cinza', tracejado: false });
   });
 
   it('tipo, papel do solicitante, linha de serviço, urgência e nível de aprovação (03, 2.6)', () => {

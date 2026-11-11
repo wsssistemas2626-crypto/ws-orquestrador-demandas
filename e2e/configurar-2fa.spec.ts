@@ -3,11 +3,11 @@
 //   - `sem2fa` nunca termina a ativação (só passa pelos passos 1 e 2 com erro): continua sem 2FA para C-04 (c);
 //   - `configurar2fa` percorre o fluxo inteiro e termina com 2FA.
 // O banco do e2e é novo a cada execução (Testcontainers ou homologação recém-subida).
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
 import { relogioDoSistema } from '../src/lib/relogio';
 import { codigoErrado, codigoTotp } from '../test/sessao';
-import { entrarSoComSenha, ipFicticio, semViolacoes } from './apoio';
+import { entrarSoComSenha, expect, ipFicticio, semViolacoes, test } from './apoio';
 
 const TITULO = 'Configurar verificação em duas etapas';
 const PASSO_1 = 'Passo 1 de 3 — Confirme sua senha';

@@ -10,8 +10,8 @@
 // C-36 (06-T43-tech-lead e 06-T44-tech-lead, "C-36"): esta spec não cria demanda nem versão, em nenhuma conta.
 //   - conta "cto": 0 demandas e 0 versões;
 //   - conta "administradora": 0 demandas e 0 versões.
-import { expect, test, type Page } from '@playwright/test';
-import { entrarComo, semViolacoes } from './apoio';
+import { type Page } from '@playwright/test';
+import { entrarComo, expect, semViolacoes, test } from './apoio';
 
 const TITULO = 'Agentes e teto de gasto — WS Orquestrador de Demandas';
 

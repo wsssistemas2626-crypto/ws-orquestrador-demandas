@@ -13,15 +13,17 @@ export function AvisosDaMoldura({ tetoMensal, suspenso, totalDemandas }: Props) 
   // 03, 2.7: "mais de 9.000".
   const capacidadeNoFim = totalDemandas > LIMITE_AVISO_CAPACIDADE;
   if (!agentesSuspensos && !capacidadeNoFim) return null;
+  // 0.2.0 (T16; Minor da 06-T05-tech-lead): a mesma largura e as mesmas margens do `main` da casca (layout do painel). O
+  // "Ver agentes e teto" é link solto: 44 px de altura abaixo de 768 px (03, 2.4).
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-300 flex-col gap-2 px-4 pt-4 md:px-6 xl:px-8">
       {agentesSuspensos ? (
         <Alerta tipo="atencao">
           <p>
             Agentes de IA suspensos: o gasto do mês atingiu o teto. Nenhum agente chama o provedor até o teto subir ou o mês virar.
             Preencha os campos à mão.
           </p>
-          <Link href="/configuracao/agentes" className="text-atencao-texto">
+          <Link href="/configuracao/agentes" className="inline-flex min-h-11 items-center text-atencao md:min-h-6">
             Ver agentes e teto
           </Link>
         </Alerta>

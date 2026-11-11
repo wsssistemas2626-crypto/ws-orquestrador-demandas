@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.1.13 (o DEC aprovado mais novo da demanda substitui o aprovado anterior, e só ele gera o Pedido de Construção; um DEC só do CTO não substitui um aprovado de dupla aprovação; ver o [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado), o [cap. 05](05-pedido-de-construcao.md) e o [CHANGELOG](../../CHANGELOG.md)) |
-| Atualizado em | 10/11/2026 |
+| Versão do sistema | 0.2.0 (novo visual do painel: casca com menu lateral e gaveta, fila com contadores, demanda com barra de etapas e "Próxima ação", decisão por três botões e no celular; só a camada visual mudou; ver o [cap. 08](08-painel.md) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.1.13, o DEC aprovado mais novo da demanda passou a substituir o aprovado anterior ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)) |
+| Atualizado em | 11/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
 | Fonte de verdade | o código do ramo (padrão técnico, seção 11). Onde a spec ou o plano dizem outra coisa, vale o código, e a diferença está apontada no capítulo |
@@ -18,18 +18,22 @@ C-28 só com e-mail, telefone e CPF e a T11 sem a caixa de confirmação. Vale o
 [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado); a atualização da spec (RF-13 e RF-22) fica com o
 maestro do `/construir`.
 
+O novo visual (0.2.0) tem spec própria, `docs/superpowers/specs/2026-11-10-ws-orquestrador-demandas-novo-visual-design.md`,
+com requisitos numerados de RF-01 a RF-17 **do pedido 0015**. Esses números não são os do sistema: o mapa deles está
+na seção [Requisitos do novo visual](#requisitos-do-novo-visual-020) abaixo.
+
 ## Capítulos
 
 | Cap. | Assunto | Requisitos |
 |---|---|---|
-| [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco e versões da stack | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-12 |
+| [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco, versões da stack e fontes | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-19 |
 | [02](02-acesso-e-seguranca.md) | Login com 2FA, tokens de agente, matriz de acesso, CSRF, log | RF-01, RF-02, RNF-10, RNF-12, RNF-13 |
 | [03](03-demandas.md) | Demanda, entrada colando o texto, id, consulta, status, dúvida em aberto, histórico | RF-03 a RF-07, RF-15, RF-21 |
 | [04](04-versoes-e-decisao.md) | ESP, RSK e DEC em versões, desatualizado, decisão, substituição do DEC aprovado e dupla aprovação | RF-08 a RF-14 |
 | [05](05-pedido-de-construcao.md) | Pedido de Construção e filtro de pacotes por decisão | RF-22, RF-23 |
 | [06](06-agentes-de-ia.md) | Os quatro agentes, uso, teto, interruptor, minimização e as pré-condições para ligar | RF-16 a RF-20 |
 | [07](07-worker-avisos-retencao.md) | Worker, aviso por e-mail e expurgo do texto bruto | RF-24, RF-25 |
-| [08](08-painel.md) | Telas do painel | RF-26, RNF-11, RNF-16 |
+| [08](08-painel.md) | Telas do painel, identidade visual, casca, fila, demanda, decisão, acessibilidade e capturas | RF-26, RNF-11, RNF-16; RF-01 a RF-17 do pedido 0015 |
 | [09](09-referencia-api.md) | Referência da API: rotas, quem pode, corpo e erros | RF-03, RF-06, RF-13, RF-22, RF-23 |
 | [10](10-configuracao-e-scripts.md) | Variáveis de ambiente e scripts de operação | RNF-13, RNF-14 |
 
@@ -67,6 +71,31 @@ Operação em produção (serviços do Easypanel, deploy, rollback, alertas) fic
 | RF-25 | E-mail de DEC pronto | [07](07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail) |
 | RF-26 | Painel em pt-BR | [08](08-painel.md) |
 
+## Requisitos do novo visual (0.2.0)
+
+Os RF abaixo são do pedido `DEC-DEM-20261110-0015-v1` (spec de 10/11/2026), e não os do sistema. Os critérios
+Dado/Quando/Então estão em `docs/construcao/DEC-DEM-20261110-0015-v1/01-analista-requisitos.md`.
+
+| RF do pedido | Resumo | Capítulo |
+|---|---|---|
+| RF-01 | Tokens de cor, família, raio e foco num só lugar | [08](08-painel.md#identidade-visual-rf-01-rf-02) |
+| RF-02 | Noto Sans e Noto Sans Mono servidas pelo próprio app | [08](08-painel.md#identidade-visual-rf-01-rf-02) e [01](01-arquitetura.md#fontes-adr-13) |
+| RF-03 | Casca com menu lateral, a partir de 768 px | [08](08-painel.md#casca-e-gaveta-rf-03-rf-04) |
+| RF-04 | Gaveta do menu, abaixo de 768 px | [08](08-painel.md#casca-e-gaveta-rf-03-rf-04) |
+| RF-05 | Contadores por status na fila | [08](08-painel.md#fila-t03-rf-05-a-rf-07) e [03](03-demandas.md#rf-06-consultar-e-alterar) |
+| RF-06 | Tabela densa da fila, com Etapas e Idade | [08](08-painel.md#fila-t03-rf-05-a-rf-07) |
+| RF-07 | Lista de cartões da fila, abaixo de 768 px | [08](08-painel.md#fila-t03-rf-05-a-rf-07) |
+| RF-08 | Barra das cinco etapas na T05 | [08](08-painel.md#demanda-t05-rf-08-a-rf-10) |
+| RF-09 | Cartão "Próxima ação" na T05 | [08](08-painel.md#demanda-t05-rf-08-a-rf-10) |
+| RF-10 | T05 no arranjo A2, sem perder nada | [08](08-painel.md#demanda-t05-rf-08-a-rf-10) |
+| RF-11 | T11 por três botões | [08](08-painel.md#decisão-t11-rf-11-rf-12) |
+| RF-12 | T11 no celular (C2) | [08](08-painel.md#decisão-t11-rf-11-rf-12) |
+| RF-13 | Entrar, 2FA, Sem permissão, erro e 404 com a marca | [08](08-painel.md#telas-públicas-e-demais-telas-rf-13-rf-14) |
+| RF-14 | Demais telas com casca e tokens | [08](08-painel.md#telas-públicas-e-demais-telas-rf-13-rf-14) |
+| RF-15 | Superfícies que não mudam | [08](08-painel.md#o-que-não-mudou-rf-15) |
+| RF-16 | Testes nas duas larguras, vigia de origem e CSP | [08](08-painel.md#acessibilidade-rnf-11) |
+| RF-17 | Versão 0.2.0, CHANGELOG, manual e capturas | [08](08-painel.md#capturas-de-tela) e [CHANGELOG](../../CHANGELOG.md) |
+
 ## Glossário
 
 Cada termo significa a mesma coisa em todos os capítulos.
@@ -96,3 +125,11 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Migrator | Papel do banco dono do DDL, usado só para migration (`DATABASE_URL_MIGRATOR`) |
 | Papel da aplicação | `orquestrador_app`: o papel do app e do worker, sem DDL (`DATABASE_URL`) |
 | Worker | Segundo processo da mesma imagem (`pnpm worker`), que roda os jobs do pg-boss |
+| Casca | A moldura das telas do painel depois do login: menu lateral a partir de 768 px, barra com "Menu" e gaveta abaixo disso (desde a 0.2.0, [cap. 08](08-painel.md#casca-e-gaveta-rf-03-rf-04)) |
+| Gaveta | O menu do painel no celular: um `<dialog>` modal aberto pelo botão "Menu", abaixo de 768 px (desde a 0.2.0) |
+| Moldura pública | A moldura das telas sem casca (Entrar, 2FA, Sem permissão, erro e 404 da raiz): só a marca acima de um cartão (desde a 0.2.0) |
+| Token | Variável CSS do `@theme` de `src/app/globals.css` com uma cor, família, raio ou altura do painel. É o único lugar onde se escreve hexadecimal, salvo o QR da T02 (desde a 0.2.0) |
+| Contador de status | Botão da fila com um status e o total de demandas nele, que filtra a fila por esse status (desde a 0.2.0) |
+| Etapas da fila | As marcas ESP, RSK e DEC de cada linha da fila: feita quando a demanda tem ao menos uma versão daquele tipo (desde a 0.2.0). Não é o mesmo que a barra de etapas da T05 |
+| Barra de etapas | As cinco etapas da T05 (Demanda, Especificação, Parecer de risco, Decisão, Pedido de Construção), com o estado de cada uma e a etapa atual (`etapasDaDemanda`, desde a 0.2.0) |
+| Próxima ação | Cartão da T05 que diz o que falta, quem age e onde, pela primeira de 13 condições que casar (`proximaAcao`, desde a 0.2.0). Só informa; não libera nem esconde nada |

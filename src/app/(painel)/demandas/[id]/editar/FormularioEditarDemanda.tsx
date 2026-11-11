@@ -78,7 +78,7 @@ export function FormularioEditarDemanda({ id, inicial }: Props) {
           </Alerta>
         </div>
       ) : null}
-      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-8">
+      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-5">
         <CamposDaDemanda valores={valores} mudar={setValores} erros={erros.porCampo} />
         <div className="flex flex-wrap items-center gap-4">
           <Botao type="submit" carregando={enviando} textoCarregando="Salvando…">

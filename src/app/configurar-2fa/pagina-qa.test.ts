@@ -26,7 +26,8 @@ describe('/configurar-2fa: a guarda vem antes de tudo', () => {
     guarda.mockResolvedValueOnce({ usuarioId: 'usuario-ficticio', nome: 'Pessoa Ficticia' });
     const s = renderToStaticMarkup(await PaginaConfigurar2fa());
     expect(guarda).toHaveBeenCalledTimes(1);
-    expect(s).toMatch(/<header[^>]*>[\s\S]*WS Orquestrador de Demandas[\s\S]*<\/header>/);
+    // 0.2.0 (RF-13): o nome do sistema é a marca, em três blocos ("WS", "Orquestrador", "de Demandas").
+    expect(s).toMatch(/<header[^>]*>[\s\S]*>WS<[\s\S]*>Orquestrador<[\s\S]*>de Demandas<[\s\S]*<\/header>/);
     expect(s).toMatch(/<main id="conteudo" tabindex="-1"[^>]*>[\s\S]*<h1[^>]*>Configurar verificação em duas etapas<\/h1>/);
     expect(s).toContain('Passo 1 de 3 — Confirme sua senha');
     // Nada do painel: nem navegação, nem "Sair" (C-04 c).

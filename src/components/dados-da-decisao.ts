@@ -1,5 +1,6 @@
 // Regra da T11 Decisão do pacote no painel (03, T11; 04, C-14; P1-a, P1-b, P1-d), sem tela: os textos da 03, quem vê o
-// formulário, as opções dos grupos, a validação no envio, a entrada que vai à Server Action, os erros da API campo a
+// formulário, as opções dos grupos, a validação no envio, os três botões de envio da 0.2.0 (envioDaDecisao e
+// rotuloDoPrincipal), a entrada que vai à Server Action, os erros da API campo a
 // campo, o diálogo, os alertas de topo, a revisão antes de decidir, as opções e as aprovações em texto, e a chegada
 // depois de criar o pacote ou de decidir. Vai ao navegador: só tipos vêm dos módulos, e as mensagens que o servidor
 // também usa são cópia das de decidir.ts (o teste confere). Quem decide é o servidor (registrarDecisao, T21): a regra
@@ -77,16 +78,27 @@ export const TEXTOS_DECISAO = {
   devolver: 'Devolver para nova análise',
   arquivar: 'Arquivar',
   dicaAprovarIndisponivel: 'Indisponível: pacote desatualizado.',
-  dicaDevolver: 'Devolver para nova análise: a demanda volta para Em análise.',
+  // 0.2.0 (03 do DEC-DEM-20261110-0015-v1, seção 9): a consequência do botão curto "Devolver".
+  dicaDevolver: 'Devolver: a demanda volta para Em análise.',
   dicaArquivar: 'Arquivar: a demanda vai para Encerrada.',
+  // 0.2.0 (T12): os três botões de envio e o grupo deles. `legendaDecisao`, `aprovar` como rótulo de rádio, `devolver`
+  // e `registrar` como texto de botão ficam sem uso na T11 (03, seção 9); o `h2` "Registrar decisão" continua.
+  aprovarOpcao: (o: OpcaoDecisao) => `Aprovar a opção ${o}`,
+  devolverCurto: 'Devolver',
+  grupoAcoes: 'Ações da decisão',
+  // 0.2.0 (T13; 03, seção 9): a linha do cabeçalho, o link de volta do celular e o botão do recolhível.
+  repositorioNaLinha: (r: string | null) => (r ? `Repositório destino: ${r}` : 'Repositório destino: Não informado'),
+  voltarParaDemanda: 'Voltar para a demanda',
+  verDetalhes: 'Ver vantagens, desvantagens e a revisão do pacote',
   legendaOpcao: 'Opção escolhida (obrigatório)',
   rotuloOpcao: (l: LetraOpcao, trecho: string) => `Opção ${l} — ${trecho}`,
   // A 03 escreve a frase do CTO aprovando primeiro; a da administradora aprovando primeiro troca só o papel.
   fixada: (papel: PapelAprovacao, opcao: OpcaoDecisao) =>
     `${DO_PAPEL[papel].artigo} ${DO_PAPEL[papel].nome} aprovou a opção ${opcao}. A sua aprovação vale para a mesma opção. Para discordar, escolha devolver ou arquivar.`,
-  referencia: 'Identificador do documento assinado (obrigatório)',
+  // 0.2.0 (T12): o documento aparece desde o início, e o rótulo diz que ele é obrigatório só para aprovar.
+  referencia: 'Identificador do documento assinado (obrigatório para aprovar)',
   dicaReferencia: 'Exemplo: número do documento no sistema de assinatura.',
-  dataAssinatura: 'Data da assinatura (obrigatório)',
+  dataAssinatura: 'Data da assinatura (obrigatório para aprovar)',
   comentarios: 'Comentários (opcional)',
   revisei: 'Revisei os rascunhos de agente citados neste pacote (obrigatório)',
   registrando: 'Registrando…',
@@ -167,6 +179,8 @@ export function textoDaDecisaoRegistrada(p: Pick<PacoteDecisaoVista, 'statusDeci
 // --- grupos do formulário ---
 
 // "Aprovar" desatualizado fica no grupo, indisponível e explicado (CA-12.4; GrupoOpcoes: aria-disabled e aria-describedby).
+// Desde a 0.2.0 (T12) a T11 decide por três botões, e este grupo de rádio não aparece mais na tela; a função fica, com o
+// teste dela, até a limpeza dos textos sem uso (03, seção 9).
 export function opcoesDaDecisao(aprovarIndisponivel: boolean): OpcaoDoGrupo[] {
   const t = TEXTOS_DECISAO;
   return [
@@ -220,9 +234,14 @@ export const ROTULOS_DECISAO: Readonly<Record<string, string>> = {
   revisouRascunhosDeAgente: 'Revisei os rascunhos de agente citados neste pacote',
 };
 
-// O elemento que o link do resumo foca: no grupo de decisão, a primeira opção disponível; no de opção, a primeira.
+// Os ids dos três botões de envio da T11 (03, 6.4), a única fonte: o formulário os usa, e o resumo de erros aponta para
+// eles.
+export const ID_DOS_BOTOES: Readonly<Record<StatusDecisaoGravado, string>> = { aprovada: 'decisao-aprovar', devolvida: 'decisao-devolver', arquivada: 'decisao-arquivar' };
+
+// O elemento que o link do resumo foca. Na decisão (0.2.0, T13; D-T12-01): o botão principal, ou "Devolver" com o
+// pacote desatualizado, porque o principal não envia; desde a T12 não há rádio de decisão. No grupo de opção, a primeira.
 function idDoAlvo(campo: string, ctx: ContextoDoFormulario): string {
-  if (campo === 'statusDecisao') return `${idDoCampo('statusDecisao')}-${ctx.aprovarIndisponivel ? 'devolvida' : 'aprovada'}`;
+  if (campo === 'statusDecisao') return ID_DOS_BOTOES[ctx.aprovarIndisponivel ? 'devolvida' : 'aprovada'];
   if (campo === 'opcaoEscolhida') return `${idDoCampo('opcaoEscolhida')}-${LETRAS[0]}`;
   return idDoCampo(campo);
 }
@@ -279,6 +298,35 @@ export function entradaDaDecisao(v: ValoresDaDecisao, ctx: ContextoDoFormulario)
       }
     : {};
   return { statusDecisao: 'aprovada', ...(opcao ? { opcaoEscolhida: opcao } : {}), ...documento, ...comuns };
+}
+
+// --- os três botões (0.2.0, T12; ADR-18) ---
+
+// O valor de cada botão de envio, na ordem do DOM: o principal ("Aprovar…") é o primeiro, e o Enter num campo de texto
+// envia por ele.
+export const ACOES_DA_DECISAO = ['aprovada', 'devolvida', 'arquivada'] as const satisfies readonly StatusDecisaoGravado[];
+
+export type EnvioDaDecisao = { tipo: 'nada' } | { tipo: 'erros'; v: ValoresDaDecisao; erros: ErroDeCampo[] } | { tipo: 'confirmar'; v: ValoresDaDecisao };
+
+// CV-10: o botão ativado define o statusDecisao uma vez, e o `v` devolvido é o que vai ao diálogo (textoDoDialogo) e à
+// Server Action (entradaDaDecisao), sem reler o estado da tela. Valor fora da lista, ou envio sem botão, não faz nada.
+// CV-11: com o pacote desatualizado, "Aprovar" não valida, não abre diálogo e não envia; o servidor continua com o 409.
+// A validação é a de hoje (validarDecisao), sem mudança.
+export function envioDaDecisao(valores: ValoresDaDecisao, ctx: ContextoDoFormulario, valorDoBotao: string | null | undefined): EnvioDaDecisao {
+  const acao = ACOES_DA_DECISAO.find((a) => a === valorDoBotao);
+  if (!acao) return { tipo: 'nada' };
+  if (acao === 'aprovada' && ctx.aprovarIndisponivel) return { tipo: 'nada' };
+  const v: ValoresDaDecisao = { ...valores, statusDecisao: acao };
+  const erros = validarDecisao(v, ctx);
+  return erros.length > 0 ? { tipo: 'erros', v, erros } : { tipo: 'confirmar', v };
+}
+
+// Texto do botão principal (03, 6.4): "Aprovar a opção X", com X a opção fixada pela primeira aprovação (a que a entrada
+// envia) ou a marcada; sem opção, e com o pacote desatualizado, "Aprovar". Nenhuma opção vem marcada (CV-13).
+export function rotuloDoPrincipal(v: Pick<ValoresDaDecisao, 'opcaoEscolhida'>, ctx: Pick<ContextoDoFormulario, 'opcaoFixada' | 'aprovarIndisponivel'>): string {
+  if (ctx.aprovarIndisponivel) return TEXTOS_DECISAO.aprovar;
+  const o = ctx.opcaoFixada?.opcao ?? (v.opcaoEscolhida === '' ? null : v.opcaoEscolhida);
+  return o ? TEXTOS_DECISAO.aprovarOpcao(o) : TEXTOS_DECISAO.aprovar;
 }
 
 // --- erros da API ---
@@ -400,6 +448,15 @@ export function itensDaRevisao(
     { termo: t.niveisRisco, valor: RISCOS.map(([chave, titulo]) => t.riscoEmTexto(titulo, ROTULO_NIVEL[p.niveisRisco[chave]])) },
     { termo: t.nivelAprovacao, valor: t.nivelEmTexto(ROTULO_NIVEL_APROVACAO[p.nivelAprovacaoRequerido]) },
   ];
+}
+
+// 0.2.0 (T13; D-16, CV-12): no celular, só critérios de aceite e definição de pronto podem ficar no recolhível; o resto
+// da revisão (ESP e RSK citados com o selo, sistema alvo, repositório destino, níveis de risco e nível de aprovação) fica
+// sempre visível. Item que esta regra não conhece fica visível. A ordem de cada parte é a de itensDaRevisao.
+const TERMOS_DO_DETALHE: ReadonlySet<string> = new Set([TEXTOS_DECISAO.criterios, TEXTOS_DECISAO.definicao]);
+
+export function separarRevisao(itens: readonly ItemDaRevisao[]): { sempre: ItemDaRevisao[]; detalhe: ItemDaRevisao[] } {
+  return { sempre: itens.filter((i) => !TERMOS_DO_DETALHE.has(i.termo)), detalhe: itens.filter((i) => TERMOS_DO_DETALHE.has(i.termo)) };
 }
 
 // --- opções e aprovações ---

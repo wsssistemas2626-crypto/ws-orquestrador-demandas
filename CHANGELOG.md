@@ -3,6 +3,228 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.2.0 — 2026-11-11
+
+Melhoria do pedido `DEC-DEM-20261110-0015-v1` (cadeia completa, risco médio): **o novo visual do painel**. A base de
+todas as telas é a proposta A ("Mesa de controle"), e a tela de decisão no celular segue a proposta C (C2), como
+Fabiano escolheu em 10/11. Base: a `main` da 0.1.13 (`198e97d`, merge do PR #15). Spec:
+`docs/superpowers/specs/2026-11-10-ws-orquestrador-demandas-novo-visual-design.md`; plano, com 17 tarefas:
+`docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md`.
+
+**Só a camada visual muda.** Nenhuma rota da API, Server Action, esquema, migration, papel, permissão ou regra de
+negócio mudou, e nenhum controle foi afrouxado: 2FA, papéis, dupla aprovação, revisão de rascunhos, CSP, C-10, C-13,
+C-21, C-23, C-28, A-03 e C-36 seguem como na 0.1.13. Não há migration, coluna, status nem variável de ambiente nova.
+Não mudaram `src/db/`, `drizzle/`, `src/proxy.ts`, `next.config.ts`, `.github/`, `Dockerfile`, `.env.example` nem os
+nove arquivos `'use server'`.
+
+Ainda não foi publicada: o merge, a publicação e a configuração no Easypanel são de Fabiano. A 0.1.13 está no ar desde
+10/11, então a 0.2.0 é a primeira versão que entra por cima de uma produção em uso. A volta é o caminho A, só com a
+troca de imagem para a `v0.1.13` (`docs/operacao/deploy.md`, seção 6). Antes de publicar, cadastre no Easypanel a
+credencial de leitura do GHCR: sem ela, a volta não é rápida.
+
+### O que muda para quem usa
+
+- **A identidade da WS em todo o painel.** Cores do manual de marca (Marinho, Azul de ação, Azul de texto, Tinta,
+  Superfície e Azul névoa) e as fontes Noto Sans e Noto Sans Mono. Ids, números dos contadores e etiquetas usam a Mono.
+  As fontes vêm do próprio painel, sem nenhuma chamada a outro domínio.
+- **Menu lateral, a partir de 768 px.** Fica à esquerda, em marinho, com a marca "WS Orquestrador de Demandas", os
+  itens Demandas, Nova demanda e Agentes e teto, a conta (`<Nome> (<Papel>)`) e "Sair". O item da tela atual é marcado
+  por fundo, barra e negrito, e não só pela cor.
+- **Gaveta, no celular.** Abaixo de 768 px, o menu vira uma barra no topo com o botão "Menu". A gaveta abre com o foco
+  em "Fechar menu" e fecha por Esc, por "Fechar menu", por um toque fora dela ou pelo item da tela atual. A página atrás
+  não rola enquanto ela está aberta.
+- **Fila (T03).**
+  - No topo, os contadores "Todas" e um por status, cada um com o total. Clicar num contador filtra a fila por aquele
+    status. O filtro vai para o endereço e mantém o tipo e a linha de serviço. Clicar de novo no contador marcado volta
+    para "Todas".
+  - O seletor de Status saiu dos filtros, porque os contadores fazem esse papel. Tipo e Linha de serviço continuam e
+    só se aplicam pelo botão "Filtrar".
+  - A tabela tem as colunas Id, Título, Tipo, Status, Etapas, Urgência, Linha de serviço e Idade. Etapas mostra ESP, RSK
+    e DEC, cheias quando a demanda tem ao menos uma versão. A coluna "Criada em" virou **"Idade"** ("Hoje", "1 dia",
+    "N dias"), com a data de criação embaixo.
+  - No celular, a tabela vira uma lista de cartões, e Tipo e Linha de serviço ficam em "Mais filtros".
+  - Se a contagem falhar, os contadores ficam sem número e continuam filtrando, com o aviso "Não foi possível contar
+    as demandas por status. Os filtros por status continuam funcionando."
+- **Demanda (T05).**
+  - A barra das cinco etapas (Demanda, Especificação, Parecer de risco, Decisão e Pedido de Construção) mostra o estado
+    de cada uma em texto e marca a etapa atual.
+  - O cartão **"Próxima ação"** diz o que falta, quem age e leva à tela certa. Ele só informa: não libera nem esconde
+    nada.
+  - Entrou o botão "Mudar status" no cabeçalho. O histórico continua completo.
+  - A partir de 1200 px, a tela tem duas colunas: Próxima ação e Histórico ficam à direita.
+- **Decisão (T11).**
+  - O rádio "Decisão" e o botão "Registrar decisão" deram lugar a três botões: **"Aprovar a opção X"** ("Aprovar"
+    enquanto nenhuma opção está marcada), **"Devolver"** e **"Arquivar"**. A consequência fica escrita sob os botões:
+    "Devolver: a demanda volta para Em análise." e "Arquivar: a demanda vai para Encerrada.".
+  - **Nenhuma opção vem marcada.** A recomendação aparece em texto, antes das opções.
+  - O documento assinado aparece desde o início, quando a aprovação o exige, com os rótulos "(obrigatório para
+    aprovar)". O cabeçalho ganhou a linha "Repositório destino".
+  - O diálogo de confirmação, os campos e as validações são os mesmos de antes.
+  - Com o pacote desatualizado, "Aprovar" fica indisponível, explicado ("Indisponível: pacote desatualizado.") e não
+    envia nada. "Devolver" e "Arquivar" continuam.
+  - **No celular**, a tela segue a C2: "‹ Voltar para a demanda" no topo e os três botões num rodapé fixo. O detalhe das
+    opções, os critérios de aceite e a definição de pronto ficam em "Ver vantagens, desvantagens e a revisão do pacote".
+    Sistema alvo, repositório destino, níveis de risco, nível de aprovação, selos e alertas ficam sempre à vista.
+- **Entrar, 2FA, Sem permissão, erro e 404.** Ganharam a marca e as cores, sem menu. O fluxo não mudou, e o QR da 2FA
+  continua preto sobre branco.
+- **Demais telas** (Nova demanda, Editar, Nova ESP, Novo RSK, Novo DEC, Ver ESP ou RSK, Agentes e teto). Agora as
+  seções aparecem em cartões, com as cores novas. Os campos, a ordem, os textos de regra e as validações não mudaram.
+
+As telas estão no [manual, cap. 08](docs/manual-tecnico/08-painel.md), com nove capturas feitas com dados fictícios.
+
+### O que mudou no código
+
+- **Tokens** (`src/app/globals.css`): cores, famílias, raios, alturas fixas e foco ficam só no `@theme`. O único
+  hexadecimal fora dele é o do QR da T02 (`AssistenteDoisFatores.tsx`). O foco tem 2 px, em `acao-escura` no fundo
+  claro e em branco no marinho. Os nomes antigos de cor (`texto`, `primaria`, `borda`…) saíram (T16), e
+  `test/estatico/classes-antigas.test.ts` impede a volta deles.
+- **Fontes** (`src/app/fontes.ts`, ADR-13): `next/font/local` com seis `woff2` do subconjunto `latin` dos pacotes
+  `@fontsource/noto-sans` e `@fontsource/noto-sans-mono`. Os dois pacotes estão em `devDependencies`, com a versão
+  exata 5.3.0. O `next build` copia os arquivos para `/_next/static/media`, a CSP não ganhou domínio, e nada é
+  buscado na rede no build. O ADR-13 registra o desvio do padrão técnico. Por isso, o `next build` precisa das
+  `devDependencies` instaladas.
+- **Casca** (`src/components/casca/`, `src/components/marca/MarcaWs.tsx`). O `CabecalhoPainel.tsx` foi reescrito como
+  o `header` da casca. A gaveta é um `<dialog>` nativo aberto com `showModal()`, e a volta do Tab é feita à mão
+  (`GavetaMenu.tsx`, `foco.ts`). `MolduraPublica.tsx` é a moldura das telas sem login. A casca não decide acesso:
+  nome e papel chegam do servidor, e o "Sair" é o de antes (`BotaoSair.tsx`).
+- **Duas leituras novas, só `SELECT`**, em `src/modules/demandas/resumo-da-fila.ts` (ADR-16).
+  `contarDemandasPorStatus` conta por status com o tipo e a linha da URL. `etapasDasDemandas` diz se cada demanda da
+  página tem ESP, RSK e DEC, com um `exists` por tabela.
+  - Só a página da T03 as chama, por `leituras-da-fila.ts`, depois de `exigirPessoaNaPagina` e de
+    `autorizar(pessoa, 'listar_demandas')`. Devolvem só números e booleanos.
+  - Uma carga de `/demandas` passou de 2 para 4 consultas, número fixo.
+  - Se a contagem falha, o log é `painel_contadores_falhou`, sem filtro nem SQL.
+  - `listarDemandas`, `DemandaResumo` e `GET /api/demandas` não mudaram.
+- **T05:** a página passou a ler também o DEC mais novo, por `obterPacoteDecisao` (leitura que já existia), depois de
+  `autorizar(pessoa, 'ler_pacote_decisao')`. A barra e a "Próxima ação" são funções puras
+  (`etapasDaDemanda` e `proximaAcao`, `src/components/dados-das-etapas.ts`, ADR-17), chamadas só pela página.
+- **T11** (`FormularioDecisao.tsx`, ADR-18): um formulário com três botões de envio.
+  - O botão ativado (`submitter`) define a decisão. O mesmo valor vai ao diálogo e à Server Action
+    `registrarDecisaoNoPainel`, que não mudou.
+  - O Enter num campo de texto aciona o botão principal, que passa pela validação e pelo diálogo.
+  - Os campos digitados não têm `name`, e o rodapé do celular é só CSS.
+- **Superfícies congeladas** (CV-01): `git diff 198e97d` sai vazio em API, banco, migrations, acesso, proxy, worker,
+  jobs, agentes, autenticação, QR e nos nove `'use server'`. Única exceção, aceita na revisão da T17: o teste
+  `src/app/api/saude/route-qa.test.ts`, com 5 linhas a mais e nenhuma removida. A rota não mudou.
+- **Testes:**
+  - a fixture automática de `e2e/apoio.ts` (`e2e/vigia.ts`) reprova qualquer e2e com requisição a outra origem ou
+    violação de CSP;
+  - testes estáticos de recurso externo, de cor só por token, de fontes, de contraste dos tokens
+    (`contraste-tokens.test.ts`) e o piso de asserções por arquivo (`piso-de-assercoes.test.ts`);
+  - axe sem violação de T01 a T12 em 1280 × 720 e em 390 × 844 (`e2e/axe-todas.spec.ts`), também com a gaveta aberta;
+  - e2e novos da casca, dos contadores, da T05, dos três botões, da decisão em 390 px (com a aprovação), das molduras
+    públicas, das fontes, do reflow em 320 px e do alvo de toque;
+  - os testes que já existiam mudaram só seletor, texto ou passo equivalente.
+- **Seed** (`scripts/seed-ficticio.ts`): oito demandas fictícias novas para os e2e (`TITULOS_DO_E2E`), 23 no total.
+- **Capturas:** nove PNG em `docs/manual-tecnico/capturas/`, gravadas por `e2e/capturas.spec.ts` só em loopback e
+  fora do CI, com o seed fictício e sem a T02.
+- **Versão:** o `package.json` passou de 0.1.13 para 0.2.0.
+- **Documentação:**
+  - estas notas, o `README.md` e o manual técnico: cap. 08 reescrito, com as capturas; cap. 01 com as fontes, o
+    módulo e os ADR-13 a ADR-19; cap. 03 com as leituras da fila; o índice e o glossário;
+  - no `docs/operacao/deploy.md`, a versão e o estado da produção em 10/11. As seções 4, 6 e 10 vieram da
+    `09-devops-sre.md`.
+
+### O que ficou fora desta versão
+
+Pela spec (seção 6), não entraram:
+
+- a busca por título ou id na fila, porque pede parâmetro novo na API;
+- o item "Decisões pendentes" no menu, coberto pelo contador "Pronta para decisão";
+- os subtítulos dos contadores do mockup ("1 rascunho de agente", "mais antiga: 3 dias");
+- o "Ver histórico completo", porque a T05 mostra o histórico inteiro;
+- o selo "Recomendada" e a opção recomendada marcada (P-01);
+- a caixa de decisões da proposta C (C1) e o resto das propostas B e C;
+- o modo escuro e o e-mail E01;
+- o monograma "W." e qualquer arquivo de logotipo;
+- o índice novo para a contagem, só se o `engenheiro-performance` medir necessidade;
+- a imagem de produção só com dependências de produção;
+- a revisão dos textos pendentes do cap. 08.
+
+### Verificações desta versão
+
+- `pnpm test`: 5.230 de 5.230, em 233 arquivos (`06-T17-tech-lead.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção e com `retries: 0`: 249 passaram e as 9 capturas foram puladas, em três
+  execuções seguidas (`06-T17-engenheiro-frontend.md`). Na homologação, 249 passaram de novo (`09-devops-sre.md`).
+- Revisão de código e de segurança (`08-maestro.md`): nenhum achado crítico nem alto. Ficaram quatro médios e sete
+  baixos, listados abaixo. `pnpm audit --audit-level high`, com e sem `--prod`: 5 moderadas transitivas, as de antes
+  do pedido, e nenhuma alta.
+- Imagem construída na homologação: 1,76 GB em disco e 438 MB de conteúdo.
+- Ensaio de rollback (`construir.mjs ensaiar-rollback`): `alteram_dado: false` e `volta_sem_restaurar: true`.
+- O CI do PR fica para a Parada 3.
+
+### Pendências abertas
+
+Para Fabiano:
+
+- **UAT:** o roteiro de 11 passos da `07-qa-funcional.md`, seção 7, em homologação e nunca em produção, com o Chrome
+  em pt-BR e um iPhone com Safari. Os e2e rodam só no Chromium. O teclado virtual sobre o rodapé fixo, a área segura,
+  o `<dialog>` e o `:has()` no Safari do iOS só se conferem na UAT.
+- **P-01:** quer a opção recomendada marcada, ou com o selo "Recomendada", na T11? Hoje nenhuma vem marcada. Mudar
+  pede campo novo no DEC (migration), e a `seguranca-aplicacao` é contra marcar por padrão.
+- **QF-0015-01 (baixa):** em 1280 px, a coluna "Idade" da fila aparece cortada e só aparece rolando a tabela. O id e o
+  selo "Pronta para decisão" quebram em três linhas. Fabiano decide se aceita assim nesta versão.
+- **Publicação:** só com a aprovação de Fabiano, depois do PR com CI verde. Antes, cadastrar a credencial de leitura
+  do GHCR e conferir que a tag `198e97db928256fc301071f1bca9966a4de6bed4` existe em Packages. Os segredos de webhook
+  (P16) só entram depois. No painel, confira que o "Auto Deploy" está desligado nos serviços `app` e `worker` do
+  `orquestrador` (`09-devops-sre.md`).
+
+Médios da revisão (`08-maestro.md`), para demanda própria ou decisão de Fabiano:
+
+- **R-01:** a fila marca ESP, RSK e DEC como feitas com qualquer versão, e a barra da T05 só marca a Decisão feita
+  quando aprovada (`resumo-da-fila.ts:37`). É o que o RF-06 aprovado manda. A proposta é ajustar o texto ("DEC
+  registrada") ou a regra.
+- **R-02:** `conferir()` e `opcaoAprovada()` (`src/components/dados-das-etapas.ts:62`) lançam erro com dado
+  inconsistente, como um DEC aprovado sem opção. A T05 cai inteira, quando só a barra e a Próxima ação deveriam recuar.
+- **R-03:** a gaveta (`GavetaMenu.tsx:112`) só fecha pelos próprios controles. Com o gesto de voltar do celular, o
+  `<dialog>` fica aberto e a página não rola. Sugestão: fechar quando o endereço mudar.
+- **R-04 (QF-0015-04, já existia na `main`):** com o limite de 10 por minuto por IP estourado, o "Sair" recebe 429, a
+  tela vai a `/entrar` e a sessão continua válida. A correção mexe em `auth.ts`, congelado neste pedido.
+
+Baixos da revisão:
+
+- **R-05:** o Enter num campo envia pelo "Aprovar". É o desenho da 03, e o diálogo abre com o foco no cabeçalho, não
+  em "Confirmar".
+- **R-06:** sem JavaScript, o formulário dos contadores perde o `limit` (`ContadoresDaFila.tsx:93`). A 07 registrou
+  ainda que, sem script, os contadores não filtram (EX-06). A decisão sobre o suporte sem script está com o
+  `tech-lead`.
+- **R-07:** a T05 lê a vista inteira do DEC só para a barra (`demandas/[id]/page.tsx:365`).
+- **R-08:** a contagem roda a cada navegação da fila e repete à mão o filtro da lista (`resumo-da-fila.ts:18`).
+- **R-09:** código morto do formulário antigo em `src/components/dados-da-decisao.ts:184` (`opcoesDaDecisao`,
+  `legendaDecisao`, `statusDecisao`). As constantes de texto do rádio "Decisão" e do botão "Registrar decisão" seguem
+  no arquivo, sem uso na T11.
+- **R-10:** constantes de desenho (`CLASSE_DA_ETIQUETA`, `COR_DA_URGENCIA`, `COR_DO_PONTO`) em arquivo de rota,
+  repetidas no `Selo`.
+- **R-11:** a vigia de origem não acusa `data:` nem `blob:`, hoje barrados pela CSP. O teste de recurso externo não pega
+  `//cdn`, `iframe`, `srcSet` nem `remotePatterns`. O teste de controle bidi não varre `.md`, `.json`, `.jsonl`,
+  `.yaml` nem `.mjs`.
+
+Registradas nas outras etapas:
+
+- **QF-0015-02 (baixa):** "N demandas encontradas." aparece acima do título do resultado, e não ao lado. Vai para a
+  `ux-ui-design`.
+- **QF-0015-03 (documentação):** na captura da T11 no computador, a data da assinatura aparece como "mm/dd/yyyy". O
+  campo é o nativo do navegador, igual ao da 0.1.13, e o Chromium dos testes mostra o formato americano. No Chrome em
+  pt-BR, o campo mostra "dd/mm/aaaa". O `playwright.config.ts` já usa `locale: 'pt-BR'`, então a troca de formato
+  pedida pela 07 precisa de outro ajuste. Fica com a `qa-automacao`.
+- **Tempo de testes longos:** `e2e/decisao.spec.ts:148` levou de 11,2 s a 23,4 s, perto do limite de 30 s. Houve duas
+  falhas intermitentes numa rodada da 06-T17-testes (`axe-todas.spec.ts:229`, "socket hang up", e `:267`). Na
+  homologação, a suíte passou numa rodada só. A duração de cada teste se lê no log do job `e2e` do CI. Acima de 24 s,
+  o teste volta ao `engenheiro-frontend` para ser dividido, sem subir `timeout` nem `retries`.
+- **M1 (dívida de teste):** `h3ForaDaEscala` repete `h2ForaDaEscala` em `test/estatico/tipografia-h2.test.ts`.
+- **Pipeline:** tirar o `--prod` do `pnpm audit` do `ci.yml`, porque a imagem leva as `devDependencies`. A auditoria
+  sem `--prod` de 11/11 saiu sem alta nem crítica (`deploy.md`, seção 10).
+- **Marca:** o bloco "WS" da marca precisa ser conferido pelo `marketing-comunicacao` contra o manual de marca, §1.1,
+  §2 e §2.8. Se for vetado, a troca é só no `MarcaWs`. O comprovante de licença da marca (L-09) segue aberto. A
+  licença das fontes (OFL 1.1) vem no pacote.
+- **Textos do cap. 08** para a `ux-ui-design`: os pendentes de antes (QF-01 a QF-04, D-01 a D-06, o 409 em status
+  final e os textos da 0.1.10 à 0.1.13) não mudaram, salvo o que o novo arranjo trocou.
+- **Backlog:** o `next` 16.4.1 continua sem ADR de troca de linha. As 5 moderadas transitivas continuam.
+
+Seguem abertas, sem mudança neste pedido: as pendências da 0.1.13 (S-02 a S-04, os textos e os três avisos da T11, a
+observação de `opcoesDeStatus` e a atualização da spec do sistema) e as que ela herdou.
+
 ## 0.1.13 — 2026-11-10
 
 Correção do pedido `DEC-DEM-20261104-0014-v1` (cadeia curta, tipo bug): o E5 do pedido 0013, pela opção (b) do

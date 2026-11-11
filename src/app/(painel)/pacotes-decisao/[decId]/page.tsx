@@ -6,11 +6,20 @@
 // React escapa título, opções e comentários (C-18). A seção do Pedido de Construção (T44) vem depois de "Registrar
 // decisão", só com a decisão aprovada completa (secaoDoPedido); Estudo mostra só a frase da 03, sem botão. O DEC
 // substituído por um aprovado mais novo (0.1.13) mostra o selo, o aviso com o link para o substituto e não tem a seção.
+//
+// 0.2.0 (T13 do DEC-DEM-20261110-0015-v1; RF-12; 03, 6.2 e 6.3; D-02, D-16): uma ordem de DOM só, em toda largura:
+// cabeçalho ("Voltar para a demanda" só abaixo de 768 px, id, selos, h1 com o título isolado por <bdi>, a linha da
+// demanda, a do repositório destino e as citações); alertas de hoje; Aprovações; Resumo executivo; Recomendação;
+// revisão de C-14, a parte sempre visível; o recolhível (só abaixo de 768 px) com a parte de detalhe da revisão e as
+// opções completas; "Registrar decisão"; Pedido de Construção. A partir de 1200 px, o conteúdo fica em 3/5 e o cartão
+// "Registrar decisão" em 2/5, não fixo; abaixo, uma coluna, e abaixo de 768 px o rodapé fixo da C2 (FormularioDecisao).
+// Nada sai do que a T11 mostra hoje, e as condições de cada parte são as de hoje.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Alerta } from '../../../../components/Alerta';
+import { Cartao } from '../../../../components/Cartao';
 import {
   alertaDeDesatualizado,
   alertaDeSubstituido,
@@ -18,25 +27,27 @@ import {
   formularioDaConta,
   itensDaRevisao,
   linhasDeAprovacao,
-  opcoesDaDecisao,
   opcoesDaEscolha,
   rascunhosEmTexto,
   secoesDasOpcoes,
+  separarRevisao,
   textoDaDecisaoRegistrada,
   TEXTOS_DECISAO,
 } from '../../../../components/dados-da-decisao';
 import { RE_ID_DEC } from '../../../../components/dados-do-pacote';
 import { secaoDoPedido, TEXTOS_PEDIDO } from '../../../../components/dados-do-pedido';
+import { Recolhivel } from '../../../../components/Recolhivel';
 import { COR_DECISAO, ROTULO_DECISAO, ROTULO_NIVEL_APROVACAO, SELO_DESATUALIZADO, SELO_RASCUNHO, SELO_SUBSTITUIDO } from '../../../../components/rotulos';
 import { Selo } from '../../../../components/Selo';
 import { formatarDataHora } from '../../../../lib/fuso';
 import { exigirPessoaNaPagina } from '../../../../modules/acesso/exigir-pessoa';
 import { autorizar } from '../../../../modules/acesso/matriz';
+import { RE_ID_DEMANDA } from '../../../../modules/demandas/gerar-id';
 import { lerDemandaDaPagina } from '../../demandas/[id]/demanda-da-pagina';
 import { caminhos, rotuloResponsavel } from '../../demandas/[id]/detalhe';
 import { AlertaDeResultado, FormularioDecisao } from './FormularioDecisao';
 import { lerPacoteDaPagina, metadadosDoPacote } from './pacote-da-pagina';
-import { RevisaoDoPacote } from './RevisaoDoPacote';
+import { DetalheDaRevisao, RevisaoDoPacote } from './RevisaoDoPacote';
 import { SecaoPedido } from './SecaoPedido';
 
 type Parametros = Record<string, string | string[] | undefined>;
@@ -46,16 +57,34 @@ export async function generateMetadata({ params }: Pick<Props, 'params'>): Promi
   return metadadosDoPacote((await params).decId, TEXTOS_DECISAO.tituloAba);
 }
 
-const CLASSE_LINK = 'text-primaria underline underline-offset-2';
+const CLASSE_LINK = 'text-acao-escura underline underline-offset-2';
+// Link solto (03, 2.4): o dos alertas, fora do <p>, sem texto solto ao lado. 44 px de alvo abaixo de 768 px (RNF-03);
+// sem `inline-flex`, o `min-height` não vale num <a>. O link dentro de frase fica com CLASSE_LINK.
+const CLASSE_LINK_SOLTO = `inline-flex min-h-11 items-center md:min-h-6 ${CLASSE_LINK}`;
+// O bloco do recolhível (D-02): abaixo de 768 px começa fechado; a partir de 768 px fica sempre aberto, sem botão.
+const ID_DOS_DETALHES = 'detalhes-do-pacote';
 
-function Secao({ id, titulo, children }: { id: string; titulo: string; children: ReactNode }) {
+// Seção da T11 num cartão (03, 2.4 e 6.2), com o h2 que dá o nome à região.
+function Secao({ id, titulo, className, children }: { id: string; titulo: string; className?: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3">
-      <h2 id={id} className="text-xl font-semibold">
-        {titulo}
-      </h2>
+    <Cartao rotuloPor={id} className={`flex min-w-0 flex-col gap-3${className ? ` ${className}` : ''}`}>
+      <h2 id={id}>{titulo}</h2>
       {children}
-    </section>
+    </Cartao>
+  );
+}
+
+// "‹ Voltar para a demanda" (03, 6.3): só abaixo de 768 px, com 44 px de alvo; no computador, o link da demanda já está
+// na linha do cabeçalho. CV-19: rota fixa mais o id da demanda do pacote, só quando ele casa a regex de hoje.
+function VoltarParaDemanda({ demandaId }: { demandaId: string }) {
+  if (!RE_ID_DEMANDA.test(demandaId)) return null;
+  return (
+    <Link href={`/demandas/${demandaId}`} className={`inline-flex min-h-11 items-center gap-1 self-start md:hidden ${CLASSE_LINK}`}>
+      <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="m15 18-6-6 6-6" />
+      </svg>
+      {TEXTOS_DECISAO.voltarParaDemanda}
+    </Link>
   );
 }
 
@@ -79,10 +108,12 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
   // P1-d: o lembrete de levar a demanda a Aprovada é do DEC que vale; o substituído não o mostra (0.1.13).
   const lembrete = p.statusDecisao === 'aprovada' && !p.substituido && d.status === 'pronta_para_decisao';
   const pedido = secaoDoPedido(p);
+  const revisao = separarRevisao(itensDaRevisao(p));
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
+        <VoltarParaDemanda demandaId={p.demandaId} />
         <p className="flex flex-wrap items-center gap-3">
           <span className="font-mono">{p.id}</span>
           <Selo cor={COR_DECISAO[p.statusDecisao]}>{ROTULO_DECISAO[p.statusDecisao]}</Selo>
@@ -94,7 +125,11 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
             </Selo>
           ) : null}
         </p>
-        <h1 className="break-words">{t.titulo(p.demandaTitulo)}</h1>
+        {/* CV-18: o título copiado no pacote é texto de terceiro, isolado por <bdi>; o prefixo é o de hoje. */}
+        <h1 className="break-words">
+          {t.titulo('')}
+          <bdi>{p.demandaTitulo}</bdi>
+        </h1>
         <p>
           {t.demanda}
           <Link href={`/demandas/${p.demandaId}`} className={`font-mono ${CLASSE_LINK}`}>
@@ -104,6 +139,8 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
           <time dateTime={p.criadaEm.toISOString()}>{formatarDataHora(p.criadaEm)}</time>
           {t.por(rotuloResponsavel(p.autor))}
         </p>
+        {/* RF-12 e CV-12: o repositório destino visível sem abrir nada, em toda largura. */}
+        <p className="[overflow-wrap:anywhere]">{t.repositorioNaLinha(p.especificacaoCitada.repositorioDestino)}</p>
         <p>
           {t.cita}
           <span className="font-mono">{p.especificacaoId}</span>{' '}
@@ -124,7 +161,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
       {lembrete ? (
         <Alerta tipo="informacao" className="flex flex-col items-start gap-2">
           <p>{t.lembrete}</p>
-          <Link href={`/demandas/${p.demandaId}`} className={CLASSE_LINK}>
+          <Link href={`/demandas/${p.demandaId}`} className={CLASSE_LINK_SOLTO}>
             {t.irParaDemanda}
           </Link>
         </Alerta>
@@ -132,7 +169,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
       {substituido ? (
         <Alerta tipo="atencao" className="flex flex-col items-start gap-2">
           <p>{substituido.texto}</p>
-          <Link href={substituido.link.href} className={CLASSE_LINK}>
+          <Link href={substituido.link.href} className={CLASSE_LINK_SOLTO}>
             {substituido.link.rotulo}
           </Link>
         </Alerta>
@@ -140,7 +177,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
       {desatualizado ? (
         <Alerta tipo="erro" className="flex flex-col items-start gap-2">
           <p>{desatualizado.texto}</p>
-          <Link href={desatualizado.link.href} className={CLASSE_LINK}>
+          <Link href={desatualizado.link.href} className={CLASSE_LINK_SOLTO}>
             {desatualizado.link.rotulo}
           </Link>
         </Alerta>
@@ -151,84 +188,92 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
         </Alerta>
       ) : null}
 
-      <RevisaoDoPacote itens={itensDaRevisao(p)} />
-
-      <Secao id="resumo-executivo" titulo={t.resumoExecutivo}>
-        <p className="break-words whitespace-pre-wrap">{p.resumoExecutivo}</p>
-      </Secao>
-
-      <Secao id="opcoes" titulo={t.opcoes}>
-        <div className="grid gap-6 lg:grid-cols-2">
-          {secoesDasOpcoes(p).map((s, n) => (
-            <section key={s.titulo} aria-labelledby={`opcao-${n}`} className="flex min-w-0 flex-col gap-3">
-              <h3 id={`opcao-${n}`} className="text-lg font-semibold">
-                {s.titulo}
-              </h3>
-              <dl className="flex flex-col gap-2">
-                {s.itens.map((i) => (
-                  <div key={i.termo}>
-                    <dt className="font-medium">{i.termo}</dt>
-                    <dd className="break-words whitespace-pre-wrap">{i.valor}</dd>
-                  </div>
+      {/* A partir de 1200 px, conteúdo (3/5) e "Registrar decisão" (2/5) lado a lado, no topo; o pedido na linha toda. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-5 xl:items-start">
+        <div className="flex min-w-0 flex-col gap-5 xl:col-span-3">
+          {aprovacoes ? (
+            <Secao id="aprovacoes" titulo={t.aprovacoes}>
+              <ul className="flex flex-col gap-1">
+                {aprovacoes.map((linha) => (
+                  <li key={linha} className="break-words">
+                    {linha}
+                  </li>
                 ))}
-              </dl>
-            </section>
-          ))}
+              </ul>
+              <p className="text-sm text-tinta-media">{t.notaAprovacoes}</p>
+            </Secao>
+          ) : null}
+
+          <Secao id="resumo-executivo" titulo={t.resumoExecutivo}>
+            <p className="break-words whitespace-pre-wrap">{p.resumoExecutivo}</p>
+          </Secao>
+
+          <Secao id="recomendacao" titulo={p.rascunhoAgente ? t.recomendacaoAgente : t.recomendacao}>
+            <p className="break-words whitespace-pre-wrap">{p.recomendacao ?? t.naoInformado}</p>
+          </Secao>
+
+          {/* C-14 e CV-12: a revisão antes do formulário; só critérios e definição de pronto vão para o recolhível. */}
+          <RevisaoDoPacote itens={revisao.sempre} />
+
+          <Recolhivel id={ID_DOS_DETALHES} rotulo={t.verDetalhes}>
+            <div className="flex flex-col gap-5">
+              <DetalheDaRevisao itens={revisao.detalhe} />
+              <Secao id="opcoes" titulo={t.opcoes}>
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {secoesDasOpcoes(p).map((s, n) => (
+                    <section key={s.titulo} aria-labelledby={`opcao-${n}`} className="flex min-w-0 flex-col gap-3">
+                      <h3 id={`opcao-${n}`}>{s.titulo}</h3>
+                      <dl className="flex flex-col gap-2">
+                        {s.itens.map((i) => (
+                          <div key={i.termo}>
+                            <dt className="font-medium">{i.termo}</dt>
+                            <dd className="break-words whitespace-pre-wrap">{i.valor}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  ))}
+                </div>
+              </Secao>
+            </div>
+          </Recolhivel>
         </div>
-      </Secao>
 
-      <Secao id="recomendacao" titulo={p.rascunhoAgente ? t.recomendacaoAgente : t.recomendacao}>
-        <p className="break-words whitespace-pre-wrap">{p.recomendacao ?? t.naoInformado}</p>
-      </Secao>
-
-      {aprovacoes ? (
-        <Secao id="aprovacoes" titulo={t.aprovacoes}>
-          <ul className="flex flex-col gap-1">
-            {aprovacoes.map((linha) => (
-              <li key={linha} className="break-words">
-                {linha}
-              </li>
-            ))}
-          </ul>
-          <p className="text-sm text-texto-suave">{t.notaAprovacoes}</p>
+        <Secao id="registrar-decisao-titulo" titulo={t.registrar} className="xl:col-span-2">
+          {formulario.tipo === 'formulario' ? (
+            <FormularioDecisao
+              decId={p.id}
+              contexto={{
+                opcaoFixada: formulario.opcaoFixada,
+                pedeDocumento: formulario.pedeDocumento,
+                exigeRevisao: p.rascunhosCitados.length > 0,
+                aprovarIndisponivel: p.desatualizado,
+              }}
+              opcoesEscolha={opcoesDaEscolha(p)}
+              repositorioDestino={p.especificacaoCitada.repositorioDestino}
+              nivelAprovacaoRequerido={p.nivelAprovacaoRequerido}
+            />
+          ) : formulario.tipo === 'sem_formulario' ? (
+            <p>{formulario.texto}</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p>{decidida}</p>
+              {p.decisao?.comentarios ? (
+                <dl>
+                  <dt className="font-medium">{t.comentariosDaDecisao}</dt>
+                  <dd className="break-words whitespace-pre-wrap">{p.decisao.comentarios}</dd>
+                </dl>
+              ) : null}
+            </div>
+          )}
         </Secao>
-      ) : null}
 
-      <Secao id="registrar-decisao-titulo" titulo={t.registrar}>
-        {formulario.tipo === 'formulario' ? (
-          <FormularioDecisao
-            decId={p.id}
-            contexto={{
-              opcaoFixada: formulario.opcaoFixada,
-              pedeDocumento: formulario.pedeDocumento,
-              exigeRevisao: p.rascunhosCitados.length > 0,
-              aprovarIndisponivel: p.desatualizado,
-            }}
-            opcoesDecisao={opcoesDaDecisao(p.desatualizado)}
-            opcoesEscolha={opcoesDaEscolha(p)}
-            repositorioDestino={p.especificacaoCitada.repositorioDestino}
-            nivelAprovacaoRequerido={p.nivelAprovacaoRequerido}
-          />
-        ) : formulario.tipo === 'sem_formulario' ? (
-          <p>{formulario.texto}</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <p>{decidida}</p>
-            {p.decisao?.comentarios ? (
-              <dl>
-                <dt className="font-medium">{t.comentariosDaDecisao}</dt>
-                <dd className="break-words whitespace-pre-wrap">{p.decisao.comentarios}</dd>
-              </dl>
-            ) : null}
-          </div>
-        )}
-      </Secao>
-
-      {pedido !== 'nenhuma' ? (
-        <Secao id="pedido-construcao" titulo={TEXTOS_PEDIDO.titulo}>
-          {pedido === 'estudo' ? <p>{TEXTOS_PEDIDO.estudo}</p> : <SecaoPedido decId={p.id} />}
-        </Secao>
-      ) : null}
+        {pedido !== 'nenhuma' ? (
+          <Secao id="pedido-construcao" titulo={TEXTOS_PEDIDO.titulo} className="xl:col-span-5">
+            {pedido === 'estudo' ? <p>{TEXTOS_PEDIDO.estudo}</p> : <SecaoPedido decId={p.id} />}
+          </Secao>
+        ) : null}
+      </div>
     </div>
   );
 }

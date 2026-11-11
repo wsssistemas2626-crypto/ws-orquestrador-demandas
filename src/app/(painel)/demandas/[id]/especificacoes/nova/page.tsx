@@ -3,6 +3,7 @@
 // tocar o banco (C-17). Id fora do formato ou que não existe: 404 (03, 2.8). A versão nova começa com a ESP mais nova da
 // demanda, ou com `?base=<espId>` vindo da T10, desde que seja uma ESP desta demanda (outra, ou fora do formato, é
 // ignorada); sem ESP, em branco. A versão de partida é lida com `ler_especificacao`.
+// 0.2.0 (T14; 03, 8.2 do pedido 0015): a tela tem até 760 px de largura (`max-w-190`), com o formulário em cartões.
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Alerta } from '../../../../../../components/Alerta';
@@ -48,7 +49,7 @@ export default async function PaginaNovaEspecificacao({ params, searchParams }: 
   const idNovo = idVersao('ESP', d.id, versaoNova);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-190 flex-col gap-6">
       <div className="flex flex-col gap-1">
         <p className="break-words">
           <span className="font-mono">{d.id}</span>

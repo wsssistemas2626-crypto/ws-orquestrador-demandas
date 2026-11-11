@@ -181,6 +181,31 @@ describe('AvisosDaMoldura: fronteiras (03, 2.7)', () => {
   });
 });
 
+// 06-T16-testes (Minor 1 da 06-T16-tech-lead): "Ver agentes e teto" é link solto (03, 2.4), com alvo de 44 px de altura
+// abaixo de 768 px e de 24 px a partir de 768 px (RNF-03). O e2e/alvo-de-toque.spec.ts não chega ao estado de agentes
+// suspensos (só lê), então a vigia do alvo deste link fica aqui, no HTML.
+describe('AvisosDaMoldura: "Ver agentes e teto" com alvo de toque de link solto (RNF-03; 03, 2.4)', () => {
+  const s = html(h(AvisosDaMoldura, { tetoMensal: 10, suspenso: true, totalDemandas: 0 }));
+  const link = /<a [^>]*href="\/configuracao\/agentes"[^>]*>Ver agentes e teto<\/a>/.exec(s)?.[0] ?? '';
+  const classes = (/class="([^"]*)"/.exec(link)?.[1] ?? '').split(/\s+/);
+
+  it('o link existe e leva à T12', () => {
+    expect(link).not.toBe('');
+  });
+
+  it('44 px de altura abaixo de 768 px e 24 px a partir de 768 px, num elemento que aceita altura (inline-flex)', () => {
+    expect(classes).toContain('min-h-11');
+    expect(classes).toContain('md:min-h-6');
+    expect(classes).toContain('inline-flex');
+    expect(classes).toContain('items-center');
+  });
+
+  it('fica fora do <p> do aviso, sem texto solto ao lado: é link solto, e o e2e de alvo de toque o mede quando aparece', () => {
+    expect(s).toMatch(/<\/p><a [^>]*href="\/configuracao\/agentes"[^>]*>Ver agentes e teto<\/a><\/div>/);
+    expect(s).not.toMatch(/<p>[^<]*<a /);
+  });
+});
+
 describe('CabecalhoPainel: um item atual por rota do painel (03, 1 e 2.7)', () => {
   const ROTAS: Array<[string, 'Demandas' | 'Nova demanda' | 'Agentes e teto']> = [
     ['/demandas', 'Demandas'],
@@ -200,7 +225,7 @@ describe('CabecalhoPainel: um item atual por rota do painel (03, 1 e 2.7)', () =
     navegacao.caminho = caminho;
     const s = html(h(CabecalhoPainel, { nome: 'Pessoa Ficticia CTO', papel: 'cto' }));
     expect(s.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(s).toMatch(new RegExp(`<a aria-current="page"[^>]*>${atual}</a>`));
+    expect(s).toMatch(new RegExp(`<a aria-current="page"[^>]*>(?:<svg[\\s\\S]*?</svg>)?${atual}</a>`));
   });
 
   it('fora do painel (sem caminho, raiz ou /sem-permissao), nenhum item atual', () => {
@@ -277,7 +302,7 @@ describe('Botao, Paginacao e AreaTexto: bordas', () => {
   it('AreaTexto conta o valor inicial e marca o excesso; sem limite, sem contador', () => {
     const s = html(h(AreaTexto, { id: 'texto', rotulo: 'Texto', limite: 10, defaultValue: 'x'.repeat(12) }));
     expect(s).toContain('12 de 10 caracteres');
-    expect(s).toMatch(/<p id="texto-contador"[^>]*text-perigo/);
+    expect(s).toMatch(/<p id="texto-contador"[^>]*text-erro/);
     // O anúncio vem com atraso, pelo efeito: no HTML do servidor a região existe e está vazia.
     expect(s).toMatch(/<p class="sr-only" aria-live="polite"><\/p>/);
     const controlado = html(h(AreaTexto, { id: 'texto', rotulo: 'Texto', limite: 100_000, value: 'abc', onChange: () => undefined }));

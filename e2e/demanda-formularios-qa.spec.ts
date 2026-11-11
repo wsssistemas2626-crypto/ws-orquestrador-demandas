@@ -9,8 +9,8 @@
 //   - o aviso do navegador ao fechar a aba com conteúdo não salvo (beforeunload).
 // Os dados de cada teste são criados aqui, pela conta "administradora": o limite de 30 demandas por hora (C-36) conta por
 // ator, e os outros e2e criam com a conta "cto". Nenhum teste depende de outro ter rodado antes.
-import { expect, test, type Page, type Request } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Page, type Request } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 const UUID = '0f1e2d3c-4b5a-4968-8776-655443322110';
 const SENTINELA_TEXTO = 'SENTINELA-TEXTO-E2E-7f3a';

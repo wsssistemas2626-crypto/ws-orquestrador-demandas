@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 
 export function RegiaoAviso({ children, visivel = true }: { children?: ReactNode; visivel?: boolean }) {
   return (
-    <div role="status" className={visivel ? 'text-texto' : 'sr-only'}>
+    <div role="status" className={visivel ? 'text-tinta' : 'sr-only'}>
       {children}
     </div>
   );

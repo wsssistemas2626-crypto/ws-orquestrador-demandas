@@ -2,13 +2,14 @@
 // C-18). Os dados são criados pela API com a sessão da conta fictícia. A maioria dos testes usa a conta
 // "administradora": o limite de 30 demandas por hora (C-36) conta por ator, e os outros e2e criam com a conta "cto". Os
 // dois testes que precisam de um pacote aprovado usam a "cto", porque só ela aprova um DEC de nível "cto" (P1-b).
-import { expect, test, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string; status: string };
 type Versao = { id: string };
 
-const HISTORICO = 'Histórico da demanda, do mais novo para o mais antigo';
+// T11 (DEC-DEM-20261110-0015-v1; 03, 5.6): o histórico deixou de ser tabela e virou lista, na seção "Histórico".
+const HISTORICO = 'Histórico';
 
 // ESP de um tipo construído (melhoria): os quatro campos de construção são obrigatórios (CA-08.2).
 const espValida = {
@@ -50,7 +51,9 @@ async function abrir(page: Page, id: string, titulo = 'Demanda do detalhe (fict�
   await expect(page.getByRole('heading', { level: 1, name: titulo })).toBeVisible();
 }
 
-const historico = (page: Page) => page.getByRole('table', { name: HISTORICO });
+const historico = (page: Page) => page.getByRole('region', { name: HISTORICO, exact: true }).getByRole('list');
+// T11: os ids das versões também aparecem na barra de etapas; as versões são conferidas na seção delas.
+const versoes = (page: Page) => page.getByRole('region', { name: 'Versões', exact: true });
 
 // O axe conta como alvo pequeno o controle que, com a página rolada, fica sob o cabeçalho fixo da moldura. Depois de um
 // foco ou de uma âncora que rolou a página, a verificação volta ao topo, como nas outras telas.
@@ -68,7 +71,7 @@ test('CA-26.2: ESP v1, v2, RSK v1 e DEC v1 desatualizado: as quatro versões, o 
   await esp(page, d.id);
   await abrir(page, d.id);
   await expect(page).toHaveTitle('Detalhe da demanda — WS Orquestrador de Demandas');
-  for (const v of [`ESP-${d.id}-v1`, `ESP-${d.id}-v2`, `RSK-${d.id}-v1`, `DEC-${d.id}-v1`]) await expect(page.getByText(v, { exact: true })).toBeVisible();
+  for (const v of [`ESP-${d.id}-v1`, `ESP-${d.id}-v2`, `RSK-${d.id}-v1`, `DEC-${d.id}-v1`]) await expect(versoes(page).getByText(v, { exact: true })).toBeVisible();
   await expect(page.getByText('Desatualizado', { exact: true })).toBeVisible();
   await expect(page.getByText('Decisão pendente', { exact: true })).toBeVisible();
   await expect(page.getByText(`O pacote DEC-${d.id}-v1 está desatualizado: a demanda já tem uma versão mais nova de ESP ou de parecer de risco. Crie um pacote novo para decidir.`)).toBeVisible();
@@ -76,7 +79,7 @@ test('CA-26.2: ESP v1, v2, RSK v1 e DEC v1 desatualizado: as quatro versões, o 
   await expect(historico(page)).toContainText(`Criou DEC-${d.id}-v1`);
   await expect(historico(page)).toContainText('Pessoa Ficticia Administradora (Administradora)');
   // DEC criado leva a demanda a "Pronta para decisão" pelo sistema (RF-07): o histórico mostra o antes e o depois.
-  await expect(historico(page).getByRole('row').filter({ hasText: 'Mudou o status' }).first()).toContainText('Sistema');
+  await expect(historico(page).getByRole('listitem').filter({ hasText: 'Mudou o status' }).first()).toContainText('Sistema');
   await expect(page.getByRole('link', { name: `Ver ESP-${d.id}-v2` })).toHaveAttribute('href', `/especificacoes/ESP-${d.id}-v2`);
   await expect(page.getByRole('link', { name: `Abrir decisão DEC-${d.id}-v1` })).toHaveAttribute('href', `/pacotes-decisao/DEC-${d.id}-v1`);
   await expect(page.getByRole('link', { name: 'Novo pacote de decisão' })).toBeVisible();
@@ -100,9 +103,10 @@ test('CA-07.3: em_construcao → Entregue pelo painel; selo e histórico com a p
   await expect(secao).toContainText('Entregue é um status final. Não há próxima mudança.');
   await expect(secao.getByRole('radio')).toHaveCount(0);
   await expect(page.locator('main > div > div').first().getByText('Entregue', { exact: true })).toBeVisible();
-  const linha = historico(page).getByRole('row').filter({ hasText: 'Mudou o status' }).first();
+  const linha = historico(page).getByRole('listitem').filter({ hasText: 'Mudou o status' }).first();
   await expect(linha).toContainText('Pessoa Ficticia CTO (CTO)');
-  await expect(linha.getByRole('cell')).toHaveText([/\d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}/, 'Pessoa Ficticia CTO (CTO)', 'Mudou o status', 'Em construção', 'Entregue']);
+  // As cinco informações da linha da tabela, agora nos três parágrafos do item: o que aconteceu, antes e depois, quem e quando.
+  await expect(linha.locator('p')).toHaveText(['Mudou o status', 'Antes: Em construção. Depois: Entregue.', /^Pessoa Ficticia CTO \(CTO\) · \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}$/]);
   expect((await api<Demanda>(page, 'GET', `/api/demandas/${d.id}`)).status).toBe('entregue');
 });
 

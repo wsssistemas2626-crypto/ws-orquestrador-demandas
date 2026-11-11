@@ -11,9 +11,10 @@ import { criarDepsDeTeste } from '../test/deps';
 import { SENTINELAS, contemSentinela } from '../test/sentinelas';
 import { codigoTotp, criarPessoa, PoteDeCookies, postAuth } from '../test/sessao';
 import { PAPEL_APP } from '../src/db/privilegios';
+import { TIPOS_DEMANDA } from '../src/db/schema/demandas';
 import type { Deps } from '../src/lib/deps';
 import { ErroDominio } from '../src/lib/erros';
-import { FILAS } from '../src/lib/fila';
+import { FILAS, type Fila } from '../src/lib/fila';
 import { substituirDestinoDoLog } from '../src/lib/log';
 import { relogioDoSistema, relogioFixo } from '../src/lib/relogio';
 import { exigirPessoa } from '../src/modules/acesso/exigir-pessoa';
@@ -25,7 +26,7 @@ import { argumentosDefinirPreco, definirPrecoModelo, executarDefinirPreco } from
 import { lerArgumentos } from './lib/argumentos';
 import { mensagemDeErro } from './lib/saida';
 import { argumentosRevogarToken, executarRevogarToken, revogarTokenPorScript } from './revogar-token-servico';
-import { CONTAS_FICTICIAS, executarSeed, MENSAGENS_SEED, seedFicticio, TITULOS_DO_E2E, TOTAL_DEMANDAS_DO_SEED } from './seed-ficticio';
+import { CONTAS_FICTICIAS, executarSeed, MENSAGENS_SEED, RECOMENDACAO_DO_E2E, seedFicticio, TITULOS_DO_E2E, TOTAL_DEMANDAS_DO_SEED } from './seed-ficticio';
 import { iniciarHomologacao } from './start-hml';
 
 // Saída padrão de mentira: guarda tudo o que o script escreveu.
@@ -362,13 +363,18 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     expect(await precoVigente(b.db, 'modelo-ficticio', new Date('2026-10-22T12:00:00Z'))).toEqual({ entradaPorMilhao: 3, saidaPorMilhao: 15 });
     expect(await contar(b, 'select count(*)::int as n from configuracao_agente where ligado')).toBe(0);
 
-    // Uma demanda de cada tipo, mais as dez próprias do e2e (08-correcao, DEC-DEM-20261102-0002-v1 e, na 0.1.13, a da
-    // substituição do pacote); uma delas com ESP, RSK e DEC gravados como rascunho de agente (para a T43).
-    expect(TOTAL_DEMANDAS_DO_SEED).toBe(15);
+    // Uma demanda de cada tipo, mais as dezoito próprias do e2e (08-correcao, DEC-DEM-20261102-0002-v1, na 0.1.13 a da
+    // substituição do pacote e, na 0.2.0, as oito da T06 do DEC-DEM-20261110-0015-v1); uma das cinco com ESP, RSK e DEC
+    // gravados como rascunho de agente (para a T43). Os DECs das demandas do e2e (T06) ficam no teste delas.
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(23);
     const tipos = (await b.poolMigrator.query('select distinct tipo from demanda order by tipo')).rows.map((r) => r.tipo);
     expect(tipos).toEqual(['bug', 'estudo', 'melhoria', 'novo_projeto', 'produto_proprio']);
     expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
-    const comPacote = (await b.poolMigrator.query('select demanda_id, autor_tipo, autor_id, rascunho_agente, versao from pacote_decisao')).rows;
+    const comPacote = (
+      await b.poolMigrator.query('select demanda_id, autor_tipo, autor_id, rascunho_agente, versao from pacote_decisao where demanda_titulo <> all($1)', [
+        Object.values(TITULOS_DO_E2E),
+      ])
+    ).rows;
     expect(comPacote).toEqual([{ demanda_id: expect.stringMatching(/^DEM-20261022-\d{4}$/), autor_tipo: 'agente', autor_id: 'consolidacao', rascunho_agente: true, versao: 1 }]);
     const demId = comPacote[0].demanda_id as string;
     const esp = (await b.poolMigrator.query('select autor_tipo, autor_id, rascunho_agente from especificacao_tecnica where demanda_id = $1', [demId])).rows;
@@ -398,8 +404,11 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
   // e a "administradora" já gastam esse limite nas specs; a `sem2fa` nunca cria demanda no e2e. Desde o
   // DEC-DEM-20261102-0002-v1, também as da decisao.spec e da parecer-risco-qa.spec, que não aprovam DEC no segundo caso,
   // vêm daqui pelo mesmo limite.
+  // 0.2.0 (T06 do DEC-DEM-20261110-0015-v1): `etapasDupla` e `decisaoRecomendaB` nascem com ESP, RSK e DEC (teste
+  // abaixo); as outras dezesseis seguem sem versão nenhuma e em Nova.
   it('as demandas próprias do e2e: uma por título, de títulos diferentes, sem versão nenhuma, em Nova e pela conta sem2fa', async () => {
     const titulos = Object.values(TITULOS_DO_E2E);
+    const comVersoes: readonly string[] = [TITULOS_DO_E2E.etapasDupla, TITULOS_DO_E2E.decisaoRecomendaB];
     expect(new Set(titulos).size).toBe(titulos.length);
     const linhas = (
       await b.poolMigrator.query(
@@ -413,8 +422,11 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
       )
     ).rows;
     expect(linhas.map((l) => l.titulo)).toEqual([...titulos].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)));
+    expect(linhas.filter((l) => comVersoes.includes(l.titulo)).map((l) => l.titulo)).toEqual([...comVersoes].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)));
     for (const l of linhas) {
-      expect(l, l.titulo).toMatchObject({ status: 'nova', autor_tipo: 'pessoa', email: CONTAS_FICTICIAS.sem2fa.email, esp: 0, rsk: 0, dec: 0 });
+      if (comVersoes.includes(l.titulo))
+        expect(l, l.titulo).toMatchObject({ status: 'pronta_para_decisao', autor_tipo: 'pessoa', email: CONTAS_FICTICIAS.sem2fa.email, esp: 1, rsk: 1, dec: 1 });
+      else expect(l, l.titulo).toMatchObject({ status: 'nova', autor_tipo: 'pessoa', email: CONTAS_FICTICIAS.sem2fa.email, esp: 0, rsk: 0, dec: 0 });
       // A `descricao` do Pedido de Construção sai do contexto: vazia, o validarPedido recusa o pedido.
       expect(String(l.contexto ?? '').trim(), l.titulo).not.toBe('');
     }
@@ -441,11 +453,111 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     expect(substituicao).toEqual([
       { solicitante_nome: 'Carla Santos Ficticia', solicitante_papel: 'operacoes', linha_servico_provavel: 'sob_medida', contexto: 'A filial de Santos calcula o frete à mão.' },
     ]);
-    expect(titulos).toHaveLength(10);
+    expect(titulos).toHaveLength(18);
     // A conta cto fica com as cinco de antes (uma de cada tipo), e a administradora com nenhuma, como antes da 08-correcao.
     const doSeedPor = (email: string) => contar(b, `select count(*)::int as n from demanda d join "user" u on u.id = d.autor_id where u.email = $1`, [email]);
     expect(await doSeedPor(CONTAS_FICTICIAS.cto.email)).toBe(5);
     expect(await doSeedPor(CONTAS_FICTICIAS.administradora.email)).toBe(0);
+  });
+
+  // T06 do DEC-DEM-20261110-0015-v1 (D-07, G3.10): as demandas dos e2e novos da 0.2.0 vêm do seed, e não da API, pelo
+  // limite C-36 da conta "cto". Todas de tipo melhoria, linha sob_medida, com "(fictício)" no título e solicitante
+  // "Pessoa Ficticia …". Só a `etapasDupla` e a `decisaoRecomendaB` ganham versões (teste acima: as outras seguem em Nova).
+  const NOVAS_DA_T06 = [
+    'textoDeTerceiro',
+    'etapasSemVersoes',
+    'etapasDupla',
+    'decisaoOpcaoB',
+    'decisaoDevolverComOpcao',
+    'decisaoCelularCto',
+    'decisaoCelularDupla',
+    'decisaoRecomendaB',
+  ] as const;
+
+  it('T06: os oito títulos dos e2e novos, cada um uma vez, melhoria, sob_medida e só com dado fictício', async () => {
+    expect(TITULOS_DO_E2E).toMatchObject({
+      textoDeTerceiro: `<script>window.__xss=1</script> Pedido ${String.fromCodePoint(0x202e)} com texto de terceiro <img src=x onerror="window.__xss=2"> (fictício)`,
+      etapasSemVersoes: 'Etapas sem versões (fictício)',
+      etapasDupla: 'Etapas com uma de duas aprovações (fictício)',
+      decisaoOpcaoB: 'Aprovar a opção B (fictício)',
+      decisaoDevolverComOpcao: 'Devolver com a opção marcada (fictício)',
+      decisaoCelularCto: 'Decisão no celular, só o CTO (fictício)',
+      decisaoCelularDupla: 'Decisão no celular, dupla aprovação (fictício)',
+      decisaoRecomendaB: 'Recomendação do agente cita a opção B (fictício)',
+    });
+    // O caractere de direção vem de código no seed (sem-controle-bidi), mas o título que a tela recebe continua com ele.
+    expect(TITULOS_DO_E2E.textoDeTerceiro).toContain(String.fromCodePoint(0x202e));
+    for (const chave of NOVAS_DA_T06) {
+      const titulo = TITULOS_DO_E2E[chave];
+      expect(titulo, chave).toContain('(fictício)');
+      const linhas = (
+        await b.poolMigrator.query('select titulo, tipo, linha_servico_provavel, solicitante_nome, contexto from demanda where titulo = $1', [titulo])
+      ).rows;
+      // O título com marcação e o caractere de direção é gravado como veio: quem o mostra é a tela, como texto.
+      expect(linhas, chave).toHaveLength(1);
+      expect(linhas[0], chave).toMatchObject({ titulo, tipo: 'melhoria', linha_servico_provavel: 'sob_medida' });
+      expect(linhas[0].solicitante_nome, chave).toMatch(/^Pessoa Ficticia /);
+      expect(String(linhas[0].contexto ?? '').trim(), chave).not.toBe('');
+    }
+  });
+
+  it('T06: `etapasDupla` tem ESP v1, RSK v1 e um DEC v1 de pessoa, cto_e_administradora, pendente, com a aprovação do CTO na opção A', async () => {
+    const [dem] = (await b.poolMigrator.query('select id, status from demanda where titulo = $1', [TITULOS_DO_E2E.etapasDupla])).rows;
+    expect(dem.status).toBe('pronta_para_decisao');
+    const versoes = async (tabela: string) =>
+      (await b.poolMigrator.query(`select versao, autor_tipo, rascunho_agente from ${tabela} where demanda_id = $1`, [dem.id])).rows;
+    expect(await versoes('especificacao_tecnica')).toEqual([{ versao: 1, autor_tipo: 'pessoa', rascunho_agente: false }]);
+    expect(await versoes('parecer_risco')).toEqual([{ versao: 1, autor_tipo: 'pessoa', rascunho_agente: false }]);
+    const decs = (await b.poolMigrator.query('select id, versao, autor_tipo, rascunho_agente, nivel_aprovacao_requerido from pacote_decisao where demanda_id = $1', [dem.id]))
+      .rows;
+    expect(decs).toEqual([{ id: `DEC-${dem.id}-v1`, versao: 1, autor_tipo: 'pessoa', rascunho_agente: false, nivel_aprovacao_requerido: 'cto_e_administradora' }]);
+    const decId = decs[0].id as string;
+    // Pendente: uma aprovação só, a do CTO, pela conta fictícia "cto", e nenhuma decisão gravada.
+    const aprovacoes = (
+      await b.poolMigrator.query(
+        'select a.papel_aprovacao, a.opcao, a.nome_aprovador, a.referencia_documento, u.email from aprovacao a join "user" u on u.id = a.registrada_por where a.pacote_decisao_id = $1',
+        [decId],
+      )
+    ).rows;
+    expect(aprovacoes).toEqual([
+      { papel_aprovacao: 'cto', opcao: 'A', nome_aprovador: CONTAS_FICTICIAS.cto.nome, referencia_documento: null, email: CONTAS_FICTICIAS.cto.email },
+    ]);
+    expect(await contar(b, 'select count(*)::int as n from decisao where pacote_decisao_id = $1', [decId])).toBe(0);
+    expect(await contar(b, "select count(*)::int as n from evento where entidade_id = $1 and acao = 'aprovacao_registrada'", [decId])).toBe(1);
+  });
+
+  it('T06: `decisaoRecomendaB` tem ESP, RSK e um DEC de agente (rascunho), cuja recomendação cita a opção B', async () => {
+    const [dem] = (await b.poolMigrator.query('select id, status from demanda where titulo = $1', [TITULOS_DO_E2E.decisaoRecomendaB])).rows;
+    expect(dem.status).toBe('pronta_para_decisao');
+    const autoria = async (tabela: string) =>
+      (await b.poolMigrator.query(`select autor_tipo, autor_id, rascunho_agente from ${tabela} where demanda_id = $1`, [dem.id])).rows;
+    expect(await autoria('especificacao_tecnica')).toEqual([{ autor_tipo: 'agente', autor_id: 'insumo_tecnico', rascunho_agente: true }]);
+    expect(await autoria('parecer_risco')).toEqual([{ autor_tipo: 'agente', autor_id: 'risco', rascunho_agente: true }]);
+    const decs = (await b.poolMigrator.query('select id, autor_tipo, autor_id, rascunho_agente, recomendacao, nivel_aprovacao_requerido from pacote_decisao where demanda_id = $1', [dem.id]))
+      .rows;
+    expect(decs).toEqual([
+      {
+        id: `DEC-${dem.id}-v1`,
+        autor_tipo: 'agente',
+        autor_id: 'consolidacao',
+        rascunho_agente: true,
+        recomendacao: RECOMENDACAO_DO_E2E,
+        nivel_aprovacao_requerido: 'cto_e_administradora',
+      },
+    ]);
+    expect(RECOMENDACAO_DO_E2E).toBe('Recomendo a opção B (fictício).');
+    expect(decs[0].recomendacao).toContain('opção B');
+    // Nada decidido nem aprovado: o e2e decide.
+    expect(await contar(b, 'select count(*)::int as n from aprovacao where pacote_decisao_id = $1', [decs[0].id])).toBe(0);
+    expect(await contar(b, 'select count(*)::int as n from decisao where pacote_decisao_id = $1', [decs[0].id])).toBe(0);
+  });
+
+  it('T06: rodar o seed de novo não duplica demanda, versão, aprovação nem aviso', async () => {
+    const tabelas = ['demanda', 'especificacao_tecnica', 'parecer_risco', 'pacote_decisao', 'aprovacao', 'decisao', 'aviso_email', '"user"'];
+    const antes = await Promise.all(tabelas.map((t) => contar(b, `select count(*)::int as n from ${t}`)));
+    expect(antes.slice(0, 5)).toEqual([TOTAL_DEMANDAS_DO_SEED, 3, 3, 3, 1]);
+    expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('recusado');
+    expect(await Promise.all(tabelas.map((t) => contar(b, `select count(*)::int as n from ${t}`)))).toEqual(antes);
   });
 
   it('as contas com 2FA entram com a senha e o código do segredo de CONTAS_FICTICIAS', async () => {
@@ -724,12 +836,19 @@ describe('qa-automacao T33: borda, falha e concorrência', () => {
       expect(await contar(b, 'select count(*)::int as n from preco_modelo')).toBe(1);
       expect(await contar(b, "select count(*)::int as n from evento where acao = 'conta_criada'")).toBe(4);
 
-      // O DEC de agente deixa o aviso pendente e o job aviso.dec-pronto com payload só { decId } (C-22, para a T43).
-      const decId = (await b.poolMigrator.query('select id from pacote_decisao')).rows[0].id as string;
-      const avisos = (await b.poolMigrator.query('select pacote_decisao_id, status from aviso_email')).rows;
-      expect(avisos).toEqual([{ pacote_decisao_id: decId, status: 'pendente' }]);
-      const jobs = (await b.poolMigrator.query('select data, singleton_key from pgboss.job where name = $1', [FILAS.avisoDecPronto])).rows;
-      expect(jobs).toEqual([{ data: { decId }, singleton_key: decId }]);
+      // O DEC de agente deixa o aviso pendente e o job aviso.dec-pronto com payload só { decId } (C-22, para a T43). Desde
+      // a 0.2.0 (T06 do DEC-DEM-20261110-0015-v1), também os dois DECs das demandas do e2e: um aviso e um job por DEC.
+      const decId = (await b.poolMigrator.query('select id from pacote_decisao where demanda_titulo <> all($1)', [Object.values(TITULOS_DO_E2E)])).rows[0]
+        .id as string;
+      const decIds = (await b.poolMigrator.query('select id from pacote_decisao order by id')).rows.map((r) => r.id as string);
+      expect(decIds).toHaveLength(3);
+      expect(decIds).toContain(decId);
+      const avisos = (await b.poolMigrator.query('select pacote_decisao_id, status from aviso_email order by pacote_decisao_id')).rows;
+      expect(avisos).toEqual(decIds.map((id) => ({ pacote_decisao_id: id, status: 'pendente' })));
+      expect(avisos.filter((a) => a.pacote_decisao_id === decId)).toEqual([{ pacote_decisao_id: decId, status: 'pendente' }]);
+      const jobs = (await b.poolMigrator.query("select data, singleton_key from pgboss.job where name = $1 order by data->>'decId'", [FILAS.avisoDecPronto])).rows;
+      expect(jobs).toEqual(decIds.map((id) => ({ data: { decId: id }, singleton_key: id })));
+      expect(jobs.filter((j) => j.singleton_key === decId)).toEqual([{ data: { decId }, singleton_key: decId }]);
     } finally {
       await deps.fila.parar();
       await b.fechar();
@@ -816,5 +935,137 @@ describe('qa-automacao T33: borda, falha e concorrência', () => {
   it('package.json: start:hml roda scripts/start-hml.ts pelo tsx', () => {
     const pacote = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { scripts: Record<string, string> };
     expect(pacote.scripts['start:hml']).toBe('tsx scripts/start-hml.ts');
+  });
+});
+
+// Casos acrescentados pelo qa-automacao na 06-T06-testes (DEC-DEM-20261110-0015-v1): o estado das demandas do e2e que
+// as telas novas vão ler (CA-08.1, CA-09.1 e a T11), o relógio injetado e a falha no fim do seed. Cada teste semeia o
+// próprio banco: nenhum depende de outro nem da ordem, e nenhum usa o relógio real.
+describe('qa-automacao T06: estado das demandas do e2e da 0.2.0', () => {
+  const AGORA = '2026-11-10T09:00:00Z';
+
+  it('TOTAL_DEMANDAS_DO_SEED segue derivado: uma demanda de cada tipo mais uma por título do e2e', () => {
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(TIPOS_DEMANDA.length + Object.keys(TITULOS_DO_E2E).length);
+    expect(MENSAGENS_SEED.semeado).toContain(`${TOTAL_DEMANDAS_DO_SEED} demandas`);
+  });
+
+  it('CA-08.1 e CA-09.1: `etapasDupla` com ESP sem dúvidas, DEC atual e só a aprovação do CTO; `decisaoRecomendaB` com DEC de agente atual; tudo na hora do relógio injetado', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b, { relogio: relogioFixo(AGORA) });
+    try {
+      expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('semeado');
+      const linhas = async (texto: string, valores: unknown[]) => (await b.poolMigrator.query(texto, valores)).rows;
+      const demandaDe = async (titulo: string) => (await linhas('select id, contexto from demanda where titulo = $1', [titulo]))[0] as { id: string; contexto: string };
+
+      // `etapasDupla`: a barra de etapas tem de dar "Feita", "Feito" e "1 de 2 aprovações", e não "Com dúvidas em aberto"
+      // nem "Desatualizado"; o cartão Próxima ação, a administradora como quem age.
+      const dupla = await demandaDe(TITULOS_DO_E2E.etapasDupla);
+      expect(await linhas('select versao, duvidas_em_aberto, descricao_objetiva from especificacao_tecnica where demanda_id = $1', [dupla.id])).toEqual([
+        { versao: 1, duvidas_em_aberto: [], descricao_objetiva: expect.stringContaining('(fictício)') },
+      ]);
+      expect(await linhas('select versao, resumo from parecer_risco where demanda_id = $1', [dupla.id])).toEqual([{ versao: 1, resumo: expect.stringContaining('(fictício)') }]);
+      expect(
+        await linhas(
+          'select especificacao_versao, parecer_risco_versao, demanda_titulo, demanda_descricao, resumo_executivo, recomendacao from pacote_decisao where demanda_id = $1',
+          [dupla.id],
+        ),
+      ).toEqual([
+        {
+          especificacao_versao: 1,
+          parecer_risco_versao: 1,
+          demanda_titulo: TITULOS_DO_E2E.etapasDupla,
+          demanda_descricao: `Contexto: ${dupla.contexto}`,
+          resumo_executivo: expect.stringContaining('(fictício)'),
+          recomendacao: null,
+        },
+      ]);
+      expect(
+        await linhas(
+          'select a.papel_aprovacao, a.opcao, a.revisou_rascunhos, a.registrada_em from aprovacao a join pacote_decisao p on p.id = a.pacote_decisao_id where p.demanda_id = $1',
+          [dupla.id],
+        ),
+      ).toEqual([{ papel_aprovacao: 'cto', opcao: 'A', revisou_rascunhos: false, registrada_em: new Date(AGORA) }]);
+
+      // `decisaoRecomendaB`: o DEC de agente cita a ESP e o RSK de agente da própria demanda, na versão mais nova (a T11
+      // mostra o pacote atual e exige a revisão dos rascunhos).
+      const recomendaB = await demandaDe(TITULOS_DO_E2E.decisaoRecomendaB);
+      expect(await linhas('select versao, rascunho_agente from especificacao_tecnica where demanda_id = $1', [recomendaB.id])).toEqual([{ versao: 1, rascunho_agente: true }]);
+      expect(await linhas('select versao, rascunho_agente from parecer_risco where demanda_id = $1', [recomendaB.id])).toEqual([{ versao: 1, rascunho_agente: true }]);
+      expect(await linhas('select especificacao_versao, parecer_risco_versao, demanda_titulo from pacote_decisao where demanda_id = $1', [recomendaB.id])).toEqual([
+        { especificacao_versao: 1, parecer_risco_versao: 1, demanda_titulo: TITULOS_DO_E2E.decisaoRecomendaB },
+      ]);
+
+      // Relógio injetado: demandas do e2e, versões e aprovação, todas no instante do relógio fixo (a Idade da fila e o
+      // limite C-36 dependem dele).
+      const datas = await linhas(
+        `select d.criada_em from demanda d where d.titulo = any($1)
+         union select e.criada_em from especificacao_tecnica e join demanda d on d.id = e.demanda_id where d.titulo = any($1)
+         union select r.criada_em from parecer_risco r join demanda d on d.id = r.demanda_id where d.titulo = any($1)
+         union select p.criada_em from pacote_decisao p join demanda d on d.id = p.demanda_id where d.titulo = any($1)`,
+        [Object.values(TITULOS_DO_E2E)],
+      );
+      expect(datas).toEqual([{ criada_em: new Date(AGORA) }]);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
+  });
+
+  it('falha no aviso do terceiro DEC (o último passo das versões do e2e) desfaz o seed inteiro, aprovação do CTO inclusive, e o seed roda de novo', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b, { relogio: relogioFixo(AGORA) });
+    const FALHA = 'falha simulada no aviso do terceiro DEC (fictício)';
+    const avisos: string[] = [];
+    let naTransacao: unknown = null;
+    // A fila de verdade, menos no terceiro aviso.dec-pronto: antes de falhar, lê pela conexão da transação o que já foi
+    // gravado, para provar que a falha vem depois da aprovação do CTO na `etapasDupla` e do DEC da `decisaoRecomendaB`.
+    const filaQueFalha: Fila = {
+      enviar: async (executor, nome, payload, op) => {
+        if (nome === FILAS.avisoDecPronto) {
+          avisos.push(JSON.stringify(payload));
+          if (avisos.length === 3) {
+            naTransacao = (
+              await executor.executeSql(
+                'select (select count(*)::int from demanda) as demandas, (select count(*)::int from pacote_decisao) as decs, (select count(*)::int from aprovacao) as aprovacoes',
+              )
+            ).rows[0];
+            throw new Error(FALHA);
+          }
+        }
+        return deps.fila.enviar(executor, nome, payload, op);
+      },
+      parar: () => Promise.resolve(),
+    };
+    try {
+      await expect(seedFicticio({ ...deps, fila: filaQueFalha }, { SEED_FICTICIO: '1' })).rejects.toThrow(FALHA);
+      expect(new Set(avisos).size).toBe(3);
+      expect(naTransacao).toEqual({ demandas: TOTAL_DEMANDAS_DO_SEED, decs: 3, aprovacoes: 1 });
+      for (const tabela of [
+        '"user"',
+        'account',
+        'two_factor',
+        'evento',
+        'demanda',
+        'especificacao_tecnica',
+        'parecer_risco',
+        'pacote_decisao',
+        'aprovacao',
+        'decisao',
+        'aviso_email',
+        'preco_modelo',
+      ]) {
+        expect(await contar(b, `select count(*)::int as n from ${tabela}`), tabela).toBe(0);
+      }
+      expect(await contar(b, 'select count(*)::int as n from pgboss.job where name = $1', [FILAS.avisoDecPronto])).toBe(0);
+
+      // Nada ficou para trás que faça o seed recusar o banco: a subida seguinte semeia por inteiro.
+      expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('semeado');
+      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
+      expect(await contar(b, 'select count(*)::int as n from pacote_decisao')).toBe(3);
+      expect(await contar(b, 'select count(*)::int as n from aprovacao')).toBe(1);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
   });
 });

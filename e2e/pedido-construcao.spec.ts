@@ -27,9 +27,9 @@
 // Cada DEC cita a ESP e o RSK da própria demanda, criados no próprio teste: um teste não depende do outro e cada um
 // roda sozinho. O caso de C-28 é uma ESP com um e-mail fictício, na demanda própria dele.
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS, TITULOS_DO_E2E } from '../scripts/seed-ficticio';
-import { api, demandaDoSeed as demandaMelhoriaDoSeed, entrarComo, semViolacoes } from './apoio';
+import { api, demandaDoSeed as demandaMelhoriaDoSeed, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Versao = { id: string };
 type ListaDemandas = { itens: { id: string; titulo: string }[] };
@@ -379,9 +379,9 @@ test('0.1.13, caminho completo: v1 aprovado recusa pelo nome; contexto corrigido
     const v2 = (await api<Versao>(page, 'POST', `/api/demandas/${demandaId}/pacotes-decisao`, decValido)).id;
     const outraAba = await context.newPage();
     await outraAba.goto(`/pacotes-decisao/${v2}`);
-    await outraAba.getByRole('group', { name: 'Decisão (obrigatório)', exact: true }).getByRole('radio', { name: 'Aprovar', exact: true }).check();
+    // 0.2.0 (T12): marcar a opção e ativar o botão "Aprovar a opção A" (antes, o rádio "Aprovar" e "Registrar decisão").
     await outraAba.getByRole('radio', { name: /^Opção A/ }).check();
-    await outraAba.getByRole('button', { name: 'Registrar decisão' }).click();
+    await outraAba.getByRole('group', { name: 'Ações da decisão', exact: true }).getByRole('button', { name: 'Aprovar a opção A', exact: true }).click();
     await outraAba.getByRole('dialog', { name: 'Confirmar a decisão?' }).getByRole('button', { name: 'Confirmar e registrar' }).click();
     await expect(outraAba.getByRole('alert').filter({ hasText: 'Decisão registrada' })).toHaveText('Decisão registrada: Aprovada, opção A.');
     await outraAba.close();

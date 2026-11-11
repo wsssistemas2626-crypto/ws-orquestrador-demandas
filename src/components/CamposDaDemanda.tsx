@@ -9,6 +9,7 @@ import { useCallback, useEffect, useId, useRef, useState, type Dispatch, type Re
 import { AreaTexto } from './AreaTexto';
 import { Botao } from './Botao';
 import { CampoTexto, Dica } from './CampoTexto';
+import { Cartao } from './Cartao';
 import { ID_ADICIONAR_ANEXO, LIMITE_ANEXOS, TEXTOS_DEMANDA, type AnexoNoFormulario, type TipoAnexo, type ValoresDaDemanda } from './dados-da-demanda';
 import { DialogoConfirmacao } from './DialogoConfirmacao';
 import { idDoCampo } from './formulario';
@@ -27,16 +28,15 @@ const OPCOES_TIPO_ANEXO: readonly OpcaoSelecao[] = [
   { valor: 'arquivo', rotulo: 'Arquivo' },
 ];
 
-// Seção com título `h2` (03, T04: "Seções com fieldset/legend, ou h2 com section aria-labelledby").
+// Seção com título `h2` (03, T04: "Seções com fieldset/legend, ou h2 com section aria-labelledby"). 0.2.0 (T14; 03, 8.2
+// do pedido 0015): a seção é o próprio Cartao, com o mesmo `section aria-labelledby` e o mesmo `h2`.
 export function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-4">
-      <h2 id={id} className="text-lg font-semibold">
-        {titulo}
-      </h2>
+    <Cartao rotuloPor={id} className="flex flex-col gap-4">
+      <h2 id={id}>{titulo}</h2>
       {children}
-    </section>
+    </Cartao>
   );
 }
 
@@ -127,7 +127,7 @@ export function CamposDaDemanda({ valores, mudar, erros, somenteSolicitante = fa
             {valores.anexos.map((a, i) => {
               const n = i + 1;
               return (
-                <fieldset key={a.chave} className="flex flex-col gap-3 rounded-campo border border-borda p-4">
+                <fieldset key={a.chave} className="flex flex-col gap-3 rounded-campo border border-linha p-4">
                   <legend className="font-medium">{`Anexo ${n}`}</legend>
                   <Selecao
                     id={idDoCampo(`anexos.${i}.tipo`)}
@@ -170,7 +170,7 @@ export function CamposDaDemanda({ valores, mudar, erros, somenteSolicitante = fa
                 Adicionar anexo
               </Botao>
               {noLimite || erros.anexos ? (
-                <p id={`${ID_ADICIONAR_ANEXO}-dica`} className={`text-sm ${erros.anexos ? 'font-medium text-perigo' : 'text-texto-suave'}`}>
+                <p id={`${ID_ADICIONAR_ANEXO}-dica`} className={`text-sm ${erros.anexos ? 'font-medium text-erro' : 'text-tinta-media'}`}>
                   {TEXTOS_DEMANDA.erroLimiteAnexos}
                 </p>
               ) : null}

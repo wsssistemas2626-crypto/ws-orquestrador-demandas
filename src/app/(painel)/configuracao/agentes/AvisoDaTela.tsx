@@ -20,7 +20,7 @@ export function ProvedorDeAviso({ children }: { children: ReactNode }) {
   const valor = useMemo(() => ({ avisar, limpar }), [avisar, limpar]);
   return (
     <ContextoDoAviso.Provider value={valor}>
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-5">
         {/* Vazia, fica fora do fluxo (sr-only), sem abrir espaço entre o topo e a primeira seção. */}
         <RegiaoAviso visivel={texto !== ''}>{texto}</RegiaoAviso>
         {children}

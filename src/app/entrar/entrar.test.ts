@@ -43,7 +43,8 @@ describe('T01 Entrar: a página', () => {
     expect(metadata.title).toBe('Entrar — WS Orquestrador de Demandas');
     expect(dynamic).toBe('force-dynamic');
     const s = renderToStaticMarkup(await PaginaEntrar({ searchParams: Promise.resolve({ motivo: 'sessao' }) }));
-    expect(s).toMatch(/<header[^>]*>[\s\S]*WS Orquestrador de Demandas[\s\S]*<\/header>/);
+    // 0.2.0 (RF-13): o nome do sistema é a marca, em três blocos ("WS", "Orquestrador", "de Demandas").
+    expect(s).toMatch(/<header[^>]*>[\s\S]*>WS<[\s\S]*>Orquestrador<[\s\S]*>de Demandas<[\s\S]*<\/header>/);
     expect(s).toContain('<main id="conteudo"');
     expect(s).toContain('Sua sessão terminou. Entre de novo para continuar.');
   });

@@ -4,11 +4,11 @@
 //
 // O código errado só é tentado na conta da administradora, no máximo duas vezes por execução: o bloqueio de C-06 (5
 // falhas em 15 min por conta) nunca chega a valer, e o login da conta cto, que todas as telas usam, nunca falha.
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
 import { relogioDoSistema } from '../src/lib/relogio';
 import { codigoErrado, codigoTotp } from '../test/sessao';
-import { ipFicticio, semViolacoes } from './apoio';
+import { expect, ipFicticio, semViolacoes, test } from './apoio';
 
 type Conta = 'cto' | 'administradora';
 

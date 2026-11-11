@@ -2,6 +2,7 @@
 // /api/demandas/entrada) e o estado do agente orquestrador (T28), que decide o modo. Com `?entrada=<id>` ("Preencher à
 // mão", T03), lê a entrada pendente com `ler_texto_bruto` e abre o formulário com o texto já colado (WCAG 3.3.7); a
 // entrada que não existe mais (convertida ou expurgada) dá 404. O texto da entrada só vai ao formulário, nunca ao log.
+// 0.2.0 (T14; 03, 8.2 do pedido 0015): a tela tem até 760 px de largura (`max-w-190`), com o formulário em cartões.
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { TEXTOS_DEMANDA } from '../../../../components/dados-da-demanda';
@@ -45,7 +46,7 @@ export default async function PaginaNovaDemanda({ searchParams }: { searchParams
   const estado = await estadoDoAgente(deps.db, 'orquestrador', deps.relogio);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-190 flex-col gap-6">
       <h1>{TEXTOS_DEMANDA.tituloNova}</h1>
       <FormularioNovaDemanda estado={estado} pendente={pendente} />
     </div>

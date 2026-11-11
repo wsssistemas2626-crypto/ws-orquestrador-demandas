@@ -18,8 +18,8 @@ const ESTADO: Readonly<Record<EntradaPendenteResumo['status'], string>> = {
 export function EntradasAguardando({ entradas }: { entradas: readonly EntradaPendenteResumo[] }) {
   if (entradas.length === 0) return null;
   return (
-    <section aria-labelledby={ID_TITULO} className="flex flex-col gap-3 rounded-campo border border-borda p-4">
-      <h2 id={ID_TITULO} className="text-lg font-semibold">
+    <section aria-labelledby={ID_TITULO} className="flex flex-col gap-3 rounded-cartao border border-linha bg-branco p-4">
+      <h2 id={ID_TITULO}>
         {`Entradas aguardando o agente orquestrador (${entradas.length})`}
       </h2>
       <ul className="flex flex-col gap-3">
@@ -32,7 +32,7 @@ export function EntradasAguardando({ entradas }: { entradas: readonly EntradaPen
                   Recebida em <time dateTime={recebidaEm.toISOString()}>{formatarDataHora(recebidaEm)}</time>
                   {` — ${solicitantePapel ? ROTULO_PAPEL_SOLICITANTE[solicitantePapel] : 'Não informado'}`}
                 </p>
-                <p className="text-texto-suave">{ESTADO[status]}</p>
+                <p className="text-tinta-media">{ESTADO[status]}</p>
               </div>
               {status === 'falhou' ? (
                 <Link className={classeDoBotao('secundario')} aria-describedby={idLinha} href={`/demandas/nova?entrada=${encodeURIComponent(id)}`}>

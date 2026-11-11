@@ -2,6 +2,7 @@
 // nem banco: só os dois parâmetros da URL. `callbackURL` passa por destinoSeguro aqui no servidor, e o formulário
 // recebe só o caminho já conferido (C-40). `motivo=sessao` vem de exigirPessoaNaPagina (03, 2.8).
 import type { Metadata } from 'next';
+import { MolduraPublica } from '../../components/casca/MolduraPublica';
 import { destinoSeguro } from '../../modules/acesso/destino-seguro';
 import { FormularioEntrar } from './FormularioEntrar';
 
@@ -16,14 +17,10 @@ const umSo = (v: string | string[] | undefined): string | undefined => (typeof v
 
 export default async function PaginaEntrar({ searchParams }: { searchParams: Promise<Parametros> }) {
   const p = await searchParams;
+  // Moldura pública com a marca sem link (0.2.0, RF-13): nenhum caminho de volta além do destino já conferido (C-40).
   return (
-    <>
-      <header className="border-b border-borda bg-fundo">
-        <p className="mx-auto max-w-md px-4 py-3 font-semibold">WS Orquestrador de Demandas</p>
-      </header>
-      <main id="conteudo" tabIndex={-1} className="mx-auto max-w-md px-4 py-8">
-        <FormularioEntrar destino={destinoSeguro(umSo(p.callbackURL))} sessaoTerminou={umSo(p.motivo) === 'sessao'} />
-      </main>
-    </>
+    <MolduraPublica comLinkNaMarca={false}>
+      <FormularioEntrar destino={destinoSeguro(umSo(p.callbackURL))} sessaoTerminou={umSo(p.motivo) === 'sessao'} />
+    </MolduraPublica>
   );
 }

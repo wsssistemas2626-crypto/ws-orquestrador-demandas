@@ -9,7 +9,7 @@ export function BlocoJson({ rotulo, conteudo, id }: Props) {
       tabIndex={0}
       role="region"
       aria-label={rotulo}
-      className="max-h-96 overflow-auto rounded-campo border border-borda bg-fundo-suave p-3 font-mono text-sm whitespace-pre"
+      className="max-h-96 overflow-auto rounded-campo border border-tinta-suave bg-superficie p-3 font-mono text-sm whitespace-pre text-tinta"
     >
       {conteudo}
     </pre>

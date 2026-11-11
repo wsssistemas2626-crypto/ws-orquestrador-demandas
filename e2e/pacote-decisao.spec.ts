@@ -3,8 +3,8 @@
 // cheio nas duas contas com as outras specs da suíte, e a decisao.spec usa a única demanda que sobra na "cto". A
 // demanda nasce com a ESP no primeiro teste ("sem RSK") e ganha o RSK no primeiro que precisa dele; cada teste roda
 // também sozinho. O axe roda vazio, com erro e preenchido, e na T11 depois de gravar.
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Locator, type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string; status: string };
 type Versao = { id: string };

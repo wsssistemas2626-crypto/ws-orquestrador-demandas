@@ -2,8 +2,8 @@
 // Lista de textos (o erro de item fica na linha certa depois de remover). Os dados são criados pela API com a sessão da
 // conta fictícia "administradora", como na T41: o limite por ator (C-36: 30 demandas e 60 versões por hora) conta por
 // conta, e os outros e2e criam sobretudo com a "cto". Cada teste cria a própria demanda.
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { api, entrarComo, semViolacoes } from './apoio';
+import { type Locator, type Page } from '@playwright/test';
+import { api, entrarComo, expect, semViolacoes, test } from './apoio';
 
 type Demanda = { id: string; status: string };
 type Versao = { id: string };

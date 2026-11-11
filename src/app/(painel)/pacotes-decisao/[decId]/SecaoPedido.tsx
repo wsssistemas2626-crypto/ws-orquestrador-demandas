@@ -140,7 +140,7 @@ export function SecaoPedido({ decId }: { decId: string }) {
             </Botao>
           </div>
           <BlocoJson rotulo={t.rotuloBloco} conteudo={pedido.json} />
-          <p className="text-sm text-texto-suave">{t.nota}</p>
+          <p className="text-sm text-tinta-media">{t.nota}</p>
         </>
       ) : null}
       <RegiaoAviso>{aviso}</RegiaoAviso>

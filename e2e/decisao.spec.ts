@@ -30,10 +30,18 @@
 //     reprova o teste. Desde a 0.1.13, um DEC aprovado antes na demanda não é mais pré-condição: o novo o substitui, e
 //     a substituição termina com um só aprovado mais novo, o do teste;
 //   - rodam em qualquer banco: C-14, M-01, P1-b, a dupla aprovação e o de 404 e sessão.
+//
+// DEC-DEM-20261110-0015-v1 (T12, 0.2.0): o grupo de rádio "Decisão" e o botão "Registrar decisão" deram lugar a três
+// botões de envio no grupo "Ações da decisão": "Aprovar a opção X" ("Aprovar" sem opção marcada), "Devolver" e
+// "Arquivar". Os passos mudaram só para o equivalente (marcar a opção e ativar o botão), e as regras conferidas ficam.
+// As opções e o documento aparecem desde o início; o erro "Escolha a decisão." não tem mais como acontecer.
+//
+// DEC-DEM-20261110-0015-v1 (T13, CV-12): o C-14 roda também em 390 × 844, no mesmo DEC e sem decidir.
+//
 // Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
-import { api, demandaDoSeed, entrarComo, semViolacoes } from './apoio';
+import { api, demandaDoSeed, entrarComo, expect, semViolacoes, test } from './apoio';
 import { prepararEspERsk, procurarEmPaginas, proximoId, TAMANHO_DA_PAGINA } from './preparacao';
 
 type Versao = { id: string };
@@ -114,14 +122,14 @@ async function idDoDecDeRascunhoDoSeed(page: Page): Promise<string> {
 }
 
 const grupo = (page: Page, nome: string): Locator => page.getByRole('group', { name: nome, exact: true });
-const decisao = (page: Page, rotulo: 'Aprovar' | 'Devolver para nova análise' | 'Arquivar'): Locator =>
-  grupo(page, 'Decisão (obrigatório)').getByRole('radio', { name: rotulo, exact: true });
+// 0.2.0 (T12): os três botões de envio do grupo "Ações da decisão"; o principal diz a opção marcada ou a fixada.
+const principal = (page: Page): Locator => grupo(page, 'Ações da decisão').getByRole('button', { name: /^Aprovar( a opção [AB])?$/ });
+const botao = (page: Page, rotulo: 'Devolver' | 'Arquivar'): Locator => grupo(page, 'Ações da decisão').getByRole('button', { name: rotulo, exact: true });
 const resumoDeErros = (page: Page) => page.getByRole('alert').filter({ hasText: 'Corrija os campos abaixo para continuar.' });
 const dialogo = (page: Page) => page.getByRole('dialog', { name: 'Confirmar a decisão?' });
-const registrar = (page: Page) => page.getByRole('button', { name: 'Registrar decisão' });
 
+// Depois de ativar um dos três botões: o diálogo abre e a decisão é confirmada.
 async function confirmar(page: Page): Promise<void> {
-  await registrar(page).click();
   await expect(dialogo(page)).toBeVisible();
   await dialogo(page).getByRole('button', { name: 'Confirmar e registrar' }).click();
 }
@@ -129,9 +137,9 @@ async function confirmar(page: Page): Promise<void> {
 // Aprovar a opção A pela tela, com comentário, no DEC de nível cto aberto na página ("nível cto: aprovar A" e a
 // substituição).
 async function aprovarOpcaoA(page: Page): Promise<void> {
-  await decisao(page, 'Aprovar').check();
   await page.getByRole('radio', { name: 'Opção A — Construir tudo numa entrega (fictício)' }).check();
   await page.getByLabel('Comentários (opcional)').fill('Pode seguir (fictício).');
+  await principal(page).click();
   await confirmar(page);
 }
 
@@ -153,28 +161,30 @@ test('C-14: revisão visível antes de decidir e repetida no diálogo, num DEC d
   await expect(page.getByRole('heading', { level: 2, name: 'Recomendação do agente de consolidação' })).toBeVisible();
   await semViolacoes(page, 'T11 pendente com rascunhos');
 
-  // Validação no envio: nada marcado.
-  await registrar(page).click();
+  // Validação no envio: nada marcado. 0.2.0 (T12): o botão define a decisão, então "Aprovar" sem opção dá o erro da
+  // opção no lugar do "Escolha a decisão." (RF-11, CA-11.2).
+  await principal(page).click();
   await expect(resumoDeErros(page)).toBeFocused();
   await expect(resumoDeErros(page).getByRole('link')).toHaveText([
-    'Decisão: Escolha a decisão.',
+    'Opção escolhida: Escolha a opção A ou a opção B.',
     'Revisei os rascunhos de agente citados neste pacote: Marque que revisou os rascunhos de agente para registrar a decisão.',
   ]);
   await semViolacoes(page, 'T11 com erro');
 
-  // O grupo "Opção escolhida" aparece ao marcar Aprovar, sem mover o foco (03, T11).
-  await expect(grupo(page, 'Opção escolhida (obrigatório)')).toHaveCount(0);
-  await decisao(page, 'Aprovar').check();
-  await expect(decisao(page, 'Aprovar')).toBeFocused();
+  // 0.2.0 (T12, 03 6.4): o grupo "Opção escolhida" aparece desde o início; marcar a opção não move o foco e muda o
+  // texto do principal.
+  await expect(grupo(page, 'Opção escolhida (obrigatório)')).toBeVisible();
   await page.getByRole('radio', { name: /^Opção A/ }).check();
-  await registrar(page).click();
+  await expect(page.getByRole('radio', { name: /^Opção A/ })).toBeFocused();
+  await expect(principal(page)).toHaveText('Aprovar a opção A');
+  await principal(page).click();
   await expect(resumoDeErros(page).getByRole('link')).toHaveText([
     'Revisei os rascunhos de agente citados neste pacote: Marque que revisou os rascunhos de agente para registrar a decisão.',
   ]);
   await expect(dialogo(page)).toBeHidden();
 
   await page.getByRole('checkbox', { name: 'Revisei os rascunhos de agente citados neste pacote (obrigatório)' }).check();
-  await registrar(page).click();
+  await principal(page).click();
   const d = dialogo(page);
   await expect(d).toBeVisible();
   await expect(d).toContainText('Você vai registrar: Aprovar a opção A. Depois de registrada, a decisão deste pacote não muda.');
@@ -184,7 +194,39 @@ test('C-14: revisão visível antes de decidir e repetida no diálogo, num DEC d
   // "Voltar" fecha sem registrar e devolve o foco ao botão de origem; o pacote do seed continua pendente.
   await d.getByRole('button', { name: 'Voltar' }).click();
   await expect(d).toBeHidden();
-  await expect(registrar(page)).toBeFocused();
+  await expect(principal(page)).toBeFocused();
+  expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
+
+  // T13 (CV-12): a segunda rodada, em 390 × 844, no mesmo DEC e sem decidir. A revisão aparece sem abrir nada, e o envio
+  // passa pela mesma validação e pelo mesmo diálogo, com o repositório destino e o nível.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/pacotes-decisao/${decId}`);
+  const revisaoNoCelular = page.getByRole('region', { name: 'Revisão antes de decidir' });
+  await expect(revisaoNoCelular).toBeVisible();
+  await expect(revisaoNoCelular).toContainText('wsssistemas2626-crypto/');
+  for (const t of [/^Risco técnico:/, /^Risco operacional:/, /^Risco jurídico:/, /^Nível de aprovação: /]) await expect(revisaoNoCelular.getByText(t), String(t)).toBeVisible();
+  await expect(page.getByText('Rascunho de agente').first()).toBeVisible();
+  await expect(page.getByText(/^Este pacote cita conteúdo gerado por agente de IA: DEC-.+, ESP-.+ e RSK-.+\. Leia cada um antes de decidir\.$/)).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Recomendação do agente de consolidação' })).toBeVisible();
+  await semViolacoes(page, 'T11 pendente com rascunhos em 390 px');
+  await principal(page).click();
+  await expect(resumoDeErros(page)).toBeFocused();
+  await expect(resumoDeErros(page).getByRole('link')).toHaveText([
+    'Opção escolhida: Escolha a opção A ou a opção B.',
+    'Revisei os rascunhos de agente citados neste pacote: Marque que revisou os rascunhos de agente para registrar a decisão.',
+  ]);
+  await semViolacoes(page, 'T11 com erro em 390 px');
+  await page.getByRole('radio', { name: /^Opção A/ }).check();
+  await page.getByRole('checkbox', { name: 'Revisei os rascunhos de agente citados neste pacote (obrigatório)' }).check();
+  await principal(page).click();
+  await expect(d).toBeVisible();
+  await expect(d).toContainText('Você vai registrar: Aprovar a opção A. Depois de registrada, a decisão deste pacote não muda.');
+  await expect(d).toContainText('wsssistemas2626-crypto/');
+  await expect(d).toContainText(/Só o CTO|CTO e administradora/);
+  await semViolacoes(page, 'T11 com o diálogo aberto em 390 px');
+  await d.getByRole('button', { name: 'Voltar' }).click();
+  await expect(d).toBeHidden();
+  await expect(principal(page)).toBeFocused();
   expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
 });
 
@@ -211,7 +253,7 @@ test('P1-b: administradora em DEC de nível cto vê "Este pacote exige só a apr
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('Este pacote exige só a aprovação do CTO.', { exact: true })).toBeVisible();
   await expect(page.locator('main form')).toHaveCount(0);
-  await expect(registrar(page)).toHaveCount(0);
+  await expect(principal(page)).toHaveCount(0);
   await semViolacoes(page, 'T11 sem formulário para a administradora');
 });
 
@@ -336,10 +378,9 @@ test('dupla aprovação: CTO aprova; administradora entra, vê a opção fixada,
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByText('CTO: pendente.', { exact: true })).toBeVisible();
   await expect(page.getByText('Administradora: pendente.', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('Identificador do documento assinado (obrigatório)')).toHaveCount(0);
-  await decisao(page, 'Aprovar').check();
+  await expect(page.getByLabel('Identificador do documento assinado (obrigatório para aprovar)')).toHaveCount(0);
   await page.getByRole('radio', { name: /^Opção B/ }).check();
-  await registrar(page).click();
+  await principal(page).click();
   await expect(dialogo(page)).toContainText('Nível de aprovação: CTO e administradora.');
   await dialogo(page).getByRole('button', { name: 'Confirmar e registrar' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Aprovação do CTO' })).toHaveText('Aprovação do CTO registrada. Falta a aprovação da administradora.');
@@ -351,20 +392,22 @@ test('dupla aprovação: CTO aprova; administradora entra, vê a opção fixada,
 
   await entrarComo(page, 'administradora');
   await page.goto(`/pacotes-decisao/${decId}`);
-  await decisao(page, 'Aprovar').check();
+  // 0.2.0 (T12): a frase da opção fixada e o documento aparecem desde o início, sem marcar nada; o principal diz a opção.
   await expect(page.getByText('O CTO aprovou a opção B. A sua aprovação vale para a mesma opção. Para discordar, escolha devolver ou arquivar.')).toBeVisible();
   await expect(page.getByRole('radio', { name: /^Opção/ })).toHaveCount(0);
-  await expect(page.getByLabel('Identificador do documento assinado (obrigatório)')).toHaveAccessibleDescription(
+  await expect(principal(page)).toHaveText('Aprovar a opção B');
+  await expect(page.getByLabel('Identificador do documento assinado (obrigatório para aprovar)')).toHaveAccessibleDescription(
     'Exemplo: número do documento no sistema de assinatura.',
   );
-  await registrar(page).click();
+  await principal(page).click();
   await expect(resumoDeErros(page).getByRole('link')).toHaveText([
     'Identificador do documento assinado: Informe o identificador do documento assinado.',
     'Data da assinatura: Informe a data da assinatura.',
   ]);
   await semViolacoes(page, 'T11 segunda aprovação com erro');
-  await page.getByLabel('Identificador do documento assinado (obrigatório)').fill('DOC-FICTICIO-0001');
-  await page.getByLabel('Data da assinatura (obrigatório)').fill('2026-10-23');
+  await page.getByLabel('Identificador do documento assinado (obrigatório para aprovar)').fill('DOC-FICTICIO-0001');
+  await page.getByLabel('Data da assinatura (obrigatório para aprovar)').fill('2026-10-23');
+  await principal(page).click();
   await confirmar(page);
   await expect(page.getByRole('alert').filter({ hasText: 'O pacote está aprovado.' })).toHaveText('Aprovação da administradora registrada. O pacote está aprovado.');
   await expect(
@@ -389,16 +432,18 @@ test('CA-12.4: desatualizado: aviso, Aprovar indisponível e explicado; Devolver
     ),
   ).toBeVisible();
   await expect(page.getByRole('link', { name: 'Criar pacote novo' })).toHaveAttribute('href', `/demandas/${demandaId}/pacotes-decisao/novo`);
-  const aprovar = decisao(page, 'Aprovar');
+  // 0.2.0 (T12): "Aprovar" é o botão principal, indisponível e explicado; ativado, não abre o diálogo (no lugar de
+  // "o rádio não fica marcado").
+  const aprovar = principal(page);
   await expect(aprovar).toHaveAttribute('aria-disabled', 'true');
   await expect(aprovar).toHaveAccessibleDescription('Indisponível: pacote desatualizado.');
   await aprovar.click({ force: true });
-  await expect(aprovar).not.toBeChecked();
+  await expect(dialogo(page)).toBeHidden();
+  await expect(resumoDeErros(page)).toHaveCount(0);
   await semViolacoes(page, 'T11 desatualizado');
 
-  await decisao(page, 'Devolver para nova análise').check();
   await expect(grupo(page, 'Opção escolhida (obrigatório)')).toHaveCount(0);
-  await registrar(page).click();
+  await botao(page, 'Devolver').click();
   await expect(dialogo(page)).toContainText('Você vai registrar: Devolver para nova análise.');
   await dialogo(page).getByRole('button', { name: 'Confirmar e registrar' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Pacote devolvido' })).toHaveText('Pacote devolvido para nova análise. A demanda voltou para Em análise.');
@@ -420,7 +465,7 @@ test('Arquivar → "Pacote arquivado. A demanda foi para Encerrada."', async ({ 
   // de decisao_arquivada: o status antes de arquivar é sempre pronta_para_decisao.
   expect(await statusDa(page, demandaId), `status da demanda ${demandaId} antes de arquivar`).toBe('pronta_para_decisao');
   await page.goto(`/pacotes-decisao/${decId}`);
-  await decisao(page, 'Arquivar').check();
+  await botao(page, 'Arquivar').click();
   await confirmar(page);
   await expect(page.getByRole('alert').filter({ hasText: 'Pacote arquivado' })).toHaveText('Pacote arquivado. A demanda foi para Encerrada.');
   expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('arquivada');

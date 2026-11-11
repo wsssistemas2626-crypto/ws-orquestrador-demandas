@@ -9,13 +9,13 @@ const CLASSE = 'inline-flex min-h-11 min-w-11 items-center justify-center rounde
 function Controle({ href, texto }: { href: string | null; texto: string }) {
   if (!href) {
     return (
-      <a role="link" aria-disabled="true" className={`${CLASSE} cursor-not-allowed text-texto-suave`}>
+      <a role="link" aria-disabled="true" className={`${CLASSE} cursor-not-allowed text-tinta-media`}>
         {texto}
       </a>
     );
   }
   return (
-    <Link href={href} className={`${CLASSE} border border-borda text-primaria underline`}>
+    <Link href={href} className={`${CLASSE} border border-tinta-suave bg-branco text-acao-escura underline`}>
       {texto}
     </Link>
   );

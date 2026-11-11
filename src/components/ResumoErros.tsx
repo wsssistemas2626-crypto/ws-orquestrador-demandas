@@ -25,14 +25,14 @@ export function ResumoErros({ erros, titulo = TITULO_RESUMO_ERROS }: Props) {
   }, [erros]);
   if (erros.length === 0) return null;
   return (
-    <div ref={ref} tabIndex={-1} role="alert" aria-labelledby={idTitulo} className="rounded-campo border-2 border-perigo bg-red-50 px-4 py-3 text-texto">
-      <h2 id={idTitulo} className="text-lg font-semibold text-perigo">
+    <div ref={ref} tabIndex={-1} role="alert" aria-labelledby={idTitulo} className="rounded-campo border-2 border-erro bg-erro-fundo px-4 py-3 text-tinta">
+      <h2 id={idTitulo} className="text-erro">
         {titulo}
       </h2>
       <ul className="mt-2 list-disc pl-6">
         {erros.map((e) => (
           <li key={e.idCampo}>
-            <a href={`#${e.idCampo}`} onClick={(ev) => irAoCampo(ev, e.idCampo)} className="text-perigo underline">
+            <a href={`#${e.idCampo}`} onClick={(ev) => irAoCampo(ev, e.idCampo)} className="text-erro underline">
               {e.rotulo ? `${e.rotulo}: ${e.mensagem}` : e.mensagem}
             </a>
           </li>

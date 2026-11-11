@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DemandaResumo } from '../../../modules/demandas/consultas';
 import type { EntradaPendenteResumo } from '../../../modules/demandas/entradas-pendentes';
 import { filtroDemandasSchema } from '../../../modules/demandas/schemas';
+import { contadoresDaFila } from '../../../components/dados-da-fila';
+import { ContadoresDaFila } from './ContadoresDaFila';
 import { EntradasAguardando } from './EntradasAguardando';
 import {
   CarregandoFila,
@@ -29,6 +31,14 @@ vi.mock('next/navigation', () => ({
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const SEM_FILTRO = filtroDemandasSchema.parse({});
 const filtro = (f: Record<string, unknown>) => filtroDemandasSchema.parse(f);
+
+// T09 do DEC-DEM-20261110-0015-v1: o resultado também recebe as etapas de cada demanda (leitura da página) e o "agora"
+// do relógio injetado, para a coluna Idade. Aqui: 10/11/2026 às 12:00 em São Paulo, e nenhuma etapa feita.
+const AGORA = new Date('2026-11-10T15:00:00Z');
+const leituras = (itens: readonly DemandaResumo[]) => ({ etapas: new Map(itens.map((d) => [d.id, { esp: false, rsk: false, dec: false }] as const)), agora: AGORA });
+// A tabela (a partir de 768 px) e a lista de cartões (abaixo) estão as duas no HTML: cada conferência olha a sua.
+const tabelaDe = (s: string): string => /<table[\s\S]*?<\/table>/.exec(s)?.[0] ?? '';
+const listaDe = (s: string): string => /<ul aria-labelledby="resultado-da-fila"[\s\S]*?<\/ul>/.exec(s)?.[0] ?? '';
 
 const demanda = (n: number, extra: Partial<DemandaResumo> = {}): DemandaResumo => ({
   id: `DEM-20261022-${String(n).padStart(4, '0')}`,
@@ -104,31 +114,38 @@ describe('legenda da tabela, contagem e endereço (03, T03)', () => {
 
 describe('ResultadoDaFila: com dados', () => {
   const itens = [demanda(42, { rascunhoAgente: true }), demanda(41, { tipo: 'estudo', status: 'aguardando_informacao', urgencia: null, linhaServicoProvavel: null })];
-  const s = html(h(ResultadoDaFila, { filtro: filtro({ status: 'aguardando_informacao' }), itens, total: 2 }));
+  const s = html(h(ResultadoDaFila, { filtro: filtro({ status: 'aguardando_informacao' }), itens, total: 2, ...leituras(itens) }));
 
+  // T09 (G5): o id de foco passou do caption ao h2 do resultado; o caption ficou só para leitor de tela, com o mesmo
+  // texto; "Criada em" virou "Idade", e entrou "Etapas" depois de "Status" (03, 4.2 e seção 9).
   it('região rolável com rótulo, caption focável com a descrição do filtro e as colunas da 03', () => {
     expect(s).toMatch(/<div role="region" aria-label="Tabela de demandas" tabindex="0"/);
-    expect(s).toContain(`<caption id="${ID_RESULTADO}" tabindex="-1"`);
+    expect(s).toContain(`<h2 id="${ID_RESULTADO}" tabindex="-1"`);
     expect(s).toContain('>Demandas com status Aguardando informação, da mais nova para a mais antiga</caption>');
-    for (const c of ['Id', 'Título', 'Tipo', 'Status', 'Urgência', 'Linha de serviço', 'Criada em']) expect(s).toContain(`<th scope="col" class="px-3 py-2 font-semibold">${c}</th>`);
+    for (const c of ['Id', 'Título', 'Tipo', 'Status', 'Etapas', 'Urgência', 'Linha de serviço', 'Idade']) expect(s).toContain(`<th scope="col" class="px-3 py-2 font-semibold">${c}</th>`);
   });
 
   it('id como link para T05, em fonte monoespaçada; rascunho de agente ao lado do título', () => {
     expect(s).toMatch(/<a [^>]*href="\/demandas\/DEM-20261022-0042"[^>]*>DEM-20261022-0042<\/a>/);
     expect(s).toMatch(/<a class="[^"]*font-mono[^"]*" href="\/demandas\/DEM-20261022-0042"/);
     expect(s).toMatch(/Pedidos duplicados no ERP \(fictício 42\)[\s\S]*?border-dashed[^>]*>Rascunho de agente<\/span>/);
-    expect(s.match(/Rascunho de agente/g)).toHaveLength(1);
+    // Uma vez em cada forma (a tabela e o cartão), e as duas nunca ficam expostas juntas.
+    expect(tabelaDe(s).match(/Rascunho de agente/g)).toHaveLength(1);
+    expect(listaDe(s).match(/Rascunho de agente/g)).toHaveLength(1);
   });
 
   it('rótulos de 2.6, selo de status com texto, "Não informada" e data com <time>', () => {
     expect(s).toContain('<td class="px-3 py-2 align-top">Bug</td>');
     expect(s).toContain('<td class="px-3 py-2 align-top">Estudo</td>');
-    expect(s).toMatch(/bg-blue-100[^>]*>Em análise<\/span>/);
-    expect(s).toMatch(/bg-amber-100[^>]*>Aguardando informação<\/span>/);
-    expect(s).toContain('<td class="px-3 py-2 align-top">Alta</td>');
+    expect(s).toMatch(/data-cor="violeta"[^>]*>Em análise<\/span>/);
+    expect(s).toMatch(/data-cor="ambar"[^>]*>Aguardando informação<\/span>/);
+    // T09: a urgência ganhou o ponto escondido antes do rótulo (03, 4.4).
+    expect(s).toMatch(/<td class="px-3 py-2 align-top"><span [^>]*><span aria-hidden="true" class="[^"]*"><\/span>Alta<\/span><\/td>/);
     expect(s).toContain('<td class="px-3 py-2 align-top">Automação e integração</td>');
     expect(s.match(/<td class="px-3 py-2 align-top">Não informada<\/td>/g)).toHaveLength(2);
-    expect(s).toContain('<time dateTime="2026-10-22T17:05:00.000Z">22/10/2026</time>');
+    // T09: a data continua no <time> (dateTime) e como texto "criada em dd/mm/aaaa"; o texto do <time> é a idade.
+    expect(s).toContain('<time dateTime="2026-10-22T17:05:00.000Z">19 dias</time>');
+    expect(s).toContain('<span class="sr-only">criada em </span>22/10/2026');
   });
 
   it('paginação na página 1: "Anterior" indisponível; "Próxima" indisponível com a página incompleta', () => {
@@ -140,21 +157,21 @@ describe('ResultadoDaFila: com dados', () => {
 
   it('página cheia com mais demandas: "Próxima" leva ao offset seguinte, com o mesmo filtro', () => {
     const cheia = Array.from({ length: 20 }, (_, i) => demanda(100 - i));
-    const p1 = html(h(ResultadoDaFila, { filtro: filtro({ tipo: 'bug' }), itens: cheia, total: 45 }));
+    const p1 = html(h(ResultadoDaFila, { filtro: filtro({ tipo: 'bug' }), itens: cheia, total: 45, ...leituras(cheia) }));
     expect(p1).toMatch(/<a class="[^"]*" href="\/demandas\?tipo=bug&amp;offset=20">Próxima<\/a>/);
-    const p2 = html(h(ResultadoDaFila, { filtro: filtro({ tipo: 'bug', offset: '20' }), itens: cheia, total: 45 }));
+    const p2 = html(h(ResultadoDaFila, { filtro: filtro({ tipo: 'bug', offset: '20' }), itens: cheia, total: 45, ...leituras(cheia) }));
     expect(p2).toMatch(/href="\/demandas\?tipo=bug">Anterior<\/a>/);
     expect(p2).toContain('>Página 2</span>');
     expect(p2).toMatch(/href="\/demandas\?tipo=bug&amp;offset=40">Próxima<\/a>/);
-    const p3 = html(h(ResultadoDaFila, { filtro: filtro({ tipo: 'bug', offset: '40' }), itens: cheia.slice(0, 5), total: 45 }));
+    const p3 = html(h(ResultadoDaFila, { filtro: filtro({ tipo: 'bug', offset: '40' }), itens: cheia.slice(0, 5), total: 45, ...leituras(cheia) }));
     expect(p3).toMatch(/<a role="link" aria-disabled="true"[^>]*>Próxima<\/a>/);
     // Página cheia que é a última: o total diz que não há próxima.
-    const exata = html(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens: cheia, total: 20 }));
+    const exata = html(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens: cheia, total: 20, ...leituras(cheia) }));
     expect(exata).toMatch(/<a role="link" aria-disabled="true"[^>]*>Próxima<\/a>/);
   });
 
   it('o título da demanda é texto, nunca HTML (C-18)', () => {
-    const r = html(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens: [demanda(1, { titulo: '<img src=x onerror=alert(1)>' })], total: 1 }));
+    const r = html(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens: [demanda(1, { titulo: '<img src=x onerror=alert(1)>' })], total: 1, ...leituras([demanda(1)]) }));
     expect(r).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(r).not.toContain('<img');
   });
@@ -162,7 +179,7 @@ describe('ResultadoDaFila: com dados', () => {
 
 describe('ResultadoDaFila: vazio', () => {
   it('sem nenhuma demanda: o texto da 03 e o botão "Nova demanda", sem tabela', () => {
-    const s = html(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens: [], total: 0 }));
+    const s = html(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens: [], total: 0, ...leituras([]) }));
     expect(s).toContain(`<p id="${ID_RESULTADO}" tabindex="-1">Nenhuma demanda ainda. Crie a primeira colando o texto do pedido.</p>`);
     expect(s).toMatch(/<a class="[^"]*min-h-11[^"]*" href="\/demandas\/nova">Nova demanda<\/a>/);
     expect(s).not.toContain('<table');
@@ -170,7 +187,7 @@ describe('ResultadoDaFila: vazio', () => {
   });
 
   it('com filtro e sem resultado: o texto da 03 e o link "Limpar filtros"', () => {
-    const s = html(h(ResultadoDaFila, { filtro: filtro({ status: 'encerrada' }), itens: [], total: 0 }));
+    const s = html(h(ResultadoDaFila, { filtro: filtro({ status: 'encerrada' }), itens: [], total: 0, ...leituras([]) }));
     expect(s).toContain(`<p id="${ID_RESULTADO}" tabindex="-1">Nenhuma demanda com esses filtros.</p>`);
     expect(s).toMatch(/<a [^>]*href="\/demandas"[^>]*>Limpar filtros<\/a>/);
     expect(s).not.toContain('Nenhuma demanda ainda');
@@ -178,7 +195,7 @@ describe('ResultadoDaFila: vazio', () => {
   });
 
   it('página além do fim, sem filtro: a mensagem de filtro e "Anterior" para voltar', () => {
-    const s = html(h(ResultadoDaFila, { filtro: filtro({ offset: '200' }), itens: [], total: 3 }));
+    const s = html(h(ResultadoDaFila, { filtro: filtro({ offset: '200' }), itens: [], total: 3, ...leituras([]) }));
     expect(s).toContain('Nenhuma demanda com esses filtros.');
     expect(s).toMatch(/href="\/demandas\?offset=180">Anterior<\/a>/);
   });
@@ -189,13 +206,13 @@ describe('ErroDaFila e CarregandoFila', () => {
     const s = html(h(ErroDaFila));
     expect(s).toContain(`<p id="${ID_RESULTADO}" tabindex="-1">Não foi possível carregar as demandas. Tente de novo em instantes.</p>`);
     expect(s).toMatch(/<button type="button"[^>]*>Tentar de novo<\/button>/);
-    expect(s).toContain('border-perigo');
+    expect(s).toContain('border-erro');
   });
 
   it('carregando: tabela com aria-busy, 5 linhas de esqueleto e o texto oculto "Carregando demandas…" uma vez', () => {
     const s = html(h(CarregandoFila));
     expect(s).toContain('<table aria-busy="true"');
-    expect(s.match(/<tr class="border-t border-borda">/g)).toHaveLength(5);
+    expect(s.match(/<tr class="border-t border-linha">/g)).toHaveLength(5);
     expect(s.match(/Carregando demandas…/g)).toHaveLength(1);
     expect(s).toContain('<span class="sr-only">Carregando demandas…</span>');
     expect(s).not.toContain(`id="${ID_RESULTADO}"`);
@@ -212,18 +229,22 @@ describe('FiltrosFila: o formulário (03, T03; WCAG 3.2.2)', () => {
     expect(s).toMatch(/<a [^>]*href="\/demandas"[^>]*>Limpar filtros<\/a>/);
   });
 
+  // T09 (G5; 03, 4.2): o seletor "Status" saiu do formulário (o status vai oculto, com o valor da URL já validado) e
+  // passou para os contadores, que têm "Todas" e os nove status, com os mesmos rótulos de 2.2.
+  const contadores = html(h(ContadoresDaFila, { contadores: contadoresDaFila(null, filtro({ status: 'aguardando_informacao', tipo: 'bug' }), hrefDaFila), filtro: { tipo: 'bug' }, idFoco: ID_RESULTADO }));
+
   it('"Status", "Tipo" e "Linha de serviço", com "Todos" ou "Todas" e os rótulos de 2.2 e 2.6', () => {
-    expect(s).toMatch(/<label for="filtro-status"[^>]*>Status<\/label>/);
-    expect(s).toMatch(/<select id="filtro-status"[^>]*name="status"/);
+    expect(s).toMatch(/<input type="hidden" name="status" value="aguardando_informacao"\/>/);
+    expect(contadores).toMatch(/<div role="group" aria-label="Filtrar por status"/);
     expect(s).toMatch(/<label for="filtro-tipo"[^>]*>Tipo<\/label>/);
     expect(s).toMatch(/<select id="filtro-tipo"[^>]*name="tipo"/);
     expect(s).toMatch(/<label for="filtro-linha"[^>]*>Linha de serviço<\/label>/);
     expect(s).toMatch(/<select id="filtro-linha"[^>]*name="linhaServicoProvavel"/);
-    expect(s).toMatch(/<select id="filtro-status"[^>]*><option value="">Todos<\/option><option value="nova">Nova<\/option>/);
-    expect(s).toContain('<option value="devolvida">Devolvida pela construção</option>');
+    expect(contadores).toMatch(/<button type="submit" value=""[^>]*name="status">[\s\S]*?Todas<\/span>[\s\S]*?<button type="submit" value="nova"[^>]*name="status">[\s\S]*?Nova<\/span>/);
+    expect(contadores).toMatch(/<button type="submit" value="devolvida"[^>]*name="status">[\s\S]*?Devolvida pela construção<\/span>/);
     expect(s).toMatch(/<select id="filtro-tipo"[^>]*><option value="">Todos<\/option><option value="bug" selected="">Bug<\/option>/);
     expect(s).toMatch(/<select id="filtro-linha"[^>]*><option value="" selected="">Todas<\/option><option value="sob_medida">Sistema sob medida<\/option>/);
-    expect(s).toContain('<option value="aguardando_informacao" selected="">Aguardando informação</option>');
+    expect(contadores).toMatch(/<button type="submit" value="" aria-pressed="true"[^>]*name="status">[\s\S]*?Aguardando informação<\/span>/);
   });
 
   it('nenhuma seleção aplica o filtro sozinha (sem onchange no HTML)', () => {
