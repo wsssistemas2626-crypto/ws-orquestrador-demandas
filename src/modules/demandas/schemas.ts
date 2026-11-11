@@ -81,11 +81,17 @@ export const alterarDemandaSchema = z.object({
   status: z.enum(STATUS).optional(),
 });
 
+// Origem da demanda (RF-10 do DEC-DEM-20261111-0016-v1): quem a criou, lido da autoria gravada (autor_tipo e
+// autor_id), nunca do solicitanteNome. Lista fechada: o filtro fora dela é 400 (C-17), e o SQL só recebe valor fixo.
+export const ORIGENS_DA_DEMANDA = ['pessoa', 'agente', 'awave'] as const;
+export type OrigemDaDemanda = (typeof ORIGENS_DA_DEMANDA)[number];
+
 // Query da fila (RF-06, CA-06.2): os números chegam como texto; chave repetida chega como lista e é recusada.
 export const filtroDemandasSchema = z.object({
   status: z.enum(STATUS).optional(),
   tipo: z.enum(TIPOS).optional(),
   linhaServicoProvavel: z.enum(LINHAS).optional(),
+  origem: z.enum(ORIGENS_DA_DEMANDA).optional(),
   limit: z.coerce.number().int().min(1).max(LIMITE_PAGINA).default(20),
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
 });

@@ -13,7 +13,7 @@ import { minimizarValor } from '../dados-pessoais/minimizar';
 import { executarComOrcamento } from '../integracoes/tempo-limite';
 import { expressaoDesatualizado } from '../pacotes-decisao/desatualizado';
 import { expressaoSubstituidoPor } from '../pacotes-decisao/substituido';
-import type { FiltroDemandas, Status, Tipo } from './schemas';
+import type { FiltroDemandas, OrigemDaDemanda, Status, Tipo } from './schemas';
 
 // `nome` nulo só quando a conta não existe mais (o app não apaga conta; a desativação mantém a linha). A integração
 // (0.3.0) aparece pelo nome da lista.
@@ -51,6 +51,7 @@ export type DemandaVista = {
   agentesEmAndamento: AgenteEmAndamento[];
 };
 
+// `origem` (RF-10 do 0016): enumeração sem dado pessoal, a mesma para pessoa e agente (04, C06). O id do autor nunca sai.
 export type DemandaResumo = {
   id: string;
   titulo: string;
@@ -59,10 +60,62 @@ export type DemandaResumo = {
   urgencia: Urgencia | null;
   linhaServicoProvavel: LinhaServico | null;
   rascunhoAgente: boolean;
+  origem: OrigemDaDemanda;
   criadaEm: Date;
 };
 
 const ehAgente = (v: string): v is Agente => (AGENTES as readonly string[]).includes(v);
+
+// RF-10 do 0016: a origem vem da autoria gravada, nunca do solicitanteNome (que a pessoa edita). Pessoa e agente pelo
+// tipo; integração só o awave, que é a única que cria demanda (CHECK demanda_autor_integracao_check). Fora disso é linha
+// corrompida, como em responsavelDe, e vira 500.
+export function origemDaAutoria(autorTipo: string, autorId: string): OrigemDaDemanda {
+  switch (autorTipo) {
+    case 'pessoa':
+      return 'pessoa';
+    case 'agente':
+      return 'agente';
+    case 'integracao':
+      if (autorId === 'awave') return 'awave';
+      break;
+  }
+  throw new Error('autoria desconhecida');
+}
+
+// A mesma regra a partir do responsável da vista (o detalhe da demanda, que já carrega `responsavel`).
+export function origemDoResponsavel(r: Responsavel): OrigemDaDemanda {
+  switch (r.tipo) {
+    case 'pessoa':
+      return 'pessoa';
+    case 'agente':
+      return 'agente';
+    case 'integracao':
+      if (r.integracao === 'awave') return 'awave';
+      throw new Error('autoria desconhecida');
+    default:
+      return atorDesconhecido(r);
+  }
+}
+
+function origemDesconhecida(nunca: never): never {
+  void nunca;
+  throw new Error('origem desconhecida');
+}
+
+// O filtro por origem (C-17): a origem já passou pelo enum do Zod, e o SQL só recebe os valores fixos daqui, por
+// parâmetro (`eq`). O awave usa o índice demanda_autor_criada_idx (autor_tipo, autor_id, criada_em) inteiro.
+export function condicaoDaOrigem(o: OrigemDaDemanda): SQL {
+  switch (o) {
+    case 'pessoa':
+      return eq(demanda.autorTipo, 'pessoa');
+    case 'agente':
+      return eq(demanda.autorTipo, 'agente');
+    case 'awave':
+      return and(eq(demanda.autorTipo, 'integracao'), eq(demanda.autorId, 'awave'))!;
+    default:
+      return origemDesconhecida(o);
+  }
+}
 
 // Exportada para as leituras de ESP, RSK e DEC (T18 a T20): a mesma autoria visível em toda vista.
 export function responsavelDe(autorTipo: string, autorId: string, nome: string | null): Responsavel {
@@ -372,12 +425,14 @@ function vistaMinimaDaDemanda(d: DemandaVista): DemandaVistaMinima {
 
 type PaginaDeDemandas = { itens: DemandaResumo[]; total: number; limit: number; offset: number };
 
-// Uma consulta só para o painel e para a API. O `solicitanteNome` é lido só para a troca do M-1 e nunca sai no item.
+// Uma consulta só para o painel e para a API. O `solicitanteNome` é lido só para a troca do M-1 e nunca sai no item; a
+// autoria é lida só para a origem (RF-10 do 0016), e o `autorId` também nunca sai.
 async function paginaDeDemandas(db: Db, filtro: FiltroDemandas) {
   const onde = and(
     filtro.status ? eq(demanda.status, filtro.status) : undefined,
     filtro.tipo ? eq(demanda.tipo, filtro.tipo) : undefined,
     filtro.linhaServicoProvavel ? eq(demanda.linhaServicoProvavel, filtro.linhaServicoProvavel) : undefined,
+    filtro.origem ? condicaoDaOrigem(filtro.origem) : undefined,
   );
   const linhas = await db
     .select({
@@ -390,6 +445,8 @@ async function paginaDeDemandas(db: Db, filtro: FiltroDemandas) {
       rascunhoAgente: demanda.rascunhoAgente,
       criadaEm: demanda.criadaEm,
       solicitanteNome: demanda.solicitanteNome,
+      autorTipo: demanda.autorTipo,
+      autorId: demanda.autorId,
     })
     .from(demanda)
     .where(onde)
@@ -402,7 +459,7 @@ async function paginaDeDemandas(db: Db, filtro: FiltroDemandas) {
 
 type LinhaDaPagina = Awaited<ReturnType<typeof paginaDeDemandas>>['linhas'][number];
 
-// O item é montado chave a chave: o `solicitanteNome` da linha não sai para nenhum ator.
+// O item é montado chave a chave: o `solicitanteNome` e o `autorId` da linha não saem para nenhum ator.
 const resumoDe = (l: LinhaDaPagina, titulo: string): DemandaResumo => ({
   id: l.id,
   titulo,
@@ -411,6 +468,7 @@ const resumoDe = (l: LinhaDaPagina, titulo: string): DemandaResumo => ({
   urgencia: l.urgencia,
   linhaServicoProvavel: l.linhaServicoProvavel,
   rascunhoAgente: l.rascunhoAgente,
+  origem: origemDaAutoria(l.autorTipo, l.autorId),
   criadaEm: l.criadaEm,
 });
 
