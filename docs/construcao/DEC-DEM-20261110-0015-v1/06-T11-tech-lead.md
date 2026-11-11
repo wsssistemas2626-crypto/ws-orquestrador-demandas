@@ -141,7 +141,6 @@ Pendências como dívida.
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat f6558c3` — 17 arquivos, os da T11
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 3c364f5` — só a entrega e `passagens.jsonl`
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma log -1 --format=%h -- docs/construcao/padrao-tecnico.md` — `8fcea5b`, arquivo rastreado
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 --format=%h -S "### Tarefa T11" -- docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md` — vazio (o título é `### T11.`; li pelo Read)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show f6558c3 -- "src/app/(painel)/demandas/[id]/page.tsx"` — diff da página
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show f6558c3 -- "src/app/(painel)/demandas/CartoesDaFila.tsx" "src/app/(painel)/demandas/[id]/BarraDeEtapas.tsx" "src/app/(painel)/demandas/[id]/CartaoProximaAcao.tsx" "src/app/(painel)/demandas/[id]/Historico.tsx" "src/app/(painel)/demandas/[id]/detalhe.ts" src/components/LinhaDoTempo.tsx` — diff dos componentes
