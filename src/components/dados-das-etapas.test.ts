@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { RE_ID_DEMANDA } from '../modules/demandas/gerar-id';
 import type { Aprovador } from '../modules/pacotes-decisao/consultas';
 import { etapasDaDemanda, proximaAcao, RE_ID_DEMANDA_NA_TELA, TEXTOS_ETAPAS, type DadosDasEtapas, type ProximaAcao } from './dados-das-etapas';
+import { ROTULO_STATUS } from './rotulos';
 
 const ID = 'DEM-20261110-0042';
 const QUANDO = new Date('2026-11-10T09:00:00Z');
@@ -502,5 +503,180 @@ describe('proximaAcao (RF-09)', () => {
 
   it('textos fixos da barra e do cartão (03, seção 9)', () => {
     expect(TEXTOS_ETAPAS).toEqual({ barra: 'Etapas da demanda', semVersao: 'Nenhuma', titulo: 'Próxima ação', quemAge: 'Quem age:' });
+  });
+});
+
+// --- 06-T10-testes (qa-automacao): bordas das duas tabelas e a ordem do RF-09 em todo status ---
+
+describe('etapasDaDemanda: bordas (06-T10-testes)', () => {
+  it('"desatualizado" só vale para DEC pendente: aprovado, devolvido e arquivado desatualizados mantêm o próprio estado', () => {
+    const com = (statusDecisao: Pacote['statusDecisao'], dec: Partial<Dec> = {}) =>
+      etapa(base({ status: 'pronta_para_decisao', esp: 1, rsk: 1, pacotes: [pacote(1, statusDecisao, { desatualizado: true })], dec }), 4);
+    expect(com('aprovada', { decisao: decidida('A') })).toMatchObject({ estado: 'Aprovada, opção A', feita: true });
+    expect(com('devolvida').estado).toBe('Devolvida');
+    expect(com('arquivada').estado).toBe('Arquivada');
+  });
+
+  it('"1 de 2 aprovações" exige a dupla e exatamente uma aprovação: nível cto com uma, ou dupla com duas, é "Decisão pendente"', () => {
+    expect(etapa(base({ esp: 1, rsk: 1, pacotes: [pacote(1)], dec: { aprovadores: [aprovacao('cto', 'A')] } }), 4).estado).toBe('Decisão pendente');
+    expect(etapa(dupla([aprovacao('cto', 'A'), aprovacao('administradora', 'A')]), 4).estado).toBe('Decisão pendente');
+  });
+
+  it('a opção da decisão vence a da primeira aprovação (plano, T10)', () => {
+    const x = base({ status: 'aprovada', esp: 1, rsk: 1, pacotes: [pacote(1, 'aprovada')], dec: { decisao: decidida('B'), aprovadores: [aprovacao('cto', 'A')] } });
+    expect(etapa(x, 4).estado).toBe('Aprovada, opção B');
+  });
+
+  it('Pedido: só pedido_gerado conta; outro evento com o id do vigente deixa "Ainda não gerado"', () => {
+    const x = base({
+      status: 'aprovada',
+      esp: 1,
+      rsk: 1,
+      pacotes: [pacote(1, 'aprovada')],
+      dec: { decisao: decidida('A') },
+      historico: [{ acao: 'decisao_registrada', entidadeId: idDec(1) }],
+    });
+    expect(etapa(x, 5)).toMatchObject({ idVersao: null, estado: 'Ainda não gerado', feita: false, atual: true });
+  });
+
+  it('Pedido gerado do vigente com um DEC mais novo pendente: etapa 5 "Gerado", e a atual é a 4', () => {
+    const x = base({
+      status: 'em_analise',
+      esp: 1,
+      rsk: 1,
+      pacotes: [pacote(2), pacote(1, 'aprovada')],
+      historico: [{ acao: 'pedido_gerado', entidadeId: idDec(1) }],
+    });
+    expect(etapa(x, 4)).toMatchObject({ idVersao: idDec(2), estado: 'Decisão pendente', atual: true });
+    expect(etapa(x, 5)).toMatchObject({ idVersao: idDec(1), estado: 'Gerado', feita: true, atual: false });
+  });
+
+  it('não altera o dado recebido (entrada congelada; as duas funções)', () => {
+    const congelar = <T>(v: T): T => {
+      if (v !== null && typeof v === 'object' && !Object.isFrozen(v)) {
+        Object.freeze(v);
+        for (const filho of Object.values(v)) congelar(filho);
+      }
+      return v;
+    };
+    const casos = [
+      dupla([aprovacao('cto', 'A')], { historico: [{ acao: 'pedido_gerado', entidadeId: idDec(9) }] }),
+      base({ status: 'aprovada', esp: 2, rsk: 1, pacotes: [pacote(2, 'aprovada'), pacote(1, 'aprovada', { substituido: true, substituidoPor: idDec(2) })], dec: { decisao: decidida('A') } }),
+    ];
+    for (const x of casos) {
+      const antes = structuredClone(x);
+      congelar(x);
+      expect(() => etapasDaDemanda(x)).not.toThrow();
+      expect(() => proximaAcao(x)).not.toThrow();
+      expect(x).toEqual(antes);
+    }
+  });
+});
+
+describe('proximaAcao: bordas (06-T10-testes)', () => {
+  const pagina = (rotulo: string, href: string) => ({ rotulo, destino: { tipo: 'pagina' as const, href } });
+  const secao = (rotulo: string, s: 'duvidas' | 'status') => ({ rotulo, destino: { tipo: 'secao' as const, secao: s } });
+
+  it('linha 3 vence a 4: aguardando_informacao sem ESP → linha 3, com "Mudar o status"', () => {
+    expect(proximaAcao(base({ status: 'aguardando_informacao' }))).toEqual({
+      linha: 3,
+      oQueFalta: 'Responder às dúvidas em aberto e voltar a demanda para Em análise.',
+      detalhe: null,
+      quemAge: PESSOA,
+      link: secao('Mudar o status', 'status'),
+    });
+  });
+
+  it('linha 7 só com DEC pendente: devolvido desatualizado → 6; aprovado desatualizado → 9; arquivado desatualizado → 13', () => {
+    const com = (statusDecisao: Pacote['statusDecisao'], dec: Partial<Dec> = {}) =>
+      proximaAcao(base({ status: 'pronta_para_decisao', esp: 1, rsk: 1, pacotes: [pacote(1, statusDecisao, { desatualizado: true })], dec })).linha;
+    expect(com('devolvida')).toBe(6);
+    expect(com('aprovada', { decisao: decidida('A') })).toBe(9);
+    expect(com('arquivada')).toBe(13);
+  });
+
+  it('linha 8 vence as linhas de status: DEC mais novo pendente sobre aprovado vigente, em todo status não final fora de aguardando_informacao, com o link do mais novo', () => {
+    for (const status of ['nova', 'em_analise', 'pronta_para_decisao', 'aprovada', 'em_construcao', 'devolvida'] as const) {
+      const x = base({ status, esp: 1, rsk: 1, pacotes: [pacote(2), pacote(1, 'aprovada')] });
+      expect(proximaAcao(x)).toEqual({ linha: 8, oQueFalta: 'Decidir entre as opções A e B.', detalhe: null, quemAge: 'CTO', link: pagina('Abrir a decisão', `/pacotes-decisao/${idDec(2)}`) });
+    }
+  });
+
+  it('linha 13 em nova e em_analise com DEC aprovado (nenhuma linha de status casa)', () => {
+    for (const status of ['nova', 'em_analise'] as const) {
+      expect(proximaAcao(base({ status, esp: 1, rsk: 1, pacotes: [pacote(1, 'aprovada')], dec: { decisao: decidida('A') } }))).toEqual({
+        linha: 13,
+        oQueFalta: 'Acompanhar a demanda.',
+        detalhe: null,
+        quemAge: 'Sem responsável definido',
+        link: null,
+      });
+    }
+  });
+
+  it('linhas 11 e 12 não dependem de aprovado vigente: levam à seção Status mesmo com DEC arquivado', () => {
+    for (const [status, linha] of [
+      ['em_construcao', 11],
+      ['devolvida', 12],
+    ] as const) {
+      expect(proximaAcao(base({ status, esp: 1, rsk: 1, pacotes: [pacote(1, 'arquivada')] }))).toMatchObject({ linha, link: secao('Mudar o status', 'status') });
+    }
+  });
+
+  it('CV-19: id de DEC fora do formato também não gera link na linha 9', () => {
+    for (const id of ['DEC-1', `${idDec(1)}/../x`, `//exemplo.test/${idDec(1)}`, `${idDec(1)}\n`, 'javascript:alert(1)']) {
+      const x = base({ status: 'pronta_para_decisao', esp: 1, rsk: 1, pacotes: [pacote(1, 'aprovada', { id })], dec: { decisao: decidida('A') } });
+      expect(proximaAcao(x)).toMatchObject({ linha: 9, link: null });
+    }
+  });
+
+  // CA-09.3 em todo status: cada um dos nove status com cada cenário de versões dá a linha que a tabela do 01 (RF-09)
+  // manda, pela ordem dela. O oráculo abaixo é a tabela escrita de novo, linha a linha, sem usar o código testado.
+  const STATUS = Object.keys(ROTULO_STATUS) as Demanda['status'][];
+  const aprovadoA = { pacotes: [pacote(1, 'aprovada')], dec: { decisao: decidida('A') } };
+  const CENARIOS: ReadonlyArray<[string, Opcoes, number | null]> = [
+    // [nome, versões, linha quando a demanda não está em status final nem em aguardando_informacao; null = pelo status]
+    ['sem versões', {}, 4],
+    ['só ESP', { esp: 1 }, 5],
+    ['ESP e RSK', { esp: 1, rsk: 1 }, 6],
+    ['DEC devolvido', { esp: 1, rsk: 1, pacotes: [pacote(1, 'devolvida')] }, 6],
+    ['DEC pendente desatualizado', { esp: 1, rsk: 1, pacotes: [pacote(1, 'pendente', { desatualizado: true })] }, 7],
+    ['DEC pendente', { esp: 1, rsk: 1, pacotes: [pacote(1)] }, 8],
+    ['DEC dupla com uma aprovação', { esp: 1, rsk: 1, pacotes: [pacote(1)], dec: { nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacao('cto', 'A')] } }, 8],
+    ['DEC aprovado', { esp: 1, rsk: 1, ...aprovadoA }, null],
+    ['DEC aprovado e pedido gerado', { esp: 1, rsk: 1, ...aprovadoA, historico: [{ acao: 'pedido_gerado', entidadeId: idDec(1) }] }, null],
+    ['DEC arquivado', { esp: 1, rsk: 1, pacotes: [pacote(1, 'arquivada')] }, null],
+  ];
+  const linhaEsperada = (status: Demanda['status'], pelasVersoes: number | null, temVigente: boolean): number => {
+    if (status === 'entregue' || status === 'encerrada') return 1;
+    if (status === 'aguardando_informacao') return 3;
+    if (pelasVersoes !== null) return pelasVersoes;
+    if (status === 'pronta_para_decisao') return temVigente ? 9 : 13;
+    if (status === 'aprovada') return 10;
+    if (status === 'em_construcao') return 11;
+    if (status === 'devolvida') return 12;
+    return 13;
+  };
+  const COMBINACOES = STATUS.flatMap((status) =>
+    CENARIOS.map(([nome, opcoes, pelasVersoes]) => [status, nome, linhaEsperada(status, pelasVersoes, nome !== 'DEC arquivado'), opcoes] as const),
+  );
+
+  it('a varredura cobre os nove status e os dez cenários', () => {
+    expect(STATUS).toHaveLength(9);
+    expect(COMBINACOES).toHaveLength(90);
+    expect(new Set(COMBINACOES.map(([, , linha]) => linha))).toEqual(new Set([1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]));
+  });
+
+  it.each(COMBINACOES)('%s, %s → linha %i', (status, _nome, linha, opcoes) => {
+    const x = base({ ...opcoes, status });
+    const p = proximaAcao(x);
+    expect(p.linha).toBe(linha);
+    expect(p.quemAge).not.toBe('');
+    if (p.link?.destino.tipo === 'pagina') expect(p.link.destino.href).toMatch(/^\/(demandas|pacotes-decisao)\/[A-Za-z0-9-]+(\/[a-z-]+)*$/);
+    // RF-08: a atual é a primeira de 2 a 5 não feita; em status final, ou com tudo feito, não há atual.
+    const etapas = etapasDaDemanda(x);
+    const primeiraNaoFeita = etapas.find((e) => e.numero > 1 && !e.feita)?.numero;
+    const final = status === 'entregue' || status === 'encerrada';
+    expect(etapas.filter((e) => e.atual).map((e) => e.numero)).toEqual(final || primeiraNaoFeita === undefined ? [] : [primeiraNaoFeita]);
   });
 });

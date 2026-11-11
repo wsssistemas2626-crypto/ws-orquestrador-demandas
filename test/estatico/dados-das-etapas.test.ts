@@ -10,6 +10,7 @@ import { globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { fonteTs, importacoesDe } from './importacoes';
 
 const raiz = fileURLToPath(new URL('../../', import.meta.url));
 const ler = (arquivo: string) => readFileSync(`${raiz}${arquivo}`, 'utf8');
@@ -26,48 +27,8 @@ const DE_MODULOS = /(^|\/)modules\//;
 const ehPagina = (arquivo: string): boolean => /^src\/app\/(.+\/)?page\.tsx$/.test(arquivo);
 const apontaParaOModulo = (origem: string): boolean => /(^|\/)dados-das-etapas(\.[cm]?[jt]sx?)?$/.test(origem);
 
-type Importacao = { origem: string; nomes: string[]; namespace: boolean; soTipo: boolean };
-
-const fonteTs = (arquivo: string, fonte: string) =>
-  ts.createSourceFile(arquivo, fonte, ts.ScriptTarget.Latest, true, arquivo.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-
-// Importações e reexportações estáticas, `import()` e `require()`.
-function importacoesDe(arquivo: string, fonte: string): Importacao[] {
-  const raizDoArquivo = fonteTs(arquivo, fonte);
-  const r: Importacao[] = [];
-  const visitar = (no: ts.Node): void => {
-    if (ts.isImportDeclaration(no) && ts.isStringLiteral(no.moduleSpecifier)) {
-      const clausula = no.importClause;
-      const ligacoes = clausula?.namedBindings;
-      const nomeados = ligacoes && ts.isNamedImports(ligacoes) ? [...ligacoes.elements] : [];
-      const todosTipo = !clausula?.name && nomeados.length > 0 && nomeados.every((x) => x.isTypeOnly);
-      r.push({
-        origem: no.moduleSpecifier.text,
-        nomes: nomeados.filter((x) => !x.isTypeOnly).map((x) => (x.propertyName ?? x.name).text),
-        namespace: !!ligacoes && ts.isNamespaceImport(ligacoes),
-        soTipo: !!clausula?.isTypeOnly || todosTipo,
-      });
-    } else if (ts.isExportDeclaration(no) && no.moduleSpecifier && ts.isStringLiteral(no.moduleSpecifier)) {
-      const nomeados = no.exportClause && ts.isNamedExports(no.exportClause) ? [...no.exportClause.elements] : [];
-      r.push({
-        origem: no.moduleSpecifier.text,
-        nomes: nomeados.filter((x) => !x.isTypeOnly).map((x) => (x.propertyName ?? x.name).text),
-        namespace: !no.exportClause || ts.isNamespaceExport(no.exportClause),
-        soTipo: no.isTypeOnly || (nomeados.length > 0 && nomeados.every((x) => x.isTypeOnly)),
-      });
-    } else if (
-      ts.isCallExpression(no) &&
-      (no.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(no.expression) && no.expression.text === 'require'))
-    ) {
-      const [arg] = no.arguments;
-      // Caminho que não é literal não dá para conferir: entra como importação de tudo, com a origem crua.
-      r.push({ origem: arg && ts.isStringLiteralLike(arg) ? arg.text : (arg?.getText(raizDoArquivo) ?? ''), nomes: [], namespace: true, soTipo: false });
-    }
-    ts.forEachChild(no, visitar);
-  };
-  visitar(raizDoArquivo);
-  return r;
-}
+// Importações e reexportações estáticas, `import()` e `require()`: o leitor fica em ./importacoes (D-T10-01), o mesmo
+// do teste estático da T07 e da T09.
 
 // O que reprova nas importações do módulo; lista vazia = importações certas.
 export function achadosDasImportacoes(fonte: string): string[] {
@@ -189,6 +150,12 @@ describe('CA-09.4: etapasDaDemanda e proximaAcao só em página', () => {
     expect(usuarios.filter((a) => !ehPagina(a))).toHaveLength(7);
   });
 
+  it('página é só src/app/**/page.tsx (06-T10-testes: casos de borda)', () => {
+    expect(ehPagina('src/app/(painel)/demandas/[id]/page.tsx.bak')).toBe(false);
+    expect(ehPagina('src/app/(painel)/demandas/[id]/minha-page.tsx')).toBe(false);
+    expect(ehPagina('scripts/app/page.tsx')).toBe(false);
+  });
+
   it('página é só src/app/**/page.tsx', () => {
     expect(ehPagina('src/app/(painel)/demandas/[id]/page.tsx')).toBe(true);
     expect(ehPagina('src/app/page.tsx')).toBe(true);
@@ -196,5 +163,40 @@ describe('CA-09.4: etapasDaDemanda e proximaAcao só em página', () => {
     expect(ehPagina('src/app/api/demandas/route.ts')).toBe(false);
     expect(ehPagina('src/app/(painel)/demandas/[id]/page.ts')).toBe(false);
     expect(ehPagina('src/components/page.tsx')).toBe(false);
+  });
+});
+
+// D-T10-01 (06-T10-testes): o leitor de importações tem uma só definição, em test/estatico/importacoes.ts. Uma cópia
+// nova volta a deixar um teste estático mais fraco quando a outra for corrigida.
+const LEITOR = 'importacoesDe';
+function definemOLeitor(arquivos: ReadonlyArray<readonly [string, string]>): string[] {
+  return arquivos
+    .filter(([arquivo, fonte]) => {
+      let define = false;
+      const visitar = (no: ts.Node): void => {
+        if ((ts.isFunctionDeclaration(no) || ts.isVariableDeclaration(no)) && no.name && ts.isIdentifier(no.name) && no.name.text === LEITOR) define = true;
+        ts.forEachChild(no, visitar);
+      };
+      visitar(fonteTs(arquivo, fonte));
+      return define;
+    })
+    .map(([arquivo]) => arquivo);
+}
+
+describe('D-T10-01: um só leitor de importações nos testes estáticos', () => {
+  it('só test/estatico/importacoes.ts define importacoesDe', () => {
+    const todos = globSync('{src,scripts,test,e2e}/**/*.{ts,tsx}', { cwd: raiz }).sort();
+    expect(todos).toEqual(expect.arrayContaining(['test/estatico/importacoes.ts', 'test/estatico/leituras-da-fila.test.ts', 'test/estatico/dados-das-etapas.test.ts']));
+    expect(definemOLeitor(todos.map((a) => [a, ler(a)] as const))).toEqual(['test/estatico/importacoes.ts']);
+  });
+
+  it('acha a definição plantada, por função e por constante, e não conta a importação', () => {
+    const plantados = [
+      ['test/estatico/a.test.ts', 'function importacoesDe(a: string) { return [a]; }'],
+      ['test/estatico/b.test.ts', 'export const importacoesDe = (a: string) => [a];'],
+      ['test/estatico/c.test.ts', "import { importacoesDe } from './importacoes';\nimportacoesDe('x', 'y');"],
+      ['test/estatico/d.test.ts', 'const outroLeitor = () => [];'],
+    ] as const;
+    expect(definemOLeitor(plantados)).toEqual(['test/estatico/a.test.ts', 'test/estatico/b.test.ts']);
   });
 });
