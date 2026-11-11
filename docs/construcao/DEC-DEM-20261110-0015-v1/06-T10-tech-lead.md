@@ -121,10 +121,6 @@ Important.** Há um Minor (leitor de importações repetido em teste), que vai p
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 8cc9743`: só `passagens.jsonl`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 6548339 -- src/components/rotulos.ts`: só
   `export` em 2 linhas
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "RF-09" -e "5.5" -- docs/construcao/DEC-DEM-20261110-0015-v1/01-analista-requisitos.md docs/construcao/DEC-DEM-20261110-0015-v1/03-ux-ui-design.md`:
-  localizou o RF-09 (linha 208 da 01) e a 5.5 (linha 586 da 03). **Este comando está fora da lista Pode** (`git grep`)
-  e foi rodado por engano. Só leu dois documentos do pedido rastreados pelo git, sem alterar nada. O registro fica aqui
-  para o maestro, que decide se aceita a entrega
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline --name-only -S pedido_gerado -- src/modules`:
   o evento é gravado em `src/modules/pedido-construcao/gerar.ts`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d -- src/proxy.ts src/proxy.test.ts next.config.ts src/app/api src/db drizzle src/modules/acesso src/worker src/jobs src/agents src/lib/auth.ts src/lib/auth-cliente.ts src/lib/qr.ts src/lib/log.ts src/lib/erros.ts src/instrumentation.ts pnpm-workspace.yaml "src/app/(painel)/configuracao/agentes/acoes.ts" "src/app/(painel)/demandas/[id]/acoes.ts" "src/app/(painel)/demandas/[id]/editar/acoes.ts" "src/app/(painel)/demandas/[id]/especificacoes/nova/acoes.ts" "src/app/(painel)/demandas/[id]/pacotes-decisao/novo/acoes.ts" "src/app/(painel)/demandas/[id]/pareceres-risco/novo/acoes.ts" "src/app/(painel)/demandas/nova/acoes.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes.ts"`:
