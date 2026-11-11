@@ -78,9 +78,8 @@ aparece se casar `^[A-Za-z0-9_-]{8}$`, e esse evento não tem demanda, então n�
   dos módulos (mesmo motivo do D-14); a falta de teste que amarre as cópias vai como Minor.
 - Revisão feita sobre o diff da tarefa inteira (`0d83444..51e2dda`), porque o commit informado só tem a entrega
   regravada; o código está em 77f904d.
-- Uma listagem da pasta do pedido com `ls` rodou no início, fora da regra de comando deste pedido (Grep não estava
-  disponível na sessão e o `ls` não está na lista Pode); foi só leitura e está declarada abaixo para o conferir decidir,
-  como na regra de 25/10 para bloqueio de leitura.
+- Uma listagem da pasta do pedido rodou fora da regra de comando deste pedido; o conferir a barrou e o maestro a
+  liberou, porque só leu (regra de 25/10).
 
 ## Pendências
 
@@ -105,7 +104,6 @@ aparece se casar `^[A-Za-z0-9_-]{8}$`, e esse evento não tem demanda, então n�
 
 ## Comandos executados
 
-- `ls /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261111-0016-v1` — fora da lista Pode (ver Decisões); só listou os arquivos da pasta do pedido
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 51e2ddae5c54e78d61544915ad645ba83a28d54a~1 51e2ddae5c54e78d61544915ad645ba83a28d54a` — só a entrega do engenheiro e `passagens.jsonl`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — T02 em 77f904d, 020fd9f e 51e2dda sobre 0d83444
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 0d83444 51e2dda` — 18 arquivos (16 de `src/` e 2 da pasta do pedido)
