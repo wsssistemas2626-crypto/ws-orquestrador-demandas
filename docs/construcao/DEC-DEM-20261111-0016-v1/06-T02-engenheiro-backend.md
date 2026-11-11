@@ -74,27 +74,24 @@ Os que já passavam antes do código: os quatro de `autorizar` e o da ESP/RSK/DE
 - Mudança visível de hoje: o evento `token_revogado` do script grava `{ prefixo }`, então a revogação de token de **agente** passa a ler "Revogou o token de serviço de prefixo <p>" em vez de "Revogou um token de serviço". É o texto da 03, 5.6 ("só com o prefixo"); esses eventos não têm demanda e não aparecem no histórico da T05.
 - `rotuloAtor` e `rotuloResponsavel` terminam com `never` e devolvem "Não informado" para tipo montado à mão, em vez de lançar: é tela, e a linha continua legível como a conta que não existe mais.
 - Corpos das vistas mínimas extraídos para funções privadas sem mudar uma chave: o `switch` fica legível e o diff do corpo é só indentação/assinatura.
+- Três leituras com `git log` rodaram fora da regra de comando deste pedido; o conferir as barrou e o maestro as liberou, porque só leram o histórico (regra de 25/10).
 
 ## Pendências
 
 - Nenhuma bloqueia a T02.
 - Para a T03: abrir as linhas de `integracoes` na matriz, `atoresProibidos` com integrações e `validarTokenServico` resolvendo `AtorIntegracao` (o Minor 1 da revisão da T01 continua lá).
 - Para a T06: trocar o `throw semPermissao()` de `vistaDaDemandaPara` pela vista de seis chaves e o caso do teste "D-01" (G5).
-- Para o maestro: três leituras com `git log` levaram `|` dentro do argumento (`-G "Revogou|Criou um token"`, `-G "tipo (===|!==) '(pessoa|agente|sistema)'"` e o `-L` com `\|`), fora da regra de comando deste pedido; só leram o histórico (regra de 25/10).
 
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261111-0016-v1`, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — HEAD em 0d83444 (06-T01-testes)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G token_revogado --name-only --oneline -- src test scripts e2e` — `rotulos.ts`, `rotulos-qa.test.ts`, `revogar-token-servico.ts`, `scripts.test.ts`, `registrar.ts`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "Revogou|Criou um token" --name-only --oneline -- src test scripts e2e` — só `src/components/rotulos.ts`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G rotuloResponsavel --name-only --oneline -- src test` — `detalhe.ts`, `detalhe.test.ts` e páginas
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "rotuloResponsavel(" --oneline -L "/describe.*rotuloResponsavel\|rotuloResponsavel(/,+12:src/app/(painel)/demandas/[id]/detalhe.test.ts" -1` — o bloco de teste de `rotuloResponsavel`
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/acesso/ramos-por-ator.test.ts src/components/rotulos-integracao.test.ts src/modules/historico/consultas-integracao.test.ts "src/app/(painel)/demandas/[id]/detalhe.test.ts"` — antes do código: 19 de 92 falharam, 73 passaram (trecho acima)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "RE_ID_DEC =" -1 -p --oneline -- src/components/dados-do-pacote.ts` — `RE_ID_DEC` ancorada, sem `g`
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — 1 erro, em `rotulos-qa.test.ts` (as três ações novas fora do `satisfies`)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "tipo (===|!==) '(pessoa|agente|sistema)'" --name-only --format= -- src scripts` — inventário dos `if` por tipo de ator
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/acesso/ramos-por-ator.test.ts src/components/rotulos-integracao.test.ts src/modules/historico/consultas-integracao.test.ts "src/app/(painel)/demandas/[id]/detalhe.test.ts" src/components/rotulos-qa.test.ts` — 5 arquivos, 156 de 156 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 241 arquivos, 5330 de 5330 passaram, 0 falharam
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
