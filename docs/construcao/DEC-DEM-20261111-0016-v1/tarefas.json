@@ -1,0 +1,22 @@
+[
+  { "id": "T01", "titulo": "Esquema e migration 0007 (aditiva)", "engenheiro": "engenheiro-dados-bd", "fase": "Fundação", "risco": "alto" },
+  { "id": "T02", "titulo": "Tipo de ator integracao e ramos exaustivos (IN-02)", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
+  { "id": "T03", "titulo": "Token de integração, matriz fechada e matriz × rotas (IN-01, IN-03)", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
+  { "id": "T04", "titulo": "Limite por integração e tempo limite das transações de integração (IN-09, IN-14)", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
+  { "id": "T05", "titulo": "Leitura pelo Awave só da própria demanda, em seis chaves (IN-08)", "engenheiro": "engenheiro-backend", "fase": "Awave", "risco": "alto" },
+  { "id": "T06", "titulo": "O Awave cria demanda: autoria, campos, sem disparo, limite e contrato (IN-05)", "engenheiro": "engenheiro-backend", "fase": "Awave", "risco": "alto" },
+  { "id": "T07", "titulo": "Origem da demanda: leitura, listagem e filtro (servidor)", "engenheiro": "engenheiro-dados-bd", "fase": "Awave", "risco": "baixo" },
+  { "id": "T08", "titulo": "Confirmação da demanda do Awave e nenhum agente de IA antes dela (IN-06, IN-07)", "engenheiro": "engenheiro-backend", "fase": "Confirmação", "risco": "alto" },
+  { "id": "T09", "titulo": "Conferência e montagem do pedido extraídas da geração", "engenheiro": "engenheiro-backend", "fase": "Construir", "risco": "alto" },
+  { "id": "T10", "titulo": "Leituras do pedido no histórico: pendentes, gerado, entregues, recebido (IN-10)", "engenheiro": "engenheiro-dados-bd", "fase": "Construir", "risco": "alto" },
+  { "id": "T11", "titulo": "Entrega ao /construir e rota de pendentes (IN-10, IN-12)", "engenheiro": "engenheiro-backend", "fase": "Construir", "risco": "alto" },
+  { "id": "T12", "titulo": "Confirmação de recebimento pelo /construir (IN-11)", "engenheiro": "engenheiro-backend", "fase": "Construir", "risco": "alto" },
+  { "id": "T13", "titulo": "Testes transversais das integrações: sentinelas e log (IN-12, IN-14)", "engenheiro": "engenheiro-backend", "fase": "Construir", "risco": "baixo" },
+  { "id": "T14", "titulo": "Emissão, troca e revogação dos tokens de integração pelos scripts (IN-04)", "engenheiro": "engenheiro-backend", "fase": "Scripts e seed", "risco": "alto" },
+  { "id": "T15", "titulo": "Seed fictício com demandas do Awave e pedidos para o /construir", "engenheiro": "engenheiro-backend", "fase": "Scripts e seed", "risco": "baixo" },
+  { "id": "T16", "titulo": "Fila: origem na linha e no cartão, filtro Origem", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T17", "titulo": "Regras de exibição da demanda do Awave: confirmação, selo e Próxima ação", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T18", "titulo": "Detalhe da demanda: origem, selo, seção Confirmação do Awave e botão", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T19", "titulo": "Decisão: Recebido pelo /construir e o texto novo da seção do pedido", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T20", "titulo": "e2e das integrações contra o build de produção, tokens do e2e local e versão 0.3.0", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" }
+]
