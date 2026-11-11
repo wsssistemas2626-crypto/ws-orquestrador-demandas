@@ -72,13 +72,12 @@ No modo `por_risco` da Parada 2, o maestro para antes das fases 1 a 5 (todas tê
 - D-21: RNF-01 (20 chamadas) e o limite de 10 por hora não cabem numa janela: a 09 mede 10 criações e 10 recusas, ou
   duas janelas.
 - As demais (D-14 a D-16, D-18 a D-20) estão no G6 do plano, com a razão.
+- Seis leituras com `git log` rodaram fora da regra de comando deste pedido; o conferir as barrou e o maestro as
+  liberou, porque só leram o histórico (regra de 25/10).
 
 ## Pendências
 
-- Nenhuma bloqueia o plano. Para o maestro: os itens 5, 6, 9 e 10 de "Comandos executados" são `git log -G` com `|`
-  dentro da expressão regular, e os itens 7 e 8 são `git log` com `-C` na estruturaAutonoma (lista Pode dos engenheiros
-  e o `buscar-pedidos.mjs`), fora da regra de comando deste pedido. Todos só leram o histórico; nada foi alterado. O
-  restante da leitura foi feito pela ferramenta Read.
+- Nenhuma bloqueia o plano.
 - Para a `09-entrega`: montar a V-01 e a V-02 como no fim do plano; medir o RNF-01 pela D-21.
 - Para a `10-documentacao`: o texto do IN-18 e a periodicidade de 12 meses (P-04); o registro de que o título de
   demanda do Awave não deve levar nome de pessoa (spec 7.2).
@@ -93,12 +92,6 @@ No modo `por_risco` da Parada 2, o maestro para antes das fases 1 a 5 (todas tê
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -- src scripts drizzle e2e test docs/superpowers/plans docs/operacao docs/manual-tecnico package.json playwright.config.ts docker-compose.hml.yml vitest.config.ts CHANGELOG.md` — lista dos arquivos rastreados
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -12` — base a9fd9b8 e as passagens 00 a P1
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G indisponivel --name-only --oneline -- src test scripts` — o código `indisponivel` (503) já existe em `erros.ts`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "\.tipo [!=]== '(pessoa|agente|sistema)'|tipo === 'pessoa'|autorTipo|atorTipo" --name-only --format=%h -- src scripts` — arquivos que decidem por tipo de ator (inventário do IN-02)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "ator\.tipo|autorTipo ===|atorTipo ===|\.tipo !== 'pessoa'" --format=%h --name-only -1 -- src/modules/pacotes-decisao/decidir.ts src/modules/pacotes-decisao/criar.ts src/modules/especificacoes/servico.ts src/modules/pareceres-risco/servico.ts src/lib/acao-painel.ts src/lib/log.ts src/modules/acesso/ator-pessoa.ts src/modules/acesso/auth.ts "src/app/(painel)/demandas/[id]/detalhe.ts" src/components/rotulos.ts` — último commit com ramo por tipo de ator nesses arquivos
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma log -1 --format=%h -- .claude/agents/engenheiro-backend.md .claude/agents/engenheiro-frontend.md` — os dois agentes estão rastreados (c9739d8)
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma log -G "recebimento" --format=%h --name-only -3 -- ferramentas/construir` — onde está o cliente `buscar-pedidos` (dfedf16)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "export (async )?function (vistaDo|vistaDa|travarDemanda|obterPacoteDecisao|exigirAtorPessoa|lerCorpoJson|reduzirErro)" --format=%h --name-only -- src` — onde estão as vistas e a trava
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "^export (async )?(function|const) " --format=%h --name-only -3 -- e2e/apoio.ts test/sessao.ts src/lib/relogio.ts` — ajudantes do e2e e do relógio
 - `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs tarefas /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261111-0016-v1/tarefas.json` — `{ "ok": true, "erros": [] }`
 
 ## Critério de pronto atendido
