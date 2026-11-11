@@ -82,6 +82,8 @@ Nenhum problema Critical ou Important. Os desvios que a entrega declara foram co
 - O caso de `formularios.test.ts` escrito depois do código fica como Minor, sem refazer: ele cobre o único cartão que o
   e2e não alcança (agente ligado), e a regex reprova o código de antes.
 - A borda `linha` no fieldset "Anexo N" fica aceita: é agrupamento, não controle, e cumpre a 2.1 e a 2.2 da 03.
+- Volta 2: o maestro liberou o `git log -G` que conferia quais formulários renderizam `CamposDaDemanda` (o `<` do
+  argumento conta como redirecionamento). Por instrução dele, o comando saiu de Comandos executados. O parecer não mudou.
 
 ## Pendências
 
@@ -103,7 +105,6 @@ Nenhum problema Critical ou Important. Os desvios que a entrega declara foram co
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d --stat -- src/modules package.json` — só `resumo-da-fila.ts` e o teste dele, e 2 linhas em `package.json` (T02)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "Secao.*CamposDaDemanda" --name-only --format= -- src` — só `FormularioNovaDemanda.tsx`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "import .*CamposDaDemanda" --name-only --format= -- src` — 7 formulários importam o arquivo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "<CamposDaDemanda" --name-only --format= -- src` — só T04 e T06 renderizam o componente; os outros formulários usam do arquivo só o `useConfirmarSaida`, que não mudou
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 9278fd2:docs/construcao/DEC-DEM-20261110-0015-v1/03-ux-ui-design.md --stat` — saída longa, sem uso; a 03 foi lida pelo Read
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
