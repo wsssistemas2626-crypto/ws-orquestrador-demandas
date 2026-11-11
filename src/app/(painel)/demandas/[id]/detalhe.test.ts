@@ -14,6 +14,10 @@ import { obterTextoRecebido, type TextoRecebido as TextoDaDemanda } from '../../
 import { transicoesManuaisDe } from '../../../../modules/demandas/transicoes';
 import { obterEspecificacao } from '../../../../modules/especificacoes/consultas';
 import { listarHistorico, type EventoVisivel } from '../../../../modules/historico/consultas';
+import { obterPacoteDecisao, type PacoteDecisaoVista } from '../../../../modules/pacotes-decisao/consultas';
+import type { EtapaDaDemanda, ProximaAcao } from '../../../../components/dados-das-etapas';
+import { BarraDeEtapas } from './BarraDeEtapas';
+import { CartaoProximaAcao } from './CartaoProximaAcao';
 import {
   alertasDoTopo,
   duvidasEmAberto,
@@ -62,6 +66,11 @@ vi.mock('../../../../modules/especificacoes/consultas', async (original) => {
   const real = await original<typeof import('../../../../modules/especificacoes/consultas')>();
   return { ...real, obterEspecificacao: vi.fn() };
 });
+// T11 (DEC-DEM-20261110-0015-v1): a página lê o DEC mais novo para a barra de etapas e a Próxima ação.
+vi.mock('../../../../modules/pacotes-decisao/consultas', async (original) => {
+  const real = await original<typeof import('../../../../modules/pacotes-decisao/consultas')>();
+  return { ...real, obterPacoteDecisao: vi.fn() };
+});
 // A Server Action não roda aqui: o HTML do primeiro estado não envia nada.
 vi.mock('./acoes', () => ({ mudarStatusNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
 
@@ -71,6 +80,7 @@ const mObter = vi.mocked(obterDemanda);
 const mTexto = vi.mocked(obterTextoRecebido);
 const mHistorico = vi.mocked(listarHistorico);
 const mEsp = vi.mocked(obterEspecificacao);
+const mDec = vi.mocked(obterPacoteDecisao);
 
 const CTO: AtorPessoa = { tipo: 'pessoa', usuarioId: 'usuario-ficticio-1', nome: 'Pessoa Ficticia', papel: 'cto' };
 const ID = 'DEM-20261022-0042';
@@ -138,6 +148,23 @@ const evento = (acao: EventoVisivel['acao'], extra: Partial<EventoVisivel> = {})
 });
 const falha = (agente: string, tentativas = 3) =>
   evento('falha_agente', { ator: { tipo: 'agente', agente: 'risco' }, entidade: 'execucao_agente', depois: { agente, tentativas, motivo: 'fora_do_schema' } });
+
+// A vista do DEC mais novo que a página lê (T11): só os campos que a barra e a Próxima ação usam, mais os que não podem
+// chegar à tela (nome de quem aprovou, documento assinado, comentário e quem decidiu), com sentinelas.
+const vistaDoDec = (v: number, extra: Partial<PacoteDecisaoVista> = {}): PacoteDecisaoVista =>
+  ({
+    id: `DEC-${ID}-v${v}`,
+    demandaId: ID,
+    versao: v,
+    statusDecisao: 'pendente',
+    desatualizado: false,
+    substituido: false,
+    substituidoPor: null,
+    nivelAprovacaoRequerido: 'cto',
+    aprovadores: [],
+    decisao: null,
+    ...extra,
+  }) as unknown as PacoteDecisaoVista;
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 
@@ -315,8 +342,12 @@ describe('histórico: Antes e Depois (C-30: só os valores de enumeração grava
   });
 });
 
-describe('Historico.tsx', () => {
-  it('tabela com o caption e as colunas da 03; data em <time>; ator, texto e antes/depois', () => {
+// T11 (03, 5.6): o histórico deixa de ser tabela e vira lista (LinhaDoTempo). O que a tabela dizia continua, item a item:
+// a ordem (era o caption, agora o texto antes da lista), a data em <time>, quem, o que aconteceu e o antes e depois.
+const itensDaLista = (p: string) => [...p.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((m) => m[1]!);
+
+describe('Historico.tsx (LinhaDoTempo, 03, 5.6)', () => {
+  it('lista do mais novo para o mais antigo: o texto da ordem, um item por evento; data em <time>; ator, texto e antes/depois', () => {
     const p = html(
       h(Historico, {
         eventos: [
@@ -327,17 +358,142 @@ describe('Historico.tsx', () => {
         retencaoDias: 90,
       }),
     );
-    expect(p).toContain('<caption');
-    expect(p).toContain('Histórico da demanda, do mais novo para o mais antigo');
-    for (const c of ['Data e hora', 'Quem', 'O que aconteceu', 'Antes', 'Depois']) expect(p).toContain(`<th scope="col" class="px-3 py-2 font-semibold">${c}</th>`);
+    expect(p).toMatch(/<p[^>]*>Do mais novo para o mais antigo\.<\/p><ol\b/);
+    expect(p).not.toContain('<table');
+    const itens = itensDaLista(p);
+    expect(itens).toHaveLength(3);
     expect(p).toContain('<time dateTime="2026-10-23T13:10:00.000Z">23/10/2026 às 10:10</time>');
-    expect(p).toContain('Pessoa Ficticia (CTO)');
-    expect(p).toContain('Mudou o status');
-    expect(p).toMatch(/<td[^>]*>Nova<\/td><td[^>]*>Em análise<\/td>/);
-    expect(p).toContain(`Criou ESP-${ID}-v1`);
-    expect(p).toContain('Agente de insumo técnico');
-    expect(p).toContain('Sistema');
-    expect(p).toContain('aria-label="Tabela do histórico"');
+    expect(itens[0]).toContain('Pessoa Ficticia (CTO)');
+    expect(itens[0]).toContain('Mudou o status');
+    expect(itens[0]).toMatch(/<p[^>]*>Antes: Nova\. Depois: Em análise\.<\/p>/);
+    expect(itens[1]).toContain(`Criou ESP-${ID}-v1`);
+    expect(itens[1]).toContain('Agente de insumo técnico');
+    expect(itens[2]).toContain('Sistema');
+    // O separador entre quem e quando é só visual.
+    expect(itens[0]).toContain('<span aria-hidden="true"> · </span>');
+  });
+
+  it('antes vazio: só "Depois: …"; sem antes nem depois: sem a linha (texto livre, C-30)', () => {
+    const p = html(
+      h(Historico, {
+        eventos: [
+          evento('campo_alterado', { antes: { urgencia: 'SENTINELA-fora' }, depois: { urgencia: 'alta' } }),
+          evento('campo_alterado', { antes: { titulo: { alterado: true } }, depois: { titulo: { alterado: true } } }),
+        ],
+        retencaoDias: 90,
+      }),
+    );
+    const [comDepois, semValores] = itensDaLista(p) as [string, string];
+    expect(comDepois).toMatch(/<p[^>]*>Depois: Alta\.<\/p>/);
+    expect(comDepois).not.toContain('Antes:');
+    expect(semValores).not.toContain('Antes:');
+    expect(semValores).not.toContain('Depois:');
+    expect(semValores.match(/<p\b/g)).toHaveLength(2);
+    expect(p).not.toContain('SENTINELA');
+  });
+
+  it('CA-10.2: com 30 eventos, os 30 aparecem, na ordem recebida (do mais novo para o mais antigo), sem corte', () => {
+    const base = Date.parse('2026-10-23T13:00:00Z');
+    const eventos = Array.from({ length: 30 }, (_, i) => evento('campo_alterado', { ocorridoEm: new Date(base - i * 60_000), antes: { urgencia: 'baixa' }, depois: { urgencia: 'media' } }));
+    const p = html(h(Historico, { eventos, retencaoDias: 90 }));
+    const datas = [...p.matchAll(/<time dateTime="([^"]+)">/g)].map((m) => m[1]);
+    expect(datas).toHaveLength(30);
+    expect(datas).toEqual(eventos.map((e) => e.ocorridoEm.toISOString()));
+    expect(p).not.toContain('Ver histórico completo');
+  });
+});
+
+// T11 (03, 5.4): a barra das cinco etapas recebe o resultado de etapasDaDemanda (chamada só pela página, CA-09.4).
+describe('BarraDeEtapas.tsx (RF-08; 03, 5.4)', () => {
+  const etapa = (numero: EtapaDaDemanda['numero'], nome: string, idVersao: string | null, estado: EtapaDaDemanda['estado'], feita: boolean, atual = false): EtapaDaDemanda => ({
+    numero,
+    nome,
+    idVersao,
+    estado,
+    feita,
+    atual,
+  });
+  const CA_08_1: EtapaDaDemanda[] = [
+    etapa(1, 'Demanda', ID, 'Registrada', true),
+    etapa(2, 'Especificação', `ESP-${ID}-v2`, 'Feita', true),
+    etapa(3, 'Parecer de risco', `RSK-${ID}-v1`, 'Feito', true),
+    etapa(4, 'Decisão', `DEC-${ID}-v1`, '1 de 2 aprovações', false, true),
+    etapa(5, 'Pedido de Construção', null, 'Depois da aprovação', false),
+  ];
+
+  it('CA-08.1: lista ordenada "Etapas da demanda" com cinco itens; nome, id ou "Nenhuma" e estado em texto; só a atual com aria-current="step"', () => {
+    const p = html(h(BarraDeEtapas, { etapas: CA_08_1 }));
+    expect(p).toMatch(/^<section[^>]*><ol aria-label="Etapas da demanda"/);
+    const itens = itensDaLista(p);
+    expect(itens).toHaveLength(5);
+    expect(p.match(/aria-current="step"/g)).toHaveLength(1);
+    expect(p).toMatch(/<li aria-current="step"[^>]*>(?:(?!<\/li>)[\s\S])*Decisão(?:(?!<\/li>)[\s\S])*1 de 2 aprovações/);
+    for (const [i, nome, id, estado] of [
+      [0, 'Demanda', ID, 'Registrada'],
+      [1, 'Especificação', `ESP-${ID}-v2`, 'Feita'],
+      [2, 'Parecer de risco', `RSK-${ID}-v1`, 'Feito'],
+      [3, 'Decisão', `DEC-${ID}-v1`, '1 de 2 aprovações'],
+      [4, 'Pedido de Construção', 'Nenhuma', 'Depois da aprovação'],
+    ] as const) {
+      expect(itens[i]).toContain(`>${nome}</strong>`);
+      expect(itens[i]).toContain(`>${id}</span>`);
+      expect(itens[i]).toContain(`>${estado}</span>`);
+    }
+  });
+
+  it('marcas por forma, escondidas do leitor de tela: feita com visto, atual com o número e anel, por fazer tracejada com o número', () => {
+    const p = html(h(BarraDeEtapas, { etapas: CA_08_1 }));
+    const marcas = [...p.matchAll(/<span aria-hidden="true" data-marca="([a-z-]+)"[^>]*>([\s\S]*?)<\/span>/g)].map((m) => [m[1], m[2]]);
+    expect(marcas.map(([m]) => m)).toEqual(['feita', 'feita', 'feita', 'atual', 'por-fazer']);
+    expect(marcas[0]![1]).toContain('<svg');
+    expect(marcas[3]![1]).toBe('4');
+    expect(marcas[4]![1]).toBe('5');
+    expect(p).toMatch(/data-marca="atual" class="[^"]*\bring-2\b[^"]*"/);
+    expect(p).toMatch(/data-marca="por-fazer" class="[^"]*\bborder-dashed\b[^"]*"/);
+  });
+
+  it('CA-08.3: sem etapa atual (encerrada ou entregue), nenhum aria-current', () => {
+    const p = html(h(BarraDeEtapas, { etapas: CA_08_1.map((e) => ({ ...e, atual: false })) }));
+    expect(p).not.toContain('aria-current');
+    expect(p).not.toContain('data-marca="atual"');
+  });
+});
+
+// T11 (03, 5.5): o cartão recebe o resultado de proximaAcao; só informa.
+describe('CartaoProximaAcao.tsx (RF-09; 03, 5.5)', () => {
+  const acao = (extra: Partial<ProximaAcao> = {}): ProximaAcao => ({
+    linha: 8,
+    oQueFalta: 'Decidir entre as opções A e B.',
+    detalhe: null,
+    quemAge: 'CTO',
+    link: { rotulo: 'Abrir a decisão', destino: { tipo: 'pagina', href: `/pacotes-decisao/DEC-${ID}-v1` } },
+    ...extra,
+  });
+
+  it('section "Próxima ação" (h2) em superfície escura; o que falta, "Quem age:" e o link para a página', () => {
+    const p = html(h(CartaoProximaAcao, { acao: acao() }));
+    expect(p).toMatch(/^<section aria-labelledby="proxima-acao" class="[^"]*\bsuperficie-escura\b[^"]*\bbg-marinho\b[^"]*">/);
+    expect(p).toMatch(/<h2 id="proxima-acao"[^>]*>Próxima ação<\/h2>/);
+    expect(p).toMatch(/<p[^>]*>Decidir entre as opções A e B\.<\/p>/);
+    expect(p).toMatch(/<p[^>]*><span class="font-semibold">Quem age:<\/span> CTO<\/p>/);
+    expect(p).toMatch(new RegExp(`<a [^>]*href="/pacotes-decisao/DEC-${ID}-v1"[^>]*>Abrir a decisão</a>`));
+    // Sem detalhe, só dois parágrafos: o que falta e quem age.
+    expect(p.match(/<p\b/g)).toHaveLength(2);
+  });
+
+  it('detalhe da linha 8 quando há; destino na própria página vira link para o h2 da seção', () => {
+    const comDetalhe = html(h(CartaoProximaAcao, { acao: acao({ detalhe: 'O CTO já aprovou a opção A. Falta a aprovação da administradora, com o identificador do documento assinado.', quemAge: 'Administradora' }) }));
+    expect(comDetalhe).toContain('O CTO já aprovou a opção A. Falta a aprovação da administradora, com o identificador do documento assinado.');
+    const duvidas = html(h(CartaoProximaAcao, { acao: acao({ linha: 3, link: { rotulo: 'Ver as dúvidas em aberto', destino: { tipo: 'secao', secao: 'duvidas' } } }) }));
+    expect(duvidas).toMatch(new RegExp(`<a href="#${ID_SECAO.duvidas}"[^>]*>Ver as dúvidas em aberto</a>`));
+    const status = html(h(CartaoProximaAcao, { acao: acao({ linha: 11, link: { rotulo: 'Mudar o status', destino: { tipo: 'secao', secao: 'status' } } }) }));
+    expect(status).toMatch(new RegExp(`<a href="#${ID_SECAO.status}"[^>]*>Mudar o status</a>`));
+  });
+
+  it('sem link (linhas 1, 2 e 13): nenhum <a>', () => {
+    const p = html(h(CartaoProximaAcao, { acao: acao({ linha: 13, oQueFalta: 'Acompanhar a demanda.', quemAge: 'Sem responsável definido', link: null }) }));
+    expect(p).not.toContain('<a ');
+    expect(p).toContain('Sem responsável definido');
   });
 });
 
@@ -421,6 +577,7 @@ describe('page.tsx: acesso, leituras e seções', () => {
     mTexto.mockReset().mockResolvedValue({ situacao: 'sem_texto' });
     mHistorico.mockReset().mockResolvedValue([evento('demanda_criada')]);
     mEsp.mockReset();
+    mDec.mockReset();
   });
 
   it('pessoa antes de autorizar; ler_demanda e ler_historico autorizados antes de ler; o texto recebido pela leitura própria de pessoa', async () => {
@@ -432,13 +589,20 @@ describe('page.tsx: acesso, leituras e seções', () => {
     expect(mHistorico).toHaveBeenCalledWith(DB, ID);
     expect(mTexto).toHaveBeenCalledWith(expect.objectContaining({ db: DB, config: { retencaoDias: 90 } }), CTO, ID);
     expect(mEsp).not.toHaveBeenCalled();
+    // T11: sem DEC, nem a autorização nem a leitura do pacote.
+    expect(mAutorizar).not.toHaveBeenCalledWith(CTO, 'ler_pacote_decisao');
+    expect(mDec).not.toHaveBeenCalled();
   });
 
   it('cabeçalho, navegação "Nesta página" e as seções com h2 focável, na ordem da 03', async () => {
     const p = await detalhe(ID);
-    expect(p).toContain('<h1>Pedidos duplicados no ERP (fictício)</h1>');
+    // T11: o título isolado por <bdi> (CV-18).
+    expect(p).toMatch(/<h1[^>]*><bdi>Pedidos duplicados no ERP \(fictício\)<\/bdi><\/h1>/);
     expect(p).toMatch(/<nav aria-label="Nesta página"/);
-    const links = [...p.matchAll(/<a href="#([a-z-]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[1], m[2]]);
+    // T11: "Mudar status" também no cabeçalho; os links da navegação "Nesta página" são conferidos dentro dela.
+    const inicioDaNav = p.indexOf('<nav aria-label="Nesta página"');
+    const nav = p.slice(inicioDaNav, p.indexOf('</nav>', inicioDaNav));
+    const links = [...nav.matchAll(/<a href="#([a-z-]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[1], m[2]]);
     expect(links).toEqual([
       [ID_SECAO.dados, 'Dados'],
       [ID_SECAO.versoes, 'Versões'],
@@ -487,7 +651,7 @@ describe('page.tsx: acesso, leituras e seções', () => {
       }),
     );
     const p = await detalhe(ID);
-    expect(p).toContain('<h1>Título &lt;script&gt;alert(1)&lt;/script&gt;</h1>');
+    expect(p).toMatch(/<h1[^>]*><bdi>Título &lt;script&gt;alert\(1\)&lt;\/script&gt;<\/bdi><\/h1>/);
     expect(p).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(p).toContain('<li>Link: https://exemplo.test/a — Descrição &lt;b&gt;fictícia&lt;/b&gt;</li>');
     expect(p).toContain('<li>Arquivo: b-ficticio.pdf</li>');
@@ -514,8 +678,10 @@ describe('page.tsx: acesso, leituras e seções', () => {
       }),
     );
     mEsp.mockResolvedValue({ id: `ESP-${ID}-v2`, duvidasEmAberto: [] } as unknown as Awaited<ReturnType<typeof obterEspecificacao>>);
+    mDec.mockResolvedValue(vistaDoDec(1, { desatualizado: true }));
     const p = await detalhe(ID);
     expect(mEsp).toHaveBeenCalledExactlyOnceWith(DB, `ESP-${ID}-v2`);
+    expect(mDec).toHaveBeenCalledExactlyOnceWith(DB, `DEC-${ID}-v1`);
     expect(mAutorizar).toHaveBeenCalledWith(CTO, 'ler_especificacao');
     for (const v of [`ESP-${ID}-v2`, `ESP-${ID}-v1`, `RSK-${ID}-v1`, `DEC-${ID}-v1`]) expect(p).toContain(`<span class="font-mono">${v}</span>`);
     // A ordem dos atributos é a do React; o que importa é o par endereço e nome acessível.
@@ -561,5 +727,97 @@ describe('page.tsx: acesso, leituras e seções', () => {
     expect(mTexto).not.toHaveBeenCalled();
     mHistorico.mockRejectedValue(new Error('SENTINELA-ERRO do banco'));
     await expect(detalhe(ID)).rejects.toThrow('SENTINELA-ERRO do banco');
+  });
+
+  // --- T11 do DEC-DEM-20261110-0015-v1: T05 no arranjo A2 ---
+
+  const comDecDuplo = () => {
+    mObter.mockResolvedValue(
+      demanda({ status: 'pronta_para_decisao', especificacoes: [versao('ESP', 1)], pareceresRisco: [versao('RSK', 1)], pacotesDecisao: [pacote(1)] }),
+    );
+    mEsp.mockResolvedValue({ id: `ESP-${ID}-v1`, duvidasEmAberto: [] } as unknown as Awaited<ReturnType<typeof obterEspecificacao>>);
+    mDec.mockResolvedValue(
+      vistaDoDec(1, {
+        nivelAprovacaoRequerido: 'cto_e_administradora',
+        aprovadores: [{ papel: 'cto', nome: 'SENTINELA-NOME', opcao: 'A', registradaEm: CRIADA, referenciaDocumento: 'SENTINELA-DOC', dataDocumento: '2026-10-21' }],
+      }),
+    );
+  };
+
+  it('CV-09: ler_pacote_decisao autorizado antes de ler o DEC; o id é o de d.pacotesDecisao[0], nunca o da URL; nada do aprovador na tela', async () => {
+    comDecDuplo();
+    const p = await detalhe(ID, { dec: 'DEC-DEM-20990101-0001-v1', decId: 'DEC-DEM-20990101-0001-v1' });
+    expect(mAutorizar).toHaveBeenCalledWith(CTO, 'ler_pacote_decisao');
+    const ordemDaAutorizacao = mAutorizar.mock.calls.findIndex(([, acao]) => acao === 'ler_pacote_decisao');
+    expect(mAutorizar.mock.invocationCallOrder[ordemDaAutorizacao]!).toBeLessThan(mDec.mock.invocationCallOrder[0]!);
+    expect(mDec).toHaveBeenCalledExactlyOnceWith(DB, `DEC-${ID}-v1`);
+    expect(p).not.toContain('SENTINELA');
+    expect(p).not.toContain('DEC-DEM-20990101-0001-v1');
+  });
+
+  it('CA-08.1 e CA-09.1 (HTML): dupla com a aprovação do CTO → "1 de 2 aprovações" atual; Próxima ação para a administradora com o link da T11', async () => {
+    comDecDuplo();
+    const p = await detalhe(ID);
+    expect(p).toMatch(/<li aria-current="step"[^>]*>(?:(?!<\/li>)[\s\S])*>Decisão<\/strong>(?:(?!<\/li>)[\s\S])*>1 de 2 aprovações<\/span>/);
+    expect(p.match(/aria-current="step"/g)).toHaveLength(1);
+    for (const estado of ['Registrada', 'Feita', 'Feito', 'Depois da aprovação']) expect(p).toContain(`>${estado}</span>`);
+    const cartao = p.slice(p.indexOf('<section aria-labelledby="proxima-acao"'), p.indexOf('</section>', p.indexOf('<section aria-labelledby="proxima-acao"')));
+    expect(cartao).toContain('Decidir entre as opções A e B.');
+    expect(cartao).toContain('O CTO já aprovou a opção A. Falta a aprovação da administradora, com o identificador do documento assinado.');
+    expect(cartao).toMatch(/Quem age:<\/span> Administradora</);
+    expect(cartao).toMatch(new RegExp(`<a [^>]*href="/pacotes-decisao/DEC-${ID}-v1"[^>]*>Abrir a decisão</a>`));
+  });
+
+  it('CA-08.2 (HTML): sem versões → Especificação "Por fazer", "Nenhuma" e atual; Próxima ação linha 4 com o link para a T07', async () => {
+    const p = await detalhe(ID);
+    expect(p).toMatch(/<li aria-current="step"[^>]*>(?:(?!<\/li>)[\s\S])*>Especificação<\/strong>(?:(?!<\/li>)[\s\S])*>Nenhuma<\/span>(?:(?!<\/li>)[\s\S])*>Por fazer<\/span>/);
+    expect(p).toContain('Escrever a especificação técnica.');
+    expect(p).toMatch(/Quem age:<\/span> Agente de insumo técnico ou uma pessoa</);
+    expect(p).toMatch(new RegExp(`<a [^>]*href="/demandas/${ID}/especificacoes/nova"[^>]*>Escrever a especificação</a>`));
+  });
+
+  it('CA-08.3 (HTML): encerrada → nenhuma etapa com aria-current; Próxima ação "Nada. A demanda está em Encerrada."', async () => {
+    mObter.mockResolvedValue(demanda({ status: 'encerrada' }));
+    const p = await detalhe(ID);
+    expect(p).toContain('<ol aria-label="Etapas da demanda"');
+    expect(p).not.toContain('aria-current="step"');
+    expect(p).toContain('Nada. A demanda está em Encerrada.');
+    expect(p).toMatch(/Quem age:<\/span> Ninguém</);
+  });
+
+  it('arranjo A2 (03, 5.2): trilha, cabeçalho, "Nesta página", barra, Próxima ação, seções em cartão e Histórico por último no DOM', async () => {
+    const p = await detalhe(ID);
+    const posicoes = [
+      '<nav aria-label="Trilha">',
+      '<h1',
+      '<nav aria-label="Nesta página"',
+      '<ol aria-label="Etapas da demanda"',
+      '<section aria-labelledby="proxima-acao"',
+      `<h2 id="${ID_SECAO.dados}"`,
+      `<h2 id="${ID_SECAO.versoes}"`,
+      `<h2 id="${ID_SECAO.status}"`,
+      `<h2 id="${ID_SECAO.texto}"`,
+      `<h2 id="${ID_SECAO.historico}"`,
+    ].map((t) => p.indexOf(t));
+    expect(posicoes.every((x) => x >= 0)).toBe(true);
+    expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
+    // Trilha: "Demandas" e o id atual, sem link.
+    expect(p).toMatch(/<nav aria-label="Trilha"><ol[^>]*><li[^>]*><a [^>]*href="\/demandas"[^>]*>Demandas<\/a><\/li>/);
+    expect(p).toMatch(new RegExp(`<span aria-current="page"[^>]*>${ID}</span>`));
+    // Cabeçalho: urgência em texto e "Mudar status" para o h2 Status, antes da navegação "Nesta página".
+    expect(p).toContain('Urgência: Média');
+    const mudar = p.search(new RegExp(`<a href="#${ID_SECAO.status}"[^>]*>Mudar status</a>`));
+    expect(mudar).toBeGreaterThan(p.indexOf('<h1'));
+    expect(mudar).toBeLessThan(p.indexOf('<nav aria-label="Nesta página"'));
+    // Seções em cartão; a partir de 1200 px, Próxima ação e Histórico na coluna lateral (só CSS, sem mudar o DOM).
+    for (const id of [ID_SECAO.dados, ID_SECAO.versoes, ID_SECAO.status, ID_SECAO.texto, ID_SECAO.historico])
+      expect(p).toMatch(new RegExp(`<section aria-labelledby="${id}" class="[^"]*\\brounded-cartao\\b[^"]*">`));
+    expect(p).toMatch(/<section aria-labelledby="proxima-acao" class="[^"]*\bxl:col-start-3\b/);
+    expect(p).toMatch(new RegExp(`<section aria-labelledby="${ID_SECAO.historico}" class="[^"]*\\bxl:col-start-3\\b`));
+  });
+
+  it('sem urgência informada: o cabeçalho não mostra "Urgência:"', async () => {
+    mObter.mockResolvedValue(demanda({ urgencia: null }));
+    expect(await detalhe(ID)).not.toContain('Urgência:');
   });
 });

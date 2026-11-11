@@ -37,7 +37,7 @@ import { criarParecerRiscoSchema } from '../../../../modules/pareceres-risco/sch
 import { criarParecerRisco } from '../../../../modules/pareceres-risco/servico';
 import { expurgar } from '../../../../modules/retencao/expurgar';
 import { mudarStatusNoPainel } from './acoes';
-import { opcoesDeStatus, TEXTOS_DETALHE } from './detalhe';
+import { ID_SECAO, opcoesDeStatus, TEXTOS_DETALHE } from './detalhe';
 import PaginaDemanda from './page';
 
 const pedido = vi.hoisted(() => ({ cabecalhos: new Headers() }));
@@ -105,13 +105,32 @@ const pagina = async (id: string) => renderToStaticMarkup(await PaginaDemanda({ 
 const ENTIDADES: Readonly<Record<string, string>> = { '&quot;': '"', '&#x27;': "'", '&lt;': '<', '&gt;': '>', '&amp;': '&' };
 const texto = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&quot;|&#x27;|&lt;|&gt;|&amp;/g, (e) => ENTIDADES[e]!);
 
-// As linhas da tabela do histórico, célula a célula, como texto.
+// Os itens do histórico como [data e hora, quem, o que aconteceu, antes, depois], as mesmas cinco informações da tabela
+// de antes. T11 (DEC-DEM-20261110-0015-v1): o histórico virou lista (LinhaDoTempo, 03, 5.6); cada item tem o texto do
+// evento, a linha "Antes: … Depois: …" só quando há valor, e quem e quando.
 function linhasDoHistorico(p: string): string[][] {
-  const i = p.indexOf(TEXTOS_DETALHE.historico.legenda);
-  if (i < 0) throw new Error('a página não tem a tabela do histórico');
-  const tabela = p.slice(i, p.indexOf('</table>', i));
-  return [...tabela.matchAll(/<tr class="border-t border-linha">([\s\S]*?)<\/tr>/g)].map((l) => [...l[1]!.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((c) => texto(c[1]!)));
+  const i = p.indexOf(`<h2 id="${ID_SECAO.historico}"`);
+  if (i < 0) throw new Error('a página não tem o histórico');
+  const lista = p.slice(p.indexOf('<ol', i), p.indexOf('</ol>', i));
+  return [...lista.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((l) => {
+    const paragrafos = [...l[1]!.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)].map((m) => m[1]!);
+    const quemEQuando = paragrafos.at(-1)!;
+    const valores = paragrafos.length === 3 ? texto(paragrafos[1]!) : '';
+    return [
+      texto(/<time[^>]*>([\s\S]*?)<\/time>/.exec(quemEQuando)?.[1] ?? ''),
+      texto(/^<span>([\s\S]*?)<\/span>/.exec(quemEQuando)?.[1] ?? ''),
+      texto(paragrafos[0]!),
+      /(?:^|\s)Antes: (.*?)\.(?:\s|$)/.exec(valores)?.[1] ?? '',
+      /(?:^|\s)Depois: (.*?)\.$/.exec(valores)?.[1] ?? '',
+    ];
+  });
 }
+
+// T11: a página sem o cartão "Próxima ação", que tem o próprio link para a tela onde se age; os links que este teste
+// conta (alerta, lista de versões, navegação) são os de fora dele.
+const PROXIMA_ACAO = '<section aria-labelledby="proxima-acao"';
+const cartaoDaProximaAcao = (p: string) => p.slice(p.indexOf(PROXIMA_ACAO), p.indexOf('</section>', p.indexOf(PROXIMA_ACAO)) + '</section>'.length);
+const semProximaAcao = (p: string) => p.replace(cartaoDaProximaAcao(p), '');
 
 // Alerta de topo pelo tipo (a classe do Alerta da 2.3) e pelo texto.
 const ALERTA = { erro: 'border-erro bg-erro-fundo', informacao: 'border-acao-escura bg-nevoa', atencao: 'border-atencao bg-atencao-fundo' } as const;
@@ -335,8 +354,9 @@ describe('page.tsx com o banco real: o que o worker, o expurgo e a T06 gravam ch
     p = await pagina(id);
     expect(temAlerta(p, 'erro', FRASE_FALHA)).toBe(true);
     expect(texto(p)).not.toContain(FRASE_TRABALHANDO);
-    // O botão do alerta e o da lista de pareceres: dois links para o formulário do RSK.
-    expect(contar(p, BOTAO_RSK)).toBe(2);
+    // O botão do alerta e o da lista de pareceres: dois links para o formulário do RSK (fora o da Próxima ação, T11).
+    expect(contar(semProximaAcao(p), BOTAO_RSK)).toBe(2);
+    expect(contar(cartaoDaProximaAcao(p), BOTAO_RSK)).toBe(1);
     const [falha] = linhasDoHistorico(p);
     expect(falha!.slice(1)).toEqual(['Agente de risco', 'O agente de risco não conseguiu gerar o parecer depois de 3 tentativas', '', '']);
     // Nada da resposta do provedor chega à tela (C-30).
@@ -414,7 +434,7 @@ describe('page.tsx com o banco real: o que o worker, o expurgo e a T06 gravam ch
     expect(linhas).toHaveLength(5);
     // O valor antigo do texto livre não fica em lugar nenhum da página.
     expect(contemSentinela(p)).toBe(false);
-    expect(p).toContain('<h1>Título novo (fictício)</h1>');
+    expect(p).toMatch(/<h1[^>]*><bdi>Título novo \(fictício\)<\/bdi><\/h1>/);
   });
 
   it('CA-15.3 e RF-15: ESP v1 com dúvidas leva a "Aguardando informação" e lista as dúvidas; ESP v2 sem dúvida tira a seção, o link do alerta e o item da navegação', async () => {
@@ -426,7 +446,9 @@ describe('page.tsx com o banco real: o que o worker, o expurgo e a T06 gravam ch
     expect(p).toMatch(/<h2 id="duvidas-em-aberto" tabindex="-1"[^>]*>Dúvidas em aberto<\/h2>/i);
     expect(p).toContain(`Da ESP-${id}-v1.`);
     expect(p).toMatch(/<ol[^>]*><li>Qual o volume &lt;b&gt;diário&lt;\/b&gt;\? \(fictício\)<\/li><li>Há ambiente de teste\? \(fictício\)<\/li><\/ol>/);
-    expect(contar(p, 'href="#duvidas-em-aberto"')).toBe(2);
+    // A navegação e o alerta (fora o link da Próxima ação, T11, linha 3 do RF-09).
+    expect(contar(semProximaAcao(p), 'href="#duvidas-em-aberto"')).toBe(2);
+    expect(contar(cartaoDaProximaAcao(p), 'href="#duvidas-em-aberto"')).toBe(1);
     expect(temAlerta(p, 'atencao', 'Esta demanda está aguardando informação. Veja as dúvidas em aberto.')).toBe(true);
     // O sistema mudou o status (CA-15.1): a linha do histórico mostra o Sistema, o antes e o depois.
     expect(linhasDoHistorico(p).map((l) => l.slice(1))).toContainEqual(['Sistema', 'Mudou o status', 'Nova', 'Aguardando informação']);

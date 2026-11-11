@@ -40,7 +40,8 @@ export function IdadeDaDemanda({ criadaEm, agora }: { criadaEm: Date; agora: Dat
   );
 }
 
-const COR_DA_URGENCIA: Readonly<Record<Urgencia, string>> = { alta: 'bg-erro', media: 'bg-atencao', baixa: 'bg-tinta-suave' };
+// Também o ponto da urgência no cabeçalho da T05 (T11).
+export const COR_DA_URGENCIA: Readonly<Record<Urgencia, string>> = { alta: 'bg-erro', media: 'bg-atencao', baixa: 'bg-tinta-suave' };
 
 // Ponto de 8 px escondido e o rótulo; sem urgência, "Não informada", sem ponto (03, 4.4).
 export function UrgenciaDaDemanda({ urgencia }: { urgencia: Urgencia | null }) {

@@ -7,13 +7,22 @@
 //
 // T39: o alerta de chegada da T04 e da T06 sai só dos valores fixos de `?aviso=`. T41: o da T07 também, com a versão e o
 // pacote conferidos contra os desta demanda.
+//
+// 0.2.0 (T11 do DEC-DEM-20261110-0015-v1; 03, seção 5, arranjo A2): trilha, cabeçalho (id, selos, urgência, título
+// isolado por <bdi>, "Editar dados" e "Mudar status"), "Nesta página", alertas, barra das cinco etapas (RF-08), cartão
+// "Próxima ação" (RF-09) e as seções de hoje em cartões, com o histórico em lista (RF-10). A partir de 1200 px, a
+// Próxima ação e o Histórico vão para a coluna lateral só pela grade, sem mudar a ordem do DOM. Para a barra e o
+// cartão, a página lê também o DEC mais novo da própria demanda (d.pacotesDecisao[0], nunca um id da URL), com
+// `ler_pacote_decisao` autorizado antes (CV-09); as duas regras de exibição recebem só o que a página já leu.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Alerta } from '../../../../components/Alerta';
 import { classeDoBotao } from '../../../../components/Botao';
+import { Cartao } from '../../../../components/Cartao';
 import { AVISO_DEMANDA, TEXTOS_DEMANDA } from '../../../../components/dados-da-demanda';
+import { etapasDaDemanda, proximaAcao, type DadosDasEtapas } from '../../../../components/dados-das-etapas';
 import { chegadaDaEspecificacao } from '../../../../components/dados-da-especificacao';
 import { chegadaDoParecer } from '../../../../components/dados-do-parecer';
 import {
@@ -42,6 +51,10 @@ import { obterTextoRecebido } from '../../../../modules/demandas/texto-recebido'
 import { transicoesManuaisDe } from '../../../../modules/demandas/transicoes';
 import { obterEspecificacao } from '../../../../modules/especificacoes/consultas';
 import { listarHistorico } from '../../../../modules/historico/consultas';
+import { obterPacoteDecisao } from '../../../../modules/pacotes-decisao/consultas';
+import { COR_DA_URGENCIA } from '../CartoesDaFila';
+import { BarraDeEtapas } from './BarraDeEtapas';
+import { CartaoProximaAcao } from './CartaoProximaAcao';
 import { lerDemandaDaPagina, metadadosDaDemanda } from './demanda-da-pagina';
 import {
   alertasDoTopo,
@@ -75,17 +88,60 @@ function alertaDeChegada(p: Parametros, d: DemandaVista, esp: { id: string; duvi
   return chegadaDaEspecificacao(p, d, esp) ?? chegadaDoParecer(p, d);
 }
 
-const CLASSE_LINK = 'text-primaria underline underline-offset-2';
+const CLASSE_LINK = 'text-acao-escura underline underline-offset-2';
+const ETIQUETA = 'font-mono text-xs font-semibold uppercase tracking-[0.08em] text-tinta-media';
 
-// Seção com `h2` focável, alvo da navegação "Nesta página" (03, T05, Acessibilidade).
-function Secao({ id, titulo, children }: { id: string; titulo: string; children: ReactNode }) {
+// Grade da A2 a partir de 1200 px (03, 5.2): coluna principal (2/3) e lateral (1/3). A Próxima ação fica na primeira
+// linha da lateral; o Histórico, da segunda até a última, que é flexível e absorve a altura dele. Abaixo de 1200 px,
+// uma coluna na ordem do DOM. `grid-cols-1` (minmax(0, 1fr)): sem ele, a coluna implícita é `auto` e cresce com a largura
+// das tabelas das versões, que têm rolagem própria, e a página rolaria de lado no celular.
+const GRADE = 'grid grid-cols-1 gap-5 xl:grid-cols-3 xl:grid-rows-[repeat(5,auto)_1fr] xl:items-start';
+const PRINCIPAL = 'xl:col-span-2 xl:col-start-1';
+
+// Seção com `h2` focável, alvo da navegação "Nesta página" (03, T05, Acessibilidade). 0.2.0 (T11): cada seção num
+// cartão (03, 5.2).
+function Secao({ id, titulo, className, children }: { id: string; titulo: string; className?: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-4">
-      <h2 id={id} tabIndex={-1} className="text-xl font-semibold">
+    <Cartao rotuloPor={id} className={`flex flex-col gap-4 ${className ?? PRINCIPAL}`}>
+      <h2 id={id} tabIndex={-1}>
         {titulo}
       </h2>
       {children}
-    </section>
+    </Cartao>
+  );
+}
+
+// Trilha da T05 (03, 5.2): "Demandas" e o id atual, sem link.
+function Trilha({ id }: { id: string }) {
+  return (
+    <nav aria-label={TEXTOS_DETALHE.trilha}>
+      <ol className="flex flex-wrap items-center gap-x-2 text-sm">
+        <li className="flex items-center">
+          <Link href="/demandas" className="inline-flex min-h-11 items-center md:min-h-6">
+            {TEXTOS_DETALHE.trilhaDemandas}
+          </Link>
+        </li>
+        <li className="flex min-w-0 items-center gap-2">
+          <span aria-hidden="true" className="text-tinta-media">
+            /
+          </span>
+          <span aria-current="page" className="font-mono text-tinta-media [overflow-wrap:anywhere]">
+            {id}
+          </span>
+        </li>
+      </ol>
+    </nav>
+  );
+}
+
+// "Urgência: <rótulo>" com o ponto da cor da fila, escondido do leitor de tela; sem urgência informada, nada (03, 5.2).
+function UrgenciaNoCabecalho({ urgencia }: { urgencia: DemandaVista['urgencia'] }) {
+  if (!urgencia) return null;
+  return (
+    <span className="inline-flex items-center gap-2 text-sm">
+      <span aria-hidden="true" className={`inline-block size-2 shrink-0 rounded-full ${COR_DA_URGENCIA[urgencia]}`} />
+      {TEXTOS_DETALHE.urgenciaNoCabecalho(ROTULO_URGENCIA[urgencia])}
+    </span>
   );
 }
 
@@ -114,8 +170,11 @@ function AlertaDeTopo({ a }: { a: AlertaDoTopo }) {
 
 const naoInformado = (v: string | null | undefined): string => (v ? v : TEXTOS_DETALHE.naoInformado);
 
+// 0.2.0 (T11; 03, 5.2): lista de descrição em grade de 2 colunas a partir de 768 px, com o termo como etiqueta; os
+// campos longos ocupam a linha toda. Os 12 itens e os textos são os de hoje.
 function Dados({ d }: { d: DemandaVista }) {
   const t = TEXTOS_DETALHE.dados;
+  const largos: ReadonlySet<string> = new Set([t.justificativa, t.contexto, t.descricao, t.impacto, t.anexos]);
   const itens: ReadonlyArray<[string, ReactNode]> = [
     [t.tipo, ROTULO_TIPO[d.tipo]],
     [t.linha, naoInformado(d.linhaServicoProvavel ? ROTULO_LINHA[d.linhaServicoProvavel] : null)],
@@ -147,10 +206,10 @@ function Dados({ d }: { d: DemandaVista }) {
     [t.criadaPor, rotuloResponsavel(d.responsavel)],
   ];
   return (
-    <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(10rem,auto)_1fr]">
+    <dl className="grid gap-x-6 gap-y-4 md:grid-cols-2">
       {itens.map(([termo, valor]) => (
-        <div key={termo} className="contents">
-          <dt className="font-medium">{termo}</dt>
+        <div key={termo} className={largos.has(termo) ? 'flex min-w-0 flex-col gap-1 md:col-span-2' : 'flex min-w-0 flex-col gap-1'}>
+          <dt className={ETIQUETA}>{termo}</dt>
           <dd className="break-words whitespace-pre-wrap">{valor}</dd>
         </div>
       ))}
@@ -275,7 +334,7 @@ function Versoes({ d }: { d: DemandaVista }) {
       >
         <TabelaDeVersoes legenda={t.pacotes} regiao={t.regiaoDec} linhas={d.pacotesDecisao.map(linhaDoPacote)} chaves={d.pacotesDecisao.map((p) => p.id)} />
       </ListaDeVersoes>
-      {falta ? <p className="text-texto-suave">{falta}</p> : null}
+      {falta ? <p className="text-tinta-media">{falta}</p> : null}
     </>
   );
 }
@@ -289,18 +348,27 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
   autorizar(pessoa, 'ler_historico');
   const espMaisNova = d.especificacoes[0];
   if (espMaisNova) autorizar(pessoa, 'ler_especificacao');
+  // T11 (CV-09): o DEC mais novo desta demanda, para a barra de etapas e a Próxima ação; autorizado antes de ler, como na
+  // T11 Decisão. O id vem só da vista da demanda.
+  const decResumo = d.pacotesDecisao[0];
+  if (decResumo) autorizar(pessoa, 'ler_pacote_decisao');
 
   const deps = await obterDeps();
-  const [historico, texto, esp] = await Promise.all([
+  const [historico, texto, esp, decMaisNovo] = await Promise.all([
     listarHistorico(deps.db, d.id),
     obterTextoRecebido(deps, pessoa, d.id),
     espMaisNova ? obterEspecificacao(deps.db, espMaisNova.id) : Promise.resolve(null),
+    decResumo ? obterPacoteDecisao(deps.db, decResumo.id) : Promise.resolve(null),
   ]);
   const retencaoDias = deps.config.retencaoDias;
   const duvidas = duvidasEmAberto(d, esp);
   const alertas = alertasDoTopo(d, historico, duvidas !== null);
   const chegada = alertaDeChegada(await searchParams, d, esp);
   const transicoes = transicoesManuaisDe(d.status);
+  // RF-08 e RF-09: só o que a página já leu; dado incoerente vira erro e a tela de erro de hoje (T10).
+  const dadosDasEtapas: DadosDasEtapas = { demanda: d, espMaisNova: esp, decMaisNovo, historico, temSecaoDeDuvidas: duvidas !== null };
+  const etapas = etapasDaDemanda(dadosDasEtapas);
+  const acao = proximaAcao(dadosDasEtapas);
   const s = TEXTOS_DETALHE.secoes;
   const secoes = [
     [ID_SECAO.dados, s.dados],
@@ -312,28 +380,39 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
   ] as const;
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <p className="flex flex-wrap items-center gap-3">
-          <span className="font-mono">{d.id}</span>
-          <Selo cor={COR_STATUS[d.status]}>{ROTULO_STATUS[d.status]}</Selo>
-          {d.rascunhoAgente ? (
-            <Selo cor={SELO_RASCUNHO.cor} tracejado={SELO_RASCUNHO.tracejado}>
-              {SELO_RASCUNHO.texto}
-            </Selo>
-          ) : null}
-        </p>
-        <h1>{d.titulo}</h1>
-        <div>
-          <Link href={`/demandas/${d.id}/editar`} className={classeDoBotao('secundario')}>
-            {TEXTOS_DETALHE.editar}
-          </Link>
+    <div className="flex flex-col gap-5">
+      <Trilha id={d.id} />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
+          <div className="flex min-w-0 flex-col gap-2">
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="font-mono [overflow-wrap:anywhere]">{d.id}</span>
+              <Selo cor={COR_STATUS[d.status]}>{ROTULO_STATUS[d.status]}</Selo>
+              {d.rascunhoAgente ? (
+                <Selo cor={SELO_RASCUNHO.cor} tracejado={SELO_RASCUNHO.tracejado}>
+                  {SELO_RASCUNHO.texto}
+                </Selo>
+              ) : null}
+              <UrgenciaNoCabecalho urgencia={d.urgencia} />
+            </p>
+            <h1 className="[overflow-wrap:anywhere]">
+              <bdi>{d.titulo}</bdi>
+            </h1>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-3">
+            <Link href={`/demandas/${d.id}/editar`} className={classeDoBotao('secundario')}>
+              {TEXTOS_DETALHE.editar}
+            </Link>
+            <LinkNestaPagina alvo={ID_SECAO.status} className={classeDoBotao('secundario')}>
+              {TEXTOS_DETALHE.mudarStatus}
+            </LinkNestaPagina>
+          </div>
         </div>
         <nav aria-label={TEXTOS_DETALHE.nestaPagina}>
           <ul className="flex flex-wrap gap-x-4 gap-y-1">
             {secoes.map(([alvo, rotulo]) => (
               <li key={alvo}>
-                <LinkNestaPagina alvo={alvo} className={`inline-flex min-h-6 items-center ${CLASSE_LINK}`}>
+                <LinkNestaPagina alvo={alvo} className={`inline-flex min-h-11 items-center md:min-h-6 ${CLASSE_LINK}`}>
                   {rotulo}
                 </LinkNestaPagina>
               </li>
@@ -351,43 +430,49 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
         <AlertaDeTopo key={`${a.tipo} ${a.texto}`} a={a} />
       ))}
 
-      <Secao id={ID_SECAO.dados} titulo={s.dados}>
-        <Dados d={d} />
-      </Secao>
+      <BarraDeEtapas etapas={etapas} />
 
-      {duvidas ? (
-        <Secao id={ID_SECAO.duvidas} titulo={s.duvidas}>
-          <p className="text-texto-suave">{duvidas.origem}</p>
-          <ol className="flex list-decimal flex-col gap-1 pl-6">
-            {duvidas.itens.map((q, i) => (
-              <li key={i}>{q}</li>
-            ))}
-          </ol>
-          <p>{TEXTOS_DETALHE.notaDuvidas}</p>
+      <div className={GRADE}>
+        <CartaoProximaAcao acao={acao} className="xl:col-start-3 xl:row-start-1" />
+
+        <Secao id={ID_SECAO.dados} titulo={s.dados} className={`${PRINCIPAL} xl:row-start-1`}>
+          <Dados d={d} />
         </Secao>
-      ) : null}
 
-      <Secao id={ID_SECAO.versoes} titulo={s.versoes}>
-        <Versoes d={d} />
-      </Secao>
+        {duvidas ? (
+          <Secao id={ID_SECAO.duvidas} titulo={s.duvidas} className={`${PRINCIPAL} border-l-4 border-l-atencao`}>
+            <p className="text-tinta-media">{duvidas.origem}</p>
+            <ol className="flex list-decimal flex-col gap-1 pl-6">
+              {duvidas.itens.map((q, i) => (
+                <li key={i}>{q}</li>
+              ))}
+            </ol>
+            <p>{TEXTOS_DETALHE.notaDuvidas}</p>
+          </Secao>
+        ) : null}
 
-      <Secao id={ID_SECAO.status} titulo={s.status}>
-        <MudarStatus
-          id={d.id}
-          statusAtual={d.status}
-          opcoes={opcoesDeStatus(d, transicoes)}
-          final={textoFinalDeStatus(d.status, transicoes)}
-          dicaFixa={d.status === 'aprovada' ? TEXTOS_DETALHE.dicaAprovada : null}
-        />
-      </Secao>
+        <Secao id={ID_SECAO.versoes} titulo={s.versoes}>
+          <Versoes d={d} />
+        </Secao>
 
-      <Secao id={ID_SECAO.texto} titulo={s.texto}>
-        <TextoRecebido texto={texto} retencaoDias={retencaoDias} />
-      </Secao>
+        <Secao id={ID_SECAO.status} titulo={s.status}>
+          <MudarStatus
+            id={d.id}
+            statusAtual={d.status}
+            opcoes={opcoesDeStatus(d, transicoes)}
+            final={textoFinalDeStatus(d.status, transicoes)}
+            dicaFixa={d.status === 'aprovada' ? TEXTOS_DETALHE.dicaAprovada : null}
+          />
+        </Secao>
 
-      <Secao id={ID_SECAO.historico} titulo={s.historico}>
-        <Historico eventos={historico} retencaoDias={retencaoDias} />
-      </Secao>
+        <Secao id={ID_SECAO.texto} titulo={s.texto}>
+          <TextoRecebido texto={texto} retencaoDias={retencaoDias} />
+        </Secao>
+
+        <Secao id={ID_SECAO.historico} titulo={s.historico} className="xl:col-start-3 xl:row-[2/-1]">
+          <Historico eventos={historico} retencaoDias={retencaoDias} />
+        </Secao>
+      </div>
     </div>
   );
 }

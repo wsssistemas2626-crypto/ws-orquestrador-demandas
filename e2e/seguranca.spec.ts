@@ -87,6 +87,41 @@ test('C-18 e CV-18: título com <script>, <img onerror> e U+202E aparece como te
   expect(dialogos).toEqual([]);
 });
 
+// CV-18 (T11 do DEC-DEM-20261110-0015-v1): o C-18 também na T05 no arranjo A2, com a mesma `textoDeTerceiro`. O título
+// aparece literal no h1, isolado por <bdi>, e na trilha só o id; a barra de etapas e a Próxima ação são texto da tela.
+// Nas duas larguras. Só lê: nada é gravado.
+test('C-18 e CV-18: na T05 da textoDeTerceiro, o título literal no h1 com <bdi>; barra e Próxima ação em texto; nada executa', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const dialogos: string[] = [];
+  page.on('dialog', (d) => {
+    dialogos.push(d.message());
+    void d.dismiss();
+  });
+  const titulo = TITULOS_DO_E2E.textoDeTerceiro;
+  expect(titulo).toContain(String.fromCodePoint(0x202e));
+  const id = await demandaDoSeed(page, titulo);
+  for (const tamanho of [
+    { width: 1280, height: 720 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(tamanho);
+    await page.goto(`/demandas/${id}`);
+    await expect(page.locator('main h1'), `${tamanho.width} px`).toHaveText(titulo);
+    await expect(page.locator('main h1 > bdi'), `${tamanho.width} px`).toHaveText(titulo);
+    await expect(page.getByRole('navigation', { name: 'Trilha' }).locator('[aria-current="page"]')).toHaveText(id);
+    const barra = page.getByRole('list', { name: 'Etapas da demanda' });
+    await expect(barra.getByRole('listitem')).toHaveCount(5);
+    await expect(barra).not.toContainText('<script>');
+    const cartao = page.getByRole('region', { name: 'Próxima ação' });
+    await expect(cartao).toContainText('Escrever a especificação técnica.');
+    await expect(cartao).not.toContainText('<script>');
+    await expect(page.locator('main img')).toHaveCount(0);
+    await expect(page.locator('main script')).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { __xss?: unknown }).__xss)).toBeUndefined();
+  }
+  expect(dialogos).toEqual([]);
+});
+
 test('C-19: /demandas/[id] e GET /api/demandas/:id com CSP de nonce, nosniff, no-referrer, no-store, sem X-Powered-By', async ({ page }) => {
   await entrarComo(page, 'cto');
   const id = await demandaDeEstudoDoSeed(page);

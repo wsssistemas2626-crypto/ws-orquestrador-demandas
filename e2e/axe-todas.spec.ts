@@ -158,7 +158,8 @@ test('T05 Detalhe: com versões e rascunhos de agente, sem versões e com erro a
   const bug = await demandaDoSeed(page, 'bug');
   await page.goto(`/demandas/${bug}`);
   await expect(page.getByRole('heading', { level: 1, name: SEED.bug })).toBeVisible();
-  await expect(page.getByText(`ESP-${bug}-v1`, { exact: true })).toBeVisible();
+  // T11 do DEC-DEM-20261110-0015-v1: o id da ESP também aparece na barra de etapas; a versão é conferida na seção dela.
+  await expect(page.getByRole('region', { name: 'Versões', exact: true }).getByText(`ESP-${bug}-v1`, { exact: true })).toBeVisible();
   await expect(page.getByText('Rascunho de agente').first()).toBeVisible();
   await axe(page, 'T05 com versões e rascunhos');
 

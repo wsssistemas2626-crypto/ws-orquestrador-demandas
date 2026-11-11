@@ -303,7 +303,8 @@ describe('T05 ([id]/page.tsx): o destino da T04 e da T06', () => {
       [CTO, 'ler_demanda'],
       [CTO, 'ler_historico'],
     ]);
-    expect(p).toContain('<h1>Título &lt;b&gt;fictício&lt;/b&gt;</h1>');
+    // T11 do DEC-DEM-20261110-0015-v1: o título isolado por <bdi> no h1 (CV-18).
+    expect(p).toMatch(/<h1[^>]*><bdi>Título &lt;b&gt;fictício&lt;\/b&gt;<\/bdi><\/h1>/);
     expect(p).toContain(ROTULO_STATUS.em_analise);
     expect(p).toContain(SELO_RASCUNHO.texto);
     expect(p).toMatch(new RegExp(`<a [^>]*href="/demandas/${ID}/editar"[^>]*>Editar dados</a>`));
