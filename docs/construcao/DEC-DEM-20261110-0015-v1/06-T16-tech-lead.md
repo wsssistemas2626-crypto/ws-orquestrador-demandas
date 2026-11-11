@@ -124,8 +124,8 @@ roda sozinha.
   ficam vetados sem decisão minha.
 - Registro de erro meu: rodei uma vez, por engano, um `git diff --stat` só de leitura no repositório da
   estruturaAutonoma, para achar a seção 12 do `padrao-tecnico.md`. O maestro pede git só no repositório do pedido. O
-  comando não alterou nada e está em "Comandos executados" para o histórico ficar completo. O conteúdo da seção 12 eu
-  li depois com Read.
+  comando não alterou nada. O maestro liberou o comando e pediu para tirá-lo de "Comandos executados". O registro fica
+  aqui para o histórico continuar completo. O conteúdo da seção 12 eu li depois com Read.
 
 ## Pendências
 
@@ -150,7 +150,6 @@ roda sozinha.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 0f47b8c` — 5 arquivos: `RevisaoDoPacote.tsx`, `page.tsx`, `pagina.test.ts`, a entrega e o registro
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -6` — topo 0f47b8c, depois 4503631 (06-T16-testes)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 0f47b8c -- src` — diff de código e teste lido por inteiro
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma diff --stat 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -G "^## 12" -- docs/construcao/padrao-tecnico.md` — por engano, fora do repositório do pedido, só leitura (ver Decisões tomadas)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -G "test:e2e" -- .github package.json` — `ci.yml` e `package.json`
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test --silent --reporter=dot --outputFile=/tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/scratchpad/t16-revisao-v2-suite.txt` — 5217 de 5217, 232 arquivos, 210 s
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short --untracked-files=all` — vazio
