@@ -152,10 +152,10 @@ export function rotuloAtor(a: EventoVisivel['ator']): string {
 const ehAgente = (v: unknown): v is Agente => typeof v === 'string' && v in NOME_AGENTE;
 
 // O nome do agente no meio da frase: "O agente de risco …".
-const agenteNaFrase = (a: Agente): string => NOME_AGENTE[a].charAt(0).toLowerCase() + NOME_AGENTE[a].slice(1);
+export const agenteNaFrase = (a: Agente): string => NOME_AGENTE[a].charAt(0).toLowerCase() + NOME_AGENTE[a].slice(1);
 
 // O que cada agente gera, para a falha (03, T05: "trocando o nome e o artefato").
-const ARTEFATO_DO_AGENTE: Readonly<Record<Agente, string>> = {
+export const ARTEFATO_DO_AGENTE: Readonly<Record<Agente, string>> = {
   orquestrador: 'os campos da demanda',
   insumo_tecnico: 'a especificação técnica',
   risco: 'o parecer',
