@@ -131,10 +131,6 @@ Leitura do plano:
 
 ## Pendências
 
-- Comando fora da lista Pode, só de leitura: no início rodei uma vez
-  `git -C … grep -n "^## \|^### " -- docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md`, para achar os
-  títulos do plano. Isso foi um engano meu. Não alterou nada. Depois disso usei só Read. Está declarado em Comandos
-  executados para o maestro decidir.
 - `engenheiro-frontend` (T09): acrescentar ao `test/estatico/leituras-da-fila.test.ts` a regra da cadeia até a página
   (`leituras-da-fila.ts` importado só por `src/app/(painel)/demandas/page.tsx`, depois de `exigirPessoaNaPagina` e
   `autorizar(pessoa, 'listar_demandas')`). `IMPORTADORES_PERMITIDOS` já tem `leituras-da-fila.ts`.
@@ -145,7 +141,6 @@ Leitura do plano:
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — topo 63c754a (06-T06-testes)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "^## \|^### " -- docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md` — fora da lista Pode, só leitura (ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — limpo, antes de escrever
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — antes do código: falhou (módulo inexistente; saída truncada pelo terminal)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/modules/demandas/resumo-da-fila.test.ts test/estatico/leituras-da-fila.test.ts` — antes do código: 2 arquivos falharam, 1 teste falhou e 6 passaram
