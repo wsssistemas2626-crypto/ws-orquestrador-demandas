@@ -11,9 +11,10 @@ import { criarDepsDeTeste } from '../test/deps';
 import { SENTINELAS, contemSentinela } from '../test/sentinelas';
 import { codigoTotp, criarPessoa, PoteDeCookies, postAuth } from '../test/sessao';
 import { PAPEL_APP } from '../src/db/privilegios';
+import { TIPOS_DEMANDA } from '../src/db/schema/demandas';
 import type { Deps } from '../src/lib/deps';
 import { ErroDominio } from '../src/lib/erros';
-import { FILAS } from '../src/lib/fila';
+import { FILAS, type Fila } from '../src/lib/fila';
 import { substituirDestinoDoLog } from '../src/lib/log';
 import { relogioDoSistema, relogioFixo } from '../src/lib/relogio';
 import { exigirPessoa } from '../src/modules/acesso/exigir-pessoa';
@@ -934,5 +935,137 @@ describe('qa-automacao T33: borda, falha e concorrência', () => {
   it('package.json: start:hml roda scripts/start-hml.ts pelo tsx', () => {
     const pacote = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { scripts: Record<string, string> };
     expect(pacote.scripts['start:hml']).toBe('tsx scripts/start-hml.ts');
+  });
+});
+
+// Casos acrescentados pelo qa-automacao na 06-T06-testes (DEC-DEM-20261110-0015-v1): o estado das demandas do e2e que
+// as telas novas vão ler (CA-08.1, CA-09.1 e a T11), o relógio injetado e a falha no fim do seed. Cada teste semeia o
+// próprio banco: nenhum depende de outro nem da ordem, e nenhum usa o relógio real.
+describe('qa-automacao T06: estado das demandas do e2e da 0.2.0', () => {
+  const AGORA = '2026-11-10T09:00:00Z';
+
+  it('TOTAL_DEMANDAS_DO_SEED segue derivado: uma demanda de cada tipo mais uma por título do e2e', () => {
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(TIPOS_DEMANDA.length + Object.keys(TITULOS_DO_E2E).length);
+    expect(MENSAGENS_SEED.semeado).toContain(`${TOTAL_DEMANDAS_DO_SEED} demandas`);
+  });
+
+  it('CA-08.1 e CA-09.1: `etapasDupla` com ESP sem dúvidas, DEC atual e só a aprovação do CTO; `decisaoRecomendaB` com DEC de agente atual; tudo na hora do relógio injetado', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b, { relogio: relogioFixo(AGORA) });
+    try {
+      expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('semeado');
+      const linhas = async (texto: string, valores: unknown[]) => (await b.poolMigrator.query(texto, valores)).rows;
+      const demandaDe = async (titulo: string) => (await linhas('select id, contexto from demanda where titulo = $1', [titulo]))[0] as { id: string; contexto: string };
+
+      // `etapasDupla`: a barra de etapas tem de dar "Feita", "Feito" e "1 de 2 aprovações", e não "Com dúvidas em aberto"
+      // nem "Desatualizado"; o cartão Próxima ação, a administradora como quem age.
+      const dupla = await demandaDe(TITULOS_DO_E2E.etapasDupla);
+      expect(await linhas('select versao, duvidas_em_aberto, descricao_objetiva from especificacao_tecnica where demanda_id = $1', [dupla.id])).toEqual([
+        { versao: 1, duvidas_em_aberto: [], descricao_objetiva: expect.stringContaining('(fictício)') },
+      ]);
+      expect(await linhas('select versao, resumo from parecer_risco where demanda_id = $1', [dupla.id])).toEqual([{ versao: 1, resumo: expect.stringContaining('(fictício)') }]);
+      expect(
+        await linhas(
+          'select especificacao_versao, parecer_risco_versao, demanda_titulo, demanda_descricao, resumo_executivo, recomendacao from pacote_decisao where demanda_id = $1',
+          [dupla.id],
+        ),
+      ).toEqual([
+        {
+          especificacao_versao: 1,
+          parecer_risco_versao: 1,
+          demanda_titulo: TITULOS_DO_E2E.etapasDupla,
+          demanda_descricao: `Contexto: ${dupla.contexto}`,
+          resumo_executivo: expect.stringContaining('(fictício)'),
+          recomendacao: null,
+        },
+      ]);
+      expect(
+        await linhas(
+          'select a.papel_aprovacao, a.opcao, a.revisou_rascunhos, a.registrada_em from aprovacao a join pacote_decisao p on p.id = a.pacote_decisao_id where p.demanda_id = $1',
+          [dupla.id],
+        ),
+      ).toEqual([{ papel_aprovacao: 'cto', opcao: 'A', revisou_rascunhos: false, registrada_em: new Date(AGORA) }]);
+
+      // `decisaoRecomendaB`: o DEC de agente cita a ESP e o RSK de agente da própria demanda, na versão mais nova (a T11
+      // mostra o pacote atual e exige a revisão dos rascunhos).
+      const recomendaB = await demandaDe(TITULOS_DO_E2E.decisaoRecomendaB);
+      expect(await linhas('select versao, rascunho_agente from especificacao_tecnica where demanda_id = $1', [recomendaB.id])).toEqual([{ versao: 1, rascunho_agente: true }]);
+      expect(await linhas('select versao, rascunho_agente from parecer_risco where demanda_id = $1', [recomendaB.id])).toEqual([{ versao: 1, rascunho_agente: true }]);
+      expect(await linhas('select especificacao_versao, parecer_risco_versao, demanda_titulo from pacote_decisao where demanda_id = $1', [recomendaB.id])).toEqual([
+        { especificacao_versao: 1, parecer_risco_versao: 1, demanda_titulo: TITULOS_DO_E2E.decisaoRecomendaB },
+      ]);
+
+      // Relógio injetado: demandas do e2e, versões e aprovação, todas no instante do relógio fixo (a Idade da fila e o
+      // limite C-36 dependem dele).
+      const datas = await linhas(
+        `select d.criada_em from demanda d where d.titulo = any($1)
+         union select e.criada_em from especificacao_tecnica e join demanda d on d.id = e.demanda_id where d.titulo = any($1)
+         union select r.criada_em from parecer_risco r join demanda d on d.id = r.demanda_id where d.titulo = any($1)
+         union select p.criada_em from pacote_decisao p join demanda d on d.id = p.demanda_id where d.titulo = any($1)`,
+        [Object.values(TITULOS_DO_E2E)],
+      );
+      expect(datas).toEqual([{ criada_em: new Date(AGORA) }]);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
+  });
+
+  it('falha no aviso do terceiro DEC (o último passo das versões do e2e) desfaz o seed inteiro, aprovação do CTO inclusive, e o seed roda de novo', async () => {
+    const b = await novoBanco();
+    const deps = await criarDepsDeTeste(b, { relogio: relogioFixo(AGORA) });
+    const FALHA = 'falha simulada no aviso do terceiro DEC (fictício)';
+    const avisos: string[] = [];
+    let naTransacao: unknown = null;
+    // A fila de verdade, menos no terceiro aviso.dec-pronto: antes de falhar, lê pela conexão da transação o que já foi
+    // gravado, para provar que a falha vem depois da aprovação do CTO na `etapasDupla` e do DEC da `decisaoRecomendaB`.
+    const filaQueFalha: Fila = {
+      enviar: async (executor, nome, payload, op) => {
+        if (nome === FILAS.avisoDecPronto) {
+          avisos.push(JSON.stringify(payload));
+          if (avisos.length === 3) {
+            naTransacao = (
+              await executor.executeSql(
+                'select (select count(*)::int from demanda) as demandas, (select count(*)::int from pacote_decisao) as decs, (select count(*)::int from aprovacao) as aprovacoes',
+              )
+            ).rows[0];
+            throw new Error(FALHA);
+          }
+        }
+        return deps.fila.enviar(executor, nome, payload, op);
+      },
+      parar: () => Promise.resolve(),
+    };
+    try {
+      await expect(seedFicticio({ ...deps, fila: filaQueFalha }, { SEED_FICTICIO: '1' })).rejects.toThrow(FALHA);
+      expect(new Set(avisos).size).toBe(3);
+      expect(naTransacao).toEqual({ demandas: TOTAL_DEMANDAS_DO_SEED, decs: 3, aprovacoes: 1 });
+      for (const tabela of [
+        '"user"',
+        'account',
+        'two_factor',
+        'evento',
+        'demanda',
+        'especificacao_tecnica',
+        'parecer_risco',
+        'pacote_decisao',
+        'aprovacao',
+        'decisao',
+        'aviso_email',
+        'preco_modelo',
+      ]) {
+        expect(await contar(b, `select count(*)::int as n from ${tabela}`), tabela).toBe(0);
+      }
+      expect(await contar(b, 'select count(*)::int as n from pgboss.job where name = $1', [FILAS.avisoDecPronto])).toBe(0);
+
+      // Nada ficou para trás que faça o seed recusar o banco: a subida seguinte semeia por inteiro.
+      expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('semeado');
+      expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
+      expect(await contar(b, 'select count(*)::int as n from pacote_decisao')).toBe(3);
+      expect(await contar(b, 'select count(*)::int as n from aprovacao')).toBe(1);
+    } finally {
+      await deps.fila.parar();
+      await b.fechar();
+    }
   });
 });
