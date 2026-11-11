@@ -58,6 +58,9 @@ export async function generateMetadata({ params }: Pick<Props, 'params'>): Promi
 }
 
 const CLASSE_LINK = 'text-acao-escura underline underline-offset-2';
+// Link solto (03, 2.4): o dos alertas, fora do <p>, sem texto solto ao lado. 44 px de alvo abaixo de 768 px (RNF-03);
+// sem `inline-flex`, o `min-height` não vale num <a>. O link dentro de frase fica com CLASSE_LINK.
+const CLASSE_LINK_SOLTO = `inline-flex min-h-11 items-center md:min-h-6 ${CLASSE_LINK}`;
 // O bloco do recolhível (D-02): abaixo de 768 px começa fechado; a partir de 768 px fica sempre aberto, sem botão.
 const ID_DOS_DETALHES = 'detalhes-do-pacote';
 
@@ -158,7 +161,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
       {lembrete ? (
         <Alerta tipo="informacao" className="flex flex-col items-start gap-2">
           <p>{t.lembrete}</p>
-          <Link href={`/demandas/${p.demandaId}`} className={CLASSE_LINK}>
+          <Link href={`/demandas/${p.demandaId}`} className={CLASSE_LINK_SOLTO}>
             {t.irParaDemanda}
           </Link>
         </Alerta>
@@ -166,7 +169,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
       {substituido ? (
         <Alerta tipo="atencao" className="flex flex-col items-start gap-2">
           <p>{substituido.texto}</p>
-          <Link href={substituido.link.href} className={CLASSE_LINK}>
+          <Link href={substituido.link.href} className={CLASSE_LINK_SOLTO}>
             {substituido.link.rotulo}
           </Link>
         </Alerta>
@@ -174,7 +177,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
       {desatualizado ? (
         <Alerta tipo="erro" className="flex flex-col items-start gap-2">
           <p>{desatualizado.texto}</p>
-          <Link href={desatualizado.link.href} className={CLASSE_LINK}>
+          <Link href={desatualizado.link.href} className={CLASSE_LINK_SOLTO}>
             {desatualizado.link.rotulo}
           </Link>
         </Alerta>

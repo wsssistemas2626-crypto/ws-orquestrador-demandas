@@ -14,7 +14,9 @@ import { Selo } from '../../../../components/Selo';
 import { caminhos } from '../../demandas/[id]/detalhe';
 
 const ID_TITULO = 'revisao-antes-de-decidir';
-const CLASSE_LINK = 'font-mono text-acao-escura underline underline-offset-2';
+// A ESP e o RSK citados são o valor inteiro do termo, sem texto solto ao lado: link solto (03, 2.4), com 44 px de alvo
+// abaixo de 768 px (RNF-03). Sem `inline-flex`, o `min-height` não vale num <a>.
+const CLASSE_LINK = 'inline-flex min-h-11 items-center font-mono text-acao-escura underline underline-offset-2 md:min-h-6';
 
 function Valor({ item }: { item: ItemDaRevisao }) {
   if (Array.isArray(item.valor))

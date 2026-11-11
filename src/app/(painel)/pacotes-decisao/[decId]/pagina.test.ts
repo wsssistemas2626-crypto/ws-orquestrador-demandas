@@ -782,6 +782,70 @@ describe('T13: arranjo A e C2 (RF-12; CV-12, CV-18, CV-19)', () => {
   });
 });
 
+// 06-T16-construcao (volta da 06-T16-testes), DEC-DEM-20261110-0015-v1: RNF-03 e 03, 2.4. Link solto (o valor inteiro
+// de um termo, ou o link fora do <p> de um alerta, sem texto solto ao lado) tem 44 px de altura abaixo de 768 px e 24 px
+// a partir dele; sem `inline-flex`, o `min-height` não vale num <a>. O e2e (alvo-de-toque.spec.ts) mede a ESP e o RSK
+// da revisão em 390 px; os três alertas ficam aqui, porque o e2e só lê e não cria esses estados.
+describe('T16: links soltos da T11 com alvo de toque de 44 px abaixo de 768 px (RNF-03; 03, 2.4)', () => {
+  const V2 = `DEC-${ID}-v2`;
+  const ALVO = ['inline-flex', 'items-center', 'min-h-11', 'md:min-h-6'];
+  const aprovacaoCto = { papel: 'cto' as const, nome: 'Pessoa Ficticia CTO', opcao: 'A' as const, registradaEm: APROVADO, referenciaDocumento: null, dataDocumento: null };
+  const aprovado = (extra: Partial<PacoteDecisaoVista> = {}) =>
+    pacote({
+      statusDecisao: 'aprovada',
+      aprovadores: [aprovacaoCto],
+      decisao: { opcaoEscolhida: 'A', comentarios: null, decididaPor: CTO.nome, decididaEm: APROVADO },
+      ...extra,
+    });
+  const escapar = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // A abertura do <a> com o href e o texto dados; falha se não houver exatamente um.
+  function link(s: string, href: string, texto: string): string {
+    const achados = [...s.matchAll(new RegExp(`(<a [^>]*href="${escapar(href)}"[^>]*>)${escapar(texto)}</a>`, 'g'))].map((m) => m[1]!);
+    expect(achados, `${href} ${texto}`).toHaveLength(1);
+    return achados[0]!;
+  }
+  const classes = (tag: string): string[] => (/\sclass="([^"]*)"/.exec(tag)?.[1] ?? '').split(' ');
+
+  it('revisão antes de decidir: os links da ESP e do RSK citados', async () => {
+    mPacote.mockResolvedValue(pacote({ rascunhoAgente: true, rascunhosCitados: [DEC, ESP, RSK] }));
+    const s = await pagina();
+    const revisao = s.slice(s.search(/<h2[^>]*>Revisão antes de decidir<\/h2>/));
+    for (const [href, texto] of [
+      [`/especificacoes/${ESP}`, ESP],
+      [`/pareceres-risco/${RSK}`, RSK],
+    ] as const)
+      expect(classes(link(revisao, href, texto)), texto).toEqual(expect.arrayContaining([...ALVO, 'font-mono', 'text-acao-escura', 'underline']));
+  });
+
+  it('alertas: "Ir para a demanda" do lembrete, o link do substituído e o do desatualizado', async () => {
+    mPacote.mockResolvedValue(aprovado());
+    let s = await pagina();
+    expect(classes(link(s, `/demandas/${ID}`, 'Ir para a demanda'))).toEqual(expect.arrayContaining([...ALVO, 'text-acao-escura', 'underline']));
+
+    mPacote.mockResolvedValue(aprovado({ substituido: true, substituidoPor: V2 }));
+    s = await pagina();
+    expect(classes(link(s, `/pacotes-decisao/${V2}`, `Abrir ${V2}`))).toEqual(expect.arrayContaining([...ALVO, 'text-acao-escura', 'underline']));
+
+    mPacote.mockResolvedValue(pacote({ desatualizado: true }));
+    mDemanda.mockResolvedValue(demanda({ especificacoes: [resumo(`ESP-${ID}-v3`), resumo(ESP)] }));
+    s = await pagina();
+    const desatualizado = s.slice(s.indexOf('Este pacote está desatualizado.'));
+    const abertura = /<a [^>]*href="\/demandas\/DEM-20261022-0042\/pacotes-decisao\/novo"[^>]*>/.exec(desatualizado)?.[0] ?? '';
+    expect(classes(abertura)).toEqual(expect.arrayContaining([...ALVO, 'text-acao-escura', 'underline']));
+  });
+
+  it('controle: os links dentro de frase do cabeçalho (a demanda e os "Ver" entre parênteses) não ganham o alvo de 44 px', async () => {
+    const s = await pagina();
+    const cabecalho = s.slice(0, s.search(/<h2/));
+    for (const [href, texto] of [
+      [`/demandas/${ID}`, ID],
+      [`/especificacoes/${ESP}`, 'Ver'],
+      [`/pareceres-risco/${RSK}`, 'Ver'],
+    ] as const)
+      expect(classes(link(cabecalho, href, texto)), `${href} ${texto}`).not.toContain('min-h-11');
+  });
+});
+
 // 06-T13-testes (qa-automacao), DEC-DEM-20261110-0015-v1: a T13 muda só classe por largura (md:, max-md:, xl:) sobre
 // um DOM só. Então, se nenhuma exigência de aprovação está dentro de algo que uma classe esconde em alguma largura
 // (hidden, md:hidden, max-md:hidden, xl:hidden, sr-only, invisible) nem atrás de `hidden`, `inert` ou `aria-hidden`, ela
