@@ -7,7 +7,7 @@
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 10/11/2026 (`documentacao-tecnica`, pedido 0014: versão 0.1.13; `devops-sre`, pedido 0014: rollback da 0.1.13 na seção 6, para a `v0.1.12`, sha completo da `v0.1.11` no parágrafo da 0.1.12 e merges sem migration até a 0.1.13 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0013: versão 0.1.12; `devops-sre`, pedido 0013: rollback da 0.1.12 na seção 6, para a `v0.1.11`, e merges sem migration até a 0.1.12 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0012: versão 0.1.11; `devops-sre`, pedido 0012: rollback da 0.1.11 na seção 6, para a `v0.1.10`, risco residual do M-1 do 0009 reduzido de novo na seção 4 e erro que lança ao ser lido na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0011: versão 0.1.10; `devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 11/11/2026 (`devops-sre`, pedido 0015: rollback da 0.2.0 na seção 6, para a `v0.1.13`, com o ensaio e a volta quando a origem do serviço for GitHub; merge da 0.2.0 sem migration na seção 4; tamanho da imagem e auditoria das `devDependencies` na seção 10); 10/11/2026 (`documentacao-tecnica`, pedido 0014: versão 0.1.13; `devops-sre`, pedido 0014: rollback da 0.1.13 na seção 6, para a `v0.1.12`, sha completo da `v0.1.11` no parágrafo da 0.1.12 e merges sem migration até a 0.1.13 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0013: versão 0.1.12; `devops-sre`, pedido 0013: rollback da 0.1.12 na seção 6, para a `v0.1.11`, e merges sem migration até a 0.1.12 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0012: versão 0.1.11; `devops-sre`, pedido 0012: rollback da 0.1.11 na seção 6, para a `v0.1.10`, risco residual do M-1 do 0009 reduzido de novo na seção 4 e erro que lança ao ser lido na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0011: versão 0.1.10; `devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -128,8 +128,8 @@ o nome atual) e nomes de outras pessoas. Não é regressão e não bloqueia a pu
 4. Criar os serviços `app` e `worker` (seção 2) com as variáveis da seção 3, **sem** iniciar ainda.
 5. Mergear o PR e esperar o `deploy.yml` publicar a imagem (passo "Publicar"). O que vem depois depende do push:
    - **com migration nova** (como no merge da 0.1.0): a execução fica verde, com o aviso de migration pendente;
-   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.13, que não mudam `drizzle/`): roda o passo "Disparar o
-     Easypanel".
+   - **sem migration nova** (como nos merges da 0.1.1 à 0.1.13 e da 0.2.0, que não mudam `drizzle/`): roda o passo
+     "Disparar o Easypanel".
      - Sem os segredos de webhook da seção 2, o passo falha com "Faltam os segredos EASYPANEL_WEBHOOK_APP e
        EASYPANEL_WEBHOOK_WORKER" e a execução fica vermelha. A imagem já estará publicada, e a limpeza do GHCR não roda.
      - Com os segredos cadastrados, o passo chama os webhooks antes da migration do passo 6, e o `app` responde 503 na
@@ -199,6 +199,43 @@ na homologação por `construir.mjs ensaiar-rollback <DEC-id>` antes de cada PR 
 anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaurar`, e as 7 migrations novas não alteram
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
+
+A 0.2.0 não traz migration: `drizzle/` não muda em relação à 0.1.13, e o journal é o mesmo da 0.1.13 à 0.1.0. Ela muda
+só a camada visual e não grava valor novo no banco:
+
+- as duas leituras novas da fila (total por status e etapas ESP, RSK e DEC de cada linha) são só `SELECT`;
+- a T05 lê o DEC mais novo por uma leitura que já existia;
+- a decisão, no computador e no celular, envia os mesmos campos pela mesma Server Action e grava as mesmas linhas;
+- variáveis, `Dockerfile`, workflows e `docker-compose.hml.yml` não mudam;
+- a única dependência nova são as fontes `@fontsource/noto-sans` e `@fontsource/noto-sans-mono` 5.3.0
+  (`devDependencies`). Elas entram no `next build` pelo `next/font/local` e saem servidas pelo próprio app, em
+  `/_next/static/media`, sem domínio novo na CSP.
+
+A volta da 0.2.0 é o caminho A, para
+`ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:198e97db928256fc301071f1bca9966a4de6bed4` (a `v0.1.13`, commit
+de merge do PR #15 na `main`), sem restaurar backup. Antes de voltar, confirme a tag em Packages. A 0.1.13 é a versão
+publicada em 10/11/2026 (plano da primeira publicação, CA-P5-16), então a 0.2.0 é a primeira versão que entra **por
+cima de uma produção em uso**, e a volta é para uma versão que já rodou nesse banco.
+
+Se o serviço estiver com origem GitHub (imagem montada pelo próprio Easypanel a partir do repositório), o caminho A não
+tem tag para trocar. A volta é trocar a origem do `worker` e do `app` para "Docker image" com a tag acima, com a
+credencial de leitura do GHCR da seção 2, e fazer o deploy (worker primeiro). Sem essa credencial cadastrada no
+Easypanel, não há volta rápida. Por isso, cadastre a credencial **antes** de publicar a 0.2.0.
+
+Ao voltar, não se perde dado:
+
+- o painel volta ao visual da 0.1.13: cabeçalho de antes, fila sem contadores nem etapas, T05 sem a barra de etapas
+  nem o cartão "Próxima ação", e T11 com o rádio "Decisão" e o botão "Registrar decisão", sem o arranjo do celular;
+- as sessões continuam valendo, porque o `BETTER_AUTH_SECRET` é o mesmo;
+- a decisão registrada pela 0.2.0 é a mesma linha que a 0.1.13 grava e lê.
+
+Uma aba aberta antes da troca pode recusar o próximo envio ou a próxima navegação, porque os arquivos e as Server
+Actions de um build não existem no outro. Recarregar a página resolve. Vale nas duas direções, na publicação e na volta.
+
+A volta é só para indisponibilidade que a própria 0.2.0 cause, e a correção vem logo depois. Ensaio na homologação em
+11/11/2026 (`construir.mjs ensaiar-rollback`, etapa 09): nenhuma migration nova (`alteram_dado: false`),
+`volta_sem_restaurar: true`. A 0.1.13 subiu, o banco ganhou backup, a 0.2.0 subiu por cima e respondeu 200 na saúde, a
+0.1.13 voltou sobre o mesmo banco, o backup foi restaurado e conferido, e a 0.2.0 subiu de novo.
 
 A 0.1.13 não traz migration: `drizzle/` não muda em relação à 0.1.12, e o journal é o mesmo da 0.1.12 à 0.1.0. O
 "substituído" é calculado na leitura, sem coluna nem status novo. Dois dados novos podem existir no banco depois dela, e a
@@ -418,6 +455,12 @@ O monitor externo da saúde ainda não existe: até lá, a conferência é a da 
   que o próprio CI baixou para a tag.
 - **Primeira execução do gitleaks:** o repositório tem senhas fictícias de propósito (homologação, seed, e2e). Se o
   gitleaks acusar alguma, a triagem é do `seguranca-aplicacao`; nada entra em lista de exceção sem essa revisão.
-- **Tamanho da imagem:** cerca de 1,74 GB em disco (426 MB comprimidos), porque o worker, a migration e os scripts rodam
-  por `tsx`, que é dependência de desenvolvimento. Compilar o worker e os scripts no build permitiria instalar só as
-  dependências de produção.
+- **Tamanho da imagem:** cerca de 1,76 GB em disco (438 MB de conteúdo), medido na 0.2.0 pela imagem da homologação;
+  era 1,74 GB e 426 MB na 0.1.7. O tamanho vem de o worker, a migration e os scripts rodarem por `tsx`, que é
+  dependência de desenvolvimento. Compilar o worker e os scripts no build permitiria instalar só as dependências de
+  produção na imagem final. O estágio `build` continuaria com a instalação completa, porque as fontes da 0.2.0
+  (`@fontsource/*`) são `devDependencies` lidas pelo `next build`.
+- **Auditoria de dependências:** o CI roda `pnpm audit --prod --audit-level high`, mas a imagem final leva também as
+  `devDependencies` (estágio `deps` com a instalação completa). Elas ficam fora do portão. Proposta da 0.2.0: conferir
+  `pnpm audit --audit-level high` sem `--prod` e, se não houver achado alto nem crítico, tirar o `--prod` do `ci.yml`,
+  para o portão cobrir o que vai na imagem.
