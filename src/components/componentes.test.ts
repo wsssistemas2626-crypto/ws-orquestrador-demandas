@@ -177,6 +177,16 @@ describe('GrupoOpcoes (03, 2.3 e T05)', () => {
       expect(cartao).toContain(c);
     expect(lista).not.toContain('has-[:checked]');
   });
+  // 0.2.0 (T12): o rótulo estica a área de clique ao cartão por um ::after absoluto; o rádio fica acima dessa camada,
+  // senão o clique no próprio rádio cai no rótulo (o e2e da T11 não conseguia marcar a opção).
+  it('variante cartão: o rádio fica acima da camada de clique do rótulo; a lista não muda', () => {
+    const props = { nome: 'opcao', legenda: 'Opção', opcoes: [{ valor: 'A', rotulo: 'Opção A' }] };
+    const classes = (s: string) => /<input[^>]*type="radio"[^>]*class="([^"]*)"/.exec(s)![1]!.split(' ');
+    const cartao = html(h(GrupoOpcoes, { ...props, variante: 'cartao' as const }));
+    expect(cartao).toContain('after:absolute after:inset-0');
+    expect(classes(cartao)).toEqual(expect.arrayContaining(['relative', 'z-10']));
+    expect(classes(html(h(GrupoOpcoes, props)))).not.toContain('z-10');
+  });
   it('a opção indisponível não chega ao onMudar, nem pelo teclado', () => {
     const opcoes = [
       { valor: 'em_analise', rotulo: 'Em análise' },

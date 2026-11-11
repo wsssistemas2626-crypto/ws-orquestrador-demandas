@@ -32,6 +32,12 @@ const CLASSE_DO_ROTULO: Readonly<Record<'lista' | 'cartao', string>> = {
   lista: '',
   cartao: 'flex-1 cursor-pointer after:absolute after:inset-0',
 };
+// 0.2.0 (T12): no cartão, o rádio fica acima da camada de clique do rótulo (after:absolute), para o clique no próprio
+// rádio chegar a ele.
+const CLASSE_DO_RADIO: Readonly<Record<'lista' | 'cartao', string>> = {
+  lista: 'h-5 w-5 shrink-0 accent-acao-escura',
+  cartao: 'relative z-10 h-5 w-5 shrink-0 accent-acao-escura',
+};
 
 const idDaOpcao = (nome: string, valor: string) => `${nome}-${valor === '' ? 'vazio' : valor}`;
 
@@ -73,7 +79,7 @@ export function GrupoOpcoes({ nome, legenda, opcoes, dica, erro, valor, valorPad
                 aria-describedby={idDica}
                 {...(valor !== undefined ? { checked: valor === o.valor, onChange: aoMudar } : { defaultChecked: valorPadrao === o.valor, onChange: aoMudar })}
                 onClick={o.desabilitada ? impedir : undefined}
-                className="h-5 w-5 shrink-0 accent-acao-escura"
+                className={CLASSE_DO_RADIO[variante]}
               />
               <label htmlFor={id} className={classeDoRotulo || undefined}>
                 {o.rotulo}

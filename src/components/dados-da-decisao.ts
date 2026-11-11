@@ -1,5 +1,6 @@
 // Regra da T11 Decisão do pacote no painel (03, T11; 04, C-14; P1-a, P1-b, P1-d), sem tela: os textos da 03, quem vê o
-// formulário, as opções dos grupos, a validação no envio, a entrada que vai à Server Action, os erros da API campo a
+// formulário, as opções dos grupos, a validação no envio, os três botões de envio da 0.2.0 (envioDaDecisao e
+// rotuloDoPrincipal), a entrada que vai à Server Action, os erros da API campo a
 // campo, o diálogo, os alertas de topo, a revisão antes de decidir, as opções e as aprovações em texto, e a chegada
 // depois de criar o pacote ou de decidir. Vai ao navegador: só tipos vêm dos módulos, e as mensagens que o servidor
 // também usa são cópia das de decidir.ts (o teste confere). Quem decide é o servidor (registrarDecisao, T21): a regra
@@ -77,16 +78,23 @@ export const TEXTOS_DECISAO = {
   devolver: 'Devolver para nova análise',
   arquivar: 'Arquivar',
   dicaAprovarIndisponivel: 'Indisponível: pacote desatualizado.',
-  dicaDevolver: 'Devolver para nova análise: a demanda volta para Em análise.',
+  // 0.2.0 (03 do DEC-DEM-20261110-0015-v1, seção 9): a consequência do botão curto "Devolver".
+  dicaDevolver: 'Devolver: a demanda volta para Em análise.',
   dicaArquivar: 'Arquivar: a demanda vai para Encerrada.',
+  // 0.2.0 (T12): os três botões de envio e o grupo deles. `legendaDecisao`, `aprovar` como rótulo de rádio, `devolver`
+  // e `registrar` como texto de botão ficam sem uso na T11 (03, seção 9); o `h2` "Registrar decisão" continua.
+  aprovarOpcao: (o: OpcaoDecisao) => `Aprovar a opção ${o}`,
+  devolverCurto: 'Devolver',
+  grupoAcoes: 'Ações da decisão',
   legendaOpcao: 'Opção escolhida (obrigatório)',
   rotuloOpcao: (l: LetraOpcao, trecho: string) => `Opção ${l} — ${trecho}`,
   // A 03 escreve a frase do CTO aprovando primeiro; a da administradora aprovando primeiro troca só o papel.
   fixada: (papel: PapelAprovacao, opcao: OpcaoDecisao) =>
     `${DO_PAPEL[papel].artigo} ${DO_PAPEL[papel].nome} aprovou a opção ${opcao}. A sua aprovação vale para a mesma opção. Para discordar, escolha devolver ou arquivar.`,
-  referencia: 'Identificador do documento assinado (obrigatório)',
+  // 0.2.0 (T12): o documento aparece desde o início, e o rótulo diz que ele é obrigatório só para aprovar.
+  referencia: 'Identificador do documento assinado (obrigatório para aprovar)',
   dicaReferencia: 'Exemplo: número do documento no sistema de assinatura.',
-  dataAssinatura: 'Data da assinatura (obrigatório)',
+  dataAssinatura: 'Data da assinatura (obrigatório para aprovar)',
   comentarios: 'Comentários (opcional)',
   revisei: 'Revisei os rascunhos de agente citados neste pacote (obrigatório)',
   registrando: 'Registrando…',
@@ -167,6 +175,8 @@ export function textoDaDecisaoRegistrada(p: Pick<PacoteDecisaoVista, 'statusDeci
 // --- grupos do formulário ---
 
 // "Aprovar" desatualizado fica no grupo, indisponível e explicado (CA-12.4; GrupoOpcoes: aria-disabled e aria-describedby).
+// Desde a 0.2.0 (T12) a T11 decide por três botões, e este grupo de rádio não aparece mais na tela; a função fica, com o
+// teste dela, até a limpeza dos textos sem uso (03, seção 9).
 export function opcoesDaDecisao(aprovarIndisponivel: boolean): OpcaoDoGrupo[] {
   const t = TEXTOS_DECISAO;
   return [
@@ -279,6 +289,35 @@ export function entradaDaDecisao(v: ValoresDaDecisao, ctx: ContextoDoFormulario)
       }
     : {};
   return { statusDecisao: 'aprovada', ...(opcao ? { opcaoEscolhida: opcao } : {}), ...documento, ...comuns };
+}
+
+// --- os três botões (0.2.0, T12; ADR-18) ---
+
+// O valor de cada botão de envio, na ordem do DOM: o principal ("Aprovar…") é o primeiro, e o Enter num campo de texto
+// envia por ele.
+export const ACOES_DA_DECISAO = ['aprovada', 'devolvida', 'arquivada'] as const satisfies readonly StatusDecisaoGravado[];
+
+export type EnvioDaDecisao = { tipo: 'nada' } | { tipo: 'erros'; v: ValoresDaDecisao; erros: ErroDeCampo[] } | { tipo: 'confirmar'; v: ValoresDaDecisao };
+
+// CV-10: o botão ativado define o statusDecisao uma vez, e o `v` devolvido é o que vai ao diálogo (textoDoDialogo) e à
+// Server Action (entradaDaDecisao), sem reler o estado da tela. Valor fora da lista, ou envio sem botão, não faz nada.
+// CV-11: com o pacote desatualizado, "Aprovar" não valida, não abre diálogo e não envia; o servidor continua com o 409.
+// A validação é a de hoje (validarDecisao), sem mudança.
+export function envioDaDecisao(valores: ValoresDaDecisao, ctx: ContextoDoFormulario, valorDoBotao: string | null | undefined): EnvioDaDecisao {
+  const acao = ACOES_DA_DECISAO.find((a) => a === valorDoBotao);
+  if (!acao) return { tipo: 'nada' };
+  if (acao === 'aprovada' && ctx.aprovarIndisponivel) return { tipo: 'nada' };
+  const v: ValoresDaDecisao = { ...valores, statusDecisao: acao };
+  const erros = validarDecisao(v, ctx);
+  return erros.length > 0 ? { tipo: 'erros', v, erros } : { tipo: 'confirmar', v };
+}
+
+// Texto do botão principal (03, 6.4): "Aprovar a opção X", com X a opção fixada pela primeira aprovação (a que a entrada
+// envia) ou a marcada; sem opção, e com o pacote desatualizado, "Aprovar". Nenhuma opção vem marcada (CV-13).
+export function rotuloDoPrincipal(v: Pick<ValoresDaDecisao, 'opcaoEscolhida'>, ctx: Pick<ContextoDoFormulario, 'opcaoFixada' | 'aprovarIndisponivel'>): string {
+  if (ctx.aprovarIndisponivel) return TEXTOS_DECISAO.aprovar;
+  const o = ctx.opcaoFixada?.opcao ?? (v.opcaoEscolhida === '' ? null : v.opcaoEscolhida);
+  return o ? TEXTOS_DECISAO.aprovarOpcao(o) : TEXTOS_DECISAO.aprovar;
 }
 
 // --- erros da API ---

@@ -277,7 +277,8 @@ test('T11 Decisão: pendente com rascunhos, com erro, com o diálogo aberto e na
   const decId = `DEC-${bug}-v1`;
   const pacote = await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`);
   expect(pacote).toMatchObject({ rascunhoAgente: true, statusDecisao: 'pendente' });
-  const registrar = page.getByRole('button', { name: 'Registrar decisão' });
+  // 0.2.0 (T12): o botão principal "Aprovar" ("Aprovar a opção A" com a opção marcada) no lugar de "Registrar decisão".
+  const registrar = page.getByRole('group', { name: 'Ações da decisão', exact: true }).getByRole('button', { name: /^Aprovar( a opção [AB])?$/ });
 
   await page.goto(`/pacotes-decisao/${decId}`);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Decisão: /);
@@ -288,7 +289,6 @@ test('T11 Decisão: pendente com rascunhos, com erro, com o diálogo aberto e na
   await expect(resumoDeErros(page)).toBeFocused();
   await axe(page, 'T11 com erro');
 
-  await page.getByRole('group', { name: 'Decisão (obrigatório)', exact: true }).getByRole('radio', { name: 'Aprovar', exact: true }).check();
   await page.getByRole('radio', { name: /^Opção A/ }).check();
   await page.getByRole('checkbox', { name: 'Revisei os rascunhos de agente citados neste pacote (obrigatório)' }).check();
   await registrar.click();

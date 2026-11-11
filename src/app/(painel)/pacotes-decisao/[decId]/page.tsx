@@ -18,7 +18,6 @@ import {
   formularioDaConta,
   itensDaRevisao,
   linhasDeAprovacao,
-  opcoesDaDecisao,
   opcoesDaEscolha,
   rascunhosEmTexto,
   secoesDasOpcoes,
@@ -204,7 +203,6 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
               exigeRevisao: p.rascunhosCitados.length > 0,
               aprovarIndisponivel: p.desatualizado,
             }}
-            opcoesDecisao={opcoesDaDecisao(p.desatualizado)}
             opcoesEscolha={opcoesDaEscolha(p)}
             repositorioDestino={p.especificacaoCitada.repositorioDestino}
             nivelAprovacaoRequerido={p.nivelAprovacaoRequerido}

@@ -262,10 +262,17 @@ describe('T11: cabeçalho, revisão e conteúdo', () => {
     expect(s).toContain('>Desatualizado</span>');
     expect(s).toContain(`Este pacote está desatualizado. A demanda já tem ESP-${ID}-v3, mais nova que a citada aqui.`);
     expect(s).toContain(`href="/demandas/${ID}/pacotes-decisao/novo"`);
-    const aprovar = /<input type="radio" id="campo-statusDecisao-aprovada"[^>]*>/.exec(s)![0];
+    // 0.2.0 (T12): "Aprovar" é o botão principal, e não mais o rádio; continua indisponível e explicado (CA-11.3).
+    const aprovar = /<button [^>]*id="decisao-aprovar"[^>]*>[^<]*<\/button>/.exec(s)![0];
     expect(aprovar).toContain('aria-disabled="true"');
-    expect(aprovar).toContain('aria-describedby="campo-statusDecisao-aprovada-dica"');
-    expect(s).toContain('id="campo-statusDecisao-aprovada-dica" class="ml-7 text-sm text-texto-suave">Indisponível: pacote desatualizado.</p>');
+    expect(aprovar).toContain('aria-describedby="decisao-aprovar-indisponivel"');
+    expect(aprovar).not.toMatch(/\sdisabled=/);
+    expect(aprovar).toMatch(/>Aprovar<\/button>$/);
+    expect(s).toMatch(/<p id="decisao-aprovar-indisponivel"[^>]*>Indisponível: pacote desatualizado\.<\/p>/);
+    // Sem desatualização, as opções e o documento só servem para aprovar: não aparecem (03, 6.4).
+    expect(s).not.toContain(`id="${idDoCampo('opcaoEscolhida')}-A"`);
+    // Devolver e Arquivar continuam disponíveis.
+    for (const id of ['decisao-devolver', 'decisao-arquivar']) expect(new RegExp(`<button [^>]*id="${id}"[^>]*>`).exec(s)![0], id).not.toMatch(/\saria-disabled=/);
   });
 
   it('C-18: título copiado e opções como texto', async () => {
@@ -277,19 +284,67 @@ describe('T11: cabeçalho, revisão e conteúdo', () => {
 });
 
 describe('T11: quem vê o formulário (P1-a, P1-b)', () => {
-  it('nível cto, conta cto: o formulário sem documento; os grupos e o botão', async () => {
+  it('nível cto, conta cto: o formulário sem documento; as opções e os três botões', async () => {
     const s = await pagina();
     expect(s).toMatch(/<h2[^>]*>Registrar decisão<\/h2>/);
-    expect(s).toContain('>Decisão (obrigatório)</legend>');
-    for (const r of ['Aprovar', 'Devolver para nova análise', 'Arquivar']) expect(s).toContain(`>${r}</label>`);
-    expect(s).toContain('Devolver para nova análise: a demanda volta para Em análise.');
-    expect(s).toContain('Arquivar: a demanda vai para Encerrada.');
+    // 0.2.0 (T12, RF-11): o grupo "Decisão" deu lugar aos três botões de envio, no fim do formulário, nesta ordem; o
+    // principal é o primeiro submit (o Enter num campo envia por ele).
+    expect(s).not.toContain('>Decisão (obrigatório)</legend>');
+    const form = s.slice(s.indexOf('<form'), s.indexOf('</form>'));
+    const atributo = (tag: string, nome: string) => new RegExp(`\\s${nome}="([^"]*)"`).exec(tag)?.[1];
+    expect(
+      [...form.matchAll(/(<button type="submit"[^>]*>)([^<]+)<\/button>/g)].map(([, tag, texto]) => [atributo(tag!, 'id'), atributo(tag!, 'name'), atributo(tag!, 'value'), texto]),
+    ).toEqual([
+      ['decisao-aprovar', 'acao', 'aprovada', 'Aprovar'],
+      ['decisao-devolver', 'acao', 'devolvida', 'Devolver'],
+      ['decisao-arquivar', 'acao', 'arquivada', 'Arquivar'],
+    ]);
+    expect(form.match(/<button type="submit"/g)).toHaveLength(3);
+    expect(form).toMatch(/<div id="rodape-da-decisao" role="group" aria-label="Ações da decisão"[^>]*>/);
+    // A consequência de cada ação em texto visível, ligada ao botão (aria-describedby), acima do grupo.
+    expect(s).toContain('<p id="decisao-consequencia-devolver" class="text-sm text-tinta-media">Devolver: a demanda volta para Em análise.</p>');
+    expect(s).toContain('<p id="decisao-consequencia-arquivar" class="text-sm text-tinta-media">Arquivar: a demanda vai para Encerrada.</p>');
+    expect(/<button [^>]*id="decisao-devolver"[^>]*>/.exec(s)![0]).toContain('aria-describedby="decisao-consequencia-devolver"');
+    expect(/<button [^>]*id="decisao-arquivar"[^>]*>/.exec(s)![0]).toContain('aria-describedby="decisao-consequencia-arquivar"');
+    expect(form.indexOf('decisao-consequencia-arquivar')).toBeLessThan(form.indexOf('id="rodape-da-decisao"'));
     expect(s).toContain('class="font-medium">Comentários (opcional)</label>');
     expect(s).not.toContain('Identificador do documento assinado');
     expect(s).not.toContain('Revisei os rascunhos');
-    expect(s).toMatch(/<button type="submit"[^>]*>Registrar decisão<\/button>/);
-    expect(s).not.toContain(`id="${idDoCampo('opcaoEscolhida')}-A"`);
+    expect(s).not.toMatch(/<button[^>]*>Registrar decisão<\/button>/);
+    // As opções aparecem desde o início (03, 6.4), e nenhuma vem marcada (CV-13, P-01).
+    expect(s).toContain('>Opção escolhida (obrigatório)</legend>');
+    expect(s).toContain(`id="${idDoCampo('opcaoEscolhida')}-A"`);
+    expect(s).toContain(`id="${idDoCampo('opcaoEscolhida')}-B"`);
+    expect(s).not.toMatch(/<input type="radio"[^>]*checked/);
+    expect(s).not.toContain('Recomendada');
     expect(s).not.toContain('Aprovações');
+  });
+
+  it('CV-15: o formulário não tem action nem method; identificador, data, comentários e revisão não têm name', async () => {
+    mPacote.mockResolvedValue(pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', rascunhoAgente: true, rascunhosCitados: [DEC] }));
+    mExigir.mockResolvedValue(ADM);
+    const s = await pagina();
+    const abertura = /<form[^>]*>/.exec(s)![0];
+    expect(abertura).not.toMatch(/\saction=|\smethod=/);
+    for (const campo of ['referenciaDocumento', 'dataDocumento', 'comentarios', 'revisouRascunhosDeAgente']) {
+      const el = new RegExp(`<(?:input|textarea)[^>]*\\sid="${idDoCampo(campo)}"[^>]*>`).exec(s)![0];
+      expect(el, campo).not.toMatch(/\sname=/);
+    }
+    // name só nos rádios de opção e nos três botões, com valores de enumeração.
+    const nomes = [...s.slice(s.indexOf('<form'), s.indexOf('</form>')).matchAll(/\sname="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(nomes)).toEqual(new Set([idDoCampo('opcaoEscolhida'), 'acao']));
+  });
+
+  it('administradora sem aprovação: documento visível desde o início, "obrigatório para aprovar", sem aria-required; revisão com aria-required', async () => {
+    mPacote.mockResolvedValue(pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', rascunhoAgente: true, rascunhosCitados: [DEC] }));
+    mExigir.mockResolvedValue(ADM);
+    const s = await pagina();
+    expect(s).toContain('>Identificador do documento assinado (obrigatório para aprovar)</label>');
+    expect(s).toContain('>Data da assinatura (obrigatório para aprovar)</label>');
+    for (const campo of ['referenciaDocumento', 'dataDocumento'])
+      expect(new RegExp(`<input[^>]*\\sid="${idDoCampo(campo)}"[^>]*>`).exec(s)![0], campo).not.toContain('aria-required');
+    expect(new RegExp(`<input[^>]*\\sid="${idDoCampo('revisouRascunhosDeAgente')}"[^>]*>`).exec(s)![0]).toContain('aria-required="true"');
+    expect(/<button [^>]*id="decisao-aprovar"[^>]*>[^<]*<\/button>/.exec(s)![0]).toMatch(/>Aprovar<\/button>$/);
   });
 
   it('P1-b: nível cto, conta administradora: só "Este pacote exige só a aprovação do CTO." e nenhum formulário', async () => {
@@ -310,6 +365,10 @@ describe('T11: quem vê o formulário (P1-a, P1-b)', () => {
     expect(s).toContain('O sistema guarda a referência ao documento assinado; ela não substitui a assinatura.');
     expect(s).toContain('<form');
     expect(s).not.toContain(`id="${idDoCampo('opcaoEscolhida')}-A"`);
+    // 0.2.0 (T12): a frase da opção fixada aparece desde o início, e o principal já diz a opção.
+    expect(s).toContain('O CTO aprovou a opção A. A sua aprovação vale para a mesma opção. Para discordar, escolha devolver ou arquivar.');
+    expect(/<button [^>]*id="decisao-aprovar"[^>]*>[^<]*<\/button>/.exec(s)![0]).toMatch(/>Aprovar a opção A<\/button>$/);
+    expect(s).toContain('>Identificador do documento assinado (obrigatório para aprovar)</label>');
     mExigir.mockResolvedValue(CTO);
     s = await pagina();
     expect(s).toContain('Sua aprovação está registrada. Falta a aprovação da administradora, com a referência ao documento assinado. O pacote só vale depois dela.');
