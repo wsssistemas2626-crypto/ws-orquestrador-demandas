@@ -21,6 +21,8 @@ export const PAPEIS_SOLICITANTE = ['operacoes', 'financeiro', 'produto', 'outro'
 export const LINHAS_SERVICO = ['sob_medida', 'automacao_integracao', 'ia_controle_humano', 'diagnostico_sustentacao', 'indefinida'] as const;
 export const URGENCIAS = ['baixa', 'media', 'alta'] as const;
 export const AUTORES_ARTEFATO = ['pessoa', 'agente'] as const;
+// A demanda tem lista própria (ADR-24): só ela aceita integração como autora; ESP, RSK e DEC seguem com AUTORES_ARTEFATO.
+export const AUTORES_DEMANDA = ['pessoa', 'agente', 'integracao'] as const;
 export const STATUS_ENTRADA_PENDENTE = ['aguardando', 'falhou'] as const;
 
 export type TipoDemanda = (typeof TIPOS_DEMANDA)[number];
@@ -29,6 +31,7 @@ export type PapelSolicitante = (typeof PAPEIS_SOLICITANTE)[number];
 export type LinhaServico = (typeof LINHAS_SERVICO)[number];
 export type Urgencia = (typeof URGENCIAS)[number];
 export type AutorArtefato = (typeof AUTORES_ARTEFATO)[number];
+export type AutorDemanda = (typeof AUTORES_DEMANDA)[number];
 export type StatusEntradaPendente = (typeof STATUS_ENTRADA_PENDENTE)[number];
 export type Anexo = { tipo: 'url' | 'arquivo'; referencia: string; descricao?: string };
 export type Origem = { canal?: 'email' | 'mensagem' | 'formulario' | 'outro'; referencia?: string };
@@ -53,7 +56,7 @@ export const demanda = pgTable(
     impactoPercebido: text(),
     anexos: jsonb().$type<Anexo[]>().notNull().default(sql`'[]'::jsonb`),
     duvidasEntrada: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-    autorTipo: text().$type<AutorArtefato>().notNull(),
+    autorTipo: text().$type<AutorDemanda>().notNull(),
     autorId: text().notNull(),
     rascunhoAgente: boolean().notNull().default(false),
     criadaEm: momento().notNull(),
@@ -72,7 +75,9 @@ export const demanda = pgTable(
       sql`"linha_servico_provavel" in ('sob_medida', 'automacao_integracao', 'ia_controle_humano', 'diagnostico_sustentacao', 'indefinida')`,
     ),
     check('demanda_urgencia_check', sql`"urgencia" in ('baixa', 'media', 'alta')`),
-    check('demanda_autor_tipo_check', sql`"autor_tipo" in ('pessoa', 'agente')`),
+    check('demanda_autor_tipo_check', sql`"autor_tipo" in ('pessoa', 'agente', 'integracao')`),
+    // ADR-24 e IN-05: só o awave cria demanda como integração, e sempre como rascunho.
+    check('demanda_autor_integracao_check', sql`"autor_tipo" <> 'integracao' or ("autor_id" = 'awave' and "rascunho_agente")`),
     check('demanda_anexos_check', sql`jsonb_typeof("anexos") = 'array'`),
     check('demanda_duvidas_entrada_check', sql`jsonb_typeof("duvidas_entrada") = 'array'`),
     index('demanda_criada_idx').on(t.criadaEm),

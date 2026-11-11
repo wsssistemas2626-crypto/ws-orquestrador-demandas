@@ -110,16 +110,26 @@ export const bloqueioVerificacao = pgTable(
   () => [check('bloqueio_verificacao_falhas_check', sql`"falhas" >= 0`)],
 );
 
-// C-09: o banco guarda só o SHA-256 do token; o prefixo identifica o token no histórico e na revogação.
+// Fonte única da lista de integrações (ADR-20), espelhada nos CHECK de token_servico, evento e demanda.
+export const INTEGRACOES = ['awave', 'construir'] as const;
+export type Integracao = (typeof INTEGRACOES)[number];
+
+// C-09 e ADR-21: o banco guarda só o SHA-256 do token; o prefixo identifica o token no histórico e na revogação. O
+// dono é um agente OU uma integração, nunca os dois nem nenhum.
 export const tokenServico = pgTable(
   'token_servico',
   {
     id: uuid().primaryKey().defaultRandom(),
-    agente: text().$type<Agente>().notNull(),
+    agente: text().$type<Agente>(),
+    integracao: text().$type<Integracao>(),
     hash: text().notNull().unique(),
     prefixo: text().notNull(),
     criadoEm: momento().notNull(),
     revogadoEm: momento(),
   },
-  () => [check('token_servico_agente_check', sql`"agente" in ('orquestrador', 'insumo_tecnico', 'risco', 'consolidacao')`)],
+  () => [
+    check('token_servico_agente_check', sql`"agente" in ('orquestrador', 'insumo_tecnico', 'risco', 'consolidacao')`),
+    check('token_servico_integracao_check', sql`"integracao" in ('awave', 'construir')`),
+    check('token_servico_dono_check', sql`num_nonnulls("agente", "integracao") = 1`),
+  ],
 );

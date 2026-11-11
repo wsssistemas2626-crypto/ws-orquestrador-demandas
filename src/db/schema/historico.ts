@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { bigint, check, index, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
 import { momento } from './comum';
 
-export type AtorTipo = 'pessoa' | 'agente' | 'sistema';
+export type AtorTipo = 'pessoa' | 'agente' | 'sistema' | 'integracao';
 
 export const evento = pgTable(
   'evento',
@@ -22,7 +22,11 @@ export const evento = pgTable(
     depois: jsonb(),
   },
   (t) => [
-    check('evento_ator_tipo_check', sql`"ator_tipo" in ('pessoa', 'agente', 'sistema')`),
+    check('evento_ator_tipo_check', sql`"ator_tipo" in ('pessoa', 'agente', 'sistema', 'integracao')`),
+    // IN-12: ato de integração sempre com o nome da lista e o prefixo do token.
+    check('evento_ator_integracao_check', sql`"ator_tipo" <> 'integracao' or ("ator_id" in ('awave', 'construir') and "ator_token_prefixo" is not null)`),
     index('evento_demanda_ocorrido_idx').on(t.demandaId, t.ocorridoEm),
+    // ADR-27: pendentes, entregue, recebido e confirmada procuram por ação e entidade.
+    index('evento_acao_entidade_idx').on(t.acao, t.entidadeId),
   ],
 );

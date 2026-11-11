@@ -34,7 +34,8 @@ export async function validarTokenServico(db: Db, token: string): Promise<AtorAg
     .select({ agente: tokenServico.agente, prefixo: tokenServico.prefixo })
     .from(tokenServico)
     .where(and(eq(tokenServico.hash, hashDoToken(token)), isNull(tokenServico.revogadoEm)));
-  return linha ? { tipo: 'agente', agente: linha.agente, prefixoToken: linha.prefixo } : null;
+  // T01: linha sem agente (token de integração, ADR-21) ainda não resolve ator: 401 até a T03 tratar a integração.
+  return linha?.agente ? { tipo: 'agente', agente: linha.agente, prefixoToken: linha.prefixo } : null;
 }
 
 // `true` quando revogou ao menos um token ativo com esse prefixo; já revogado ou inexistente, `false`.
