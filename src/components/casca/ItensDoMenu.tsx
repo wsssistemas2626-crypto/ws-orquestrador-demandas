@@ -8,7 +8,9 @@ import { ehPaginaAtual, LINKS, type LinkDoMenu } from './navegacao';
 
 const ICONE = 'size-5 shrink-0';
 
-function Icone({ children }: { children: ReactNode }) {
+// O ícone decorativo da casca, num lugar só (Minor 2 da 06-T05-tech-lead): também o do "Menu" e o do "Fechar menu".
+// Sempre `aria-hidden` e fora da ordem de foco.
+export function Icone({ children }: { children: ReactNode }) {
   return (
     <svg className={ICONE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
       {children}

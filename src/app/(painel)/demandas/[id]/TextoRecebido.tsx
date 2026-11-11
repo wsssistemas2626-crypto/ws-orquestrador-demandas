@@ -16,10 +16,10 @@ export function TextoRecebido({ texto, retencaoDias }: Props) {
   const canal = texto.origem?.canal ? ROTULO_CANAL_ORIGEM[texto.origem.canal] : TEXTOS_DETALHE.naoInformado;
   const referencia = texto.origem?.referencia || TEXTOS_DETALHE.naoInformado;
   return (
-    <details className="rounded-campo border border-borda">
-      <summary className="min-h-11 cursor-pointer px-4 py-2 font-medium text-primaria">{t.mostrar}</summary>
-      <div className="flex flex-col gap-4 border-t border-borda px-4 py-4">
-        <p className="rounded-campo border-l-4 border-atencao-texto bg-atencao-fundo px-4 py-3 text-atencao-texto">{t.aviso(formatarData(texto.apagarEm))}</p>
+    <details className="rounded-campo border border-tinta-suave">
+      <summary className="min-h-11 cursor-pointer px-4 py-2 font-medium text-acao-escura">{t.mostrar}</summary>
+      <div className="flex flex-col gap-4 border-t border-linha px-4 py-4">
+        <p className="rounded-campo border-l-4 border-atencao bg-atencao-fundo px-4 py-3 text-atencao">{t.aviso(formatarData(texto.apagarEm))}</p>
         <dl className="flex flex-col gap-3">
           <div>
             <dt className="font-medium">{t.recebidoEm}</dt>

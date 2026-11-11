@@ -17,7 +17,7 @@
 // 2FA e nenhuma falha de senha ou de código é somada a ela. Na T01, o erro é o de campo vazio, que não chega ao servidor.
 import { type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
-import { api, entrarComo, entrarSoComSenha, expect, ipFicticio, semViolacoes, test } from './apoio';
+import { api, entrarComo, entrarSoComSenha, expect, ipFicticio, semViolacoes, semViolacoesNasDuasLarguras, test } from './apoio';
 
 type ListaDemandas = { itens: { id: string; titulo: string }[] };
 type Pacote = { id: string; rascunhoAgente: boolean; statusDecisao: string };
@@ -72,9 +72,24 @@ async function decDePessoaSoDoCto(page: Page): Promise<string> {
 
 // O axe conta como alvo pequeno o controle que, com a página rolada, fica sob o cabeçalho fixo da moldura (ver a
 // detalhe-demanda.spec). Depois de um foco que rolou a página, a verificação volta ao topo.
+// T16 do DEC-DEM-20261110-0015-v1 (G5, D-06): cada estado é conferido em 1280 × 720 e em 390 × 844, no mesmo estado da
+// página; a volta ao topo depois de cada troca de largura fica no semViolacoesNasDuasLarguras.
 async function axe(page: Page, rotulo: string): Promise<void> {
   await page.evaluate(() => window.scrollTo(0, 0));
-  await semViolacoes(page, rotulo);
+  await semViolacoesNasDuasLarguras(page, rotulo);
+}
+
+const CELULAR = { width: 390, height: 844 } as const;
+const COMPUTADOR = { width: 1280, height: 720 } as const;
+
+// Abre um recolhível ("Mais filtros" na T03, "Ver vantagens…" na T11), que só tem botão abaixo de 768 px. O clique
+// antes da hidratação não faz nada: ele só se repete enquanto o botão segue fechado.
+async function abrirRecolhivel(page: Page, nome: RegExp): Promise<void> {
+  const botao = page.locator('main').getByRole('button', { name: nome });
+  await expect(async () => {
+    if ((await botao.getAttribute('aria-expanded')) !== 'true') await botao.click({ timeout: 1_000 });
+    await expect(botao).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
 }
 
 test('T01 Entrar: vazio, com erro e passo 2 (código)', async ({ page }) => {
@@ -132,6 +147,22 @@ test('T03 Fila: com dados, filtrada, vazia com filtro e com filtro inválido', a
   await page.goto('/demandas?status=qualquer-coisa');
   await expect(page.locator('main').getByText('Algum filtro do endereço não é válido. Mostrando todas as demandas.')).toBeVisible();
   await axe(page, 'T03 com filtro inválido');
+
+  // T16: os dois estados que só existem abaixo de 768 px, "Mais filtros" aberto e a gaveta do menu aberta. A gaveta fecha
+  // quando a janela passa de 768 px, por isso o axe dela roda só em 390 × 844.
+  await page.setViewportSize(CELULAR);
+  await page.goto('/demandas');
+  await expect(page.locator('main').getByRole('status')).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
+  await abrirRecolhivel(page, /^Mais filtros/);
+  await axe(page, 'T03 com "Mais filtros" aberto');
+  const gaveta = page.getByRole('dialog', { name: 'Menu' });
+  await expect(async () => {
+    if (!(await gaveta.isVisible())) await page.getByRole('button', { name: 'Menu', exact: true }).click({ timeout: 1_000 });
+    await expect(gaveta).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
+  await gaveta.evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)).then(() => undefined));
+  await semViolacoes(page, 'T03 com a gaveta aberta (390 × 844)');
+  await page.setViewportSize(COMPUTADOR);
 });
 
 test('T04 Nova demanda: vazia, com erro e preenchida sem salvar', async ({ page }) => {
@@ -284,6 +315,11 @@ test('T11 Decisão: pendente com rascunhos, com erro, com o diálogo aberto e na
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Decisão: /);
   await expect(page.getByRole('region', { name: 'Revisão antes de decidir' })).toBeVisible();
   await axe(page, 'T11 pendente com rascunhos');
+  // T16: o recolhível das opções e da revisão aberto (o botão só existe abaixo de 768 px).
+  await page.setViewportSize(CELULAR);
+  await abrirRecolhivel(page, /^Ver /);
+  await axe(page, 'T11 com o recolhível aberto');
+  await page.setViewportSize(COMPUTADOR);
 
   await registrar.click();
   await expect(resumoDeErros(page)).toBeFocused();
@@ -294,7 +330,7 @@ test('T11 Decisão: pendente com rascunhos, com erro, com o diálogo aberto e na
   await registrar.click();
   const dialogo = page.getByRole('dialog', { name: 'Confirmar a decisão?' });
   await expect(dialogo).toBeVisible();
-  await semViolacoes(page, 'T11 com o diálogo aberto');
+  await semViolacoesNasDuasLarguras(page, 'T11 com o diálogo aberto');
   // "Voltar" fecha sem registrar: o pacote do seed continua pendente para a decisao.spec.
   await dialogo.getByRole('button', { name: 'Voltar' }).click();
   await expect(dialogo).toBeHidden();
@@ -344,7 +380,7 @@ test('T12 Agentes e teto: inicial, com erro de teto, com o diálogo de ligar e n
   await interruptor.click();
   const dialogo = page.getByRole('dialog', { name: 'Ligar o agente orquestrador?' });
   await expect(dialogo).toBeVisible();
-  await semViolacoes(page, 'T12 com o diálogo de ligar');
+  await semViolacoesNasDuasLarguras(page, 'T12 com o diálogo de ligar');
   await dialogo.getByRole('button', { name: 'Cancelar' }).click();
   await expect(dialogo).toBeHidden();
   await expect(interruptor).toHaveAttribute('aria-checked', 'false');

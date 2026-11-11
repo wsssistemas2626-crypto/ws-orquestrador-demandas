@@ -543,7 +543,7 @@ describe('MudarStatus.tsx', () => {
     expect(p).toContain('Status atual: Pronta para decisão');
     expect(p).toContain('<legend class="font-medium">Novo status</legend>');
     expect(p).toMatch(/<input type="radio" id="campo-novoStatus-aprovada"[^>]*aria-disabled="true"[^>]*aria-describedby="campo-novoStatus-aprovada-dica"/);
-    expect(p).toContain('<p id="campo-novoStatus-aprovada-dica" class="ml-7 text-sm text-texto-suave">Aprovada: precisa de um pacote de decisão aprovado e atualizado.</p>');
+    expect(p).toContain('<p id="campo-novoStatus-aprovada-dica" class="ml-7 text-sm text-tinta-media">Aprovada: precisa de um pacote de decisão aprovado e atualizado.</p>');
     expect(p).toMatch(/<input type="radio" id="campo-novoStatus-em_analise"(?![^>]*aria-disabled)[^>]*>/);
     expect(p).toMatch(/<button type="submit"[^>]*>Mudar status<\/button>/);
     expect(p).toContain('<div role="status"');

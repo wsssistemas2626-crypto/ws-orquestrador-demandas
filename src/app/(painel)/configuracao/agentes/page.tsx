@@ -36,9 +36,7 @@ export const metadata: Metadata = { title: TEXTOS_AGENTES.tituloAba };
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: ReactNode }) {
   return (
     <Cartao rotuloPor={id} className="flex flex-col gap-4">
-      <h2 id={id} className="text-xl font-semibold">
-        {titulo}
-      </h2>
+      <h2 id={id}>{titulo}</h2>
       {children}
     </Cartao>
   );

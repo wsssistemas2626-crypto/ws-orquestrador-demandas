@@ -14,7 +14,7 @@ import { Botao } from '../Botao';
 import { MarcaWs } from '../marca/MarcaWs';
 import { BotaoSair } from './BotaoSair';
 import { focaveisEm, proximoIndiceCircular } from './foco';
-import { ItensDoMenu } from './ItensDoMenu';
+import { Icone, ItensDoMenu } from './ItensDoMenu';
 
 export const ID_GAVETA = 'gaveta-menu';
 const ID_FECHAR = 'gaveta-menu-fechar';
@@ -123,9 +123,9 @@ export function GavetaMenu({ aberta, caminho, conta, botaoMenu, aoFechar }: Prop
           <div className="flex items-start justify-between gap-3">
             <MarcaWs variante="escura" />
             <Botao id={ID_FECHAR} variante="sobre-escuro" className="shrink-0 px-3" onClick={() => fechar('menu')}>
-              <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true" focusable="false">
+              <Icone>
                 <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
+              </Icone>
               Fechar menu
             </Botao>
           </div>

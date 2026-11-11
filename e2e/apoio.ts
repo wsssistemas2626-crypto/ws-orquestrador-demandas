@@ -109,6 +109,25 @@ export async function semViolacoes(page: Page, rotulo: string): Promise<void> {
   expect(violacoes, `axe em ${rotulo}${temTitulo ? '' : ' (a página ficou sem <title> por 5 s)'}`).toEqual([]);
 }
 
+// T16 do DEC-DEM-20261110-0015-v1 (D-06, RNF-13): o axe no mesmo estado da página em 1280 × 720 e em 390 × 844, e a
+// janela volta ao tamanho de antes. Nada é clicado nem criado entre as duas medições.
+//
+// Depois de cada troca de largura, a página volta ao topo antes do axe (06-T14-tech-lead, "Decisão sobre a pendência do
+// axe target-size"): com a janela mais estreita, a ancoragem de rolagem do Chromium mantém na mesma altura o elemento que
+// estava no topo, e um campo pode parar sob a barra fixa de 56 px da casca, ao lado de "Menu". O axe acusaria
+// `target-size` pela posição em que o teste deixou a rolagem, e não pela tela. A regra continua ligada: com a página no
+// topo, um alvo pequeno de verdade continua reprovando.
+export async function semViolacoesNasDuasLarguras(page: Page, rotulo: string): Promise<void> {
+  const antes = page.viewportSize() ?? { width: 1280, height: 720 };
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await semViolacoes(page, `${rotulo} (1280 × 720)`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await semViolacoes(page, `${rotulo} (390 × 844)`);
+  await page.setViewportSize(antes);
+}
+
 // Uma demanda própria do e2e, criada pelo seed fictício (scripts/seed-ficticio.ts, TITULOS_DO_E2E) e procurada pelo
 // título entre as de tipo melhoria: o teste não gasta o limite de demandas por hora da conta (C-36).
 // DEC-DEM-20261102-0003-v1 (N-03): a busca percorre as páginas (procurarEmPaginas), porque numa homologação reaproveitada

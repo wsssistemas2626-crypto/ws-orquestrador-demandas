@@ -17,7 +17,7 @@ const TITULO_BUG_DO_SEED = 'Pedidos do marketplace duplicados no ERP (fictício)
 const ID_DE_DEMANDA = /^DEM-\d{8}-\d{4}$/;
 
 type Face = { familia: string; peso: string; display: string; arquivos: string[] };
-type Leitura = { corpo: string; id: string | null; faces: Face[] };
+type Leitura = { corpo: string; id: string | null; pesoDoId: string | null; faces: Face[] };
 
 async function lerFontes(page: Page, caminho: string, comId = false): Promise<Leitura> {
   const resposta = await page.goto(caminho);
@@ -43,16 +43,22 @@ async function lerFontes(page: Page, caminho: string, comId = false): Promise<Le
         }
     const re = new RegExp(fonteDoId);
     const id = [...document.querySelectorAll('main a')].find((a) => a.getClientRects().length > 0 && re.test((a.textContent ?? '').trim()));
-    return { corpo: primeira(getComputedStyle(document.body).fontFamily), id: id ? primeira(getComputedStyle(id).fontFamily) : null, faces };
+    return {
+      corpo: primeira(getComputedStyle(document.body).fontFamily),
+      id: id ? primeira(getComputedStyle(id).fontFamily) : null,
+      pesoDoId: id ? getComputedStyle(id).fontWeight : null,
+      faces,
+    };
   }, ID_DE_DEMANDA.source);
 }
 
 const familiasCarregadas = (page: Page) =>
   page.evaluate(() => [...document.fonts].filter((f) => f.status === 'loaded').map((f) => ({ familia: f.family.trim().replace(/^['"]|['"]$/g, ''), peso: f.weight })));
 
-// A família de fato carregada no peso 400 (a computada sozinha aparece mesmo com a fonte bloqueada, CV-04).
-async function carregadaNoPeso400(page: Page, familia: string, rotulo: string) {
-  await expect.poll(() => familiasCarregadas(page), { message: `${rotulo}: ${familia} carregada no peso 400` }).toContainEqual({ familia, peso: '400' });
+// A família de fato carregada no peso pedido (a computada sozinha aparece mesmo com a fonte bloqueada, CV-04).
+// T16 (06-T09-tech-lead, decisão 1): o corpo é conferido no 400, e o id da fila no peso computado dele (Mono 600, 03, 2.3).
+async function carregadaNoPeso(page: Page, familia: string, peso: string, rotulo: string) {
+  await expect.poll(() => familiasCarregadas(page), { message: `${rotulo}: ${familia} carregada no peso ${peso}` }).toContainEqual({ familia, peso });
 }
 
 // Os @font-face (com arquivo) da família, como "nome do arquivo sem hash → peso declarado".
@@ -74,7 +80,7 @@ const ARQUIVOS_MONO = { noto_sans_mono_latin_400_normal: '400', noto_sans_mono_l
 // O corpo está na família dos quatro arquivos da Noto Sans, e o peso regular dela está carregado.
 async function corpoEmNotoSans(page: Page, l: Leitura, tela: string) {
   expect(arquivosDaFamilia(l, l.corpo), `${tela}: arquivos da família do corpo (${l.corpo})`).toEqual(ARQUIVOS_SANS);
-  await carregadaNoPeso400(page, l.corpo, `${tela}, corpo`);
+  await carregadaNoPeso(page, l.corpo, '400', `${tela}, corpo`);
 }
 
 test('CA-02.2 e RNF-06 na T03: corpo em Noto Sans, id em Noto Sans Mono, seis arquivos com swap', async ({ page }) => {
@@ -86,7 +92,9 @@ test('CA-02.2 e RNF-06 na T03: corpo em Noto Sans, id em Noto Sans Mono, seis ar
   const familiaDoId = l.id ?? '';
   expect(familiaDoId).not.toBe(l.corpo);
   expect(arquivosDaFamilia(l, familiaDoId), `T03: arquivos da família do id (${familiaDoId})`).toEqual(ARQUIVOS_MONO);
-  await carregadaNoPeso400(page, familiaDoId, 'T03, id');
+  // 03, 2.3: o id em Mono 600; a família do id tem de estar carregada nesse peso.
+  expect(l.pesoDoId, 'T03: peso computado do id').toBe('600');
+  await carregadaNoPeso(page, familiaDoId, l.pesoDoId ?? '', 'T03, id');
 
   // RNF-06: seis arquivos .woff2, nenhum a mais, e todo @font-face com arquivo em font-display: swap.
   const comArquivo = l.faces.filter((f) => f.arquivos.length > 0);

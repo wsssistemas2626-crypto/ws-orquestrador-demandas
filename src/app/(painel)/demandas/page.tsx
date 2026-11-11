@@ -29,6 +29,7 @@ import { listarDemandas } from '../../../modules/demandas/consultas';
 import { listarEntradasPendentes, type EntradaPendenteResumo } from '../../../modules/demandas/entradas-pendentes';
 import type { EtapasNaFila } from '../../../modules/demandas/resumo-da-fila';
 import type { FiltroDemandas } from '../../../modules/demandas/schemas';
+import { CLASSE_DA_ETIQUETA } from './CartoesDaFila';
 import { ContadoresDaFila } from './ContadoresDaFila';
 import { EntradasAguardando } from './EntradasAguardando';
 import { CarregandoFila, ErroDaFila, hrefDaFila, ID_RESULTADO, lerFiltroDaFila, ResultadoDaFila, TEXTOS_FILA } from './fila';
@@ -94,7 +95,7 @@ export default async function PaginaDemandas({ searchParams }: { searchParams: P
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-tinta-media">{TEXTOS_FILA.etiqueta}</p>
+          <p className={CLASSE_DA_ETIQUETA}>{TEXTOS_FILA.etiqueta}</p>
           <h1>Demandas</h1>
         </div>
         <Link href="/demandas/nova" className={classeDoBotao('primario')}>

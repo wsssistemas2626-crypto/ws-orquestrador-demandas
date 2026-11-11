@@ -118,7 +118,9 @@ async function secoesEmCartoes(page: Page, tela: TelaDeLeitura): Promise<void> {
     const elementos = [...main.querySelectorAll('section, h2, dl, table, fieldset, input, select, textarea')];
     return {
       cartoes: main.querySelectorAll('section.rounded-cartao').length,
-      fora: elementos.filter((e) => !e.closest('.rounded-cartao')).map((e) => `${e.tagName.toLowerCase()}#${e.id}`),
+      // T16 (Minor 2 da 06-T15-tech-lead): só o cartão (`section`) conta; o <dialog> da T12 também tem `rounded-cartao`
+      // e não pode ser o cartão dos próprios campos.
+      fora: elementos.filter((e) => !e.closest('section.rounded-cartao')).map((e) => `${e.tagName.toLowerCase()}#${e.id}`),
     };
   });
   expect(r, `${tela.nome}: a página`).not.toBeNull();

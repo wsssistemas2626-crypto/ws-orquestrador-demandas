@@ -74,7 +74,7 @@ export function DialogoConfirmacao({
       onCancel={aoCancelar}
       className="m-auto max-w-lg rounded-cartao border border-linha bg-branco p-6 text-tinta backdrop:bg-tinta/50 max-md:w-[calc(100%_-_2rem)] max-md:max-w-none"
     >
-      <h2 id={idTitulo} ref={cabecalho} tabIndex={-1} className="text-xl font-semibold">
+      <h2 id={idTitulo} ref={cabecalho} tabIndex={-1}>
         {titulo}
       </h2>
       <div className="mt-3">{children}</div>

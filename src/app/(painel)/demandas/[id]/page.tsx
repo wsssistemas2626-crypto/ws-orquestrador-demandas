@@ -52,7 +52,7 @@ import { transicoesManuaisDe } from '../../../../modules/demandas/transicoes';
 import { obterEspecificacao } from '../../../../modules/especificacoes/consultas';
 import { listarHistorico } from '../../../../modules/historico/consultas';
 import { obterPacoteDecisao } from '../../../../modules/pacotes-decisao/consultas';
-import { COR_DA_URGENCIA } from '../CartoesDaFila';
+import { CLASSE_DA_ETIQUETA, COR_DA_URGENCIA } from '../CartoesDaFila';
 import { BarraDeEtapas } from './BarraDeEtapas';
 import { CartaoProximaAcao } from './CartaoProximaAcao';
 import { lerDemandaDaPagina, metadadosDaDemanda } from './demanda-da-pagina';
@@ -89,7 +89,7 @@ function alertaDeChegada(p: Parametros, d: DemandaVista, esp: { id: string; duvi
 }
 
 const CLASSE_LINK = 'text-acao-escura underline underline-offset-2';
-const ETIQUETA = 'font-mono text-xs font-semibold uppercase tracking-[0.08em] text-tinta-media';
+const ETIQUETA = CLASSE_DA_ETIQUETA;
 
 // Grade da A2 a partir de 1200 px (03, 5.2): coluna principal (2/3) e lateral (1/3). A Próxima ação fica na primeira
 // linha da lateral; o Histórico, da segunda até a última, que é flexível e absorve a altura dele. Abaixo de 1200 px,
@@ -97,6 +97,10 @@ const ETIQUETA = 'font-mono text-xs font-semibold uppercase tracking-[0.08em] te
 // das tabelas das versões, que têm rolagem própria, e a página rolaria de lado no celular.
 const GRADE = 'grid grid-cols-1 gap-5 xl:grid-cols-3 xl:grid-rows-[repeat(5,auto)_1fr] xl:items-start';
 const PRINCIPAL = 'xl:col-span-2 xl:col-start-1';
+
+// "Ver" e "Abrir decisão" nas tabelas de versões: link solto, com 44 px abaixo de 768 px (03, 2.4; RNF-03) e o alvo de
+// 24 px de hoje a partir dele, como "Nesta página" e a trilha.
+const CLASSE_ACAO_DA_VERSAO = `inline-flex min-h-11 min-w-11 items-center md:min-h-6 md:min-w-6 ${CLASSE_LINK}`;
 
 // Seção com `h2` focável, alvo da navegação "Nesta página" (03, T05, Acessibilidade). 0.2.0 (T11): cada seção num
 // cartão (03, 5.2).
@@ -230,7 +234,7 @@ const seloRascunho = (v: VersaoResumo) =>
 
 function acaoDaVersao(href: string, rotulo: string, id: string) {
   return (
-    <Link href={href} aria-label={`${rotulo} ${id}`} className={`inline-flex min-h-6 min-w-6 items-center ${CLASSE_LINK}`}>
+    <Link href={href} aria-label={`${rotulo} ${id}`} className={CLASSE_ACAO_DA_VERSAO}>
       {rotulo}
     </Link>
   );

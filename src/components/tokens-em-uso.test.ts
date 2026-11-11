@@ -173,7 +173,8 @@ describe('toda classe de cor dos componentes base é um token do @theme (RF-01, 
     for (const a of COMPONENTES_BASE.filter((x) => !x.endsWith('/Selecao.tsx'))) expect(porArquivo[a], a).toBeGreaterThan(0);
     expect(Object.values(porArquivo).reduce((x, y) => x + y, 0)).toBeGreaterThan(60);
     expect(palavrasDeClasse(ler('src/components/Selo.tsx'))).toEqual(expect.arrayContaining(['bg-selo-violeta-fundo', 'text-selo-violeta', 'text-[0.8125rem]']));
-    expect(TOKENS.size).toBeGreaterThanOrEqual(39);
+    // T16 (D-01): os 30 tokens da 03, 2.1; os nove apelidos da 0.1.13, que davam os 39 de antes, saíram.
+    expect(TOKENS.size).toBeGreaterThanOrEqual(30);
   });
 
   it('nenhuma classe de cor dos componentes base fica sem token', () => {
@@ -196,15 +197,18 @@ describe('apelidos e var() do globals.css (D-01)', () => {
     expect(resolver(m, 'z')).toBeNull();
   });
 
-  it('todo --color-* do @theme tem valor hexadecimal, direto ou por apelido, e os nove apelidos da 0.1.13 existem', () => {
+  // T16 (D-01): os nove apelidos da 0.1.13 valiam só até a T16; a conferência passa a ser a de que eles não existem mais.
+  it('todo --color-* do @theme tem valor hexadecimal, direto ou por apelido, e os nove apelidos da 0.1.13 não existem mais', () => {
     expect([...TOKENS].filter((t) => resolver(DECLARADOS, t) === null)).toEqual([]);
     for (const apelido of ['texto', 'texto-suave', 'fundo', 'fundo-suave', 'borda', 'primaria', 'perigo', 'sucesso', 'atencao-texto'])
-      expect(DECLARADOS.get(apelido), apelido).toMatch(/^var\(--color-[a-z0-9-]+\)$/);
+      expect(DECLARADOS.get(apelido), apelido).toBeUndefined();
   });
 
   it('todo var(--color-…) do globals.css, dentro ou fora do @theme, aponta para token declarado', () => {
     const usados = [...CSS.matchAll(/var\(--color-([a-z0-9-]+)\)/g)].map((m) => m[1]!);
-    expect(usados.length).toBeGreaterThan(9);
+    // T16 (D-01): sem os nove var() dos apelidos, ficam os sete da base (cor e fundo do html, h1, link, foco no claro e no
+    // escuro, véu da gaveta).
+    expect(usados.length).toBeGreaterThanOrEqual(7);
     expect(usados.filter((u) => !TOKENS.has(u))).toEqual([]);
   });
 });

@@ -86,7 +86,7 @@ export function MudarStatus({ id, statusAtual, opcoes, final, dicaFixa }: Props)
     <div className="flex flex-col gap-4">
       <RegiaoAviso visivel={aviso !== ''}>{aviso}</RegiaoAviso>
       <p>{TEXTOS_DETALHE.statusAtual(ROTULO_STATUS[statusAtual])}</p>
-      {dicaFixa ? <p className="text-sm text-texto-suave">{dicaFixa}</p> : null}
+      {dicaFixa ? <p className="text-sm text-tinta-media">{dicaFixa}</p> : null}
       {final ? (
         <p>{final}</p>
       ) : (

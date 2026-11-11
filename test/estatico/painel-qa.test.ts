@@ -20,7 +20,7 @@ const codigo = (arquivo: string) =>
 describe('design system (03, 2.1)', () => {
   const css = ler('src/app/globals.css');
 
-  // 0.2.0 (T03): os tokens da 03, 2.1 do pedido 0015, e os nomes da 0.1.13 como apelidos por var() até a T16 (D-01).
+  // 0.2.0 (T03): os tokens da 03, 2.1 do pedido 0015 (os apelidos da 0.1.13 saíram na T16, D-01: ver abaixo).
   it.each([
     ['--color-marinho', '#12385f'],
     ['--color-marinho-luz', '#1f4f86'],
@@ -52,6 +52,16 @@ describe('design system (03, 2.1)', () => {
     ['--color-selo-laranja', '#9a3412'],
     ['--color-selo-laranja-fundo', '#fdebdd'],
     ['--color-selo-cinza-fundo', '#eceff3'],
+    ['--radius-campo', '10px'],
+    ['--radius-cartao', '16px'],
+  ])('token %s = %s, dentro do @theme', (token, valor) => {
+    const tema = /@theme\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(tema).toMatch(new RegExp(`${token}:\\s*${valor.replace(/[()]/g, '\\$&')};`));
+  });
+
+  // 0.2.0 (T16, D-01): os apelidos da 0.1.13, que valiam só até a T16, saíram do @theme. Cada linha que conferia o apelido
+  // agora confere que ele não existe mais (a varredura das classes fica em test/estatico/classes-antigas.test.ts).
+  it.each([
     ['--color-texto', 'var(--color-tinta)'],
     ['--color-texto-suave', 'var(--color-tinta-media)'],
     ['--color-fundo', 'var(--color-branco)'],
@@ -61,11 +71,8 @@ describe('design system (03, 2.1)', () => {
     ['--color-perigo', 'var(--color-erro)'],
     ['--color-sucesso', 'var(--color-positivo)'],
     ['--color-atencao-texto', 'var(--color-atencao)'],
-    ['--radius-campo', '10px'],
-    ['--radius-cartao', '16px'],
-  ])('token %s = %s, dentro do @theme', (token, valor) => {
-    const tema = /@theme\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
-    expect(tema).toMatch(new RegExp(`${token}:\\s*${valor.replace(/[()]/g, '\\$&')};`));
+  ])('apelido %s (era %s) não existe mais no globals.css', (token) => {
+    expect(css).not.toMatch(new RegExp(`${token}\\s*:`));
   });
 
   it('foco visível: contorno de 2 px na cor primária, afastado 2 px; base de 16 px e altura de linha 1,5', () => {

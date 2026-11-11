@@ -34,16 +34,8 @@
   --color-selo-laranja-fundo: #fdebdd;
   --color-selo-cinza-fundo: #eceff3;
 
-  /* D-01: nomes da 0.1.13 como apelidos, só até a T16. Tela nova não os usa. */
-  --color-texto: var(--color-tinta);
-  --color-texto-suave: var(--color-tinta-media);
-  --color-fundo: var(--color-branco);
-  --color-fundo-suave: var(--color-superficie);
-  --color-borda: var(--color-tinta-suave);
-  --color-primaria: var(--color-acao-escura);
-  --color-perigo: var(--color-erro);
-  --color-sucesso: var(--color-positivo);
-  --color-atencao-texto: var(--color-atencao);
+  /* D-01: os nomes da 0.1.13 (texto, primaria, borda…) saíram na T16; só os da 03, 2.1 existem
+     (test/estatico/classes-antigas.test.ts). */
 
   --radius-campo: 10px;
   --radius-cartao: 16px;

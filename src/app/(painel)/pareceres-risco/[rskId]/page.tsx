@@ -79,9 +79,7 @@ export default async function PaginaParecer({ params }: Props) {
 
       {secoesDoParecer(r).map((s, n) => (
         <Cartao key={s.titulo} rotuloPor={`secao-${n}`} className="flex flex-col gap-3">
-          <h2 id={`secao-${n}`} className="text-xl font-semibold">
-            {s.titulo}
-          </h2>
+          <h2 id={`secao-${n}`}>{s.titulo}</h2>
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(10rem,auto)_1fr]">
             {s.itens.map((i) => (
               <div key={i.termo} className="contents">

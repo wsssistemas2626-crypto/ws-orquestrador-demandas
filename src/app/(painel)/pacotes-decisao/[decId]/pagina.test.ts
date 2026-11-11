@@ -616,7 +616,7 @@ describe('T11: Pedido de Construção (T44)', () => {
     expect(secao).not.toContain('data:application/json');
     expect(s).not.toContain('<form');
     // A região de aviso fica montada desde o início, vazia (03, 2.3).
-    expect(secao).toContain('<div role="status" class="text-texto"></div>');
+    expect(secao).toContain('<div role="status" class="text-tinta"></div>');
   });
 
   it('aprovado de Estudo (tipo copiado no pacote): só "Demanda do tipo Estudo não gera Pedido de Construção.", sem botão', async () => {

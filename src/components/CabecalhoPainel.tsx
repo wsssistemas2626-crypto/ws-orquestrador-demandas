@@ -11,10 +11,11 @@
 import { usePathname } from 'next/navigation';
 import { useRef, useState } from 'react';
 import type { Papel } from '../modules/acesso/ator';
+import { classeDoBotao } from './Botao';
 import { BotaoSair } from './casca/BotaoSair';
 import { FocoNaTrocaDeTela } from './casca/FocoNaTrocaDeTela';
 import { GavetaMenu, ID_GAVETA } from './casca/GavetaMenu';
-import { ItensDoMenu } from './casca/ItensDoMenu';
+import { Icone, ItensDoMenu } from './casca/ItensDoMenu';
 import { MarcaWs } from './marca/MarcaWs';
 import { ROTULO_PAPEL } from './rotulos';
 
@@ -39,11 +40,11 @@ export function CabecalhoPainel({ nome, papel }: Props) {
             aria-expanded={gavetaAberta}
             aria-controls={ID_GAVETA}
             onClick={() => setGavetaAberta(true)}
-            className="inline-flex min-h-11 min-w-11 shrink-0 items-center gap-2 rounded-campo border border-azul-claro px-3 font-medium text-branco hover:bg-marinho-luz"
+            className={`${classeDoBotao('sobre-escuro')} shrink-0 px-3`}
           >
-            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true" focusable="false">
+            <Icone>
               <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            </Icone>
             Menu
           </button>
           <MarcaWs variante="escura" compacta comLink />

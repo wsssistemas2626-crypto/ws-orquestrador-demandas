@@ -152,7 +152,7 @@ describe('ListaTextos: HTML', () => {
     const s = html({ campo: 'definicaoDePronto', legenda: 'Definição de pronto (obrigatório)', nome: 'Definição de pronto', dica: 'Ao menos um item.' });
     const id = idDoCampo('definicaoDePronto');
     expect(etiqueta(s, 'fieldset', `aria-describedby="${id}-dica"`)).toBeTruthy();
-    expect(s).toContain(`<p id="${id}-dica" class="text-sm text-texto-suave">Ao menos um item.</p>`);
+    expect(s).toContain(`<p id="${id}-dica" class="text-sm text-tinta-media">Ao menos um item.</p>`);
     expect(s).toContain('aria-label="Remover item 1 de Definição de pronto"');
     expect(s).toContain('>Definição de pronto (obrigatório)</legend>');
   });
@@ -163,7 +163,7 @@ describe('ListaTextos: HTML', () => {
     const b = etiqueta(s, 'button', `id="${id}"`);
     expect(b).toContain('disabled=""');
     expect(b).toContain(`aria-describedby="${id}-dica"`);
-    expect(s).toContain(`<p id="${id}-dica" class="text-sm text-texto-suave">Limite de 50 itens atingido.</p>`);
+    expect(s).toContain(`<p id="${id}-dica" class="text-sm text-tinta-media">Limite de 50 itens atingido.</p>`);
     expect(s).toContain('>Item 50</label>');
   });
 
@@ -173,13 +173,13 @@ describe('ListaTextos: HTML', () => {
     const input = etiqueta(s, 'input', `id="${item}"`);
     expect(input).toContain('aria-invalid="true"');
     expect(input).toContain(`aria-describedby="${item}-erro"`);
-    expect(s).toContain(`<p id="${item}-erro" class="text-sm font-medium text-perigo">Este campo aceita até 10.000 caracteres.</p>`);
+    expect(s).toContain(`<p id="${item}-erro" class="text-sm font-medium text-erro">Este campo aceita até 10.000 caracteres.</p>`);
     expect(etiqueta(s, 'input', `id="${idDoItem('escopoInclui', 0)}"`)).not.toContain('aria-invalid');
 
     const l = html({ campo: 'criteriosAceitePreliminares', legenda: 'Critérios', nome: 'Critérios', erros: { criteriosAceitePreliminares: 'Informe ao menos um critério de aceite preliminar.' } });
     const id = idDoCampo('criteriosAceitePreliminares');
     expect(etiqueta(l, 'fieldset', `aria-describedby="${id}-erro"`)).toBeTruthy();
-    expect(l).toContain(`<p id="${id}-erro" class="text-sm font-medium text-perigo">Informe ao menos um critério de aceite preliminar.</p>`);
+    expect(l).toContain(`<p id="${id}-erro" class="text-sm font-medium text-erro">Informe ao menos um critério de aceite preliminar.</p>`);
     const primeiro = etiqueta(l, 'input', `id="${idDoItem('criteriosAceitePreliminares', 0)}"`);
     expect(primeiro).toContain('aria-invalid="true"');
     expect(primeiro).toContain(`aria-describedby="${id}-erro"`);

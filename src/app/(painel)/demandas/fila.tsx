@@ -17,7 +17,7 @@ import { Tabela } from '../../../components/Tabela';
 import type { DemandaResumo } from '../../../modules/demandas/consultas';
 import type { EtapasNaFila } from '../../../modules/demandas/resumo-da-fila';
 import { filtroDemandasSchema, type FiltroDemandas } from '../../../modules/demandas/schemas';
-import { CartoesDaFila, etapasDe, ID_RESULTADO, IdadeDaDemanda, UrgenciaDaDemanda } from './CartoesDaFila';
+import { CartoesDaFila, etapasDe, ID_RESULTADO, IdadeDaDemanda, NAO_INFORMADA, UrgenciaDaDemanda } from './CartoesDaFila';
 import { BotaoTentarDeNovo, NavegacaoDaFila, ResultadoAnunciado } from './FiltrosFila';
 
 // O elemento que recebe o foco depois de filtrar ou trocar de página: o título do resultado (h2), ou o texto do estado
@@ -31,7 +31,8 @@ export const TEXTOS_FILA = {
   vazioComFiltro: 'Nenhuma demanda com esses filtros.',
   erro: 'Não foi possível carregar as demandas. Tente de novo em instantes.',
   carregando: 'Carregando demandas…',
-  naoInformada: 'Não informada',
+  // O mesmo texto da linha e do cartão, num lugar só (CartoesDaFila.tsx; Minor 1 da 06-T09-tech-lead).
+  naoInformada: NAO_INFORMADA,
   rotuloRegiao: 'Tabela de demandas',
   // 0.2.0 (03, seção 9): a etiqueta acima do h1.
   etiqueta: 'Fila',
@@ -87,11 +88,11 @@ export function hrefDaFila(f: FiltroDemandas, offset: number): string {
 
 const textoOuNaoInformada = (v: string | undefined): string => v ?? TEXTOS_FILA.naoInformada;
 
-// Uma linha da tabela (03, 4.4). O título é texto de terceiro, isolado por <bdi> ao lado do selo (CV-18). O id fica em
-// Mono no peso regular, como na 0.1.13: o e2e/fontes-qa.spec.ts (T02) confere a Mono 400 carregada pelo id da T03.
+// Uma linha da tabela (03, 4.4). O título é texto de terceiro, isolado por <bdi> ao lado do selo (CV-18). O id em Mono
+// 600 (03, 2.3).
 function linhaDaDemanda(d: DemandaResumo, etapas: EtapasNaFila, agora: Date) {
   return [
-    <Link key="id" className="font-mono text-[0.8125rem] text-acao-escura underline underline-offset-2" href={`/demandas/${d.id}`}>
+    <Link key="id" className="font-mono text-[0.8125rem] font-semibold text-acao-escura underline underline-offset-2" href={`/demandas/${d.id}`}>
       {d.id}
     </Link>,
     <span key="titulo" className="inline-flex flex-wrap items-center gap-2 text-sm font-semibold">

@@ -277,7 +277,7 @@ describe('Botao, Paginacao e AreaTexto: bordas', () => {
   it('AreaTexto conta o valor inicial e marca o excesso; sem limite, sem contador', () => {
     const s = html(h(AreaTexto, { id: 'texto', rotulo: 'Texto', limite: 10, defaultValue: 'x'.repeat(12) }));
     expect(s).toContain('12 de 10 caracteres');
-    expect(s).toMatch(/<p id="texto-contador"[^>]*text-perigo/);
+    expect(s).toMatch(/<p id="texto-contador"[^>]*text-erro/);
     // O anúncio vem com atraso, pelo efeito: no HTML do servidor a região existe e está vazia.
     expect(s).toMatch(/<p class="sr-only" aria-live="polite"><\/p>/);
     const controlado = html(h(AreaTexto, { id: 'texto', rotulo: 'Texto', limite: 100_000, value: 'abc', onChange: () => undefined }));

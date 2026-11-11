@@ -17,7 +17,7 @@ export function descritores(id: string, dica?: string, erro?: string, extra?: st
 
 export function Dica({ id, children }: { id: string; children: string }) {
   return (
-    <p id={`${id}-dica`} className="text-sm text-texto-suave">
+    <p id={`${id}-dica`} className="text-sm text-tinta-media">
       {children}
     </p>
   );
@@ -25,7 +25,7 @@ export function Dica({ id, children }: { id: string; children: string }) {
 
 export function MensagemDeErro({ id, children }: { id: string; children: string }) {
   return (
-    <p id={`${id}-erro`} className="text-sm font-medium text-perigo">
+    <p id={`${id}-erro`} className="text-sm font-medium text-erro">
       {children}
     </p>
   );

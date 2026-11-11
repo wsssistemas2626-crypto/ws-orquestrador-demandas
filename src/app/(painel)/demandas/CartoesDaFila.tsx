@@ -17,7 +17,8 @@ type Urgencia = NonNullable<DemandaResumo['urgencia']>;
 // O id do título do resultado (o h2 que recebe o foco depois de filtrar ou paginar), que dá o nome da lista. fila.tsx o
 // reexporta como antes; fica aqui para fila.tsx importar este arquivo sem ciclo.
 export const ID_RESULTADO = 'resultado-da-fila';
-const NAO_INFORMADA = 'Não informada';
+// Também o `TEXTOS_FILA.naoInformada` da tabela (fila.tsx), para as duas formas não divergirem.
+export const NAO_INFORMADA = 'Não informada';
 
 export const ROTULOS_DO_CARTAO = { tipo: 'Tipo', urgencia: 'Urgência', linha: 'Linha de serviço', etapas: 'Etapas', idade: 'Idade' } as const;
 
@@ -54,13 +55,16 @@ export function UrgenciaDaDemanda({ urgencia }: { urgencia: Urgencia | null }) {
   );
 }
 
-const ETIQUETA = 'font-mono text-xs font-semibold uppercase tracking-[0.08em] text-tinta-media';
+// A etiqueta da 03, 2.3 (Mono 12 / 600, caixa alta por CSS, +0,08 em), num lugar só: o cartão daqui, a etiqueta "Fila"
+// acima do h1 da T03 e os termos dos dados da T05 (Minor 2 da 06-T09-tech-lead).
+export const CLASSE_DA_ETIQUETA = 'font-mono text-xs font-semibold uppercase tracking-[0.08em] text-tinta-media';
+const ETIQUETA = CLASSE_DA_ETIQUETA;
 
 function CartaoDeDemanda({ d, etapas, agora }: { d: DemandaResumo; etapas: EtapasNaFila; agora: Date }) {
   return (
     <li className="flex flex-col gap-2 rounded-cartao border border-linha bg-branco p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link className="inline-flex min-h-11 items-center font-mono text-[0.8125rem] text-acao-escura underline underline-offset-2 [overflow-wrap:anywhere]" href={`/demandas/${d.id}`}>
+        <Link className="inline-flex min-h-11 items-center font-mono text-[0.8125rem] font-semibold text-acao-escura underline underline-offset-2 [overflow-wrap:anywhere]" href={`/demandas/${d.id}`}>
           {d.id}
         </Link>
         <Selo cor={COR_STATUS[d.status]}>{ROTULO_STATUS[d.status]}</Selo>

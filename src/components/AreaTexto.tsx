@@ -58,7 +58,7 @@ export function AreaTexto({ id, rotulo, obrigatorio, dica, erro, limite, value, 
         {...resto}
       />
       {limite ? (
-        <p id={idContador} className={`text-sm ${tamanho > limite ? 'font-medium text-perigo' : 'text-texto-suave'}`}>
+        <p id={idContador} className={`text-sm ${tamanho > limite ? 'font-medium text-erro' : 'text-tinta-media'}`}>
           {`${fmt(tamanho)} de ${fmt(limite)} caracteres`}
         </p>
       ) : null}

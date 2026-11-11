@@ -34,9 +34,7 @@ export function Secao({ titulo, children }: { titulo: string; children: ReactNod
   const id = useId();
   return (
     <Cartao rotuloPor={id} className="flex flex-col gap-4">
-      <h2 id={id} className="text-lg font-semibold">
-        {titulo}
-      </h2>
+      <h2 id={id}>{titulo}</h2>
       {children}
     </Cartao>
   );

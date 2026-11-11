@@ -93,7 +93,7 @@ export function ListaTextos({ campo, legenda, nome, dica, itens, mudar, erros, a
           {TEXTOS_LISTA.adicionar}
         </Botao>
         {noLimite ? (
-          <p id={`${idAdicionar}-dica`} className="text-sm text-texto-suave">
+          <p id={`${idAdicionar}-dica`} className="text-sm text-tinta-media">
             {TEXTOS_LISTA.limite}
           </p>
         ) : null}

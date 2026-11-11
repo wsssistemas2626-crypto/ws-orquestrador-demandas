@@ -183,7 +183,7 @@ test('C-18 e CV-18: no cabeçalho da T11 de um DEC da textoDeTerceiro, o título
   expect(dialogos).toEqual([]);
 });
 
-test('C-19:/demandas/[id] e GET /api/demandas/:id com CSP de nonce, nosniff, no-referrer, no-store, sem X-Powered-By', async ({ page }) => {
+test('C-19: /demandas/[id] e GET /api/demandas/:id com CSP de nonce, nosniff, no-referrer, no-store, sem X-Powered-By', async ({ page }) => {
   await entrarComo(page, 'cto');
   const id = await demandaDeEstudoDoSeed(page);
   for (const caminho of [`/demandas/${id}`, `/api/demandas/${id}`]) {

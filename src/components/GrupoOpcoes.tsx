@@ -74,7 +74,7 @@ export function GrupoOpcoes({ nome, legenda, opcoes, dica, erro, valor, valorPad
         const cartaoIndisponivel = variante === 'cartao' && o.desabilitada === true;
         const classeDoRotulo = cartaoIndisponivel
           ? `${CLASSE_DO_ROTULO_INDISPONIVEL} text-tinta-media`
-          : [CLASSE_DO_ROTULO[variante], o.desabilitada ? 'text-texto-suave' : ''].filter(Boolean).join(' ');
+          : [CLASSE_DO_ROTULO[variante], o.desabilitada ? 'text-tinta-media' : ''].filter(Boolean).join(' ');
         return (
           <div key={o.valor} className={cartaoIndisponivel ? CLASSE_DA_OPCAO_INDISPONIVEL : CLASSE_DA_OPCAO[variante]}>
             <div className="flex min-h-11 items-center gap-2">
@@ -94,7 +94,7 @@ export function GrupoOpcoes({ nome, legenda, opcoes, dica, erro, valor, valorPad
               </label>
             </div>
             {o.dica ? (
-              <p id={idDica} className="ml-7 text-sm text-texto-suave">
+              <p id={idDica} className="ml-7 text-sm text-tinta-media">
                 {o.dica}
               </p>
             ) : null}
