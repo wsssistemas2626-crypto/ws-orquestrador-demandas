@@ -696,6 +696,108 @@ describe('bordas da tela de decisão (qa-automacao)', () => {
   });
 });
 
+// 06-T12-testes (qa-automacao), DEC-DEM-20261110-0015-v1: com os três botões, cada exigência de aprovação de hoje
+// continua valendo em toda combinação de conta, pacote, campos e botão. O oráculo aqui é a regra escrita por extenso
+// (RF-11 e cap. 04), e não `validarDecisao`, para o teste reprovar também se a validação mudar junto com o envio.
+describe('envioDaDecisao: as exigências de aprovação de hoje em toda combinação (06-T12-testes, qa-automacao)', () => {
+  const BOTOES = ['aprovada', 'devolvida', 'arquivada', 'pendente', '', null, undefined] as const;
+  const FIXADAS = [null, { papel: 'cto' as const, opcao: 'A' as const }, { papel: 'administradora' as const, opcao: 'B' as const }];
+  const SIM_NAO = [false, true] as const;
+  const DOC = 'DOC-FICTICIO-7';
+  const DATA = '2026-11-10';
+  const p = { especificacaoCitada: { repositorioDestino: 'wsssistemas2626-crypto/ficticio' }, nivelAprovacaoRequerido: 'cto_e_administradora' as const };
+  const ehAcao = (b: (typeof BOTOES)[number]): b is 'aprovada' | 'devolvida' | 'arquivada' => b === 'aprovada' || b === 'devolvida' || b === 'arquivada';
+
+  it('confirma só com cada exigência da ação cumprida, e nunca pede o que a ação não exige', () => {
+    const contagem = { nada: 0, erros: 0, confirmar: 0 };
+    for (const botao of BOTOES)
+      for (const opcaoFixada of FIXADAS)
+        for (const pedeDocumento of SIM_NAO)
+          for (const exigeRevisao of SIM_NAO)
+            for (const aprovarIndisponivel of SIM_NAO)
+              for (const opcaoEscolhida of ['', 'A', 'B'] as const)
+                for (const referenciaDocumento of ['', '   ', DOC])
+                  for (const dataDocumento of ['', DATA])
+                    for (const revisouRascunhosDeAgente of SIM_NAO) {
+                      const c = ctx({ opcaoFixada, pedeDocumento, exigeRevisao, aprovarIndisponivel });
+                      const vv = Object.freeze(valores({ opcaoEscolhida, referenciaDocumento, dataDocumento, revisouRascunhosDeAgente }));
+                      const r = envioDaDecisao(vv, c, botao);
+                      contagem[r.tipo]++;
+                      const rotulo = JSON.stringify({ botao: String(botao), c, vv });
+                      // Botão fora da lista, e "Aprovar" com o pacote desatualizado (CV-11): nada, nem erro nem diálogo.
+                      if (!ehAcao(botao) || (botao === 'aprovada' && aprovarIndisponivel)) {
+                        expect(r, rotulo).toEqual({ tipo: 'nada' });
+                        continue;
+                      }
+                      // As exigências de hoje, na ordem da tela: opção (sem a fixada), documento e data (conta da
+                      // administradora), só para aprovar; a revisão dos rascunhos, nas três ações.
+                      const faltas: string[] = [];
+                      if (botao === 'aprovada' && !opcaoFixada && opcaoEscolhida === '') faltas.push('opcaoEscolhida');
+                      if (botao === 'aprovada' && pedeDocumento && referenciaDocumento.trim() === '') faltas.push('referenciaDocumento');
+                      if (botao === 'aprovada' && pedeDocumento && dataDocumento === '') faltas.push('dataDocumento');
+                      if (exigeRevisao && !revisouRascunhosDeAgente) faltas.push('revisouRascunhosDeAgente');
+                      if (faltas.length > 0) {
+                        expect(r.tipo, rotulo).toBe('erros');
+                        if (r.tipo === 'erros') expect(r.erros.map((e) => e.campo), rotulo).toEqual(faltas);
+                        continue;
+                      }
+                      expect(r.tipo, rotulo).toBe('confirmar');
+                      if (r.tipo !== 'confirmar') continue;
+                      expect(r.v, rotulo).toEqual({ ...vv, statusDecisao: botao });
+                      const e = entradaDaDecisao(r.v, c);
+                      expect(registrarDecisaoSchema.safeParse(e).success, rotulo).toBe(true);
+                      expect(e.statusDecisao, rotulo).toBe(botao);
+                      expect(e.revisouRascunhosDeAgente, rotulo).toBe(revisouRascunhosDeAgente);
+                      const [acao, repositorio, nivel] = textoDoDialogo(r.v, c, p);
+                      // C-14: o diálogo repete o repositório destino e o nível em toda ação.
+                      expect([repositorio, nivel], rotulo).toEqual(['Repositório destino: wsssistemas2626-crypto/ficticio.', 'Nível de aprovação: CTO e administradora.']);
+                      if (botao === 'aprovada') {
+                        // A opção gravada é a fixada pela primeira aprovação, senão a marcada; o botão e o diálogo dizem a mesma.
+                        const opcao = opcaoFixada?.opcao ?? opcaoEscolhida;
+                        expect(e.opcaoEscolhida, rotulo).toBe(opcao);
+                        expect(rotuloDoPrincipal(vv, c), rotulo).toBe(`Aprovar a opção ${opcao}`);
+                        expect(acao, rotulo).toContain(`Você vai registrar: Aprovar a opção ${opcao}.`);
+                        if (pedeDocumento) expect(e, rotulo).toMatchObject({ referenciaDocumento: DOC, dataDocumento: DATA });
+                        else for (const campo of ['referenciaDocumento', 'dataDocumento']) expect(e, rotulo).not.toHaveProperty(campo);
+                      } else {
+                        for (const campo of ['opcaoEscolhida', 'referenciaDocumento', 'dataDocumento']) expect(e, rotulo).not.toHaveProperty(campo);
+                        expect(acao, rotulo).toContain(botao === 'devolvida' ? 'Você vai registrar: Devolver para nova análise.' : 'Você vai registrar: Arquivar.');
+                      }
+                    }
+    // A malha passa pelos três resultados (asserção que nunca roda não conta).
+    expect(contagem.nada).toBeGreaterThan(1000);
+    expect(contagem.erros).toBeGreaterThan(500);
+    expect(contagem.confirmar).toBeGreaterThan(500);
+  });
+
+  it('CV-10: o botão vale sobre o statusDecisao que estiver no estado, só neste envio; o estado não muda', () => {
+    for (const anterior of ['', 'aprovada', 'devolvida', 'arquivada'] as const)
+      for (const botao of ACOES_DA_DECISAO) {
+        const vv = Object.freeze(valores({ statusDecisao: anterior, opcaoEscolhida: 'A' }));
+        const r = envioDaDecisao(vv, ctx(), botao);
+        expect(r.tipo, `${anterior} → ${botao}`).toBe('confirmar');
+        if (r.tipo === 'confirmar') expect(r.v.statusDecisao, `${anterior} → ${botao}`).toBe(botao);
+        expect(vv.statusDecisao).toBe(anterior);
+      }
+  });
+
+  it('CV-13: o formulário começa sem opção nem decisão, e o principal só diz uma opção quando a primeira aprovação a fixou', () => {
+    const inicio = valoresDaDecisao();
+    expect([inicio.statusDecisao, inicio.opcaoEscolhida]).toEqual(['', '']);
+    // Cada formulário ganha um objeto novo: marcar num não marca no outro.
+    expect(valoresDaDecisao()).not.toBe(inicio);
+    for (const pedeDocumento of SIM_NAO)
+      for (const exigeRevisao of SIM_NAO) {
+        expect(rotuloDoPrincipal(inicio, ctx({ pedeDocumento, exigeRevisao }))).toBe('Aprovar');
+        expect(rotuloDoPrincipal(inicio, ctx({ pedeDocumento, exigeRevisao, opcaoFixada: { papel: 'cto', opcao: 'B' } }))).toBe('Aprovar a opção B');
+      }
+    // "Aprovar" sem opção não escolhe por ninguém: dá o erro, e a opção continua vazia.
+    const r = envioDaDecisao(inicio, ctx(), 'aprovada');
+    expect(r.tipo).toBe('erros');
+    if (r.tipo === 'erros') expect(r.v.opcaoEscolhida).toBe('');
+  });
+});
+
 // 0.1.13 (DEC-DEM-20261104-0014-v1, S5): o DEC aprovado que um aprovado mais novo substituiu mostra o aviso com o link
 // para o substituto. Textos da triagem, para revisão da ux-ui-design.
 describe('alertaDeSubstituido (0.1.13)', () => {

@@ -431,6 +431,139 @@ describe('T11: quem vê o formulário (P1-a, P1-b)', () => {
   });
 });
 
+// 06-T12-testes (qa-automacao), DEC-DEM-20261110-0015-v1: com os três botões, cada conta que decide, em cada estado do
+// pacote (com e sem rascunho citado, atual e desatualizado), ainda vê todas as exigências de hoje, e nenhuma opção vem
+// marcada (P-01, CV-13).
+describe('T11 com três botões: as exigências de hoje em cada conta e estado (06-T12-testes, qa-automacao)', () => {
+  type Caso = {
+    nome: string;
+    conta: AtorPessoa;
+    nivel: PacoteDecisaoVista['nivelAprovacaoRequerido'];
+    aprovadores: PacoteDecisaoVista['aprovadores'];
+    fixada: string | null;
+    documento: boolean;
+  };
+  const aprovacao = (papel: 'cto' | 'administradora', opcao: 'A' | 'B'): PacoteDecisaoVista['aprovadores'][number] => ({
+    papel,
+    nome: papel === 'cto' ? CTO.nome : ADM.nome,
+    opcao,
+    registradaEm: APROVADO,
+    referenciaDocumento: papel === 'cto' ? null : 'DOC-FICTICIO-1',
+    dataDocumento: papel === 'cto' ? null : '2026-10-23',
+  });
+  const CASOS: readonly Caso[] = [
+    { nome: 'nível cto, conta cto', conta: CTO, nivel: 'cto', aprovadores: [], fixada: null, documento: false },
+    { nome: 'dupla, o CTO aprova primeiro', conta: CTO, nivel: 'cto_e_administradora', aprovadores: [], fixada: null, documento: false },
+    { nome: 'dupla, a administradora aprova primeiro', conta: ADM, nivel: 'cto_e_administradora', aprovadores: [], fixada: null, documento: true },
+    {
+      nome: 'dupla, a administradora depois do CTO na B',
+      conta: ADM,
+      nivel: 'cto_e_administradora',
+      aprovadores: [aprovacao('cto', 'B')],
+      fixada: 'O CTO aprovou a opção B. A sua aprovação vale para a mesma opção. Para discordar, escolha devolver ou arquivar.',
+      documento: true,
+    },
+    {
+      nome: 'dupla, o CTO depois da administradora na A',
+      conta: CTO,
+      nivel: 'cto_e_administradora',
+      aprovadores: [aprovacao('administradora', 'A')],
+      fixada: 'A administradora aprovou a opção A. A sua aprovação vale para a mesma opção. Para discordar, escolha devolver ou arquivar.',
+      documento: false,
+    },
+  ];
+  const tag = (s: string, re: RegExp) => re.exec(s)?.[0];
+  const campo = (s: string, nome: string) => tag(s, new RegExp(`<input[^>]*\\sid="${idDoCampo(nome)}"[^>]*>`));
+  const MARCADO = /\schecked(?=[\s=/>])/;
+  const DESABILITADO = /\sdisabled(?=[\s=/>])/;
+
+  it.each(CASOS)('$nome: revisão, recomendação, opções sem marca, documento, caixa de revisão e os três botões', async (caso) => {
+    mExigir.mockResolvedValue(caso.conta);
+    for (const rascunho of [false, true])
+      for (const desatualizado of [false, true]) {
+        const r = `${caso.nome}, rascunho ${rascunho}, desatualizado ${desatualizado}`;
+        mPacote.mockResolvedValue(
+          pacote({
+            nivelAprovacaoRequerido: caso.nivel,
+            aprovadores: caso.aprovadores,
+            desatualizado,
+            rascunhoAgente: rascunho,
+            rascunhosCitados: rascunho ? [DEC] : [],
+            recomendacao: 'Opção B, pela entrega menor (fictício).',
+          }),
+        );
+        mDemanda.mockResolvedValue(desatualizado ? demanda({ especificacoes: [resumo(`ESP-${ID}-v3`), resumo(ESP)] }) : demanda());
+        const s = await pagina();
+        const inicio = s.indexOf('<form');
+        expect(inicio, r).toBeGreaterThan(0);
+        const form = s.slice(inicio, s.indexOf('</form>'));
+        const antes = s.slice(0, inicio);
+
+        // C-14 e P-01: a revisão, o repositório, o nível e a recomendação em texto vêm antes do formulário.
+        const nivel = caso.nivel === 'cto' ? 'Só o CTO' : 'CTO e administradora';
+        for (const t of ['Revisão antes de decidir', 'wsssistemas2626-crypto/sistema-ficticio', `Nível de aprovação: ${nivel}`, 'Opção B, pela entrega menor (fictício).'])
+          expect(antes, `${r}: ${t}`).toContain(t);
+        expect(antes, r).toMatch(rascunho ? /<h2[^>]*>Recomendação do agente de consolidação<\/h2>/ : /<h2[^>]*>Recomendação<\/h2>/);
+        expect(s, r).not.toContain('Recomendada');
+        if (caso.nivel !== 'cto') expect(antes, r).toMatch(/<h2[^>]*>Aprovações<\/h2>/);
+        // Os alertas de hoje continuam no topo.
+        expect(antes.includes('Este pacote cita conteúdo gerado por agente de IA'), r).toBe(rascunho);
+        expect(antes.includes('Este pacote está desatualizado.'), r).toBe(desatualizado);
+
+        // As opções: nenhuma marcada; a frase da fixada no lugar delas; nada para escolher com o pacote desatualizado.
+        const radios = [...form.matchAll(/<input[^>]*type="radio"[^>]*>/g)].map((m) => m[0]);
+        for (const radio of radios) expect(radio, r).not.toMatch(MARCADO);
+        if (desatualizado || caso.fixada) expect(radios, r).toEqual([]);
+        else expect(radios.map((x) => /\sid="([^"]+)"/.exec(x)![1]), r).toEqual([`${idDoCampo('opcaoEscolhida')}-A`, `${idDoCampo('opcaoEscolhida')}-B`]);
+        if (caso.fixada && !desatualizado) expect(form, r).toContain(caso.fixada);
+
+        // O documento assinado: só na conta da administradora, com o rótulo de obrigatório para aprovar.
+        const comDocumento = caso.documento && !desatualizado;
+        for (const [nome, rotulo] of [
+          ['referenciaDocumento', 'Identificador do documento assinado (obrigatório para aprovar)'],
+          ['dataDocumento', 'Data da assinatura (obrigatório para aprovar)'],
+        ] as const) {
+          expect(campo(form, nome) !== undefined, `${r}: ${nome}`).toBe(comDocumento);
+          expect(form.includes(`>${rotulo}</label>`), `${r}: ${rotulo}`).toBe(comDocumento);
+        }
+
+        // A caixa de revisão: sempre que o pacote cita rascunho, obrigatória (aria-required) e desmarcada.
+        const caixa = campo(form, 'revisouRascunhosDeAgente');
+        expect(caixa !== undefined, r).toBe(rascunho);
+        if (caixa) {
+          expect(caixa, r).toContain('type="checkbox"');
+          expect(caixa, r).toContain('aria-required="true"');
+          expect(caixa, r).not.toMatch(MARCADO);
+          expect(form, r).toContain('>Revisei os rascunhos de agente citados neste pacote (obrigatório)</label>');
+        }
+        expect(form, r).toContain('>Comentários (opcional)</label>');
+
+        // Os três botões, nesta ordem, nenhum com `disabled` em repouso; "Aprovar" indisponível só no desatualizado.
+        const botoes = [...form.matchAll(/(<button type="submit"[^>]*>)([^<]*)<\/button>/g)].map(([, abertura, texto]) => ({
+          id: /\sid="([^"]+)"/.exec(abertura!)?.[1],
+          texto,
+          abertura: abertura!,
+        }));
+        const principal = desatualizado ? 'Aprovar' : caso.fixada ? `Aprovar a opção ${caso.fixada.includes('opção B') ? 'B' : 'A'}` : 'Aprovar';
+        expect(
+          botoes.map((b) => [b.id, b.texto]),
+          r,
+        ).toEqual([
+          ['decisao-aprovar', principal],
+          ['decisao-devolver', 'Devolver'],
+          ['decisao-arquivar', 'Arquivar'],
+        ]);
+        for (const b of botoes) expect(b.abertura, `${r}: ${b.id}`).not.toMatch(DESABILITADO);
+        expect(/\saria-disabled="true"/.test(botoes[0]!.abertura), r).toBe(desatualizado);
+        // O atributo, e não a variante `aria-disabled:` das classes do Botao.
+        for (const b of botoes.slice(1)) expect(b.abertura, `${r}: ${b.id}`).not.toMatch(/\saria-disabled=/);
+        expect(botoes[1]!.abertura, r).toContain('aria-describedby="decisao-consequencia-devolver"');
+        expect(botoes[2]!.abertura, r).toContain('aria-describedby="decisao-consequencia-arquivar"');
+        expect(form.includes('>Indisponível: pacote desatualizado.</p>'), r).toBe(desatualizado);
+      }
+  });
+});
+
 // T44: a seção "Pedido de Construção" (03, T11; RF-22; 04, C-16 e C-28). Gerar, baixar e copiar ficam no e2e
 // (e2e/pedido-construcao.spec.ts); aqui, quando a seção aparece e o que ela traz antes de gerar.
 describe('T11: Pedido de Construção (T44)', () => {
