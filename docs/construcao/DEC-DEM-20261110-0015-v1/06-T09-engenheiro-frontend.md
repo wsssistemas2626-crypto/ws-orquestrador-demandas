@@ -166,13 +166,12 @@ reprova.
 - CA-05.2 e CA-07.2 contam no máximo 20 linhas/cartões (`Math.min(total, 20)`): na suíte inteira há 40 demandas em
   "Nova", e na homologação pode haver mais. Foi a falha da 1ª rodada inteira.
 - Contadores com chave só de `tipo` e `linha`: trocar de status não remonta o grupo (plano, T09).
+- Volta 2: o maestro liberou os comandos de leitura ou teste fora da lista Pode da volta 1, pela regra de 25/10, e por
+  instrução dele eles saíram de Comandos executados. São os dois `git diff` com `-G`, o `git grep`, o `wc -l` e as
+  rodadas parciais de `pnpm test:e2e` com `--grep`. Código e testes não mudaram nesta volta.
 
 ## Pendências
 
-- Para o `tech-lead`, sem bloquear: comandos fora da lista Pode. Rodei `git grep -n -e "CV-06" …` (só leitura, no
-  `04-seguranca-aplicacao.md`) e `wc -l` num arquivo de saída do scratchpad, fora do repositório, antes de lembrar da
-  restrição. Os dois só leem e não mudaram nada. Ficam declarados em Comandos executados, para o maestro decidir pela
-  regra de 25/10.
 - Para o `tech-lead` e a `ux-ui-design`, sem bloquear: o peso do id da fila. A 03 pede Mono 600, e o
   `e2e/fontes-qa.spec.ts:89` exige a Mono 400 carregada pelo id da T03. Há dois caminhos:
   - o G5 ganha a troca do peso nesse teste para 600 (a família continua conferida), e o id passa a 600;
@@ -187,9 +186,6 @@ reprova.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, limpo no início
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -- "src/app/(painel)/demandas" e2e src/components test src/lib` — lista dos arquivos rastreados
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — topo 3370f04 (06-T08-testes)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --name-only -G "caption|getByLabel\('Status'\)|Criada em|resultado-da-fila|ID_RESULTADO|filtro-status" 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -- e2e src test` — quem usa os seletores que mudam
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "CV-06" -e "CV-07" -e "CV-08" -e "CV-18" -- docs/construcao/DEC-DEM-20261110-0015-v1/04-seguranca-aplicacao.md` — fora da lista Pode (ver Pendências)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -U3 -G "TITULOS_DO_E2E|espListaDeTextos|textoDeTerceiro" 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD --stat -- scripts e2e` — quem usa os títulos do seed
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -- src/app/api/demandas src/modules/demandas` — lista das rotas e módulos de demandas
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test "src/app/(painel)/demandas/fila" "src/app/(painel)/demandas/leituras-da-fila" test/estatico/leituras-da-fila.test.ts` — vermelho: 5 arquivos falharam, 3 de 13 testes falharam
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test "src/app/(painel)/demandas/fila" "src/app/(painel)/demandas/leituras-da-fila" test/estatico/leituras-da-fila.test.ts` — 7 falharam (ordem do atributo `name` no HTML do React e ordem de `ROTULO_STATUS` nos testes novos)
@@ -197,10 +193,7 @@ reprova.
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 224 arquivos, 4948 de 4948
-- `wc -l /home/deploy/.claude/projects/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/tool-results/bp8thenb5.txt` — fora da lista Pode (ver Pendências); 449 linhas
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/fila-contadores.spec.ts e2e/fila.spec.ts e2e/fila-qa.spec.ts e2e/seguranca.spec.ts` — 6 de 28 falharam
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/fila-qa.spec.ts e2e/fila-contadores.spec.ts --grep "Voltar|Limpar filtros|sem script|Mais filtros|CA-05.7"` — 5 de 6 falharam (`page.content()` com o endereço no dado do Next)
-- `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/fila-qa.spec.ts e2e/fila-contadores.spec.ts --grep "Voltar|Limpar filtros|sem script|Mais filtros \(1|CA-05.7"` — 4 de 6 falharam (`getByLabel('Tipo')` achava também a lista; 429 do TOTP por logins seguidos)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — só os arquivos da tarefa
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 198e97d -- src/proxy.ts src/proxy.test.ts next.config.ts src/app/api src/db drizzle src/modules/acesso src/worker src/jobs src/agents src/lib/auth.ts src/lib/auth-cliente.ts src/lib/qr.ts src/lib/log.ts src/lib/erros.ts src/instrumentation.ts pnpm-workspace.yaml "src/app/(painel)/configuracao/agentes/acoes.ts" "src/app/(painel)/demandas/[id]/acoes.ts" "src/app/(painel)/demandas/[id]/editar/acoes.ts" "src/app/(painel)/demandas/[id]/especificacoes/nova/acoes.ts" "src/app/(painel)/demandas/[id]/pacotes-decisao/novo/acoes.ts" "src/app/(painel)/demandas/[id]/pareceres-risco/novo/acoes.ts" "src/app/(painel)/demandas/nova/acoes.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes.ts"` — vazio (CV-01)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 198e97d -- src/modules` — só `resumo-da-fila.ts` e o teste dele (T07)
