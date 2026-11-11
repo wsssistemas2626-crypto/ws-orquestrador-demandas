@@ -207,6 +207,12 @@ test.describe('celular (390 × 844)', () => {
     await expect(botaoMenu(page)).toBeFocused();
 
     await abrirGaveta(page);
+    // A gaveta entra em 200 ms (`gaveta-entra`): durante a entrada a caixa ainda está fora da tela e o ponto (160, 500)
+    // ainda é o véu. O clique "dentro" só vale depois do fim da animação, com a gaveta parada em x = 0.
+    await gaveta(page).evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)).then(() => undefined));
+    const caixa = await gaveta(page).boundingBox();
+    expect(caixa?.x, 'gaveta parada depois da entrada').toBe(0);
+    expect(caixa?.width ?? 0, 'o ponto (160, 500) fica dentro da gaveta').toBeGreaterThan(160);
     // Clique dentro da gaveta, fora de controle (entre os itens e a conta), não fecha.
     await page.mouse.click(160, 500);
     await expect(gaveta(page)).toBeVisible();
