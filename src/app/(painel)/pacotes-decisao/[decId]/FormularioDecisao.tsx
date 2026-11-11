@@ -10,6 +10,11 @@
 // (2.5); o diálogo resume a decisão e repete o repositório destino e o nível (C-14, WCAG 3.3.4) antes de registrar;
 // erros da API no mesmo resumo e o 409 num alerta. Registrada, a página é lida de novo com o alerta de resultado. A
 // regra que vale é a do servidor (registrarDecisaoNoPainel).
+//
+// T13 (03, 6.3; RF-12): abaixo de 768 px o grupo "Ações da decisão" é o rodapé fixo da C2 (branco, borda superior,
+// área segura, principal de 48 px na largura toda, "Devolver" e "Arquivar" lado a lado); a partir de 768 px fica no
+// fluxo, no fim do cartão. Só classe muda: o DOM, os ids e o comportamento são os da T12. A folga embaixo do `main` e o
+// scroll-padding, para nada focado ficar sob o rodapé, estão em globals.css.
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Alerta } from '../../../../components/Alerta';
@@ -24,6 +29,7 @@ import {
   entradaDaDecisao,
   envioDaDecisao,
   errosDaApiDecisao,
+  ID_DOS_BOTOES,
   rotuloDoPrincipal,
   textoDoDialogo,
   TEXTOS_DECISAO,
@@ -45,6 +51,12 @@ const ID_RODAPE = 'rodape-da-decisao';
 const ID_INDISPONIVEL = 'decisao-aprovar-indisponivel';
 const ID_CONSEQUENCIA = { devolvida: 'decisao-consequencia-devolver', arquivada: 'decisao-consequencia-arquivar' } as const;
 const CLASSE_DA_NOTA = 'text-sm text-tinta-media';
+// 03, 6.3: o rodapé da C2 só abaixo de 768 px (12 × 16 px de preenchimento, mais a área segura embaixo); 124 px sem a
+// explicação e 150 px com ela. O z-index fica acima do cartão de opção e no nível da barra do topo, que ele não cruza.
+const CLASSE_DO_RODAPE =
+  'flex flex-col gap-3 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-20 max-md:gap-2 max-md:border-t max-md:border-linha max-md:bg-branco max-md:px-4 max-md:pt-3 max-md:pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]';
+// A explicação do "Aprovar" indisponível em 13 px no rodapé do celular (03, 6.3).
+const CLASSE_DA_EXPLICACAO = `${CLASSE_DA_NOTA} max-md:text-[0.8125rem] max-md:leading-[1.125rem]`;
 
 type Props = {
   decId: string;
@@ -195,28 +207,29 @@ export function FormularioDecisao({ decId, contexto, opcoesEscolha, repositorioD
             {t.dicaArquivar}
           </p>
         </div>
-        <div id={ID_RODAPE} role="group" aria-label={t.grupoAcoes} className="flex flex-col gap-3">
+        <div id={ID_RODAPE} role="group" aria-label={t.grupoAcoes} className={CLASSE_DO_RODAPE}>
           {indisponivel ? (
-            <p id={ID_INDISPONIVEL} className={CLASSE_DA_NOTA}>
+            <p id={ID_INDISPONIVEL} className={CLASSE_DA_EXPLICACAO}>
               {t.dicaAprovarIndisponivel}
             </p>
           ) : null}
           <Botao
             type="submit"
-            id="decisao-aprovar"
+            id={ID_DOS_BOTOES.aprovada}
             name="acao"
             value="aprovada"
             aria-disabled={indisponivel || undefined}
             aria-describedby={indisponivel ? ID_INDISPONIVEL : undefined}
             {...estadoDoBotao('aprovada')}
             textoCarregando={t.registrando}
+            className="max-md:min-h-12 max-md:w-full"
           >
             {rotuloDoPrincipal(valores, contexto)}
           </Botao>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 max-md:grid max-md:grid-cols-2">
             <Botao
               type="submit"
-              id="decisao-devolver"
+              id={ID_DOS_BOTOES.devolvida}
               name="acao"
               value="devolvida"
               variante="secundario"
@@ -228,7 +241,7 @@ export function FormularioDecisao({ decId, contexto, opcoesEscolha, repositorioD
             </Botao>
             <Botao
               type="submit"
-              id="decisao-arquivar"
+              id={ID_DOS_BOTOES.arquivada}
               name="acao"
               value="arquivada"
               variante="secundario"

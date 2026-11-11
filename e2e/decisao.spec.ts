@@ -36,6 +36,8 @@
 // "Arquivar". Os passos mudaram só para o equivalente (marcar a opção e ativar o botão), e as regras conferidas ficam.
 // As opções e o documento aparecem desde o início; o erro "Escolha a decisão." não tem mais como acontecer.
 //
+// DEC-DEM-20261110-0015-v1 (T13, CV-12): o C-14 roda também em 390 × 844, no mesmo DEC e sem decidir.
+//
 // Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
 import { type Locator, type Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
@@ -190,6 +192,38 @@ test('C-14: revisão visível antes de decidir e repetida no diálogo, num DEC d
   await expect(d).toContainText(/Só o CTO|CTO e administradora/);
   await semViolacoes(page, 'T11 com o diálogo aberto');
   // "Voltar" fecha sem registrar e devolve o foco ao botão de origem; o pacote do seed continua pendente.
+  await d.getByRole('button', { name: 'Voltar' }).click();
+  await expect(d).toBeHidden();
+  await expect(principal(page)).toBeFocused();
+  expect((await api<Pacote>(page, 'GET', `/api/pacotes-decisao/${decId}`)).statusDecisao).toBe('pendente');
+
+  // T13 (CV-12): a segunda rodada, em 390 × 844, no mesmo DEC e sem decidir. A revisão aparece sem abrir nada, e o envio
+  // passa pela mesma validação e pelo mesmo diálogo, com o repositório destino e o nível.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/pacotes-decisao/${decId}`);
+  const revisaoNoCelular = page.getByRole('region', { name: 'Revisão antes de decidir' });
+  await expect(revisaoNoCelular).toBeVisible();
+  await expect(revisaoNoCelular).toContainText('wsssistemas2626-crypto/');
+  for (const t of [/^Risco técnico:/, /^Risco operacional:/, /^Risco jurídico:/, /^Nível de aprovação: /]) await expect(revisaoNoCelular.getByText(t), String(t)).toBeVisible();
+  await expect(page.getByText('Rascunho de agente').first()).toBeVisible();
+  await expect(page.getByText(/^Este pacote cita conteúdo gerado por agente de IA: DEC-.+, ESP-.+ e RSK-.+\. Leia cada um antes de decidir\.$/)).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Recomendação do agente de consolidação' })).toBeVisible();
+  await semViolacoes(page, 'T11 pendente com rascunhos em 390 px');
+  await principal(page).click();
+  await expect(resumoDeErros(page)).toBeFocused();
+  await expect(resumoDeErros(page).getByRole('link')).toHaveText([
+    'Opção escolhida: Escolha a opção A ou a opção B.',
+    'Revisei os rascunhos de agente citados neste pacote: Marque que revisou os rascunhos de agente para registrar a decisão.',
+  ]);
+  await semViolacoes(page, 'T11 com erro em 390 px');
+  await page.getByRole('radio', { name: /^Opção A/ }).check();
+  await page.getByRole('checkbox', { name: 'Revisei os rascunhos de agente citados neste pacote (obrigatório)' }).check();
+  await principal(page).click();
+  await expect(d).toBeVisible();
+  await expect(d).toContainText('Você vai registrar: Aprovar a opção A. Depois de registrada, a decisão deste pacote não muda.');
+  await expect(d).toContainText('wsssistemas2626-crypto/');
+  await expect(d).toContainText(/Só o CTO|CTO e administradora/);
+  await semViolacoes(page, 'T11 com o diálogo aberto em 390 px');
   await d.getByRole('button', { name: 'Voltar' }).click();
   await expect(d).toBeHidden();
   await expect(principal(page)).toBeFocused();

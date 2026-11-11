@@ -155,6 +155,25 @@
   }
 }
 
+/* T11 Decisão abaixo de 768 px (03, 6.3 e 2.4; ADR-18; RF-12, CA-12.3): o rodapé fixo da C2 (#rodape-da-decisao) tem
+   124 px, ou 150 px com a explicação do "Aprovar" indisponível. Enquanto ele existe, a página ganha folga embaixo do
+   tamanho dele + 16 px e o mesmo scroll-padding, para nada focado ficar sob o rodapé (WCAG 2.4.11). Fora de camada: o
+   `py-6` do `main` é utilidade e venceria uma regra da camada base. */
+@media (max-width: 767px) {
+  :root:has(#rodape-da-decisao) {
+    --altura-rodape: 124px;
+    scroll-padding-bottom: calc(var(--altura-rodape) + 16px);
+  }
+
+  :root:has(#decisao-aprovar-indisponivel) {
+    --altura-rodape: 150px;
+  }
+
+  main:has(#rodape-da-decisao) {
+    padding-bottom: calc(var(--altura-rodape) + 16px);
+  }
+}
+
 @keyframes gaveta-entra {
   from {
     transform: translateX(-100%);

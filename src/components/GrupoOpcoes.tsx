@@ -23,15 +23,20 @@ type Props = {
   variante?: 'lista' | 'cartao';
 };
 
+// 0.2.0 (T13): o cartão é `isolate`, para o `z-10` do rádio valer só dentro dele, e o rodapé fixo da T11 passar por
+// cima das opções ao rolar (D-T12-02). Indisponível, o cartão fica tracejado, com o fundo de indisponível, e o rótulo
+// não anuncia clique (03, 2.6; parecer 1 de 06-T03-tech-lead); o bloqueio do clique e do teclado é o de hoje.
 const CLASSE_DA_OPCAO: Readonly<Record<'lista' | 'cartao', string>> = {
   lista: 'flex flex-col',
   cartao:
-    'relative flex flex-col rounded-campo border border-tinta-suave bg-branco px-3 py-2 has-[:checked]:border-2 has-[:checked]:border-marinho has-[:checked]:bg-nevoa',
+    'relative isolate flex flex-col rounded-campo border border-tinta-suave bg-branco px-3 py-2 has-[:checked]:border-2 has-[:checked]:border-marinho has-[:checked]:bg-nevoa',
 };
+const CLASSE_DA_OPCAO_INDISPONIVEL = 'relative isolate flex flex-col rounded-campo border border-dashed border-tinta-suave bg-selo-cinza-fundo px-3 py-2';
 const CLASSE_DO_ROTULO: Readonly<Record<'lista' | 'cartao', string>> = {
   lista: '',
   cartao: 'flex-1 cursor-pointer after:absolute after:inset-0',
 };
+const CLASSE_DO_ROTULO_INDISPONIVEL = 'flex-1 cursor-not-allowed after:absolute after:inset-0';
 // 0.2.0 (T12): no cartão, o rádio fica acima da camada de clique do rótulo (after:absolute), para o clique no próprio
 // rádio chegar a ele.
 const CLASSE_DO_RADIO: Readonly<Record<'lista' | 'cartao', string>> = {
@@ -66,9 +71,12 @@ export function GrupoOpcoes({ nome, legenda, opcoes, dica, erro, valor, valorPad
       {opcoes.map((o) => {
         const id = idDaOpcao(nome, o.valor);
         const idDica = o.dica ? `${id}-dica` : undefined;
-        const classeDoRotulo = [CLASSE_DO_ROTULO[variante], o.desabilitada ? 'text-texto-suave' : ''].filter(Boolean).join(' ');
+        const cartaoIndisponivel = variante === 'cartao' && o.desabilitada === true;
+        const classeDoRotulo = cartaoIndisponivel
+          ? `${CLASSE_DO_ROTULO_INDISPONIVEL} text-tinta-media`
+          : [CLASSE_DO_ROTULO[variante], o.desabilitada ? 'text-texto-suave' : ''].filter(Boolean).join(' ');
         return (
-          <div key={o.valor} className={CLASSE_DA_OPCAO[variante]}>
+          <div key={o.valor} className={cartaoIndisponivel ? CLASSE_DA_OPCAO_INDISPONIVEL : CLASSE_DA_OPCAO[variante]}>
             <div className="flex min-h-11 items-center gap-2">
               <input
                 type="radio"

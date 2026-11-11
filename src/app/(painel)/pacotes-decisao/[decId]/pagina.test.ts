@@ -208,7 +208,8 @@ describe('T11: cabeçalho, revisão e conteúdo', () => {
     const s = await pagina();
     expect(s).toContain(`<span class="font-mono">${DEC}</span>`);
     expect(s).toContain('>Decisão pendente</span>');
-    expect(s).toContain('<h1 class="break-words">Decisão: Pedidos duplicados no ERP (fictício)</h1>');
+    // 0.2.0 (T13, CV-18): o título copiado fica isolado por <bdi>; o texto do h1 é o mesmo.
+    expect(s).toContain('<h1 class="break-words">Decisão: <bdi>Pedidos duplicados no ERP (fictício)</bdi></h1>');
     expect(s).not.toContain('Título atual da demanda');
     expect(s).toMatch(/Demanda <a [^>]*href="\/demandas\/DEM-20261022-0042"[^>]*>DEM-20261022-0042<\/a> · Nível de aprovação: Só o CTO · Criado em <time[^>]*>22\/10\/2026 às 14:05<\/time> por Pessoa Ficticia CTO/);
     expect(s).toContain(`href="/especificacoes/${ESP}"`);
@@ -269,7 +270,7 @@ describe('T11: cabeçalho, revisão e conteúdo', () => {
     expect(aprovar).not.toMatch(/\sdisabled=/);
     expect(aprovar).toMatch(/>Aprovar<\/button>$/);
     expect(s).toMatch(/<p id="decisao-aprovar-indisponivel"[^>]*>Indisponível: pacote desatualizado\.<\/p>/);
-    // Sem desatualização, as opções e o documento só servem para aprovar: não aparecem (03, 6.4).
+    // Com o pacote desatualizado, as opções e o documento, que só servem para aprovar, não aparecem (03, 6.4).
     expect(s).not.toContain(`id="${idDoCampo('opcaoEscolhida')}-A"`);
     // Devolver e Arquivar continuam disponíveis.
     for (const id of ['decisao-devolver', 'decisao-arquivar']) expect(new RegExp(`<button [^>]*id="${id}"[^>]*>`).exec(s)![0], id).not.toMatch(/\saria-disabled=/);
@@ -633,5 +634,150 @@ describe('T11: Pedido de Construção (T44)', () => {
     mPacote.mockResolvedValue(aprovado());
     mExigir.mockResolvedValue(ADM);
     expect(await pagina()).toContain('>Gerar Pedido de Construção</button>');
+  });
+});
+
+// 0.2.0 (T13 do DEC-DEM-20261110-0015-v1; RF-12; 03, 6.2 e 6.3; D-02, D-16): a T11 no arranjo A (computador) e C2
+// (celular), com uma ordem de DOM só para todas as larguras. O que muda por largura é só classe (md: e xl:); o rodapé
+// fixo, o recolhível fechado e o foco ficam no e2e (e2e/decisao-celular.spec.ts).
+describe('T13: arranjo A e C2 (RF-12; CV-12, CV-18, CV-19)', () => {
+  const ID_DO_RECOLHIVEL = 'detalhes-do-pacote';
+  const REPOSITORIO = 'Repositório destino: wsssistemas2626-crypto/sistema-ficticio';
+  const aprovacaoCto = { papel: 'cto' as const, nome: 'Pessoa Ficticia CTO', opcao: 'A' as const, registradaEm: APROVADO, referenciaDocumento: null, dataDocumento: null };
+  const posicao = (s: string, alvo: RegExp | string): number => {
+    const i = typeof alvo === 'string' ? s.indexOf(alvo) : s.search(alvo);
+    expect(i, String(alvo)).toBeGreaterThan(-1);
+    return i;
+  };
+  const classes = (tag: string): string[] => (/\sclass="([^"]*)"/.exec(tag)?.[1] ?? '').split(' ');
+
+  it('cabeçalho: "Voltar para a demanda" só abaixo de 768 px e antes do h1; título em <bdi>; linha do repositório destino antes dos alertas', async () => {
+    mPacote.mockResolvedValue(pacote({ desatualizado: true, rascunhoAgente: true, rascunhosCitados: [DEC] }));
+    mDemanda.mockResolvedValue(demanda({ especificacoes: [resumo(`ESP-${ID}-v3`), resumo(ESP)] }));
+    const s = await pagina();
+    const voltar = /<a [^>]*>(?:<svg[\s\S]*?<\/svg>)?Voltar para a demanda<\/a>/.exec(s)?.[0] ?? '';
+    // CV-19: constante de rota mais o id da demanda do pacote, que casa a regex de id.
+    expect(voltar).toContain(`href="/demandas/${ID}"`);
+    expect(classes(/<a [^>]*>/.exec(voltar)?.[0] ?? '')).toEqual(expect.arrayContaining(['md:hidden', 'min-h-11']));
+    expect(voltar.match(/<svg\b/g)).toHaveLength(1);
+    expect(voltar.match(/<svg\b(?![^>]*aria-hidden="true")/g)).toBeNull();
+    expect(posicao(s, 'Voltar para a demanda')).toBeLessThan(posicao(s, '<h1'));
+    expect(s).toMatch(/<h1 [^>]*>Decisão: <bdi>Pedidos duplicados no ERP \(fictício\)<\/bdi><\/h1>/);
+    // RF-12 e CV-12: o repositório destino no cabeçalho, sem abrir nada, antes dos alertas e do conteúdo.
+    expect(s).toMatch(new RegExp(`<p[^>]*>${REPOSITORIO}</p>`));
+    expect(posicao(s, REPOSITORIO)).toBeGreaterThan(posicao(s, '<h1'));
+    expect(posicao(s, REPOSITORIO)).toBeLessThan(posicao(s, 'Este pacote está desatualizado.'));
+    expect(posicao(s, REPOSITORIO)).toBeLessThan(posicao(s, 'Este pacote cita conteúdo gerado por agente de IA'));
+    mPacote.mockResolvedValue(pacote({ especificacaoCitada: { sistemaAlvo: null, repositorioDestino: null, criteriosAceitePreliminares: null, definicaoDePronto: null } }));
+    mDemanda.mockResolvedValue(demanda());
+    expect(await pagina()).toMatch(/<p[^>]*>Repositório destino: Não informado<\/p>/);
+  });
+
+  it('ordem do DOM: aprovações, resumo, recomendação, revisão sempre visível, recolhível com opções e detalhe, e o formulário', async () => {
+    mPacote.mockResolvedValue(pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto], recomendacao: 'Recomendo a opção A (fictício).' }));
+    mExigir.mockResolvedValue(ADM);
+    const s = await pagina();
+    const marcos = [
+      /<h2[^>]*>Aprovações<\/h2>/,
+      /<h2[^>]*>Resumo executivo<\/h2>/,
+      /<h2[^>]*>Recomendação<\/h2>/,
+      /<h2[^>]*>Revisão antes de decidir<\/h2>/,
+      new RegExp(`<button [^>]*aria-controls="${ID_DO_RECOLHIVEL}"`),
+      new RegExp(`<div id="${ID_DO_RECOLHIVEL}"`),
+      /<h2[^>]*>Registrar decisão<\/h2>/,
+      /<form/,
+    ];
+    const posicoes = marcos.map((m) => posicao(s, m));
+    expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
+    // O recolhível (D-02): botão com o texto fixo, fechado ao abrir, ligado ao bloco; o bloco some só abaixo de 768 px.
+    const botao = new RegExp(`<button [^>]*aria-controls="${ID_DO_RECOLHIVEL}"[^>]*>`).exec(s)![0];
+    expect(botao).toContain('aria-expanded="false"');
+    expect(botao).toContain('type="button"');
+    expect(classes(botao)).toContain('md:hidden');
+    expect(s.slice(s.indexOf(botao))).toMatch(/^<button [^>]*>Ver vantagens, desvantagens e a revisão do pacote<svg[^>]*aria-hidden="true"/);
+    expect(classes(new RegExp(`<div id="${ID_DO_RECOLHIVEL}"[^>]*>`).exec(s)![0])).toEqual(['max-md:hidden']);
+    // A partir de 1200 px: conteúdo em 3/5 e o cartão "Registrar decisão" em 2/5, não fixo.
+    expect(s).toMatch(/<div class="[^"]*\bxl:grid-cols-5\b[^"]*">/);
+    const registrar = /<section aria-labelledby="registrar-decisao-titulo"[^>]*>/.exec(s)![0];
+    expect(classes(registrar)).toEqual(expect.arrayContaining(['xl:col-span-2', 'rounded-cartao', 'border-linha', 'bg-branco']));
+    expect(registrar).not.toMatch(/\b(?:fixed|sticky)\b/);
+    expect(s).toMatch(/<div class="[^"]*\bxl:col-span-3\b[^"]*"><section aria-labelledby="aprovacoes"/);
+  });
+
+  it('CV-12 e D-16: sem abrir nada, a revisão mostra ESP e RSK com o selo, sistema alvo, repositório, os três níveis e o nível; no recolhível só critérios, definição de pronto e as opções completas', async () => {
+    mPacote.mockResolvedValue(pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', rascunhoAgente: true, rascunhosCitados: [DEC, ESP, RSK] }));
+    const s = await pagina();
+    const sempre = s.slice(posicao(s, /<h2[^>]*>Revisão antes de decidir<\/h2>/), posicao(s, new RegExp(`<button [^>]*aria-controls="${ID_DO_RECOLHIVEL}"`)));
+    for (const t of [
+      'Especificação técnica citada',
+      `href="/especificacoes/${ESP}"`,
+      'Sistema alvo',
+      '>sistema-ficticio<',
+      'Repositório destino',
+      'wsssistemas2626-crypto/sistema-ficticio',
+      'Parecer de risco citado',
+      `href="/pareceres-risco/${RSK}"`,
+      'Risco técnico: Alto',
+      'Risco operacional: Médio',
+      'Risco jurídico: Baixo',
+      'Nível de aprovação: CTO e administradora',
+    ])
+      expect(sempre, t).toContain(t);
+    expect(sempre.match(/>Rascunho de agente<\/span>/g)).toHaveLength(2);
+    for (const t of ['Critérios de aceite preliminares', 'Critério (fictício)', 'Definição de pronto', 'Pronto (fictício)']) expect(sempre, t).not.toContain(t);
+
+    const recolhivel = s.slice(posicao(s, new RegExp(`<div id="${ID_DO_RECOLHIVEL}"`)), posicao(s, /<section aria-labelledby="registrar-decisao-titulo"/));
+    for (const t of ['Critérios de aceite preliminares', 'Critério (fictício)', 'Definição de pronto', 'Pronto (fictício)', '>Opções</h2>', '>Opção A</h3>', '>Opção B</h3>', '>Vantagens</dt>', '>Quando escolher</dt>'])
+      expect(recolhivel, t).toContain(t);
+    // Fora do recolhível: o nível, o repositório, os níveis de risco, os alertas, as aprovações, o resumo e a recomendação.
+    for (const t of ['Nível de aprovação', 'Repositório destino', 'Risco técnico', 'Este pacote cita conteúdo', 'Aprovações', 'Resumo executivo', 'Recomendação', 'Rascunho de agente'])
+      expect(recolhivel, t).not.toContain(t);
+  });
+
+  it('rodapé (03, 6.3): fixo embaixo só abaixo de 768 px, branco, borda superior linha, com a área segura; principal de 48 px na largura toda; Devolver e Arquivar lado a lado', async () => {
+    mPacote.mockResolvedValue(pacote({ desatualizado: true }));
+    mDemanda.mockResolvedValue(demanda({ especificacoes: [resumo(`ESP-${ID}-v3`), resumo(ESP)] }));
+    const s = await pagina();
+    const rodape = /<div id="rodape-da-decisao" role="group" aria-label="Ações da decisão"[^>]*>/.exec(s)![0];
+    expect(classes(rodape)).toEqual(
+      expect.arrayContaining([
+        'max-md:fixed',
+        'max-md:inset-x-0',
+        'max-md:bottom-0',
+        'max-md:z-20',
+        'max-md:border-t',
+        'max-md:border-linha',
+        'max-md:bg-branco',
+        'max-md:px-4',
+        'max-md:pt-3',
+        'max-md:pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]',
+        'max-md:gap-2',
+      ]),
+    );
+    // A partir de 768 px o grupo fica no fluxo, no fim do cartão (sem fixed fora do max-md:).
+    expect(classes(rodape).filter((c) => /(?:^|:)(?:fixed|sticky|absolute)$/.test(c) && !c.startsWith('max-md:'))).toEqual([]);
+    const principal = /<button [^>]*id="decisao-aprovar"[^>]*>/.exec(s)![0];
+    expect(classes(principal)).toEqual(expect.arrayContaining(['max-md:min-h-12', 'max-md:w-full']));
+    const linha = s.slice(s.indexOf(principal) + principal.length);
+    expect(linha).toMatch(/<div class="[^"]*\bmax-md:grid\b[^"]*\bmax-md:grid-cols-2\b[^"]*"><button [^>]*id="decisao-devolver"/);
+    // A explicação do "Aprovar" indisponível fica no rodapé, logo acima dele, em 13 px no celular.
+    const explicacao = /<p id="decisao-aprovar-indisponivel"[^>]*>/.exec(s)![0];
+    expect(classes(explicacao)).toEqual(expect.arrayContaining(['max-md:text-[0.8125rem]', 'max-md:leading-[1.125rem]']));
+    expect(posicao(s, rodape)).toBeLessThan(posicao(s, explicacao));
+    expect(posicao(s, explicacao)).toBeLessThan(posicao(s, principal));
+  });
+
+  it('CA-12.5: sem formulário (decidido, ou a conta não decide) não há rodapé', async () => {
+    mPacote.mockResolvedValue(
+      pacote({ statusDecisao: 'aprovada', aprovadores: [aprovacaoCto], decisao: { opcaoEscolhida: 'A', comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO } }),
+    );
+    let s = await pagina();
+    expect(s).toContain('Decisão registrada: Aprovada, opção A, por Pessoa Ficticia CTO em 22/10/2026 às 15:00.');
+    expect(s).not.toContain('rodape-da-decisao');
+    mPacote.mockResolvedValue(pacote());
+    mExigir.mockResolvedValue(ADM);
+    s = await pagina();
+    expect(s).toContain('Este pacote exige só a aprovação do CTO.');
+    expect(s).not.toContain('rodape-da-decisao');
   });
 });

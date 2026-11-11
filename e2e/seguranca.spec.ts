@@ -5,9 +5,11 @@
 // C-36 (06-T43-tech-lead e 06-T44-tech-lead, "C-36"): esta spec não cria nenhuma demanda. Ela usa a demanda de tipo
 // estudo do seed fictício (T33), achada por GET /api/demandas, que a pedido-construcao.spec também usa e que, pela
 // ordem alfabética, já pode ter ESP, RSK e um DEC aprovado quando esta spec roda: nada aqui supõe que ela esteja sem
-// pacote. Só o caso de C-18 grava, com a sessão da conta "cto", uma versão nova da ESP nessa demanda.
+// pacote. Só o caso de C-18 grava, com a sessão da conta "cto", uma versão nova da ESP nessa demanda. O caso da T11
+// (T13 do DEC-DEM-20261110-0015-v1) cria uma vez, com a sessão da "administradora" (a "cto" chega perto das 60 versões
+// por hora na suíte), a ESP, o RSK e o DEC que faltarem na `textoDeTerceiro` do seed.
 //   - conta "cto": 0 demandas e 1 versão (a ESP do caso C-18);
-//   - conta "administradora": 0 demandas e 0 versões.
+//   - conta "administradora": 0 demandas e até 3 versões (ESP, RSK e DEC do caso da T11).
 // O POST de outra origem do caso C-15 leva corpo vazio: se o Origin passasse, a validação recusaria com 400 e nada seria
 // gravado.
 import { type Page } from '@playwright/test';
@@ -122,7 +124,66 @@ test('C-18 e CV-18: na T05 da textoDeTerceiro, o título literal no h1 com <bdi>
   expect(dialogos).toEqual([]);
 });
 
-test('C-19: /demandas/[id] e GET /api/demandas/:id com CSP de nonce, nosniff, no-referrer, no-store, sem X-Powered-By', async ({ page }) => {
+// CV-18 (T13 do DEC-DEM-20261110-0015-v1): o C-18 também no cabeçalho da T11, num DEC de pessoa da `textoDeTerceiro`
+// ("CTO e administradora", para a administradora ver o formulário) criado pela API uma vez, com a ESP e o RSK que
+// faltarem, e achado pela API nas execuções seguintes. Fica depois do caso da T05, que espera a demanda ainda sem ESP.
+// O título copiado no pacote aparece literal no h1, isolado por <bdi>, e nada executa, nas duas larguras; o rodapé e o
+// "Voltar para a demanda" só têm texto da tela e o id.
+test('C-18 e CV-18: no cabeçalho da T11 de um DEC da textoDeTerceiro, o título literal no h1 com <bdi>; nada executa', async ({ page }) => {
+  await entrarComo(page, 'administradora');
+  const dialogos: string[] = [];
+  page.on('dialog', (d) => {
+    dialogos.push(d.message());
+    void d.dismiss();
+  });
+  const titulo = TITULOS_DO_E2E.textoDeTerceiro;
+  expect(titulo).toContain(String.fromCodePoint(0x202e));
+  const id = await demandaDoSeed(page, titulo);
+  const listar = async (tipo: 'especificacoes' | 'pareceres-risco' | 'pacotes-decisao') => (await api<{ itens: Versao[] }>(page, 'GET', `/api/demandas/${id}/${tipo}`)).itens;
+  if ((await listar('especificacoes')).length === 0)
+    await api<Versao>(page, 'POST', `/api/demandas/${id}/especificacoes`, {
+      descricaoObjetiva: 'Decisão com título de terceiro (fictício).',
+      escopoInclui: ['Cabeçalho da T11 (fictício)'],
+      sistemaAlvo: 'sistema-ficticio',
+      repositorioDestino: 'wsssistemas2626-crypto/sistema-ficticio',
+      criteriosAceitePreliminares: ['O título aparece como texto (fictício)'],
+      definicaoDePronto: ['Testes verdes (fictício)'],
+    });
+  if ((await listar('pareceres-risco')).length === 0)
+    await api<Versao>(page, 'POST', `/api/demandas/${id}/pareceres-risco`, { riscoTecnicoNivel: 'baixo', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' });
+  const decId =
+    (await listar('pacotes-decisao'))[0]?.id ??
+    (
+      await api<Versao>(page, 'POST', `/api/demandas/${id}/pacotes-decisao`, {
+        resumoExecutivo: 'Resumo executivo fictício.',
+        opcaoA: { descricao: 'Opção A (fictício)' },
+        opcaoB: { descricao: 'Opção B (fictício)' },
+        nivelAprovacaoRequerido: 'cto_e_administradora',
+      })
+    ).id;
+  for (const tamanho of [
+    { width: 1280, height: 720 },
+    { width: 390, height: 844 },
+  ]) {
+    const rotulo = `${tamanho.width} px`;
+    await page.setViewportSize(tamanho);
+    await page.goto(`/pacotes-decisao/${decId}`);
+    await expect(page.locator('main h1'), rotulo).toHaveText(`Decisão: ${titulo}`);
+    await expect(page.locator('main h1 > bdi'), rotulo).toHaveText(titulo);
+    await expect(page.locator('main img'), rotulo).toHaveCount(0);
+    await expect(page.locator('main script'), rotulo).toHaveCount(0);
+    const acoes = page.getByRole('group', { name: 'Ações da decisão', exact: true });
+    await expect(acoes, rotulo).toBeVisible();
+    await expect(acoes, rotulo).not.toContainText('<script>');
+    expect(await page.evaluate(() => (window as unknown as { __xss?: unknown }).__xss), rotulo).toBeUndefined();
+  }
+  // Em 390 px, o link de volta leva só o id da demanda, nunca o título.
+  const voltar = page.getByRole('link', { name: 'Voltar para a demanda', exact: true });
+  await expect(voltar).toHaveAttribute('href', `/demandas/${id}`);
+  expect(dialogos).toEqual([]);
+});
+
+test('C-19:/demandas/[id] e GET /api/demandas/:id com CSP de nonce, nosniff, no-referrer, no-store, sem X-Powered-By', async ({ page }) => {
   await entrarComo(page, 'cto');
   const id = await demandaDeEstudoDoSeed(page);
   for (const caminho of [`/demandas/${id}`, `/api/demandas/${id}`]) {

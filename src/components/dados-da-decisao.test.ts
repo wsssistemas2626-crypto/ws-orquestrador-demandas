@@ -18,6 +18,7 @@ import {
   envioDaDecisao,
   errosDaApiDecisao,
   formularioDaConta,
+  ID_DOS_BOTOES,
   itensDaRevisao,
   linhasDeAprovacao,
   LIMITE_REFERENCIA,
@@ -26,6 +27,7 @@ import {
   rascunhosEmTexto,
   rotuloDoPrincipal,
   secoesDasOpcoes,
+  separarRevisao,
   textoDaDecisaoRegistrada,
   textoDoDialogo,
   TEXTOS_DECISAO,
@@ -150,6 +152,15 @@ describe('textos da 03, T11, iguais aos do servidor onde o servidor também fala
     expect(t.sucesso.devolvida).toBe('Pacote devolvido para nova análise. A demanda voltou para Em análise.');
     expect(t.sucesso.arquivada).toBe('Pacote arquivado. A demanda foi para Encerrada.');
   });
+
+  // 0.2.0 (T13; 03, seção 9): o cabeçalho e o celular da T11.
+  it('T13: linha do repositório destino, "Voltar para a demanda" e o botão do recolhível', () => {
+    const t = TEXTOS_DECISAO;
+    expect(t.repositorioNaLinha('wsssistemas2626-crypto/ficticio')).toBe('Repositório destino: wsssistemas2626-crypto/ficticio');
+    expect(t.repositorioNaLinha(null)).toBe('Repositório destino: Não informado');
+    expect(t.voltarParaDemanda).toBe('Voltar para a demanda');
+    expect(t.verDetalhes).toBe('Ver vantagens, desvantagens e a revisão do pacote');
+  });
 });
 
 describe('quem vê o formulário (03, T11; P1-a, P1-b)', () => {
@@ -218,14 +229,12 @@ describe('grupos do formulário', () => {
 
 describe('validação no envio, na ordem da tela', () => {
   it('nada marcado: só "Escolha a decisão." (e a revisão, se houver rascunho)', () => {
-    expect(validarDecisao(valores(), ctx()).map((e) => [e.campo, e.mensagem, e.idCampo])).toEqual([
-      ['statusDecisao', 'Escolha a decisão.', `${idDoCampo('statusDecisao')}-aprovada`],
-    ]);
+    expect(validarDecisao(valores(), ctx()).map((e) => [e.campo, e.mensagem, e.idCampo])).toEqual([['statusDecisao', 'Escolha a decisão.', 'decisao-aprovar']]);
     expect(validarDecisao(valores(), ctx({ exigeRevisao: true })).map((e) => e.mensagem)).toEqual(['Escolha a decisão.', MENSAGENS_DECISAO.revisarRascunhos]);
   });
 
   it('desatualizado: o link do resumo leva à primeira opção disponível', () => {
-    expect(validarDecisao(valores(), ctx({ aprovarIndisponivel: true }))[0]!.idCampo).toBe(`${idDoCampo('statusDecisao')}-devolvida`);
+    expect(validarDecisao(valores(), ctx({ aprovarIndisponivel: true }))[0]!.idCampo).toBe('decisao-devolver');
   });
 
   it('Aprovar sem opção; administradora sem documento e sem data; comentário longo', () => {
@@ -415,6 +424,17 @@ describe('erros da API', () => {
       expect(errosDaApiDecisao({ ok: false, erro: 'conflito', mensagem: motivo }, ctx()).alerta).toBe(`Não foi possível concluir: ${motivo}`);
     expect(errosDaApiDecisao({ ok: false, erro: 'sem_permissao', mensagem: 'x' }, ctx()).alerta).toBe('Sua conta não pode fazer esta ação. Se precisar, fale com o CTO.');
   });
+
+  // D-T12-01 (06-T12-tech-lead, M1): desde a T12 não há rádio de decisão; o link do resumo leva ao botão principal, ou
+  // a "Devolver" com o pacote desatualizado (o principal não envia). Os ids são os dos três botões do formulário.
+  it('400 na decisão: o link do resumo leva ao botão principal, ou a "Devolver" com o pacote desatualizado', () => {
+    expect(ID_DOS_BOTOES).toEqual({ aprovada: 'decisao-aprovar', devolvida: 'decisao-devolver', arquivada: 'decisao-arquivar' });
+    const r: Falha = { ok: false, erro: 'entrada_invalida', mensagem: 'Corrija os campos abaixo para continuar.', campos: [{ campo: 'decisao', mensagem: 'Valor inválido.' }] };
+    expect(errosDaApiDecisao(r, ctx()).campos.map((c) => [c.campo, c.idCampo])).toEqual([['statusDecisao', 'decisao-aprovar']]);
+    expect(errosDaApiDecisao(r, ctx({ aprovarIndisponivel: true })).campos.map((c) => [c.campo, c.idCampo])).toEqual([['statusDecisao', 'decisao-devolver']]);
+    // Nenhum alvo aponta para o rádio de decisão que saiu na T12.
+    expect(JSON.stringify(errosDaApiDecisao(r, ctx()))).not.toContain(`${idDoCampo('statusDecisao')}-`);
+  });
 });
 
 describe('diálogo de confirmação (03, T11; C-14)', () => {
@@ -475,6 +495,20 @@ describe('topo, revisão (C-14), opções e aprovações', () => {
     ]);
     const vazio = itensDaRevisao(pacote({ especificacaoCitada: { sistemaAlvo: null, repositorioDestino: null, criteriosAceitePreliminares: null, definicaoDePronto: [] } }));
     expect(vazio.slice(1, 5).map((i) => i.valor)).toEqual(['Não informado.', 'Não informado.', 'Nenhum item.', 'Nenhum item.']);
+  });
+
+  // 0.2.0 (T13; D-16, CV-12): no celular, só critérios e definição de pronto podem ficar no recolhível; o resto da
+  // revisão (C-14) fica sempre visível.
+  it('D-16 e CV-12: separarRevisao deixa no detalhe só critérios e definição de pronto, na ordem de hoje', () => {
+    const itens = itensDaRevisao(pacote({ rascunhosCitados: [ESP, RSK] }));
+    const { sempre, detalhe } = separarRevisao(itens);
+    expect(detalhe.map((i) => i.termo)).toEqual(['Critérios de aceite preliminares', 'Definição de pronto']);
+    expect(sempre.map((i) => i.termo)).toEqual(['Especificação técnica citada', 'Sistema alvo', 'Repositório destino', 'Parecer de risco citado', 'Níveis de risco', 'Nível de aprovação']);
+    // Nada some nem se repete: as duas partes juntas são os itens de hoje, com os valores e os rascunhos intactos.
+    expect([...sempre, ...detalhe].sort((a, b) => a.termo.localeCompare(b.termo))).toEqual([...itens].sort((a, b) => a.termo.localeCompare(b.termo)));
+    expect(sempre.filter((i) => i.rascunho).map((i) => i.valor)).toEqual([ESP, RSK]);
+    // Item que a regra não conhece fica visível: na dúvida, nada é recolhido.
+    expect(separarRevisao([{ termo: 'Outro (fictício)', valor: 'x' }])).toEqual({ sempre: [{ termo: 'Outro (fictício)', valor: 'x' }], detalhe: [] });
   });
 
   it('opções A e B com os subtítulos da 03 e "Não informado." no vazio', () => {
@@ -659,7 +693,7 @@ describe('bordas da tela de decisão (qa-automacao)', () => {
     };
     const e = errosDaApiDecisao(r, ctx({ aprovarIndisponivel: true }));
     expect(e.campos.map((c) => [c.campo, c.mensagem, c.idCampo])).toEqual([
-      ['statusDecisao', 'Escolha a decisão.', `${idDoCampo('statusDecisao')}-devolvida`],
+      ['statusDecisao', 'Escolha a decisão.', 'decisao-devolver'],
       ['referenciaDocumento', 'Este campo aceita até 200 caracteres.', idDoCampo('referenciaDocumento')],
     ]);
     expect(e.porCampo).toEqual({ statusDecisao: 'Escolha a decisão.', referenciaDocumento: 'Este campo aceita até 200 caracteres.' });

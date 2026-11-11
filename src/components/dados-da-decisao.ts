@@ -86,6 +86,10 @@ export const TEXTOS_DECISAO = {
   aprovarOpcao: (o: OpcaoDecisao) => `Aprovar a opção ${o}`,
   devolverCurto: 'Devolver',
   grupoAcoes: 'Ações da decisão',
+  // 0.2.0 (T13; 03, seção 9): a linha do cabeçalho, o link de volta do celular e o botão do recolhível.
+  repositorioNaLinha: (r: string | null) => (r ? `Repositório destino: ${r}` : 'Repositório destino: Não informado'),
+  voltarParaDemanda: 'Voltar para a demanda',
+  verDetalhes: 'Ver vantagens, desvantagens e a revisão do pacote',
   legendaOpcao: 'Opção escolhida (obrigatório)',
   rotuloOpcao: (l: LetraOpcao, trecho: string) => `Opção ${l} — ${trecho}`,
   // A 03 escreve a frase do CTO aprovando primeiro; a da administradora aprovando primeiro troca só o papel.
@@ -230,9 +234,14 @@ export const ROTULOS_DECISAO: Readonly<Record<string, string>> = {
   revisouRascunhosDeAgente: 'Revisei os rascunhos de agente citados neste pacote',
 };
 
-// O elemento que o link do resumo foca: no grupo de decisão, a primeira opção disponível; no de opção, a primeira.
+// Os ids dos três botões de envio da T11 (03, 6.4), a única fonte: o formulário os usa, e o resumo de erros aponta para
+// eles.
+export const ID_DOS_BOTOES: Readonly<Record<StatusDecisaoGravado, string>> = { aprovada: 'decisao-aprovar', devolvida: 'decisao-devolver', arquivada: 'decisao-arquivar' };
+
+// O elemento que o link do resumo foca. Na decisão (0.2.0, T13; D-T12-01): o botão principal, ou "Devolver" com o
+// pacote desatualizado, porque o principal não envia; desde a T12 não há rádio de decisão. No grupo de opção, a primeira.
 function idDoAlvo(campo: string, ctx: ContextoDoFormulario): string {
-  if (campo === 'statusDecisao') return `${idDoCampo('statusDecisao')}-${ctx.aprovarIndisponivel ? 'devolvida' : 'aprovada'}`;
+  if (campo === 'statusDecisao') return ID_DOS_BOTOES[ctx.aprovarIndisponivel ? 'devolvida' : 'aprovada'];
   if (campo === 'opcaoEscolhida') return `${idDoCampo('opcaoEscolhida')}-${LETRAS[0]}`;
   return idDoCampo(campo);
 }
@@ -439,6 +448,15 @@ export function itensDaRevisao(
     { termo: t.niveisRisco, valor: RISCOS.map(([chave, titulo]) => t.riscoEmTexto(titulo, ROTULO_NIVEL[p.niveisRisco[chave]])) },
     { termo: t.nivelAprovacao, valor: t.nivelEmTexto(ROTULO_NIVEL_APROVACAO[p.nivelAprovacaoRequerido]) },
   ];
+}
+
+// 0.2.0 (T13; D-16, CV-12): no celular, só critérios de aceite e definição de pronto podem ficar no recolhível; o resto
+// da revisão (ESP e RSK citados com o selo, sistema alvo, repositório destino, níveis de risco e nível de aprovação) fica
+// sempre visível. Item que esta regra não conhece fica visível. A ordem de cada parte é a de itensDaRevisao.
+const TERMOS_DO_DETALHE: ReadonlySet<string> = new Set([TEXTOS_DECISAO.criterios, TEXTOS_DECISAO.definicao]);
+
+export function separarRevisao(itens: readonly ItemDaRevisao[]): { sempre: ItemDaRevisao[]; detalhe: ItemDaRevisao[] } {
+  return { sempre: itens.filter((i) => !TERMOS_DO_DETALHE.has(i.termo)), detalhe: itens.filter((i) => TERMOS_DO_DETALHE.has(i.termo)) };
 }
 
 // --- opções e aprovações ---
