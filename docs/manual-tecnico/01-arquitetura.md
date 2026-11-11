@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 10/11/2026 (0.1.13: substituído no módulo `pacotes-decisao/`); 31/10/2026 |
+| Atualizado em | 11/11/2026 (0.2.0: leituras da fila em `demandas/`, `src/components/`, fontes Noto, ADR-13 a ADR-19); 10/11/2026 (0.1.13: substituído no módulo `pacotes-decisao/`); 31/10/2026 |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RNF-01, RNF-02, RNF-05, RNF-17, ADR-01 a ADR-12 |
-| Fontes no código | `package.json`, `pnpm-workspace.yaml`, `src/worker/iniciar.ts`, `src/lib/rota.ts`, `src/lib/deps.ts`, `src/app/api/saude/route.ts`, `scripts/migrate.ts`, `next.config.ts` |
+| Cobre | RNF-01, RNF-02, RNF-05, RNF-17, ADR-01 a ADR-19 |
+| Fontes no código | `package.json`, `pnpm-workspace.yaml`, `src/worker/iniciar.ts`, `src/lib/rota.ts`, `src/lib/deps.ts`, `src/app/api/saude/route.ts`, `scripts/migrate.ts`, `next.config.ts`, `src/app/fontes.ts`, `src/app/layout.tsx`, `src/modules/demandas/resumo-da-fila.ts` |
 
 ## Visão geral
 
@@ -38,9 +38,10 @@ flowchart LR
 | Caminho | Responsabilidade |
 |---|---|
 | `src/app/(painel)/` | telas; cada página começa por `exigirPessoaNaPagina` |
+| `src/components/` | componentes de tela e regras de exibição puras (`dados-*.ts`). Desde a 0.2.0: a casca (`casca/`), a marca (`marca/MarcaWs.tsx`), `dados-da-fila.ts` e `dados-das-etapas.ts`. Não decidem acesso nem gravam nada ([cap. 08](08-painel.md)) |
 | `src/app/api/` | rotas; cada uma é `rota(...)` de `src/lib/rota.ts`, menos `/api/auth/*` e `/api/saude` |
 | `src/modules/acesso/` | Better Auth (senha + TOTP), tokens de serviço, `resolverAtor`, `exigirPessoa`, matriz de acesso |
-| `src/modules/demandas/` | criar, ler, alterar, gerador de id, máquina de status, entrada colando o texto, entradas pendentes |
+| `src/modules/demandas/` | criar, ler, alterar, gerador de id, máquina de status, entrada colando o texto, entradas pendentes; desde a 0.2.0, as duas leituras da fila do painel (`resumo-da-fila.ts`, só `SELECT`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)) |
 | `src/modules/especificacoes/`, `pareceres-risco/`, `pacotes-decisao/` | versões de ESP, RSK e DEC, desatualizado, substituído (desde a 0.1.13), decisão e dupla aprovação |
 | `src/modules/versoes.ts` | trava da demanda (`SELECT … FOR UPDATE`) e próxima versão |
 | `src/modules/limites.ts` | limite por ator: 30 demandas e 60 versões (ESP, RSK e DEC somados) por hora |
@@ -85,6 +86,32 @@ backup ([deploy.md, seção 6](../operacao/deploy.md)).
 nonce. Toda rota da API responde com `cache-control: no-store`, `x-content-type-options: nosniff`,
 `referrer-policy: no-referrer` e sem CORS.
 
+A 0.2.0 não mudou `next.config.ts` nem `src/proxy.ts`: a CSP continua sem domínio externo. O teste
+`src/proxy.test.ts` ficou sem diff, e a fixture dos e2e reprova qualquer violação de CSP
+([cap. 08](08-painel.md#acessibilidade-rnf-11)).
+
+## Fontes (ADR-13)
+
+Desde a 0.2.0, o painel usa Noto Sans (pesos 400, 600, 700 e 800) e Noto Sans Mono (400 e 600), servidas pelo próprio
+app (`src/app/fontes.ts`):
+
+- Os arquivos são os `woff2` do subconjunto `latin` dos pacotes `@fontsource/noto-sans` e
+  `@fontsource/noto-sans-mono`, versão exata 5.3.0, em `devDependencies`. São seis arquivos, com `display: 'swap'` e
+  fallback `system-ui` e `ui-monospace`. A licença (OFL 1.1) vem no pacote.
+- O `next/font/local` lê os arquivos em `node_modules` no `next build` e os copia para `/_next/static/media`, com hash
+  no nome. Nada é buscado na rede, nem no build nem no navegador. Não há chamada ao Google Fonts, e a CSP não ganhou
+  domínio.
+- `src/app/layout.tsx` usa só o `.variable` dos dois objetos (`--font-noto-sans` e `--font-noto-sans-mono`). As
+  famílias entram pelo `@theme` de `src/app/globals.css`. O `.style` não é usado, e o teste
+  `test/estatico/sem-recurso-externo.test.ts` reprova quem usar.
+- **Consequência para o build:** o `next build` precisa das `devDependencies` instaladas. A imagem já faz o
+  `pnpm install` completo. O caminho até `node_modules` depende do leiaute do pnpm.
+- `test/estatico/fontes.test.ts` confere os seis arquivos (assinatura `wOF2`, até 300 KB somados), a licença OFL, a
+  versão exata e o `integrity` no lockfile. `e2e/fontes.spec.ts` confere, na T01, na T03 e na T11, que a família
+  carregou e veio da mesma origem.
+
+É o único desvio do padrão técnico da 0.2.0 (pacote novo), registrado no ADR-13.
+
 ## Escala (RNF-05)
 
 Uma réplica de `app` e uma de `worker`. O limite de login é em memória (ADR-11), e a fila dos agentes tem
@@ -111,6 +138,7 @@ alta ou crítica conhecida):
 | `@anthropic-ai/sdk` | 0.131.0 | |
 | `vitest`, `testcontainers` | 5.0.2, 12.1.0 | |
 | `@playwright/test`, `@axe-core/playwright` | 1.63.0, 4.13.0 | |
+| `@fontsource/noto-sans`, `@fontsource/noto-sans-mono` | 5.3.0 (exata) | `devDependencies`, desde a 0.2.0; lidas só no `next build` ([Fontes](#fontes-adr-13)) |
 
 Divergências conhecidas, registradas no [CHANGELOG](../../CHANGELOG.md):
 
@@ -145,5 +173,15 @@ Desenvolvimento em 3101 (`pnpm dev`), nunca 3000 (painel do Easypanel). Postgres
 | ADR-10 | Acréscimos de layout: `src/agents/` e `src/vendor/construir/` |
 | ADR-11 | Limite de login em memória, sessão fixa de 8 h, 2FA conferido em `exigirPessoa` |
 | ADR-12 | Migrations ao subir só na homologação; na produção, passo separado; a saúde confere a última migration |
+| ADR-13 | Fontes Noto por `next/font/local` a partir dos pacotes `@fontsource` em `devDependencies` (desvio do padrão: pacote novo) |
+| ADR-14 | Tokens de cor, família, raio e foco no `@theme` de `globals.css`; um nome por cor desde a T16 |
+| ADR-15 | Casca com menu lateral e gaveta em `<dialog>` nativo, com a volta do Tab feita à mão |
+| ADR-16 | Contadores e etapas da fila por leitura nova e separada, só `SELECT`, sem mudar a API |
+| ADR-17 | Barra de etapas e Próxima ação como funções puras de exibição, chamadas só por página |
+| ADR-18 | T11 com um formulário, três botões de envio e arranjo do celular só por CSS |
+| ADR-19 | Testes nas duas larguras sem projeto novo do Playwright; origem e CSP conferidas em todo e2e; capturas por spec |
 
-O texto completo dos ADRs está em `docs/construcao/DEC-DEM-20261022-0001-v1/02-arquiteto-solucoes.md`.
+O texto completo dos ADR-01 a ADR-12 está em `docs/construcao/DEC-DEM-20261022-0001-v1/02-arquiteto-solucoes.md`; o
+dos ADR-13 a ADR-19 (0.2.0), em `docs/construcao/DEC-DEM-20261110-0015-v1/02-arquiteto-solucoes.md`, seção 9. Na
+ADR-14 e na ADR-18, o plano trocou dois pontos: os nomes antigos de cor saíram de vez na T16 (D-01), e o recolhível
+é o componente `Recolhivel`, e não `<details>` (D-02, `05-tech-lead.md`).

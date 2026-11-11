@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 11/11/2026 (0.2.0: leituras da fila do painel, no RF-06); 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09 |
-| Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
+| Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`, `resumo-da-fila.ts`), `src/modules/historico/`, `src/modules/limites.ts` |
 
 ## RF-03. Criar demanda
 
@@ -60,6 +60,20 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
   aparece como `responsavel` (nome da conta ou nome do agente), nunca pelo id interno. Isso é o que a pessoa recebe; o
   agente recebe a vista mínima (abaixo).
 - Nenhuma leitura de demanda traz o texto bruto.
+- **Leituras da fila do painel** (desde a 0.2.0, `src/modules/demandas/resumo-da-fila.ts`, ADR-16 do pedido 0015).
+  São duas consultas só de leitura, que a API não usa:
+  - `contarDemandasPorStatus(db, { tipo, linhaServicoProvavel })`: total por status com os filtros de tipo e linha da
+    URL, num `group by status`. O status da URL não entra, porque cada contador é um status. Devolve `porStatus` (os
+    nove status, zero quando não há) e `todas`;
+  - `etapasDasDemandas(db, ids)`: para os ids da página, se a demanda tem ao menos uma versão de ESP, de RSK e de DEC
+    (um `exists` por tabela, pelo índice `(demanda_id, versao)`). Lista vazia não consulta.
+
+  Só a página da T03 as chama, por `src/app/(painel)/demandas/leituras-da-fila.ts`, depois de `exigirPessoaNaPagina`
+  e de `autorizar(pessoa, 'listar_demandas')`. Devolvem só números e booleanos, nunca texto da demanda. Os filtros
+  chegam já validados por `filtroDemandasSchema`. Somadas à lista e ao total de antes, a carga da fila passou de 2 para
+  4 consultas, número fixo, qualquer que seja o tamanho da página (RNF-09 do pedido 0015). Se a contagem falha, o log é `painel_contadores_falhou`, sem filtro nem SQL, e os contadores
+  ficam sem número. Se as etapas falham, a fila mostra o erro da lista. `listarDemandas`, `DemandaResumo` e
+  `GET /api/demandas` não mudaram ([cap. 08](08-painel.md#fila-t03-rf-05-a-rf-07)).
 - `PATCH /api/demandas/:id` (só pessoa): altera campos e, com `status`, faz a transição manual. Ausente = não muda;
   `null` limpa campo opcional. Sem nada a mudar, 400 "Nada foi alterado.". Tudo é conferido antes de gravar.
 - **Vista mínima para quem não é pessoa** (`vistaDaDemandaPara` em `consultas.ts`; M-06, desde a 0.1.6). Vale no

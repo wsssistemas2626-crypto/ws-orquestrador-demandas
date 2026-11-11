@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.1.13 (`package.json`) |
-| Atualizado em | 10/11/2026 |
+| Versão | 0.2.0 (`package.json`) |
+| Atualizado em | 11/11/2026 (0.2.0: novo visual do painel) |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
 | Repositório | `wsssistemas2626-crypto/ws-orquestrador-demandas` (privado) |
@@ -22,6 +22,11 @@ leva o papel de quem aprovou, e não o nome ([manual, cap. 05](docs/manual-tecni
 Quatro agentes de IA (orquestrador, insumo técnico, risco e consolidação) podem preencher rascunhos como jobs, mas
 **nascem desligados e com teto de gasto zero**. Na 0.1.0 a pessoa preenche tudo pelo painel.
 
+Desde a 0.2.0, o painel tem a identidade da WS: menu lateral marinho, que vira gaveta no celular, fila com contadores
+por status, demanda com a barra de etapas e o cartão "Próxima ação", e decisão por três botões, com um arranjo próprio
+no celular. As fontes Noto saem do próprio app, sem chamada a outro domínio. Só a camada visual mudou: API, regras e
+banco são os da 0.1.13 ([manual, cap. 08](docs/manual-tecnico/08-painel.md)).
+
 ## Onde está cada coisa
 
 | Assunto | Documento |
@@ -31,6 +36,7 @@ Quatro agentes de IA (orquestrador, insumo técnico, risco e consolidação) pod
 | O que entrou em cada versão e o que ficou pendente | [CHANGELOG.md](CHANGELOG.md) |
 | Spec aprovada na Parada 1 | [docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md](docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md) |
 | Plano de implementação (47 tarefas) | [docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md](docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md) |
+| Spec e plano do novo visual (0.2.0, 17 tarefas) | [spec](docs/superpowers/specs/2026-11-10-ws-orquestrador-demandas-novo-visual-design.md) e [plano](docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md) |
 
 ## Requisitos da máquina
 
@@ -62,6 +68,12 @@ pnpm audit --prod --audit-level high
   mesma hora contra o mesmo banco recebe 429 do limite de demandas por hora: espere uma hora entre as execuções.
 - `pnpm audit --prod --audit-level high` (ou `pnpm audit:prod`) tem de terminar com código 0. O `pnpm-workspace.yaml`
   fixa o `zod` em 4.6.6 por `overrides`, inclusive o que vem pelo better-auth. Não tire essa linha sem rodar o audit.
+- As fontes Noto Sans e Noto Sans Mono vêm de `@fontsource/noto-sans` e `@fontsource/noto-sans-mono`, que estão em
+  `devDependencies`. O `next build` lê os arquivos delas em `node_modules` (`src/app/fontes.ts`). Por isso, instale
+  sempre com as `devDependencies`: com `pnpm install --prod`, o build falha.
+- O `e2e/capturas.spec.ts` grava as capturas do manual (`docs/manual-tecnico/capturas/`) só com o servidor em
+  `127.0.0.1` ou `localhost` e sem a variável `CI`, e pula a captura que já existe. Para regravar uma tela, apague o
+  PNG dela ([cap. 08 do manual](docs/manual-tecnico/08-painel.md#capturas-de-tela)).
 
 ## Ver o sistema de pé com dados fictícios
 
