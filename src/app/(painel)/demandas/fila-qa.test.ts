@@ -16,16 +16,25 @@ import { exigirPessoaNaPagina } from '../../../modules/acesso/exigir-pessoa';
 import { listarDemandas, type DemandaResumo } from '../../../modules/demandas/consultas';
 import { listarEntradasPendentes, type EntradaPendenteResumo } from '../../../modules/demandas/entradas-pendentes';
 import { filtroDemandasSchema, LINHAS, PAPEIS_SOLICITANTE, STATUS, TIPOS, URGENCIAS, type FiltroDemandas } from '../../../modules/demandas/schemas';
+import { contadoresDaFila } from '../../../components/dados-da-fila';
+import { ContadoresDaFila } from './ContadoresDaFila';
 import { EntradasAguardando } from './EntradasAguardando';
 import { CarregandoFila, hrefDaFila, ID_RESULTADO, legendaDaFila, lerFiltroDaFila, ResultadoDaFila, TEXTOS_FILA } from './fila';
 import { FiltrosFila } from './FiltrosFila';
+import { contagemOuNada, etapasDaPagina } from './leituras-da-fila';
 import PaginaDemandas from './page';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/demandas',
   useRouter: () => ({ replace: () => undefined, refresh: () => undefined, push: () => undefined }),
 }));
-vi.mock('../../../lib/deps', () => ({ obterDeps: async () => ({ db: { dubleDoBanco: true } }) }));
+// T09 do DEC-DEM-20261110-0015-v1: a página passou a ler o "agora" do relógio injetado (coluna Idade) e as duas
+// leituras novas de leituras-da-fila.ts (contadores e etapas). Os dublês entram aqui, como os de listarDemandas.
+vi.mock('../../../lib/deps', () => ({ obterDeps: async () => ({ db: { dubleDoBanco: true }, relogio: { agora: () => new Date('2026-11-10T15:00:00Z') } }) }));
+vi.mock('./leituras-da-fila', () => ({
+  contagemOuNada: vi.fn(),
+  etapasDaPagina: vi.fn(),
+}));
 vi.mock('../../../modules/acesso/exigir-pessoa', () => ({ exigirPessoaNaPagina: vi.fn() }));
 vi.mock('../../../modules/acesso/matriz', async (original) => {
   const real = await original<typeof import('../../../modules/acesso/matriz')>();
@@ -44,6 +53,8 @@ const mExigir = vi.mocked(exigirPessoaNaPagina);
 const mAutorizar = vi.mocked(autorizar);
 const mListar = vi.mocked(listarDemandas);
 const mEntradas = vi.mocked(listarEntradasPendentes);
+const mContagem = vi.mocked(contagemOuNada);
+const mEtapas = vi.mocked(etapasDaPagina);
 
 const CTO: AtorPessoa = { tipo: 'pessoa', usuarioId: 'usuario-ficticio-1', nome: 'Pessoa Ficticia', papel: 'cto' };
 const ADMINISTRADORA: AtorPessoa = { tipo: 'pessoa', usuarioId: 'usuario-ficticio-2', nome: 'Pessoa Ficticia Dois', papel: 'administradora' };
@@ -65,6 +76,11 @@ const demanda = (n: number, extra: Partial<DemandaResumo> = {}): DemandaResumo =
 // O retorno de listarDemandas; a página só usa `itens` e `total`.
 const lista = (itens: DemandaResumo[], total: number) => ({ itens, total, limit: 20, offset: 0 });
 
+// T09: o que o resultado recebe além da lista (as etapas de cada demanda e o "agora" da página), e a tabela isolada da
+// lista de cartões, que estão as duas no HTML (uma por largura).
+const leituras = (itens: readonly DemandaResumo[]) => ({ etapas: new Map(itens.map((d) => [d.id, { esp: false, rsk: false, dec: false }] as const)), agora: new Date('2026-11-10T15:00:00Z') });
+const tabelaDe = (s: string): string => /<table[\s\S]*?<\/table>/.exec(s)?.[0] ?? '';
+
 // Saída do log capturada por teste (o log real, com a lista de permissão e o redact).
 let linhasDoLog: string[] = [];
 beforeEach(() => {
@@ -74,6 +90,8 @@ beforeEach(() => {
   mAutorizar.mockClear();
   mListar.mockReset().mockResolvedValue(lista([demanda(1)], 1));
   mEntradas.mockReset().mockResolvedValue([]);
+  mContagem.mockReset().mockResolvedValue({ porStatus: Object.fromEntries(STATUS.map((s) => [s, 1])) as Record<(typeof STATUS)[number], number>, todas: STATUS.length });
+  mEtapas.mockReset().mockImplementation(async (_db, ids) => new Map(ids.map((id) => [id, { esp: false, rsk: false, dec: false }] as const)));
 });
 afterEach(() => {
   substituirDestinoDoLog(null);
@@ -81,7 +99,8 @@ afterEach(() => {
 
 // A página devolve uma árvore com dois componentes assíncronos do servidor dentro de Suspense. Aqui eles são resolvidos
 // (chamados e esperados) antes do HTML, como o Next faria; o resto da árvore fica como está.
-const ASSINCRONOS = new Set(['ListaDaFila', 'ListaDeEntradas']);
+// T09: mais os contadores, que leem a contagem dentro do próprio Suspense.
+const ASSINCRONOS = new Set(['ListaDaFila', 'ListaDeEntradas', 'ContadoresDaPagina']);
 
 async function resolver(no: ReactNode): Promise<ReactNode> {
   if (Array.isArray(no)) return Promise.all(no.map((x: ReactNode) => resolver(x)));
@@ -138,6 +157,9 @@ describe('página da fila: acesso (C-04)', () => {
     await expect(PaginaDemandas({ searchParams: Promise.resolve({}) })).rejects.toMatchObject({ name: 'ErroDominio', codigo: 'sem_permissao' });
     expect(mListar).not.toHaveBeenCalled();
     expect(mEntradas).not.toHaveBeenCalled();
+    // T09 (CV-06): nem as leituras novas.
+    expect(mContagem).not.toHaveBeenCalled();
+    expect(mEtapas).not.toHaveBeenCalled();
   });
 
   it('sem sessão, o erro de exigirPessoaNaPagina sobe antes de qualquer leitura', async () => {
@@ -145,6 +167,40 @@ describe('página da fila: acesso (C-04)', () => {
     await expect(PaginaDemandas({ searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_REDIRECT');
     expect(mAutorizar).not.toHaveBeenCalled();
     expect(mListar).not.toHaveBeenCalled();
+    expect(mContagem).not.toHaveBeenCalled();
+    expect(mEtapas).not.toHaveBeenCalled();
+  });
+});
+
+describe('página da fila: as leituras novas da T09 (CV-06, CV-08, D-08)', () => {
+  it('os contadores leem a contagem com o filtro validado e aparecem com o total; as etapas, com os ids da página', async () => {
+    mListar.mockResolvedValue(lista([demanda(3), demanda(2)], 2));
+    const s = await paginaEmHtml({ status: 'nova', tipo: 'bug' });
+    expect(mContagem).toHaveBeenCalledExactlyOnceWith({ dubleDoBanco: true }, filtro({ status: 'nova', tipo: 'bug' }));
+    expect(mEtapas).toHaveBeenCalledExactlyOnceWith({ dubleDoBanco: true }, ['DEM-20261022-0003', 'DEM-20261022-0002']);
+    expect(s).toContain('<div role="group" aria-label="Filtrar por status"');
+    expect(s).toMatch(/Todas<\/span><\/span> <span class="[^"]*font-mono[^"]*">9<\/span>/);
+    expect(s).toContain('Etapas: ESP por fazer, RSK por fazer, DEC por fazer');
+  });
+
+  it('a contagem que falhou (null): os contadores sem número e o texto da 03; a lista continua', async () => {
+    mContagem.mockResolvedValue(null);
+    const s = await paginaEmHtml({});
+    expect(s).toContain('Não foi possível contar as demandas por status. Os filtros por status continuam funcionando.');
+    expect(s.match(/<button type="submit"[^>]*name="status">/g)).toHaveLength(10);
+    expect(s).toContain('DEM-20261022-0001');
+  });
+
+  it('a leitura das etapas falha: o erro da lista (03, 4.6), um log painel_fila_falhou sem o erro, e o resto da tela de pé', async () => {
+    mEtapas.mockRejectedValue(new Error('SENTINELA-ERRO etapas'));
+    const s = await paginaEmHtml({});
+    expect(s).toContain(`<p id="${ID_RESULTADO}" tabindex="-1">${TEXTOS_FILA.erro}</p>`);
+    expect(s).not.toContain('<table');
+    expect(s).toContain('<h1>Demandas</h1>');
+    expect(s).not.toContain('SENTINELA');
+    const doPainel = linhasDoLog.map((l) => JSON.parse(l) as Record<string, unknown>).filter((r) => r.evento === 'painel_fila_falhou');
+    expect(doPainel).toHaveLength(1);
+    expect(linhasDoLog.join('\n')).not.toContain('SENTINELA');
   });
 });
 
@@ -170,7 +226,8 @@ describe('página da fila: o filtro da URL chega à leitura (RF-06)', () => {
   it('filtro válido não mostra o alerta de filtro inválido', async () => {
     const s = await paginaEmHtml({ status: 'nova' });
     expect(s).not.toContain(TEXTOS_FILA.filtroInvalido);
-    expect(s).toContain('<option value="nova" selected="">Nova</option>');
+    // T09 (G5): o status escolhido aparece no contador pressionado (o seletor "Status" saiu).
+    expect(s).toMatch(/<button type="submit" value="" aria-pressed="true"[^>]*name="status">[\s\S]*?Nova<\/span>/);
   });
 
   it('o texto da URL nunca vai para a tela, nem quando o filtro é recusado', async () => {
@@ -366,7 +423,7 @@ describe('lerFiltroDaFila e hrefDaFila: bordas', () => {
 describe('ResultadoDaFila e CarregandoFila: bordas', () => {
   it('cada status aparece com o seu rótulo e a cor de 2.2', () => {
     const itens = STATUS.map((s, i) => demanda(i + 1, { status: s }));
-    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens, total: itens.length }));
+    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens, total: itens.length, ...leituras(itens) }));
     for (const st of STATUS) expect(s).toMatch(new RegExp(`data-cor="${COR_STATUS[st]}"[^>]*>${ROTULO_STATUS[st]}</span>`));
     expect(s.match(/<tbody[\s\S]*?<\/tbody>/)?.[0].match(/<tr/g)).toHaveLength(STATUS.length);
   });
@@ -377,9 +434,10 @@ describe('ResultadoDaFila e CarregandoFila: bordas', () => {
       ...URGENCIAS.map((u, i) => demanda(i + 10, { urgencia: u })),
       ...LINHAS.map((l, i) => demanda(i + 20, { linhaServicoProvavel: l })),
     ];
-    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens, total: itens.length }));
+    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens, total: itens.length, ...leituras(itens) }));
     for (const t of TIPOS) expect(s).toContain(`<td class="px-3 py-2 align-top">${ROTULO_TIPO[t]}</td>`);
-    for (const u of URGENCIAS) expect(s).toContain(`<td class="px-3 py-2 align-top">${ROTULO_URGENCIA[u]}</td>`);
+    // T09: a urgência ganhou o ponto escondido antes do rótulo (03, 4.4).
+    for (const u of URGENCIAS) expect(s).toMatch(new RegExp(`<td class="px-3 py-2 align-top"><span [^>]*><span aria-hidden="true" class="[^"]*"></span>${ROTULO_URGENCIA[u]}</span></td>`));
     for (const l of LINHAS) expect(s).toContain(`<td class="px-3 py-2 align-top">${ROTULO_LINHA[l]}</td>`);
     for (const valor of ['novo_projeto', 'produto_proprio', 'automacao_integracao', 'ia_controle_humano', 'diagnostico_sustentacao']) {
       expect(s).not.toContain(`>${valor}<`);
@@ -388,35 +446,39 @@ describe('ResultadoDaFila e CarregandoFila: bordas', () => {
 
   it('as linhas saem na ordem em que a leitura as devolve (da mais nova para a mais antiga, RF-06)', () => {
     const itens = [demanda(30), demanda(12), demanda(5)];
-    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens, total: 3 }));
-    const ids = [...s.matchAll(/>(DEM-20261022-\d{4})<\/a>/g)].map((m) => m[1]);
+    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens, total: 3, ...leituras(itens) }));
+    // T09: a lista de cartões repete os ids (uma forma por largura); a ordem é conferida na tabela, e a da lista é igual.
+    const ids = [...tabelaDe(s).matchAll(/>(DEM-20261022-\d{4})<\/a>/g)].map((m) => m[1]);
     expect(ids).toEqual(['DEM-20261022-0030', 'DEM-20261022-0012', 'DEM-20261022-0005']);
+    const daLista = [...s.slice(s.indexOf('<ul aria-labelledby')).matchAll(/>(DEM-20261022-\d{4})<\/a>/g)].map((m) => m[1]);
+    expect(daLista).toEqual(ids);
   });
 
   it('título com aspas, & e < sai escapado, e o selo de rascunho não aparece sem rascunho', () => {
-    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens: [demanda(1, { titulo: 'A & B "C" <D>' })], total: 1 }));
+    const itens = [demanda(1, { titulo: 'A & B "C" <D>' })];
+    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: SEM_FILTRO, itens, total: 1, ...leituras(itens) }));
     expect(s).toContain('A &amp; B &quot;C&quot; &lt;D&gt;');
     expect(s).not.toContain('Rascunho de agente');
   });
 
   it('deslocamento fora do múltiplo da página: "Anterior" nunca vai a offset negativo', () => {
-    const p5 = renderToStaticMarkup(h(ResultadoDaFila, { filtro: filtro({ offset: '5' }), itens: [demanda(1)], total: 6 }));
+    const p5 = renderToStaticMarkup(h(ResultadoDaFila, { filtro: filtro({ offset: '5' }), itens: [demanda(1)], total: 6, ...leituras([demanda(1)]) }));
     expect(p5).toMatch(/href="\/demandas">Anterior<\/a>/);
     expect(p5).not.toContain('offset=-');
-    const p25 = renderToStaticMarkup(h(ResultadoDaFila, { filtro: filtro({ status: 'nova', offset: '25' }), itens: [demanda(1)], total: 26 }));
+    const p25 = renderToStaticMarkup(h(ResultadoDaFila, { filtro: filtro({ status: 'nova', offset: '25' }), itens: [demanda(1)], total: 26, ...leituras([demanda(1)]) }));
     expect(p25).toMatch(/href="\/demandas\?status=nova&amp;offset=5">Anterior<\/a>/);
   });
 
   it('limite fora do padrão vai junto nos links de paginação', () => {
     const cheia = Array.from({ length: 10 }, (_, i) => demanda(50 - i));
-    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: filtro({ limit: '10', offset: '10' }), itens: cheia, total: 35 }));
+    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: filtro({ limit: '10', offset: '10' }), itens: cheia, total: 35, ...leituras(cheia) }));
     expect(s).toMatch(/href="\/demandas\?limit=10">Anterior<\/a>/);
     expect(s).toMatch(/href="\/demandas\?limit=10&amp;offset=20">Próxima<\/a>/);
     expect(s).toContain('>Página 2</span>');
   });
 
   it('vazio com filtro numa página além do fim: "Limpar filtros" e "Anterior" com o mesmo filtro', () => {
-    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: filtro({ tipo: 'estudo', offset: '40' }), itens: [], total: 3 }));
+    const s = renderToStaticMarkup(h(ResultadoDaFila, { filtro: filtro({ tipo: 'estudo', offset: '40' }), itens: [], total: 3, ...leituras([]) }));
     expect(s).toContain(TEXTOS_FILA.vazioComFiltro);
     expect(s).toMatch(/href="\/demandas\?tipo=estudo&amp;offset=20">Anterior<\/a>/);
     expect(s).toMatch(/<a [^>]*href="\/demandas"[^>]*>Limpar filtros<\/a>/);
@@ -431,14 +493,18 @@ describe('ResultadoDaFila e CarregandoFila: bordas', () => {
 });
 
 describe('FiltrosFila: bordas', () => {
+  // T09 (G5): o status saiu do formulário para os contadores ("Todas" e um botão por status, com o valor do enum); as
+  // opções de status passam a ser os valores dos botões, conferidas do mesmo jeito.
   it('as opções de cada seleção são todas as do schema, na ordem dos rótulos de 2.2 e 2.6, depois de "Todos" ou "Todas"', () => {
     const s = renderToStaticMarkup(h(FiltrosFila, { filtro: {}, idFoco: ID_RESULTADO }));
+    const c = renderToStaticMarkup(h(ContadoresDaFila, { contadores: contadoresDaFila(null, SEM_FILTRO, hrefDaFila), filtro: {}, idFoco: ID_RESULTADO }));
     const opcoesDe = (id: string) => [...(s.match(new RegExp(`<select id="${id}"[\\s\\S]*?</select>`))?.[0] ?? '').matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
-    expect(opcoesDe('filtro-status')).toEqual(['', ...Object.keys(ROTULO_STATUS)]);
+    const valoresDosContadores = [...c.matchAll(/<button type="submit" value="([^"]*)"[^>]*name="status">/g)].map((m) => m[1]);
+    expect(valoresDosContadores).toEqual(['', ...Object.keys(ROTULO_STATUS)]);
     expect(opcoesDe('filtro-tipo')).toEqual(['', ...Object.keys(ROTULO_TIPO)]);
     expect(opcoesDe('filtro-linha')).toEqual(['', ...Object.keys(ROTULO_LINHA)]);
     // Nenhum valor do schema fica sem opção, e nenhuma opção fica fora do schema.
-    expect(new Set(opcoesDe('filtro-status'))).toEqual(new Set(['', ...STATUS]));
+    expect(new Set(valoresDosContadores)).toEqual(new Set(['', ...STATUS]));
     expect(new Set(opcoesDe('filtro-tipo'))).toEqual(new Set(['', ...TIPOS]));
     expect(new Set(opcoesDe('filtro-linha'))).toEqual(new Set(['', ...LINHAS]));
     expect(s).toMatch(/<select id="filtro-linha"[^>]*><option value="" selected="">Todas<\/option>/);
@@ -446,7 +512,12 @@ describe('FiltrosFila: bordas', () => {
 
   it('sem filtro, as três seleções ficam em "Todos" ou "Todas", e só uma opção marcada em cada', () => {
     const s = renderToStaticMarkup(h(FiltrosFila, { filtro: {}, idFoco: ID_RESULTADO }));
-    expect(s.match(/selected=""/g)).toHaveLength(3);
+    // T09: as duas seleções que ficaram (Tipo e Linha de serviço); o status vai oculto, vazio, e "Todas" é o pressionado.
+    expect(s.match(/selected=""/g)).toHaveLength(2);
+    expect(s).toContain('<input type="hidden" name="status" value=""/>');
+    const c = renderToStaticMarkup(h(ContadoresDaFila, { contadores: contadoresDaFila(null, SEM_FILTRO, hrefDaFila), filtro: {}, idFoco: ID_RESULTADO }));
+    expect(c.match(/aria-pressed="true"/g)).toHaveLength(1);
+    expect(c).toMatch(/aria-pressed="true"[^>]*>[\s\S]*?Todas<\/span>/);
   });
 
   it('o formulário não tem campo de limit nem de offset: filtrar volta à página 1', () => {

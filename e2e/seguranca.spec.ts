@@ -11,7 +11,8 @@
 // O POST de outra origem do caso C-15 leva corpo vazio: se o Origin passasse, a validação recusaria com 400 e nada seria
 // gravado.
 import { type Page } from '@playwright/test';
-import { api, entrarComo, expect, test } from './apoio';
+import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
+import { api, demandaDoSeed, entrarComo, expect, test } from './apoio';
 
 type Versao = { id: string };
 type ListaDemandas = { itens: { id: string; titulo: string }[] };
@@ -57,6 +58,32 @@ test('C-18: ESP com <script> e <img onerror> aparece como texto e nada executa',
   // A API devolve o texto como foi gravado, sem tirar nem escapar nada: quem escapa é a tela.
   const daApi = await api<{ descricaoObjetiva: string; escopoInclui: string[] }>(page, 'GET', `/api/especificacoes/${esp.id}`);
   expect(daApi).toMatchObject({ descricaoObjetiva: ATAQUE, escopoInclui: [NEGRITO] });
+  expect(dialogos).toEqual([]);
+});
+
+// CV-18 (T09 do DEC-DEM-20261110-0015-v1): o C-18 também no cartão da T03 em 390 px. A demanda é a `textoDeTerceiro` do
+// seed (scripts/seed-ficticio.ts), cujo título traz <script>, <img onerror> e o caractere de direção U+202E; o título
+// vem da constante importada, nunca copiado (o teste sem-controle-bidi reprova o caractere cru). Só lê: nada é gravado.
+test('C-18 e CV-18: título com <script>, <img onerror> e U+202E aparece como texto no cartão da T03 em 390 px, isolado por <bdi>', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const dialogos: string[] = [];
+  page.on('dialog', (d) => {
+    dialogos.push(d.message());
+    void d.dismiss();
+  });
+  const titulo = TITULOS_DO_E2E.textoDeTerceiro;
+  expect(titulo).toContain(String.fromCodePoint(0x202e));
+  const id = await demandaDoSeed(page, titulo);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/demandas?tipo=melhoria&limit=100');
+  const cartao = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: id, exact: true }) });
+  await expect(cartao).toHaveCount(1);
+  await expect(cartao.getByRole('heading', { level: 3 })).toHaveText(titulo);
+  await expect(cartao.locator('h3 > bdi')).toHaveText(titulo);
+  await expect(cartao.locator('img, script')).toHaveCount(0);
+  await expect(page.locator('main img')).toHaveCount(0);
+  await expect(page.locator('main script')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { __xss?: unknown }).__xss)).toBeUndefined();
   expect(dialogos).toEqual([]);
 });
 

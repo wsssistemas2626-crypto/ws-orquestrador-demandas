@@ -83,9 +83,13 @@ export function achadosDeEscrita(fonte: string): string[] {
 // A origem aponta para o módulo (relativa, pelo apelido @/ ou com extensão), e não para um nome parecido.
 const apontaParaOModulo = (origem: string): boolean => /(^|\/)resumo-da-fila(\.[cm]?[jt]sx?)?$/.test(origem);
 
-// Arquivos que importam o módulo por valor (o `import type` fica de fora).
-export function importadoresDe(arquivos: ReadonlyArray<readonly [string, string]>): string[] {
-  return arquivos.filter(([nome, fonte]) => importacoesDe(nome, fonte).some((i) => !i.soTipo && apontaParaOModulo(i.origem))).map(([nome]) => nome);
+// Arquivos que importam o módulo por valor (o `import type` fica de fora). T09: `aponta` escolhe o módulo procurado
+// (o padrão é o resumo-da-fila; a cadeia até a página usa o leituras-da-fila).
+export function importadoresDe(
+  arquivos: ReadonlyArray<readonly [string, string]>,
+  aponta: (origem: string) => boolean = apontaParaOModulo,
+): string[] {
+  return arquivos.filter(([nome, fonte]) => importacoesDe(nome, fonte).some((i) => !i.soTipo && aponta(i.origem))).map(([nome]) => nome);
 }
 
 const codigoQueRoda = globSync('{src,scripts}/**/*.{ts,tsx}', { cwd: raiz })
@@ -150,5 +154,99 @@ describe('CV-06 e CA-15.2: quem importa resumo-da-fila', () => {
       ['src/app/outro.ts', "import { x } from './resumo-da-fila-antigo';\nimport { y } from './resumo-da-fila/outro';"],
     ] as const;
     expect(importadoresDe(plantados)).toEqual(['src/app/a.tsx', 'src/app/b.ts', 'src/app/c.ts', 'src/app/d.ts', 'src/app/e.ts', 'src/app/f.ts', 'src/app/g.ts', 'src/app/h.ts']);
+  });
+});
+
+// --- T09: a cadeia até a página (CV-06, D-08) ---
+// resumo-da-fila.ts → só leituras-da-fila.ts → só a página da T03, que pede a pessoa (exigirPessoaNaPagina) e autoriza
+// "listar_demandas" antes de devolver qualquer coisa. As leituras rodam dentro dos componentes que a página devolve, então
+// a guarda antes do primeiro `return` vale para elas.
+const LEITURAS = 'src/app/(painel)/demandas/leituras-da-fila.ts';
+const PAGINA = 'src/app/(painel)/demandas/page.tsx';
+const apontaParaLeituras = (origem: string): boolean => /(^|\/)leituras-da-fila(\.[cm]?[jt]sx?)?$/.test(origem);
+
+type Posicoes = { exigir: number; autorizar: number; retorno: number };
+
+// O corpo de `PaginaDemandas` e a posição da primeira chamada de cada passo da guarda e do primeiro `return` (inclusive
+// dentro de bloco aninhado: na dúvida, conta contra).
+function posicoesNaPagina(fonte: string): Posicoes | null {
+  const raizDoArquivo = ts.createSourceFile(PAGINA, fonte, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let corpo: ts.Block | undefined;
+  ts.forEachChild(raizDoArquivo, (no) => {
+    if (ts.isFunctionDeclaration(no) && no.name?.text === 'PaginaDemandas' && no.body) corpo = no.body;
+  });
+  if (!corpo) return null;
+  const p: Posicoes = { exigir: -1, autorizar: -1, retorno: -1 };
+  const primeira = (atual: number, nova: number) => (atual < 0 ? nova : Math.min(atual, nova));
+  const visitar = (no: ts.Node): void => {
+    if (ts.isCallExpression(no) && ts.isIdentifier(no.expression)) {
+      const [, acao] = no.arguments;
+      if (no.expression.text === 'exigirPessoaNaPagina') p.exigir = primeira(p.exigir, no.getStart());
+      if (no.expression.text === 'autorizar' && acao && ts.isStringLiteralLike(acao) && acao.text === 'listar_demandas') p.autorizar = primeira(p.autorizar, no.getStart());
+    }
+    if (ts.isReturnStatement(no)) p.retorno = primeira(p.retorno, no.getStart());
+    ts.forEachChild(no, visitar);
+  };
+  visitar(corpo);
+  return p;
+}
+
+// O que reprova na guarda da página; lista vazia = guarda certa.
+export function achadosDaGuarda(fonte: string): string[] {
+  const p = posicoesNaPagina(fonte);
+  if (!p) return ['sem PaginaDemandas'];
+  const achados: string[] = [];
+  if (p.exigir < 0) achados.push('sem exigirPessoaNaPagina(');
+  if (p.autorizar < 0) achados.push("sem autorizar(pessoa, 'listar_demandas')");
+  if (p.exigir >= 0 && p.autorizar >= 0 && p.autorizar < p.exigir) achados.push('autorizar antes de exigirPessoaNaPagina');
+  if (p.retorno < 0) achados.push('sem return');
+  else if ((p.exigir >= 0 && p.exigir > p.retorno) || (p.autorizar >= 0 && p.autorizar > p.retorno)) achados.push('guarda depois do primeiro return');
+  return achados;
+}
+
+describe('CV-06 (T09): a cadeia até a página', () => {
+  const fontes = codigoQueRoda.map((a) => [a, ler(a)] as const);
+
+  it('a varredura enxerga as duas pontas da cadeia', () => {
+    expect(codigoQueRoda).toEqual(expect.arrayContaining([LEITURAS, PAGINA]));
+  });
+
+  it('resumo-da-fila é importado só por leituras-da-fila.ts, e ele só pela página da T03', () => {
+    expect(importadoresDe(fontes)).toEqual([LEITURAS]);
+    expect(importadoresDe(fontes, apontaParaLeituras)).toEqual([PAGINA]);
+  });
+
+  it('a página chama as duas leituras', () => {
+    const pagina = ler(PAGINA);
+    expect(pagina).toMatch(/\bcontagemOuNada\(/);
+    expect(pagina).toMatch(/\betapasDaPagina\(/);
+  });
+
+  it('em PaginaDemandas, exigirPessoaNaPagina( vem antes de autorizar(pessoa, "listar_demandas"), e os dois antes do primeiro return', () => {
+    expect(achadosDaGuarda(ler(PAGINA))).toEqual([]);
+  });
+
+  it('a regra da guarda reprova cada forma plantada e aceita a certa', () => {
+    const f = (corpo: string) => `export default async function PaginaDemandas() {\n${corpo}\n}`;
+    const exigir = "const pessoa = await exigirPessoaNaPagina('/demandas');";
+    const autorizar = "autorizar(pessoa, 'listar_demandas');";
+    expect(achadosDaGuarda(f(`${exigir}\n${autorizar}\nreturn <div />;`))).toEqual([]);
+    expect(achadosDaGuarda(f(`${autorizar}\n${exigir}\nreturn <div />;`))).toEqual(['autorizar antes de exigirPessoaNaPagina']);
+    expect(achadosDaGuarda(f(`${exigir}\nreturn <div />;`))).toEqual(["sem autorizar(pessoa, 'listar_demandas')"]);
+    expect(achadosDaGuarda(f(`${exigir}\nautorizar(pessoa, 'ler_demanda');\nreturn <div />;`))).toEqual(["sem autorizar(pessoa, 'listar_demandas')"]);
+    expect(achadosDaGuarda(f(`${autorizar}\nreturn <div />;`))).toEqual(['sem exigirPessoaNaPagina(']);
+    expect(achadosDaGuarda(f(`if (x) { return null; }\n${exigir}\n${autorizar}\nreturn <div />;`))).toEqual(['guarda depois do primeiro return']);
+    expect(achadosDaGuarda(f(`${exigir}\n${autorizar}`))).toEqual(['sem return']);
+    expect(achadosDaGuarda('export default async function OutraPagina() { return null; }')).toEqual(['sem PaginaDemandas']);
+  });
+
+  it('a busca de importadores do leituras-da-fila acha a importação por valor e não conta tipo nem nome parecido', () => {
+    const plantados = [
+      ['src/app/a.tsx', "import { contagemOuNada } from './leituras-da-fila';"],
+      ['src/app/b.tsx', "import { etapasDaPagina } from '../demandas/leituras-da-fila.ts';"],
+      ['src/app/tipo.ts', "import type { X } from './leituras-da-fila';"],
+      ['src/app/outro.ts', "import { y } from './leituras-da-fila-antigo';"],
+    ] as const;
+    expect(importadoresDe(plantados, apontaParaLeituras)).toEqual(['src/app/a.tsx', 'src/app/b.tsx']);
   });
 });

@@ -25,6 +25,11 @@ const total = async (page: Page, consulta = ''): Promise<number> => (await api<L
 
 const regiaoDeAviso = (page: Page) => page.locator('main').getByRole('status');
 
+// T09 do DEC-DEM-20261110-0015-v1 (G5): o título do resultado virou um h2 com o id de foco (a tabela guarda a legenda
+// num caption só para leitor de tela, com o mesmo texto), e o status passou do seletor "Status" para os contadores.
+const tituloDoResultado = (page: Page, legenda: string) => page.getByRole('heading', { level: 2, name: legenda });
+const contador = (page: Page, rotulo: string) => page.getByRole('group', { name: 'Filtrar por status' }).getByRole('button', { name: new RegExp(`^${rotulo}`) });
+
 test('vazio com filtro: "Nenhuma demanda com esses filtros.", e "Limpar filtros" volta à lista com o foco no caption', async ({ page }) => {
   await entrarComo(page, 'cto');
   // Nenhum teste cria demanda entregue de produto próprio com linha indefinida.
@@ -34,12 +39,12 @@ test('vazio com filtro: "Nenhuma demanda com esses filtros.", e "Limpar filtros"
   await expect(page.getByRole('heading', { level: 1, name: 'Demandas' })).toBeVisible();
   await expect(page.getByText('Nenhuma demanda com esses filtros.')).toBeVisible();
   await expect(page.locator('main table')).toHaveCount(0);
-  await expect(page.getByLabel('Status')).toHaveValue('entregue');
+  await expect(contador(page, 'Entregue')).toHaveAttribute('aria-pressed', 'true');
   await semViolacoes(page, 'fila vazia com filtro');
   await page.locator('main').getByRole('link', { name: 'Limpar filtros' }).last().click();
   await expect(page).toHaveURL(/\/demandas$/);
-  await expect(page.getByText(LEGENDA_TODAS)).toBeFocused();
-  await expect(page.getByLabel('Status')).toHaveValue('');
+  await expect(tituloDoResultado(page, LEGENDA_TODAS)).toBeFocused();
+  await expect(contador(page, 'Todas')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('CA-26.1: 5 demandas com status diferentes, filtro aguardando_informacao mostra só as desse status', async ({ page }) => {
@@ -59,11 +64,15 @@ test('CA-26.1: 5 demandas com status diferentes, filtro aguardando_informacao mo
   // O texto da Região de aviso só chega depois que o React assume a lista inicial: antes disso, o pedido de foco do
   // "Filtrar" pode ser consumido pelo efeito atrasado dela (04-regressao do DEC-DEM-20261103-0006-v1, fila-qa.spec.ts).
   await expect(regiaoDeAviso(page)).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
-  await page.getByLabel('Status').selectOption({ label: 'Aguardando informação' });
+  // T09 (G5): o status passa pelo contador. Tipo e linha de serviço continuam só pelo botão "Filtrar" (WCAG 3.2.2):
+  // mudar a seleção do tipo não leva a nada.
+  await page.getByLabel('Tipo', { exact: true }).selectOption({ label: 'Bug' });
   await expect(page).not.toHaveURL(/status=/); // não aplica ao mudar a seleção (WCAG 3.2.2)
-  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await expect(page).not.toHaveURL(/tipo=/);
+  await page.getByLabel('Tipo', { exact: true }).selectOption({ label: 'Todos' });
+  await contador(page, 'Aguardando informação').click();
   await expect(page).toHaveURL(/status=aguardando_informacao/);
-  await expect(page.getByText(LEGENDA_AGUARDANDO)).toBeFocused();
+  await expect(tituloDoResultado(page, LEGENDA_AGUARDANDO)).toBeFocused();
   await expect(page.getByRole('table')).toContainText('Aguardando informação');
   await expect(page.locator('main tbody tr')).toHaveCount(esperadas);
   const status = await page.locator('main tbody tr td:nth-child(4)').allInnerTexts();
@@ -71,7 +80,7 @@ test('CA-26.1: 5 demandas com status diferentes, filtro aguardando_informacao mo
   for (const x of [a, b]) await expect(page.getByRole('link', { name: x.id, exact: true })).toBeVisible();
   for (const x of criadas.slice(2)) await expect(page.getByRole('link', { name: x.id, exact: true })).toHaveCount(0);
   await expect(regiaoDeAviso(page)).toHaveText(`${esperadas} demandas encontradas.`);
-  await expect(page.getByLabel('Status')).toHaveValue('aguardando_informacao');
+  await expect(contador(page, 'Aguardando informação')).toHaveAttribute('aria-pressed', 'true');
   await semViolacoes(page, 'fila filtrada');
 
   // O id leva ao detalhe da demanda (T05).
@@ -84,7 +93,7 @@ test('filtro inválido na URL mostra o alerta e a lista sem filtro', async ({ pa
   await page.goto('/demandas?status=qualquer-coisa&tipo=bug');
   await expect(page.locator('main').getByText('Algum filtro do endereço não é válido. Mostrando todas as demandas.')).toBeVisible();
   await expect(page.locator('main caption')).toHaveText(LEGENDA_TODAS);
-  await expect(page.getByLabel('Status')).toHaveValue('');
+  await expect(contador(page, 'Todas')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('Tipo')).toHaveValue('');
   await expect(regiaoDeAviso(page)).toHaveText(`${todas.toLocaleString('pt-BR')} ${todas === 1 ? 'demanda encontrada' : 'demandas encontradas'}.`);
   await semViolacoes(page, 'fila com filtro inválido');
@@ -104,7 +113,7 @@ test('paginação: Anterior desabilitado na página 1; Próxima leva à página 
 
   await paginacao.getByRole('link', { name: 'Próxima' }).click();
   await expect(page).toHaveURL(/offset=20/);
-  await expect(page.getByText(LEGENDA_TODAS)).toBeFocused();
+  await expect(tituloDoResultado(page, LEGENDA_TODAS)).toBeFocused();
   await expect(paginacao.getByText('Página 2')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('main tbody tr td:first-child').first()).not.toHaveText(primeiraDaPagina1);
   await expect(paginacao.getByRole('link', { name: 'Anterior' })).not.toHaveAttribute('aria-disabled', 'true');
@@ -112,7 +121,7 @@ test('paginação: Anterior desabilitado na página 1; Próxima leva à página 
 
   await paginacao.getByRole('link', { name: 'Anterior' }).click();
   await expect(page).toHaveURL(/\/demandas$/);
-  await expect(page.getByText(LEGENDA_TODAS)).toBeFocused();
+  await expect(tituloDoResultado(page, LEGENDA_TODAS)).toBeFocused();
   await expect(paginacao.getByText('Página 1')).toHaveAttribute('aria-current', 'page');
 });
 
@@ -131,9 +140,12 @@ test('axe: vazio, filtrado e com dados; botão "Nova demanda" e tabela rolável 
   await expect(page.locator('main').getByRole('link', { name: 'Nova demanda' })).toHaveAttribute('href', '/demandas/nova');
   await semViolacoes(page, 'fila com dados');
 
-  await page.setViewportSize({ width: 320, height: 640 });
+  // T09 (RF-07): abaixo de 768 px a tabela vira lista de cartões; a região rolável da tabela é conferida na menor largura
+  // em que ela aparece (768 px, tablete, com a casca lateral), e os 320 px continuam sem rolagem lateral da página.
+  await page.setViewportSize({ width: 768, height: 1024 });
   const regiao = page.getByRole('region', { name: 'Tabela de demandas' });
   await expect(regiao).toHaveAttribute('tabindex', '0');
+  await page.setViewportSize({ width: 320, height: 640 });
   // Sem rolagem horizontal da página inteira: só a região da tabela rola (03, T03).
   const larguraDaPagina = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(larguraDaPagina).toBeLessThanOrEqual(320);

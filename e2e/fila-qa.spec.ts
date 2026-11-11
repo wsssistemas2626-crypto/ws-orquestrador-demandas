@@ -21,6 +21,15 @@ const total = async (page: Page, consulta: string): Promise<number> => (await ap
 
 const coluna = (page: Page, n: number) => page.locator(`main tbody tr td:nth-child(${n})`).allInnerTexts();
 
+// T09 do DEC-DEM-20261110-0015-v1 (G5): o título do resultado virou um h2 com o id de foco (o caption da tabela ficou só
+// para leitor de tela, com o mesmo texto); a coluna "Etapas" entrou depois de "Status", e "Linha de serviço" passou da
+// 6ª para a 7ª; o seletor "Status" saiu do formulário, que leva o status da URL num campo oculto.
+const tituloDoResultado = (page: Page, legenda: string) => page.getByRole('heading', { level: 2, name: legenda });
+const COLUNA_LINHA = 7;
+// A lista de cartões tem o nome do título do resultado ("Demandas com tipo Bug, …"), que contém "tipo" e "linha de
+// serviço": o campo é procurado pelo rótulo exato.
+const campo = (page: Page, rotulo: string) => page.getByLabel(rotulo, { exact: true });
+
 // A Região de aviso só ganha "N demandas encontradas." depois que o React assume a lista da carga inicial (o efeito de
 // ResultadoAnunciado). Antes disso, um clique que pede o foco no resultado pode ter o pedido consumido pelo efeito
 // atrasado da lista inicial, e o resultado novo chega sem o foco (04-regressao do DEC-DEM-20261103-0006-v1: falhou 1 vez
@@ -38,16 +47,16 @@ test('tipo e linha de serviço juntos: só as linhas com os dois valores, legend
 
   await page.goto('/demandas');
   await esperarFilaPronta(page);
-  await page.getByLabel('Tipo').selectOption({ label: 'Novo projeto' });
-  await page.getByLabel('Linha de serviço').selectOption({ label: 'IA com controle humano' });
+  await campo(page, 'Tipo').selectOption({ label: 'Novo projeto' });
+  await campo(page, 'Linha de serviço').selectOption({ label: 'IA com controle humano' });
   await expect(page).toHaveURL(/\/demandas$/);
   await page.getByRole('button', { name: 'Filtrar' }).click();
   await expect(page).toHaveURL(/\/demandas\?tipo=novo_projeto&linhaServicoProvavel=ia_controle_humano$/);
   const legenda = 'Demandas com tipo Novo projeto e linha de serviço IA com controle humano, da mais nova para a mais antiga';
-  await expect(page.getByText(legenda)).toBeFocused();
+  await expect(tituloDoResultado(page, legenda)).toBeFocused();
   await expect(page.locator('main tbody tr')).toHaveCount(esperadas);
   expect(new Set((await coluna(page, 3)).map((s) => s.trim()))).toEqual(new Set(['Novo projeto']));
-  expect(new Set((await coluna(page, 6)).map((s) => s.trim()))).toEqual(new Set(['IA com controle humano']));
+  expect(new Set((await coluna(page, COLUNA_LINHA)).map((s) => s.trim()))).toEqual(new Set(['IA com controle humano']));
   await expect(page.getByRole('link', { name: alvo.id, exact: true })).toBeVisible();
   await expect(page.locator('main').getByRole('status')).toHaveText(esperadas === 1 ? '1 demanda encontrada.' : `${esperadas} demandas encontradas.`);
   await semViolacoes(page, 'fila com tipo e linha');
@@ -57,7 +66,7 @@ test('"Voltar" e "Avançar" do navegador: a tabela e as seleções acompanham o 
   await entrarComo(page, 'cto');
   await criar(page, { titulo: 'Fila QA voltar (fictício)', tipo: 'bug' });
   await page.goto('/demandas');
-  await page.getByLabel('Tipo').selectOption({ label: 'Bug' });
+  await campo(page, 'Tipo').selectOption({ label: 'Bug' });
   await page.getByRole('button', { name: 'Filtrar' }).click();
   await expect(page).toHaveURL(/\/demandas\?tipo=bug$/);
   await expect(page.locator('main caption')).toHaveText(LEGENDA_BUG);
@@ -65,12 +74,12 @@ test('"Voltar" e "Avançar" do navegador: a tabela e as seleções acompanham o 
   await page.goBack();
   await expect(page).toHaveURL(/\/demandas$/);
   await expect(page.locator('main caption')).toHaveText(LEGENDA_TODAS);
-  await expect(page.getByLabel('Tipo')).toHaveValue('');
+  await expect(campo(page, 'Tipo')).toHaveValue('');
 
   await page.goForward();
   await expect(page).toHaveURL(/\/demandas\?tipo=bug$/);
   await expect(page.locator('main caption')).toHaveText(LEGENDA_BUG);
-  await expect(page.getByLabel('Tipo')).toHaveValue('bug');
+  await expect(campo(page, 'Tipo')).toHaveValue('bug');
   expect(new Set((await coluna(page, 3)).map((s) => s.trim()))).toEqual(new Set(['Bug']));
 });
 
@@ -84,7 +93,7 @@ test('"Filtrar" sem mudar nada fica no mesmo endereço e leva o foco ao resultad
   await expect(page.locator('main').getByRole('status')).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
   await page.getByRole('button', { name: 'Filtrar' }).click();
   await expect(page).toHaveURL(/\/demandas$/);
-  await expect(page.getByText(LEGENDA_TODAS)).toBeFocused();
+  await expect(tituloDoResultado(page, LEGENDA_TODAS)).toBeFocused();
 });
 
 test('"Limpar filtros" do formulário, com resultado na tela: volta a /demandas, com o foco no caption e as seleções em "Todos"', async ({ page }) => {
@@ -92,12 +101,12 @@ test('"Limpar filtros" do formulário, com resultado na tela: volta a /demandas,
   await criar(page, { titulo: 'Fila QA limpar (fictício)', tipo: 'bug' });
   await page.goto('/demandas?tipo=bug');
   await expect(page.locator('main caption')).toHaveText(LEGENDA_BUG);
-  await expect(page.getByLabel('Tipo')).toHaveValue('bug');
+  await expect(campo(page, 'Tipo')).toHaveValue('bug');
   await esperarFilaPronta(page);
   await page.locator('main fieldset').getByRole('link', { name: 'Limpar filtros' }).click();
   await expect(page).toHaveURL(/\/demandas$/);
-  await expect(page.getByText(LEGENDA_TODAS)).toBeFocused();
-  await expect(page.getByLabel('Tipo')).toHaveValue('');
+  await expect(tituloDoResultado(page, LEGENDA_TODAS)).toBeFocused();
+  await expect(campo(page, 'Tipo')).toHaveValue('');
 });
 
 test.describe('sem script', () => {
@@ -106,11 +115,11 @@ test.describe('sem script', () => {
   test('o formulário faz um GET comum; "Todos" vai vazio e não vira filtro inválido', async ({ page }) => {
     await entrarComo(page, 'cto');
     await page.goto('/demandas');
-    await page.getByLabel('Tipo').selectOption('bug');
+    await campo(page, 'Tipo').selectOption('bug');
     await page.getByRole('button', { name: 'Filtrar' }).click();
     await expect(page).toHaveURL(/\/demandas\?status=&tipo=bug&linhaServicoProvavel=$/);
-    await expect(page.getByLabel('Tipo')).toHaveValue('bug');
-    await expect(page.getByLabel('Status')).toHaveValue('');
+    await expect(campo(page, 'Tipo')).toHaveValue('bug');
+    await expect(page.locator('main form input[type="hidden"][name="status"]')).toHaveValue('');
     await expect(page.getByText(FILTRO_INVALIDO)).toHaveCount(0);
     // Sem script, a lista dentro do Suspense não troca o esqueleto pelo resultado (achado Minor 1 da 06-T38-testes):
     // por isso este teste confere só o formulário e o filtro lido pelo servidor, e não a tabela.
