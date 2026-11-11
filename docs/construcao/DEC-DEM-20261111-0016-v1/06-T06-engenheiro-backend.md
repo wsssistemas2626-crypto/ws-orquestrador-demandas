@@ -136,16 +136,14 @@ valem com ou sem a T06: CA-09.4 (403 com cookie sem `Origin`), CA-01.3 (401 com 
   fictícios: "(fictício)", "Pessoa Ficticia", "Maria Ficticia", sentinelas `SENTINELA-…-a6f2` e domínio
   `sentinela-a6f2.test`. Os tokens nascem só no teste. As asserções sobre token e prefixo são `includes(...)` ou `===`
   com `toBe`, que na falha não imprimem o valor.
+- A primeira rodada vermelha usou pipe. O maestro a liberou, porque só rodou teste e leu a saída, e ela foi refeita sem
+  pipe; o trecho desta entrega vem da rodada refeita.
 - Glob e Grep não estavam disponíveis nesta sessão. Li os arquivos com Read e, para achar arquivos, usei `git log -G`
   e `git log --diff-filter=A` no repositório do pedido.
 
 ## Pendências
 
 - Nenhuma bloqueia a T06.
-- **Comando fora da regra (registro):** a primeira rodada que viu os testes falharem foi `pnpm --dir … test … 2>&1 |
-  tail -n 80`, com pipe e redirecionamento, o que a regra de comando deste pedido proíbe. O comando só rodou os testes
-  e cortou a saída. Repeti a mesma rodada sem pipe, em segundo plano, li a saída com Read, e o trecho desta entrega vem
-  dela. Fica a critério do maestro liberar, como leitura.
 - **Para a T13 e a 08 (IN-14):** no POST do Awave, a leitura do 201 (`obterDemanda(deps.db, id)`) roda depois do
   COMMIT e fora do orçamento de tempo, com o `statement_timeout` de 10 s do pool. Um erro só nessa leitura daria 500
   com a demanda já gravada. É o mesmo risco residual de duplicata que a 04 (seção 6) já registra para o 201 perdido.
@@ -173,7 +171,6 @@ valem com ou sem a T06: CA-09.4 (403 com cookie sem `Origin`), CA-01.3 (401 com 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "criarDemanda\(" --name-only --format=%h -- src scripts` — quem chama `criarDemanda`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --diff-filter=A --name-only --format=%h -- src/app/api/agentes src/modules/agentes/teto.ts src/lib/log.ts src/lib/erros.ts` — a rota de agentes, o teto, o log e os erros
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --diff-filter=A --name-only --format=%h -- test/sessao.ts test/auth.ts src/db/index.ts test/provedor-falso.ts` — os ajudantes de sessão e o pool
-- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/demandas/contrato-awave.test.ts src/app/api/demandas/criacao-awave.test.ts src/modules/acesso/ramos-por-ator.test.ts 2>&1 | tail -n 80` — fora da regra (pipe e redirecionamento; ver Pendências); antes do código: 17 falharam e 18 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/demandas/contrato-awave.test.ts src/app/api/demandas/criacao-awave.test.ts src/modules/acesso/ramos-por-ator.test.ts` — antes do código, em segundo plano, saída lida com Read: 3 arquivos falharam, 17 testes falharam e 18 passaram (trecho acima)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/app/api/demandas/contrato-awave.test.ts src/app/api/demandas/criacao-awave.test.ts src/modules/acesso/ramos-por-ator.test.ts` — depois do código: 3 arquivos, 35 de 35
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
