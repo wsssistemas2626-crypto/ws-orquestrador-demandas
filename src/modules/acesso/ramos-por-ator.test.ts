@@ -23,9 +23,11 @@ describe('IN-02', () => {
     for (const acao of ['ler_historico', 'ler_especificacao', 'listar_demandas', 'registrar_decisao'] as const)
       expect(() => autorizar(awave, acao), acao).toThrow(SEM_PERMISSAO);
   });
-  it('T02: com a matriz ainda sem integração em nenhuma linha, nenhuma ação passa para awave nem construir', () => {
+  // A T03 abriu os pares do RF-03: destas quatro, só criar_demanda e ler_demanda, e só para o awave.
+  it('T03: das quatro, o awave passa só em criar_demanda e ler_demanda, e o construir em nenhuma', () => {
     for (const acao of ['criar_demanda', 'ler_demanda', 'ler_pacote_decisao', 'gerar_pedido_construcao'] as const) {
-      expect(() => autorizar(awave, acao), acao).toThrow(SEM_PERMISSAO);
+      if (acao === 'criar_demanda' || acao === 'ler_demanda') expect(() => autorizar(awave, acao), acao).not.toThrow();
+      else expect(() => autorizar(awave, acao), acao).toThrow(SEM_PERMISSAO);
       expect(() => autorizar(construir, acao), acao).toThrow(SEM_PERMISSAO);
     }
   });

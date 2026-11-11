@@ -1,12 +1,14 @@
 // Monta requisições de teste para os handlers de `rota()` (T11) e para o teste que percorre todas as rotas (T13):
-// origem do painel, `Content-Type` JSON e um IP fictício por requisição, com cookie de pessoa ou Bearer de agente.
+// origem do painel, `Content-Type` JSON e um IP fictício por requisição, com cookie de pessoa ou Bearer de agente ou de
+// integração.
 // O handler é chamado direto, como o Next chama, com os parâmetros de caminho numa Promise.
 import { comTransacao } from '../src/db/transacao';
 import type { Deps } from '../src/lib/deps';
 import type { HandlerRota } from '../src/lib/rota';
-import { AGENTES, PAPEIS, type Agente, type Papel } from '../src/modules/acesso/ator';
+import { AGENTES, INTEGRACOES, PAPEIS, atorDesconhecido, type Agente, type Integracao, type Papel } from '../src/modules/acesso/ator';
 import { criarTokenServico } from '../src/modules/acesso/tokens-servico';
 import { CONFIG_TESTE } from './auth';
+import { tokenDeIntegracao } from './integracoes';
 import { criarPessoa, novoIp } from './sessao';
 
 export const URL_BASE = CONFIG_TESTE.urlBase;
@@ -46,11 +48,16 @@ export const METODOS = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'] as const;
 export type Metodo = (typeof METODOS)[number];
 const MUDAM_ESTADO: ReadonlySet<string> = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 
-export type AtorDeTeste = { tipo: 'agente'; agente: Agente } | { tipo: 'pessoa'; papel: Papel; sem2fa?: boolean };
+export type AtorDeTeste =
+  | { tipo: 'agente'; agente: Agente }
+  | { tipo: 'pessoa'; papel: Papel; sem2fa?: boolean }
+  | { tipo: 'integracao'; integracao: Integracao };
 
-// Credenciais reais no banco do teste: um token de serviço por agente e, por papel, uma sessão com 2FA e outra sem.
+// Credenciais reais no banco do teste: um token de serviço por agente, um por integração (0.3.0) e, por papel, uma
+// sessão com 2FA e outra sem.
 export type Credenciais = {
   tokens: Record<Agente, string>;
+  tokensIntegracao: Record<Integracao, string>;
   cookies: Record<Papel, string>;
   cookiesSem2fa: Record<Papel, string>;
 };
@@ -60,13 +67,15 @@ export async function prepararCredenciais(deps: Deps): Promise<Credenciais> {
   for (const agente of AGENTES) {
     tokens[agente] = (await comTransacao(deps.pool, (t) => criarTokenServico(t, agente, deps.relogio))).token;
   }
+  const tokensIntegracao = {} as Record<Integracao, string>;
+  for (const integracao of INTEGRACOES) tokensIntegracao[integracao] = await tokenDeIntegracao(deps, integracao);
   const cookies = {} as Record<Papel, string>;
   const cookiesSem2fa = {} as Record<Papel, string>;
   for (const papel of PAPEIS) {
     cookies[papel] = (await criarPessoa(deps, { papel })).cookie;
     cookiesSem2fa[papel] = (await criarPessoa(deps, { papel, com2fa: false })).cookie;
   }
-  return { tokens, cookies, cookiesSem2fa };
+  return { tokens, tokensIntegracao, cookies, cookiesSem2fa };
 }
 
 // Caminho do padrão do App Router a partir do arquivo: src/app/api/demandas/[id]/route.ts → /api/demandas/[id]. Grupo
@@ -96,12 +105,21 @@ function chamarComParametros(h: HandlerRota, metodo: Metodo, params: Record<stri
   });
 }
 
+function credencialDo(ator: AtorDeTeste, cred: Credenciais): OpRequisicao {
+  switch (ator.tipo) {
+    case 'agente':
+      return { bearer: cred.tokens[ator.agente] };
+    case 'integracao':
+      return { bearer: cred.tokensIntegracao[ator.integracao] };
+    case 'pessoa':
+      return { cookie: (ator.sem2fa ? cred.cookiesSem2fa : cred.cookies)[ator.papel] };
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
 export function chamarComo(h: HandlerRota, metodo: Metodo, ator: AtorDeTeste, cred: Credenciais): Promise<Response> {
-  const op: OpRequisicao =
-    ator.tipo === 'agente'
-      ? { bearer: cred.tokens[ator.agente] }
-      : { cookie: (ator.sem2fa ? cred.cookiesSem2fa : cred.cookies)[ator.papel] };
-  return chamarComParametros(h, metodo, h.meta.exemplo, op);
+  return chamarComParametros(h, metodo, h.meta.exemplo, credencialDo(ator, cred));
 }
 
 export function chamarSemCredencial(h: HandlerRota, metodo: Metodo): Promise<Response> {

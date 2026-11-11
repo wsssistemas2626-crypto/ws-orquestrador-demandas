@@ -2,13 +2,16 @@
 // HTTP (o worker chama a mesma função), e as ações de configuração dos agentes são só de `cto`.
 import { describe, expect, it } from 'vitest';
 import { mapearErro } from '../../lib/erros';
-import { AGENTES, PAPEIS, type Agente, type Ator } from './ator';
+import { AGENTES, INTEGRACOES, PAPEIS, type Agente, type Ator, type Integracao } from './ator';
 import { ACOES, MATRIZ, atoresProibidos, autorizar, type Acao } from './matriz';
 
 const cto = { tipo: 'pessoa', usuarioId: 'u1', nome: 'Pessoa Ficticia', papel: 'cto' } as const;
 const adm = { ...cto, usuarioId: 'u2', papel: 'administradora' } as const;
 const agente = (a: (typeof AGENTES)[number]) => ({ tipo: 'agente', agente: a, prefixoToken: 'abcd1234' }) as const;
+const integracao = (i: Integracao) => ({ tipo: 'integracao', integracao: i, prefixoToken: 'ficticio' }) as const;
 const sistema = { tipo: 'sistema' } as const;
+// O que atoresProibidos acrescenta no fim da lista (0.3.0, IN-01): as integrações que a linha não tem.
+const integracoesProibidas = (...is: Integracao[]) => is.map((i) => ({ tipo: 'integracao', integracao: i }));
 const SEM_PERMISSAO = expect.objectContaining({ codigo: 'sem_permissao' });
 
 // A tabela "Matriz (C-10, C-12)" da T10 no plano, escrita de novo aqui para a matriz não poder mudar sem o teste.
@@ -24,17 +27,22 @@ const SO_PESSOA = [
   'ler_teto',
 ] as const;
 const SO_CTO = ['alterar_agente', 'alterar_teto'] as const;
-type LinhaEsperada = { pessoa: 'qualquer' | 'cto' | null; agentes: Agente[] };
+// 0.3.0 (RF-03, IN-01): as três ações do /construir, sem pessoa nem agente.
+const SO_CONSTRUIR = ['listar_pedidos_pendentes', 'entregar_pedido', 'confirmar_recebimento_pedido'] as const;
+type LinhaEsperada = { pessoa: 'qualquer' | 'cto' | null; agentes: Agente[]; integracoes: Integracao[] };
 const linhas = <A extends Acao>(acoes: readonly A[], l: LinhaEsperada) =>
   Object.fromEntries(acoes.map((a) => [a, l])) as Record<A, LinhaEsperada>;
 const ESPERADA: Record<Acao, LinhaEsperada> = {
-  criar_demanda: { pessoa: 'qualquer', agentes: ['orquestrador'] },
-  criar_especificacao: { pessoa: 'qualquer', agentes: ['insumo_tecnico'] },
-  criar_parecer_risco: { pessoa: 'qualquer', agentes: ['risco'] },
-  criar_pacote_decisao: { pessoa: 'qualquer', agentes: ['consolidacao'] },
-  ...linhas(LEITURA, { pessoa: 'qualquer', agentes: [...AGENTES] }),
-  ...linhas(SO_PESSOA, { pessoa: 'qualquer', agentes: [] }),
-  ...linhas(SO_CTO, { pessoa: 'cto', agentes: [] }),
+  criar_demanda: { pessoa: 'qualquer', agentes: ['orquestrador'], integracoes: ['awave'] },
+  criar_especificacao: { pessoa: 'qualquer', agentes: ['insumo_tecnico'], integracoes: [] },
+  criar_parecer_risco: { pessoa: 'qualquer', agentes: ['risco'], integracoes: [] },
+  criar_pacote_decisao: { pessoa: 'qualquer', agentes: ['consolidacao'], integracoes: [] },
+  ...linhas(LEITURA, { pessoa: 'qualquer', agentes: [...AGENTES], integracoes: [] }),
+  ler_demanda: { pessoa: 'qualquer', agentes: [...AGENTES], integracoes: ['awave'] },
+  ...linhas(SO_PESSOA, { pessoa: 'qualquer', agentes: [], integracoes: [] }),
+  confirmar_demanda: { pessoa: 'qualquer', agentes: [], integracoes: [] },
+  ...linhas(SO_CTO, { pessoa: 'cto', agentes: [], integracoes: [] }),
+  ...linhas(SO_CONSTRUIR, { pessoa: null, agentes: [], integracoes: ['construir'] }),
 };
 
 const permite = (ator: Ator, acao: Acao) => {
@@ -73,8 +81,8 @@ describe('autorizar', () => {
 });
 
 describe('matriz como dado (C-10, C-12)', () => {
-  it('as ações são as 19 do plano, sem repetição, e a matriz não tem linha a mais', () => {
-    expect(new Set(ACOES).size).toBe(19);
+  it('as ações são as 23 do plano, sem repetição, e a matriz não tem linha a mais', () => {
+    expect(new Set(ACOES).size).toBe(23);
     expect(Object.keys(MATRIZ).sort()).toEqual([...ACOES].sort());
     expect(Object.keys(ESPERADA).sort()).toEqual([...ACOES].sort());
   });
@@ -82,6 +90,7 @@ describe('matriz como dado (C-10, C-12)', () => {
     for (const a of ACOES) {
       expect(MATRIZ[a].pessoa, a).toBe(ESPERADA[a].pessoa);
       expect([...MATRIZ[a].agentes].sort(), a).toEqual([...ESPERADA[a].agentes].sort());
+      expect([...MATRIZ[a].integracoes].sort(), a).toEqual([...ESPERADA[a].integracoes].sort());
     }
   });
   it('a matriz não muda em tempo de execução', () => {
@@ -101,6 +110,7 @@ describe('matriz como dado (C-10, C-12)', () => {
       for (const a of AGENTES) expect(permite(agente(a), acao), `${a} em ${acao}`).toBe(linha.agentes.includes(a));
       expect(permite(cto, acao), `cto em ${acao}`).toBe(linha.pessoa !== null);
       expect(permite(adm, acao), `administradora em ${acao}`).toBe(linha.pessoa === 'qualquer');
+      for (const i of INTEGRACOES) expect(permite(integracao(i), acao), `${i} em ${acao}`).toBe(linha.integracoes.includes(i));
     }
   });
   it('o ator sistema não passa em nenhuma ação', () => {
@@ -147,23 +157,31 @@ describe('o erro de autorizar', () => {
 });
 
 describe('atoresProibidos', () => {
-  it('registrar_decisao: os quatro agentes, nenhuma pessoa', () => {
-    expect(atoresProibidos('registrar_decisao')).toEqual(AGENTES.map((a) => ({ tipo: 'agente', agente: a })));
+  it('registrar_decisao: os quatro agentes, nenhuma pessoa, as duas integrações', () => {
+    expect(atoresProibidos('registrar_decisao')).toEqual([
+      ...AGENTES.map((a) => ({ tipo: 'agente', agente: a })),
+      ...integracoesProibidas('awave', 'construir'),
+    ]);
   });
-  it('alterar_teto e alterar_agente: os quatro agentes e a administradora', () => {
+  it('alterar_teto e alterar_agente: os quatro agentes, a administradora e as duas integrações', () => {
     for (const acao of SO_CTO)
       expect(atoresProibidos(acao)).toEqual([
         ...AGENTES.map((a) => ({ tipo: 'agente', agente: a })),
         { tipo: 'pessoa', papel: 'administradora' },
+        ...integracoesProibidas('awave', 'construir'),
       ]);
   });
-  it('criar_especificacao: os agentes que não são o insumo_tecnico', () => {
-    expect(atoresProibidos('criar_especificacao')).toEqual(
-      AGENTES.filter((a) => a !== 'insumo_tecnico').map((a) => ({ tipo: 'agente', agente: a })),
-    );
+  it('criar_especificacao: os agentes que não são o insumo_tecnico e as duas integrações', () => {
+    expect(atoresProibidos('criar_especificacao')).toEqual([
+      ...AGENTES.filter((a) => a !== 'insumo_tecnico').map((a) => ({ tipo: 'agente', agente: a })),
+      ...integracoesProibidas('awave', 'construir'),
+    ]);
   });
-  it('leitura de demanda, ESP, RSK e DEC: ninguém', () => {
-    for (const acao of LEITURA) expect(atoresProibidos(acao), acao).toEqual([]);
+  it('leitura de demanda, ESP, RSK e DEC: nenhum agente nem pessoa; só as integrações fora da linha', () => {
+    for (const acao of LEITURA)
+      expect(atoresProibidos(acao), acao).toEqual(
+        acao === 'ler_demanda' ? integracoesProibidas('construir') : integracoesProibidas('awave', 'construir'),
+      );
   });
   it('cada ator proibido é de fato negado, e cada um fora da lista passa', () => {
     for (const acao of ACOES) {
@@ -175,6 +193,10 @@ describe('atoresProibidos', () => {
       for (const papel of PAPEIS) {
         const proibido = proibidos.some((p) => p.tipo === 'pessoa' && p.papel === papel);
         expect(permite({ ...cto, papel }, acao), `${papel} em ${acao}`).toBe(!proibido);
+      }
+      for (const i of INTEGRACOES) {
+        const proibido = proibidos.some((p) => p.tipo === 'integracao' && p.integracao === i);
+        expect(permite(integracao(i), acao), `${i} em ${acao}`).toBe(!proibido);
       }
     }
   });

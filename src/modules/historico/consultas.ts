@@ -29,8 +29,9 @@ export type EventoVisivel = {
 
 const ehAgente = (v: string): v is Agente => (AGENTES as readonly string[]).includes(v);
 
-// O formato do prefixo gravado (tokens-servico.ts): 8 caracteres base64url.
-const RE_PREFIXO = /^[A-Za-z0-9_-]{8}$/;
+// O formato do prefixo gravado (tokens-servico.ts): 8 caracteres base64url. Exportada só para o teste que confere a
+// cópia (tokens-integracao.test.ts).
+export const RE_PREFIXO = /^[A-Za-z0-9_-]{8}$/;
 
 function atorVisivel(l: { atorTipo: string; atorId: string; prefixo: string | null; nome: string | null; papel: Papel | null }): AtorVisivel {
   switch (l.atorTipo) {

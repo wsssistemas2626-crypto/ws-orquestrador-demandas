@@ -142,8 +142,9 @@ export function formatarDinheiro(v: number): string {
   return `US$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// O formato do prefixo do token (tokens-servico.ts): só ele aparece na tela, nunca o token, o hash ou o sha256.
-const RE_PREFIXO = /^[A-Za-z0-9_-]{8}$/;
+// O formato do prefixo do token (tokens-servico.ts): só ele aparece na tela, nunca o token, o hash ou o sha256. Cópia
+// (o arquivo vai ao navegador), conferida por teste (tokens-integracao.test.ts).
+export const RE_PREFIXO = /^[A-Za-z0-9_-]{8}$/;
 const prefixoValido = (v: unknown): string | null => (typeof v === 'string' && RE_PREFIXO.test(v) ? v : null);
 const ehIntegracaoNaTela = (v: unknown): v is Integracao => typeof v === 'string' && Object.prototype.hasOwnProperty.call(NOME_INTEGRACAO, v);
 

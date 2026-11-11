@@ -4,7 +4,7 @@
 // combinação e não leva dado do ator nem na `message` do Error. Testes unitários, sem banco e sem relógio.
 import { describe, expect, it } from 'vitest';
 import { ErroDominio, mapearErro } from '../../lib/erros';
-import { AGENTES, PAPEIS, type Agente, type Ator } from './ator';
+import { AGENTES, INTEGRACOES, PAPEIS, type Agente, type Ator } from './ator';
 import { ACOES, MATRIZ, atoresProibidos, autorizar, type Acao } from './matriz';
 
 const cto = { tipo: 'pessoa', usuarioId: 'SENTINELA-ID-cto', nome: 'Pessoa Ficticia', papel: 'cto' } as const;
@@ -138,17 +138,21 @@ describe('a matriz resiste a mudança em tempo de execução', () => {
 });
 
 describe('atoresProibidos falha fechada', () => {
-  it('ação desconhecida proíbe todos os agentes e todos os papéis', () => {
+  it('ação desconhecida proíbe todos os agentes, todos os papéis e todas as integrações', () => {
     const todos = [
       ...AGENTES.map((agente) => ({ tipo: 'agente', agente })),
       ...PAPEIS.map((papel) => ({ tipo: 'pessoa', papel })),
+      ...INTEGRACOES.map((integracao) => ({ tipo: 'integracao', integracao })),
     ];
     for (const acao of ['acao_inexistente', 'toString', '__proto__', 'constructor'])
       expect(atoresProibidos(acao as Acao), acao).toEqual(todos);
   });
-  it('ações só de pessoa proíbem os quatro agentes e nenhum papel', () => {
+  it('ações só de pessoa proíbem os quatro agentes e as duas integrações, e nenhum papel', () => {
     for (const acao of SO_PESSOA)
-      expect(atoresProibidos(acao), acao).toEqual(AGENTES.map((agente) => ({ tipo: 'agente', agente })));
+      expect(atoresProibidos(acao), acao).toEqual([
+        ...AGENTES.map((agente) => ({ tipo: 'agente', agente })),
+        ...INTEGRACOES.map((integracao) => ({ tipo: 'integracao', integracao })),
+      ]);
   });
 });
 
