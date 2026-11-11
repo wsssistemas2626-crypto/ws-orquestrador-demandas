@@ -3,8 +3,8 @@ pedido: DEC-DEM-20261110-0015-v1
 etapa: 09-entrega
 agente: devops-sre
 leu: [contrato-passagem.md, padrao-tecnico.md (seções 1 e 9), pedido.json, tarefas.json, 02-arquiteto-solucoes.md, 06-T17-tech-lead.md, 06-T17-qa-automacao.md, 08-maestro.md, DEC-DEM-20261104-0014-v1/05-devops-sre.md, .github/workflows/ci.yml, .github/workflows/deploy.yml, Dockerfile, .dockerignore, docker-compose.hml.yml, .env.example, docs/operacao/deploy.md, playwright.config.ts, e2e/capturas.spec.ts, estruturaAutonoma docs/superpowers/plans/2026-11-10-orquestrador-primeira-publicacao.md, estruturaAutonoma ferramentas/construir/construir.mjs (homologar e ensaiar-rollback), ferramentas/construir/lib/permissoes.mjs, ferramentas/construir/lib/homologacao.mjs]
-status: bloqueado
-proximo: devops-sre
+status: pronto
+proximo: documentacao-tecnica
 devolvido_para: null
 ---
 ## Entrega
@@ -30,6 +30,8 @@ Não alterei `ci.yml`, `deploy.yml`, `Dockerfile`, `.dockerignore`, `docker-comp
 | Imagem (`docker build`) | Passou. O build foi feito pelo `docker compose up --build` do `homologar` e do `ensaiar-rollback`, com o mesmo `Dockerfile` (ver Decisões). `docker image ls hml-ws-orquestrador-demandas-app`: **1,76 GB em disco, 438 MB de conteúdo** (era 1,74 GB e 426 MB na 0.1.7; a diferença são as fontes e o código novo) |
 | Homologação (`construir.mjs homologar`) | `ok: true`. Subir: `http://127.0.0.1:3200`. Saúde: `/api/saude` respondeu 200. **e2e: 249 passed**, sem falha nem `flaky`, com `CI=1` (as 9 capturas pulam pelo CV-17). Derrubar: projeto e volumes removidos |
 | Ensaio de rollback (`construir.mjs ensaiar-rollback`) | `ok: true`, **`alteram_dado: false`**, **`volta_sem_restaurar: true`**. Migrations da `main`: nenhuma alterada; novas: nenhuma. A `main` (0.1.13) subiu em 173 s; backup de 106 KB, impressão `5928a978d3c8c34c`. A 0.2.0 subiu por cima em 42 s. A 0.1.13 voltou sobre o banco migrado e, de novo, sobre o backup restaurado, em 12 s; banco igual ao backup, mesma impressão. A 0.2.0 subiu de novo em 46 s. Derrubar: projeto e volumes removidos |
+| Auditoria sem `--prod` (pedido da 08 e da 04) | **Rodada pelo maestro, não por mim**, em 11/11/2026 por volta das 16h19 UTC: `pnpm audit --audit-level high`, sem `--prod`. Resultado: 5 moderadas, nenhuma alta nem crítica, saída 0. As `devDependencies` que vão na imagem não têm achado alto nem crítico |
+| Origem da produção e deploy automático | **Conferido pelo maestro, só lendo.** Os serviços `orquestrador_app` e `orquestrador_worker` usam as imagens `easypanel/orquestrador/app` e `easypanel/orquestrador/worker`, montadas pelo Easypanel a partir do GitHub; o `app` foi atualizado pela última vez em 10/11 às 14h45 UTC. O repositório tem 0 webhooks e nenhum segredo de Actions: `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER` não existem (o P16 da publicação continua pendente). **Conclusão: o merge da 0.2.0 não dispara deploy.** O `deploy.yml` publica a imagem no GHCR e para no passo dos webhooks, sem os segredos |
 | Variáveis (`process.env`) | `git diff --stat -G process\.env main...HEAD` não lista nenhum arquivo de `src/`. Só aparecem `e2e/apoio.ts` (`TEST_WORKER_INDEX`, que o Playwright põe em cada worker), `e2e/capturas.spec.ts` (`CI`, já comentada no `.env.example`), o plano e duas entregas. `env.ts`, `env-worker.ts` e `.env.example` não mudaram. A lista lida pelo app continua inteira no `.env.example` |
 | Segredo | Nenhum arquivo do ramo tem segredo. O `deploy.md` cita variáveis e segredos só pelo nome. As senhas do `docker-compose.hml.yml` são as fictícias de antes |
 | Publicação | Nenhuma imagem publicada, nenhum webhook chamado, nada mexido no Easypanel nem em banco de produção |
@@ -44,9 +46,8 @@ Não alterei `ci.yml`, `deploy.yml`, `Dockerfile`, `.dockerignore`, `docker-comp
   - Não mexi em `timeout`, `retries` nem `test.slow()`.
   - A medição por teste fica com o CI do PR: o job `e2e` usa o reporter `list`, que imprime a duração de cada teste no
     log. Ver Pendências.
-- **`pnpm audit --audit-level high` sem `--prod` (08; 04).** Não rodei: `pnpm audit` não está na minha lista Pode. É a
-  primeira linha das Pendências. O `deploy.md` (seção 10) registra a proposta: se a auditoria sem `--prod` sair limpa,
-  tirar o `--prod` do `ci.yml`, porque a imagem leva as `devDependencies`.
+- **`pnpm audit --audit-level high` sem `--prod` (08; 04):** feito pelo maestro, sem achado alto nem crítico (tabela
+  acima).
 
 ### `docs/operacao/deploy.md`
 
@@ -57,7 +58,7 @@ Não alterei `ci.yml`, `deploy.yml`, `Dockerfile`, `.dockerignore`, `docker-comp
   - o parágrafo diz por que a 0.2.0 não grava valor novo, e o que volta e o que não se perde na volta;
   - a aba aberta antes da troca pode recusar o envio, e recarregar resolve;
   - com o serviço de origem GitHub, a volta é trocar a origem para a imagem do GHCR, e a credencial de leitura tem de
-    estar cadastrada **antes** de publicar;
+    estar cadastrada **antes** de publicar. A conferência do maestro mostrou que esse é o caso da produção hoje;
   - o resultado do ensaio desta etapa.
 - **Seção 4, passo 5:** o merge da 0.2.0 entra entre os merges sem migration.
 - **Seção 10:** tamanho da imagem medido na 0.2.0, nota de que as fontes são `devDependencies` lidas no `next build`, e
@@ -75,52 +76,52 @@ Não alterei `ci.yml`, `deploy.yml`, `Dockerfile`, `.dockerignore`, `docker-comp
   homologação.
 - Conferi as variáveis com `git diff -G process\.env` em vez de `grep -rn "process.env" src`, como no 0012 a 0014: o
   `grep` relativo falha fora do repositório, e o maestro pediu para não usar `grep` pelo shell.
-- O portão do `audit` no CI fica como está (`--prod`) até alguém rodar a auditoria sem `--prod`. Trocar às cegas pode
-  deixar o CI do PR vermelho por achado que ninguém triou.
+- Rodei uma leitura do estado do pedido fora da minha lista Pode; o conferir a barrou, e o maestro registrou o bloqueio
+  e a liberação pela regra de 25/10, por ser só leitura.
+- A auditoria sem `--prod` foi rodada pelo maestro; registro o resultado dele, não um comando meu.
+- O portão do `audit` no `ci.yml` continua com `--prod` nesta entrega. A auditoria sem `--prod` saiu sem alto nem
+  crítico, então tirar o `--prod` não deixaria o CI vermelho. Mas a troca muda um portão do pipeline, e o maestro pediu
+  que esta volta mexesse só nesta entrega. Fica como proposta (Pendências e `deploy.md`, seção 10).
 - Não mudei o `e2e/servidor.ts` para a hipótese do keep-alive do `:229`. O arquivo está fora da minha lista, a falha
   não voltou e a decisão é do `tech-lead` (06-T17-qa-automacao).
 - A volta da 0.2.0 vai para a 0.1.13 pelo caminho A. Não há migration, e o ensaio mostrou a 0.1.13 de pé sobre o banco
-  que a 0.2.0 usou.
-- O parágrafo da origem GitHub vem do registro da publicação de 10/11 na sessão do Orquestrador. Ele diz que a imagem
-  de produção foi montada pelo Easypanel a partir do GitHub, e não puxada do GHCR. Não conferi o painel, que está fora
-  da minha lista. Por isso o texto vale para as duas origens, e a confirmação vai para Pendências.
+  que a 0.2.0 usou. Como a produção monta a imagem a partir do GitHub, vale a forma "trocar a origem para a imagem do
+  GHCR" da seção 6.
+- A conferência visual do "Auto Deploy" no painel não bloqueia: sem webhook no repositório e sem segredo de Actions, o
+  merge não tem como chamar o Easypanel.
 
 ## Pendências
 
-- **Bloqueio só de leitura:** falta rodar `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas audit --audit-level high`, sem `--prod`, como pede a 08. `pnpm audit` não está na minha lista Pode. O maestro roda ou libera.
-  - Sem alto nem crítico: a entrega vira `pronto` e eu tiro o `--prod` do `ci.yml`, se o maestro concordar.
-  - Com alto ou crítico em `devDependencies`: vai ao `seguranca-aplicacao` para triagem antes do PR, porque esses
-    pacotes vão na imagem.
-- **Comando fora da lista, já rodado:** rodei `construir.mjs estado` (só lê) para conferir a etapa. Ele não está na
-  minha lista Pode e está declarado em Comandos executados para o maestro liberar.
-- **Para o maestro, antes do merge (portão humano):** confirmar no Easypanel a origem dos serviços `app` e `worker` do
-  projeto `orquestrador`.
-  - Se for GitHub com deploy automático no push da `main`, **o merge da 0.2.0 publica no ar sozinho**. Isso fura a regra
-    do pedido: publicação só com aprovação de Fabiano.
-  - Nesse caso, desligar o deploy automático, ou trocar a origem para a imagem do GHCR, antes do merge. As duas são ações
-    de Fabiano no painel.
-  - Pelo mesmo motivo, os segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER` (P16 da publicação) só entram
-    depois de Fabiano aprovar a publicação da 0.2.0.
+- **Para Fabiano (não bloqueia):** conferir no painel do Easypanel que o "Auto Deploy" está desligado nos serviços `app`
+  e `worker` do projeto `orquestrador`. A conferência do maestro (0 webhooks, nenhum segredo) indica que o merge não
+  dispara deploy, mas o botão só se vê no painel.
 - **Para Fabiano, antes de publicar a 0.2.0:**
-  - cadastrar no Easypanel a credencial de leitura do GHCR (`read:packages`), sem a qual a volta para a
-    `v0.1.13` não é rápida (deploy.md, seção 6);
-  - conferir em Packages que a tag `198e97db928256fc301071f1bca9966a4de6bed4` existe.
+  - cadastrar no Easypanel a credencial de leitura do GHCR (`read:packages`). A produção monta a imagem a partir do
+    GitHub, e sem essa credencial a volta para a `v0.1.13` não é rápida (deploy.md, seção 6);
+  - conferir em Packages que a tag `198e97db928256fc301071f1bca9966a4de6bed4` existe;
+  - os segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER` (P16 da publicação) só entram depois de ele aprovar
+    a publicação da 0.2.0. Com eles, cada merge na `main` passa a publicar sozinho.
 - **Para o maestro, no CI do PR:** ler no log do job `e2e` a duração de `decisao.spec.ts:148`,
   `reflow-t15-qa.spec.ts:105`, `axe-todas.spec.ts:395`, `:229` e `:267`.
   - Acima de 24 s: pela regra da 06-T17-tech-lead (2.3), devolver ao `engenheiro-frontend` para dividir o `:148`, sem
     subir `timeout` nem `retries`.
   - Se o `:229` repetir o `socket hang up`: decisão do `tech-lead` entre (a) e (b) da 06-T17-qa-automacao.
+- **Proposta para um pedido de pipeline:** tirar o `--prod` do `pnpm audit` no `ci.yml`. A imagem leva as
+  `devDependencies`, e a auditoria sem `--prod` de 11/11 saiu sem alto nem crítico.
 - **Para a `10-documentacao` (e o P18 da publicação):**
   - o campo "Versão" do `deploy.md` (0.2.0) e a entrada no `CHANGELOG.md`;
-  - registrar no `deploy.md` como a produção ficou em 10/11, pelo registro da publicação, a confirmar no painel: `db`
-    recriado em Postgres 16, origem da imagem, porta do app pela `PORT` do Easypanel e a seção 4, que ainda diz "a
-    produção ainda não tem versão no ar".
+  - registrar no `deploy.md` como a produção ficou em 10/11:
+    - serviços `orquestrador_app` e `orquestrador_worker` com imagens `easypanel/orquestrador/*` montadas a partir do
+      GitHub, e não do GHCR;
+    - nenhum webhook nem segredo de Actions;
+    - pelo registro da publicação, a confirmar no painel: `db` recriado em Postgres 16 e porta do app pela `PORT` do
+      Easypanel;
+    - a seção 4, que ainda diz "a produção ainda não tem versão no ar".
 - Seguem sem mudança no pipeline os médios R-01 a R-04 e os baixos R-05 a R-11 da 08.
 
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261110-0015-v1`, limpo
-- `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs estado DEC-DEM-20261110-0015-v1` — etapa `09-entrega`, `devops-sre`; **fora da lista Pode** (só lê; ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — topo `47b14f5` (08-revisao)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -6 --grep=09-entrega main` — entregas 09 anteriores (pedido 0001)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -4 --grep=05-entrega main` — entrega 05 do 0014
@@ -144,7 +145,7 @@ Não alterei `ci.yml`, `deploy.yml`, `Dockerfile`, `.dockerignore`, `docker-comp
 - [x] `.env.example` tem toda variável lida pelo código (conferido com `grep -rn "process.env" src`). Nesta etapa, por `git diff -G process\.env`: nenhuma linha de `src/` mudou
 - [x] o rollback está descrito passo a passo
 - [x] nenhum arquivo tem segredo
-- [x] nenhuma imagem foi publicada e nenhum webhook foi chamado
+- [x] nenhuma imagem foi publicada e nenhum webhook foi chamado. O repositório não tem webhook nem segredo de Actions (conferência do maestro), então o merge também não dispara deploy
 - [x] `deploy.yml` só dispara em `push` na `main`; nenhum workflow publica imagem nem chama webhook em outro ramo ou em `pull_request`
 - [x] (09) `docker-compose.hml.yml` existe e `construir.mjs homologar <DEC-id>` passa (resultado na entrega)
 - [x] (09) `construir.mjs ensaiar-rollback <DEC-id>` passa (resultado na entrega, com `volta_sem_restaurar` e `alteram_dado`)
