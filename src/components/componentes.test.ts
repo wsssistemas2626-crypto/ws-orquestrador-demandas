@@ -248,6 +248,20 @@ describe('Interruptor (03, 2.3 e T12)', () => {
     expect(ocupado).toContain('disabled=""');
     expect(ocupado).toContain('Alterando…');
   });
+  // 0.2.0 (T15; 03, 8.2): trilho ligado em `acao` e desligado em `tinta-suave`, com o botão branco nos dois; o estado
+  // continua em texto ao lado.
+  it('trilho ligado em acao e desligado em tinta-suave, botão branco nos dois', () => {
+    const classes = (ligado: boolean) =>
+      [...html(h(Interruptor, { rotulo: 'Agente (fictício)', ligado, onAlternar: nada })).matchAll(/<span aria-hidden="true" class="([^"]*)"><span class="([^"]*)"/g)].map(
+        (m) => [m[1]!.split(' '), m[2]!.split(' ')] as const,
+      )[0]!;
+    const [trilhoLigado, botaoLigado] = classes(true);
+    expect(trilhoLigado).toEqual(expect.arrayContaining(['bg-acao', 'border-acao']));
+    expect(botaoLigado).toEqual(expect.arrayContaining(['bg-branco', 'border-branco']));
+    const [trilhoDesligado, botaoDesligado] = classes(false);
+    expect(trilhoDesligado).toEqual(expect.arrayContaining(['bg-tinta-suave', 'border-tinta-suave']));
+    expect(botaoDesligado).toEqual(expect.arrayContaining(['bg-branco', 'border-branco']));
+  });
 });
 
 describe('Selo, Alerta, ResumoErros e RegiaoAviso', () => {

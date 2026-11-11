@@ -81,3 +81,90 @@ test.describe('1280 px', () => {
     }
   });
 });
+
+// T15 (RF-14, CA-14.2, RNF-05; 03, 8.2): T09 Novo pacote de decisão (formulário, com as mesmas regras de T04 a T08), T10
+// Ver versão de ESP e de RSK e T12 Agentes e teto (leitura em seções: cada seção num cartão; a tabela da T12 com a
+// rolagem própria de hoje). Usa a demanda do seed `etapasDupla`, a única que nasce com ESP e RSK (a T09 só mostra o
+// formulário com as duas), e só lê: nada é gravado, e a T12 não é alterada (C-36, G3.10).
+const T09: Tela = {
+  nome: 'T09 Novo pacote de decisão',
+  caminho: (id) => `/demandas/${id}/pacotes-decisao/novo`,
+  titulo: 'Novo pacote de decisão',
+  // Resumo executivo, Opção A, Opção B, Recomendação e o nível de aprovação.
+  cartoes: 5,
+};
+
+type TelaDeLeitura = { nome: string; caminho: (id: string) => string; titulo: RegExp; cartoes: number };
+const TELAS_DE_LEITURA: readonly TelaDeLeitura[] = [
+  // Problema, Escopo, Sistemas envolvidos, Dados, Restrições técnicas, Dúvidas em aberto e Construção.
+  { nome: 'T10 Ver ESP', caminho: (id) => `/especificacoes/ESP-${id}-v1`, titulo: /^Especificação técnica v1 — /, cartoes: 7 },
+  // Resumo, os três riscos, Recomendações de mitigação, Pré-condições e "Quando envolver…".
+  { nome: 'T10 Ver RSK', caminho: (id) => `/pareceres-risco/RSK-${id}-v1`, titulo: /^Parecer de risco v1 — /, cartoes: 7 },
+  // Gasto do mês e Agentes.
+  { nome: 'T12 Agentes e teto', caminho: () => '/configuracao/agentes', titulo: /^Agentes e teto de gasto$/, cartoes: 2 },
+];
+
+async function abrirLeitura(page: Page, tela: TelaDeLeitura, id: string): Promise<void> {
+  await page.goto(tela.caminho(id));
+  await expect(page.getByRole('heading', { level: 1, name: tela.titulo })).toBeVisible();
+}
+
+// Cada seção, título de seção, lista de definição, tabela e campo da página dentro de um cartão (o `Cartao` é um
+// `section`); e o número de cartões é o da tela. O diálogo da T12 (fechado) fica dentro do cartão "Agentes".
+async function secoesEmCartoes(page: Page, tela: TelaDeLeitura): Promise<void> {
+  const r = await page.evaluate(() => {
+    const main = document.querySelector('main');
+    if (!main) return null;
+    const elementos = [...main.querySelectorAll('section, h2, dl, table, fieldset, input, select, textarea')];
+    return {
+      cartoes: main.querySelectorAll('section.rounded-cartao').length,
+      fora: elementos.filter((e) => !e.closest('.rounded-cartao')).map((e) => `${e.tagName.toLowerCase()}#${e.id}`),
+    };
+  });
+  expect(r, `${tela.nome}: a página`).not.toBeNull();
+  expect(r!.fora, `${tela.nome}: fora de cartão`).toEqual([]);
+  expect(r!.cartoes, `${tela.nome}: cartões`).toBe(tela.cartoes);
+}
+
+for (const [largura, conta] of [
+  [390, 'administradora'],
+  [320, 'cto'],
+] as const) {
+  test.describe(`T15 em ${largura} px`, () => {
+    test.use({ viewport: { width: largura, height: 844 } });
+
+    test('T09, T10 e T12: sem rolagem lateral, e cada seção num cartão', async ({ page }) => {
+      await entrarComo(page, conta);
+      const id = await demandaDoSeed(page, TITULOS_DO_E2E.etapasDupla);
+      await abrir(page, T09, id);
+      await semRolagemLateral(page, `${T09.nome} em ${largura} px`);
+      await camposEmCartoes(page, T09);
+      if (largura === 390) await semViolacoes(page, `${T09.nome} em 390 px`);
+      for (const tela of TELAS_DE_LEITURA) {
+        await abrirLeitura(page, tela, id);
+        await semRolagemLateral(page, `${tela.nome} em ${largura} px`);
+        await secoesEmCartoes(page, tela);
+        if (largura === 390) await semViolacoes(page, `${tela.nome} em 390 px`);
+      }
+    });
+  });
+}
+
+test.describe('T15 em 1280 px', () => {
+  test.use({ viewport: { width: 1280, height: 720 } });
+
+  test('T09, T10 e T12: cada seção num cartão, e o formulário da T09 com até 760 px', async ({ page }) => {
+    await entrarComo(page, 'administradora');
+    const id = await demandaDoSeed(page, TITULOS_DO_E2E.etapasDupla);
+    await abrir(page, T09, id);
+    await camposEmCartoes(page, T09);
+    const largura = await page.locator('main form').evaluate((f) => f.getBoundingClientRect().width);
+    expect(largura, `${T09.nome}: largura do formulário`).toBeLessThanOrEqual(760);
+    await semViolacoes(page, `${T09.nome} em 1280 px`);
+    for (const tela of TELAS_DE_LEITURA) {
+      await abrirLeitura(page, tela, id);
+      await secoesEmCartoes(page, tela);
+      await semViolacoes(page, `${tela.nome} em 1280 px`);
+    }
+  });
+});

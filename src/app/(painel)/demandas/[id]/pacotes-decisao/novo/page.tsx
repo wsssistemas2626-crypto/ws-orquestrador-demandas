@@ -3,6 +3,7 @@
 // (C-17). Id fora do formato ou que não existe: 404 (03, 2.8). Sem ESP ou sem RSK, a tela abre sem formulário, com o que
 // falta e o botão de cada um. Com os dois, a informação das versões que o pacote vai citar (as mais novas) e o
 // formulário em branco: cada pacote é uma proposta nova (03, T09, Vazio).
+// 0.2.0 (T15; 03, 8.2 do pedido 0015): a tela tem até 760 px de largura (`max-w-190`), com o formulário em cartões.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -35,7 +36,7 @@ export default async function PaginaNovoPacote({ params }: Props) {
   const rsk = d.pareceresRisco[0]?.id;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-190 flex-col gap-6">
       <div className="flex flex-col gap-1">
         <p className="break-words">
           <span className="font-mono">{d.id}</span>

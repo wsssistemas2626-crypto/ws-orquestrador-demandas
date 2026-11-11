@@ -3,11 +3,13 @@
 // `ler_demanda`, para o título da demanda. Id fora do formato ou que não existe: 404 "Versão não encontrada". Não há
 // botão de editar nem de excluir (RF-11): a correção é uma versão nova, a partir desta. Tudo é texto: o React escapa
 // os campos (C-18). Falha de leitura sobe para a tela de erro (03, 2.8).
+// 0.2.0 (T15; 03, 8.2 do pedido 0015): cada seção é um Cartao, com o mesmo `aria-labelledby`, `h2` e `dl`.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Alerta } from '../../../../components/Alerta';
 import { classeDoBotao } from '../../../../components/Botao';
+import { Cartao } from '../../../../components/Cartao';
 import { RE_ID_ESP, secoesDaVista, TEXTOS_ESP } from '../../../../components/dados-da-especificacao';
 import { SELO_RASCUNHO } from '../../../../components/rotulos';
 import { Selo } from '../../../../components/Selo';
@@ -24,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return metadadosDaEspecificacao((await params).espId, TEXTOS_ESP.tituloAba);
 }
 
-const CLASSE_LINK = 'text-primaria underline underline-offset-2';
+const CLASSE_LINK = 'text-acao-escura underline underline-offset-2';
 
 export default async function PaginaEspecificacao({ params }: Props) {
   const { espId } = await params;
@@ -37,7 +39,7 @@ export default async function PaginaEspecificacao({ params }: Props) {
   if (!d) notFound();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <p className="flex flex-wrap items-center gap-3">
           <span className="font-mono">{e.id}</span>
@@ -76,7 +78,7 @@ export default async function PaginaEspecificacao({ params }: Props) {
       ) : null}
 
       {secoesDaVista(e).map((s, n) => (
-        <section key={s.titulo} aria-labelledby={`secao-${n}`} className="flex flex-col gap-3">
+        <Cartao key={s.titulo} rotuloPor={`secao-${n}`} className="flex flex-col gap-3">
           <h2 id={`secao-${n}`} className="text-xl font-semibold">
             {s.titulo}
           </h2>
@@ -98,7 +100,7 @@ export default async function PaginaEspecificacao({ params }: Props) {
               </div>
             ))}
           </dl>
-        </section>
+        </Cartao>
       ))}
 
       <div className="flex flex-wrap items-center gap-4">
