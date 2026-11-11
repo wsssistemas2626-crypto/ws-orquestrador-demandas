@@ -143,6 +143,8 @@ pela mesma regra (`section` e `h2` fora de cartão, 0 cartões).
   - Nenhum teste cria demanda nem versão (C-36).
   - A matriz deixa as duas contas lerem as quatro telas: `criar_pacote_decisao`, `ler_*`, `ler_configuracao_agentes`
     e `ler_teto` valem para qualquer pessoa.
+- **Volta 2:** o maestro liberou os dois `git log -G` só de leitura que tinham barra vertical no argumento (ela conta
+  como pipe). Por instrução dele, os dois saíram de Comandos executados. Código, testes e resultados não mudaram.
 
 ## Pendências
 
@@ -162,9 +164,7 @@ pela mesma regra (`section` e `h2` fora de cartão, 0 cartões).
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --diff-filter=A --name-only --format= -- "src/app/(painel)/demandas/[id]/pacotes-decisao" "src/app/(painel)/configuracao" "src/app/(painel)/demandas/[id]/versoes" "src/app/(painel)/demandas/[id]" src/components e2e` — arquivos das telas e specs
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --diff-filter=A --name-only --format= -- src/app` — páginas da T10
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 --format=%H` — topo e1d668b
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "Interruptor|interruptor" --name-only --format= -- src test e2e` — testes que citam o interruptor
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "Interruptor" -p --format=%h -- src/components/componentes.test.ts src/components/componentes-qa.test.ts` — nenhuma asserção de classe do interruptor
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "section|class|primaria|rounded" -p --format=%h -- "src/app/(painel)/especificacoes/[espId]/pagina.test.ts" "src/app/(painel)/pareceres-risco/[rskId]/pagina.test.ts" "src/app/(painel)/demandas/[id]/pacotes-decisao/novo/pagina.test.ts"` — saída longa; os testes foram lidos pelo Read
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 -G "TITULOS_DO_E2E" --format=%h -- scripts/seed-ficticio.ts` — f4eba63
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 -G "faltaParaCriar" -p --format=%h -- src/components/dados-do-pacote.ts` — a T09 só abre o formulário com ESP e RSK
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 -G "secoesDoParecer" -p --format=%h -- src/components/dados-do-parecer.ts` — 7 seções no RSK
