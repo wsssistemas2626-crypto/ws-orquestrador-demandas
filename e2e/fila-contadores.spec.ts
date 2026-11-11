@@ -154,6 +154,11 @@ test.describe('celular', () => {
     await page.goto('/demandas?limit=8');
     await esperarFilaPronta(page);
     await expect(page.locator('main table')).toBeHidden();
+    // 06-T09-testes: a tabela está no DOM (uma forma por largura, a outra com display: none) e fora da árvore de
+    // acessibilidade; o id de foco continua um só.
+    await expect(page.locator('main table')).toHaveCount(1);
+    await expect(page.getByRole('table')).toHaveCount(0);
+    await expect(resultado(page)).toHaveCount(1);
     const lista = page.getByRole('list', { name: LEGENDA_TODAS });
     const cartoes = lista.getByRole('listitem');
     await expect(cartoes).toHaveCount(8);
@@ -244,6 +249,51 @@ test('CA-07.4: em 1280 px, a tabela está visível e a lista não está na árvo
   await expect(page.getByRole('table', { name: LEGENDA_TODAS })).toBeVisible();
   await expect(page.getByRole('list', { name: LEGENDA_TODAS })).toHaveCount(0);
   await expect(page.locator('main ul[aria-labelledby="resultado-da-fila"]')).toBeHidden();
+  // 06-T09-testes (Minor 3 da 06-T09-revisao): a lista está no DOM e só fica escondida; o id de foco continua um só.
+  await expect(page.locator('main ul[aria-labelledby="resultado-da-fila"]')).toHaveCount(1);
+  await expect(resultado(page)).toHaveCount(1);
   await expect(page.getByRole('button', { name: /^Mais filtros/ })).toBeHidden();
   await expect(page.getByLabel('Tipo', { exact: true })).toBeVisible();
+});
+
+// --- 06-T09-testes (qa-automacao): bordas da ligação entre contadores, filtros e a contagem. Só leem: nenhuma demanda
+// nem versão é criada (C-36).
+
+test('CA-05.1 e CA-05.4: com tipo=bug, cada contador mostra o total da API para aquele status e tipo, na ordem', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  // Pré-condição que torna o teste discriminante: há demandas de outro tipo, então contar sem o filtro daria outro número.
+  const todasComBug = await totalDaApi(page, 'tipo=bug');
+  expect(await totalDaApi(page, '')).toBeGreaterThan(todasComBug);
+  await page.goto('/demandas?tipo=bug');
+  await esperarFilaPronta(page);
+  const botoes = contadores(page).getByRole('button');
+  await expect(botoes).toHaveCount(10);
+  const esperados: [string, string][] = [['Todas', 'tipo=bug'], ...Object.entries(ROTULO_STATUS).map(([s, r]): [string, string] => [r, `status=${s}&tipo=bug`])];
+  for (const [i, [rotulo, consulta]] of esperados.entries()) {
+    const n = await totalDaApi(page, consulta);
+    await expect(botoes.nth(i), rotulo).toHaveAccessibleName(`${rotulo} ${n.toLocaleString('pt-BR')} ${n === 1 ? 'demanda' : 'demandas'}`);
+  }
+  await expect(contadores(page).locator('[aria-pressed="true"]')).toHaveCount(1);
+  await expect(botoes.first()).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('"Filtrar" com status na URL mantém o status (campo oculto) e aplica o tipo, com o foco no resultado', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  // O seed deixa demandas de melhoria em "Pronta para decisão" (etapasDupla, decisaoRecomendaB).
+  const total = await totalDaApi(page, 'status=pronta_para_decisao&tipo=melhoria');
+  expect(total).toBeGreaterThanOrEqual(1);
+  await page.goto('/demandas?status=pronta_para_decisao');
+  await esperarFilaPronta(page);
+  await page.getByLabel('Tipo', { exact: true }).selectOption('melhoria');
+  // WCAG 3.2.2: mudar a seleção não aplica nada.
+  await expect(page).toHaveURL(/\/demandas\?status=pronta_para_decisao$/);
+  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await expect(page).toHaveURL(/\/demandas\?status=pronta_para_decisao&tipo=melhoria$/);
+  await expect(contadores(page).getByRole('button', { name: /^Pronta para decisão/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(resultado(page)).toBeFocused();
+  await expect(regiaoDeAviso(page)).toHaveText(encontradas(total));
+  // Os contadores remontam com o tipo novo e contam só melhoria.
+  await expect(contadores(page).getByRole('button', { name: /^Pronta para decisão/ })).toHaveAccessibleName(
+    `Pronta para decisão ${total.toLocaleString('pt-BR')} ${total === 1 ? 'demanda' : 'demandas'}`,
+  );
 });
