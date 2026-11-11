@@ -372,3 +372,67 @@ describe('plano de execução das leituras novas com 5.000 demandas (EXPLAIN)', 
     expect(ms).toBeLessThan(LIMITE_MS);
   });
 });
+
+// 06-T07-testes (qa-automacao): bordas que a construção não cobria. Banco próprio por bloco; os dados entram no
+// beforeAll e cada teste só lê, então a ordem dos testes não muda o resultado. Datas fixas, sem relógio real.
+describe('contarDemandasPorStatus: bordas', () => {
+  const e = bancoDoBloco();
+  beforeAll(async () => {
+    // Uma demanda em cada um dos nove status, todas do tipo bug, e mais uma melhoria nova.
+    for (const status of STATUS) await inserirDemanda(e, { status, tipo: 'bug' });
+    await inserirDemanda(e, { status: 'nova', tipo: 'melhoria' });
+  });
+
+  it('cada um dos nove status tem o próprio contador: com tipo=bug, 1 em cada e todas = 9', async () => {
+    const r = await contarDemandasPorStatus(e.b.db, filtro({ tipo: 'bug' }));
+    expect(r).toEqual({ porStatus: Object.fromEntries(STATUS.map((s) => [s, 1])), todas: 9 });
+  });
+
+  it('CA-05.3: status, offset e limit da URL não mudam a contagem (só tipo e linha filtram)', async () => {
+    const semPagina = await contarDemandasPorStatus(e.b.db, filtro());
+    expect(semPagina).toEqual({ porStatus: { ...Object.fromEntries(STATUS.map((s) => [s, 1])), nova: 2 }, todas: 10 });
+    expect(await contarDemandasPorStatus(e.b.db, filtro({ status: 'em_analise', offset: '20', limit: '1' }))).toEqual(semPagina);
+  });
+});
+
+describe('etapasDasDemandas: bordas', () => {
+  const e = bancoDoBloco();
+  let ids: { soRsk: string; espDeAgente: string };
+  beforeAll(async () => {
+    ids = { soRsk: await inserirDemanda(e), espDeAgente: await inserirDemanda(e) };
+    await inserirVersoes(e, ids.soRsk, { rsk: 1 });
+    // ESP v1 escrita por agente e ainda rascunho: versão é versão, conta como feita (glossário da 01, "Etapas (fila)").
+    await criarDb(e.b.poolMigrator)
+      .insert(especificacaoTecnica)
+      .values({
+        id: idVersao('ESP', ids.espDeAgente, 1),
+        demandaId: ids.espDeAgente,
+        versao: 1,
+        descricaoObjetiva: `${SENTINELA} ESP de agente (fictício)`,
+        escopoInclui: ['item fictício'],
+        autorTipo: 'agente',
+        autorId: 'agente-ficticio-insumo',
+        rascunhoAgente: true,
+        criadaEm: new Date(Date.UTC(2026, 10, 10, 13)),
+      });
+  });
+
+  it('cada marca olha a própria tabela: RSK sem ESP dá { esp: false, rsk: true, dec: false }', async () => {
+    const r = await etapasDasDemandas(e.b.db, [ids.soRsk]);
+    expect([...r]).toEqual([[ids.soRsk, { esp: false, rsk: true, dec: false }]]);
+  });
+
+  it('versão em rascunho de agente conta como feita', async () => {
+    const r = await etapasDasDemandas(e.b.db, [ids.espDeAgente]);
+    expect([...r]).toEqual([[ids.espDeAgente, { esp: true, rsk: false, dec: false }]]);
+  });
+
+  it('id repetido na lista dá uma entrada só, numa consulta só', async () => {
+    const { db, consultas } = dbQueConta(e.b);
+    const r = await etapasDasDemandas(db, [ids.soRsk, ids.soRsk, ids.espDeAgente]);
+    expect(consultas).toHaveLength(1);
+    expect(r.size).toBe(2);
+    expect(r.get(ids.soRsk)).toEqual({ esp: false, rsk: true, dec: false });
+    expect(r.get(ids.espDeAgente)).toEqual({ esp: true, rsk: false, dec: false });
+  });
+});
