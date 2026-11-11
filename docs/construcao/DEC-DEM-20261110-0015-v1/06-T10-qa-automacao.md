@@ -97,9 +97,6 @@ Cada teste novo falharia com a regra errada:
 ## Pendências
 
 - Nenhuma da T10.
-- Para o maestro: rodei por engano um `wc -l` sobre o arquivo de saída da suíte que a ferramenta gravou fora do
-  repositório (só leitura, item marcado em Comandos executados). Não está na minha lista **Pode**. Não alterou nada, e o
-  resultado foi lido depois com Read.
 - `engenheiro-frontend` (T11): para o e2e do CA-08.1 e do CA-09.1, o que a regra dá para a `etapasDupla` está na
   entrega da T10 e confere com os testes de unidade; a varredura desta etapa não muda isso.
 
@@ -115,7 +112,6 @@ Cada teste novo falharia com a regra errada:
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 227 arquivos, 5115 de 5115
-- `wc -l /home/deploy/.claude/projects/-home-deploy-servidor-projetos-estruturaAutonoma/0a919744-0e04-42d0-bf4b-e75d6acefb82/tool-results/b9nat5h70.txt` — 452 linhas; **fora da lista Pode, rodado por engano** (ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — 3 testes modificados e `test/estatico/importacoes.ts` novo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — só os 3 arquivos de teste
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -U0 -- test/estatico/leituras-da-fila.test.ts` — só a definição removida e o `import`
