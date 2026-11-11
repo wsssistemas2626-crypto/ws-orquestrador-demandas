@@ -111,7 +111,11 @@ IN-16 em toda revisão: `git diff a9fd9b8 --stat` dos testes da lista de D-17; a
 | `src/modules/acesso/tokens-servico.test.ts`, `tokens-servico-qa.test.ts` | só se um caso esperar `AtorAgente` para linha com agente fora da lista: passa a esperar `null` (IN-03) | T03 |
 | `test/estatico/piso-de-assercoes.test.ts` | `PISO` ganha os arquivos de D-17 (só sobe) | T03 |
 | o teste da T02 "vista da demanda para integração lança" | passa a esperar as seis chaves (D-01) | T06 |
-| `src/app/api/vistas-para-agente.test.ts` | a chave `origem` entra na lista de chaves esperadas dos itens da listagem para agente (04, seção 6) | T07 |
+| `src/modules/demandas/consultas.test.ts` (linha 118) | `'origem'` entra na lista exata de chaves do item, na ordem alfabética; nenhuma chave sai (já feito no commit 7c8c206) | T07 |
+| `src/app/api/demandas/demandas.test.ts` (linhas 223 e 394) | `'origem'` entra nas duas listas exatas de chaves do item da fila (pessoa e agente; 04, C06: "aceito, enumeração sem dado pessoal"), entre `'linhaServicoProvavel'` e `'rascunhoAgente'`; nenhuma chave sai, e o `contemSentinela` das duas fica | T07 |
+| `src/modules/demandas/entrada-qa.test.ts` (linha 163) | D-22: a guarda "o item da fila não tem a chave `origem`" (a origem da entrada bruta, `{ canal, referencia }`, dado de terceiro) vira **lista fechada** de chaves do item **mais** o valor exato `item.origem === 'pessoa'`; a linha 162 (`texto`) e o `contemSentinela` da 164 ficam como estão | T07 |
+| `src/app/(painel)/demandas/fila.test.ts:43`, `fila-qa.test.ts:64`, `fila-a1.test.ts:35`, `fila-a1-qa.test.ts:27` | o ajudante `demanda(n, extra)` ganha `origem: 'pessoa'` antes do `...extra` (o `DemandaResumo` passa a exigir a chave); nenhuma asserção muda | T07 |
+| `src/app/api/vistas-para-agente.test.ts` | **não muda** (cobre ESP, RSK e DEC, não a fila; a linha de G5 da volta 2 estava errada) | — |
 | testes do seed que contam demandas (`TOTAL_DEMANDAS_DO_SEED`, `MENSAGENS_SEED`) | o total cresce com as cinco demandas novas | T15 |
 | `test/estatico/projeto.test.ts` | versão 0.2.0 → 0.3.0 | T20 |
 
@@ -140,6 +144,8 @@ IN-16 em toda revisão: `git diff a9fd9b8 --stat` dos testes da lista de D-17; a
 | D-19 | Prefixo do token no histórico só para integração e só depois da regex `^[A-Za-z0-9_-]{8}$`, na leitura (`atorVisivel`); agente continua sem prefixo | IN-13 e 04, seção 6 |
 | D-20 | A parte verificável do IN-18 vira teste estático (T14): nenhum valor no formato de token em `docs/`, `CHANGELOG.md` e `README.md` | A guarda vale desde a 06 para o texto que a 10 escrever |
 | D-21 | RNF-01 pede 20 chamadas na homologação, mas o limite do Awave é 10 por hora: a 09 mede 10 criações e as 10 recusas seguintes (o 429 passa pelo mesmo caminho até a trava), ou duas janelas de 10 | Os dois requisitos do 01 não cabem juntos numa janela só |
+| D-22 | **A chave do item da fila continua `origem`** (opção a da devolução da 06-T07). A guarda de `entrada-qa.test.ts:163` deixa de procurar a chave pelo nome e passa a conferir (1) a lista **fechada** das nove chaves do item e (2) `item.origem` igual a `'pessoa'` (a demanda do teste é criada pela "cto" pela entrada colando o texto) | O nome `origem` está no 02, no 03, no 04 (C06, "aceito") e no T16, e é o do parâmetro `?origem=` (RF-10): outro nome só no item criaria duas palavras para a mesma coisa na API. A guarda nova é **mais forte** que a de hoje: a de hoje só barrava a chave `origem`; a nova barra qualquer chave fora das nove (inclusive `canal`, `referencia`, `texto` ou um `...entradaBruta`) e exige o valor exato da enumeração, que não comporta o objeto `{ canal, referencia }` nem o texto do canal. O vazamento da referência (a sentinela de e-mail) segue coberto pelo `contemSentinela(corpoLista)` da linha 164 |
+| D-23 | **A T07 passa ao `engenheiro-backend`**, com `risco: alto` | Fechar verde exige editar testes em `src/app/` (painel e API), fora da lista Pode do `engenheiro-dados-bd` (`src/db/`, `src/modules/`, `drizzle/`, `test/`, `scripts/`); a do backend cobre `src/` inteiro e `test/`. A parte de banco (consulta, condição, `EXPLAIN` com `demanda_autor_criada_idx`) já está pronta e conferida no ramo (commits 7c8c206 e 4306728) e não muda. O risco sobe de baixo para alto porque a tarefa troca uma asserção numa guarda de vazamento de dado de terceiro (IN-16): a revisão confere a troca linha a linha. A fase 2 já tinha tarefa `alto`; nenhuma parada nova no modo `por_risco` |
 
 ### G7. Nomes que várias tarefas usam
 
@@ -188,6 +194,8 @@ export function obterDemandaDaIntegracao(db: Db, ator: AtorIntegracao, id: strin
 export function lerDemandaPara(deps: { db: Db; pool: pg.Pool }, ator: Ator, id: string): Promise<DemandaVista | DemandaVistaMinima | DemandaVistaDaIntegracao>;
 export function origemDaAutoria(autorTipo: string, autorId: string): OrigemDaDemanda;
 export function origemDoResponsavel(r: Responsavel): OrigemDaDemanda;
+export function condicaoDaOrigem(o: OrigemDaDemanda): SQL; // também em resumo-da-fila.ts
+// DemandaResumo ganha `origem: OrigemDaDemanda` (obrigatória), montada chave a chave; o autorId nunca sai (T07, D-22)
 // src/modules/demandas/schemas.ts (T07)
 export const ORIGENS_DA_DEMANDA = ['pessoa', 'agente', 'awave'] as const;
 export type OrigemDaDemanda = (typeof ORIGENS_DA_DEMANDA)[number];
@@ -1466,18 +1474,33 @@ async function dispararAoCriar(tr: Transacao, deps: DepsComFila, ator: Ator, id:
 
 ### T07. Origem da demanda: leitura, listagem e filtro (RF-10, servidor)
 
-**Engenheiro:** `engenheiro-dados-bd` · **Risco:** baixo · **Cobre:** RF-10 (servidor), CA-10.2 a CA-10.5 (API),
-C-17 (enum do filtro)
+**Engenheiro:** `engenheiro-backend` (D-23; até a volta 3 do 05 era o `engenheiro-dados-bd`) · **Risco:** alto (troca
+de asserção numa guarda de vazamento de dado de terceiro, D-22) · **Cobre:** RF-10 (servidor), CA-10.2 a CA-10.5 (API),
+C-17 (enum do filtro), IN-02 (G8 linha 13), IN-16 (G5, D-22)
+
+**Estado no ramo (antes da próxima `06-T07-construcao`):** os passos 1 a 3 abaixo já estão feitos pelo
+`engenheiro-dados-bd` nos commits 7c8c206 e 4306728 (`schemas.ts`, `consultas.ts`, `resumo-da-fila.ts`,
+`consultas.test.ts:118` e `origem.test.ts`, 21 de 21, com o `EXPLAIN` em `demanda_autor_criada_idx`; teste visto
+falhando antes do código: 18 de 21 vermelhos, registrado em `06-T07-engenheiro-dados-bd.md`). Com eles, `pnpm test` tem
+**3 falhas** (`entrada-qa.test.ts:163`, `demandas.test.ts:223` e `:394`) e `pnpm typecheck` tem **4 erros** (os
+ajudantes `demanda` dos quatro testes do painel). Falta só o passo 3b e o passo 4. Não refaça nem reescreva o código dos
+passos 1 a 3: mudança neles vai explicada na entrega, trecho a trecho.
 
 **Arquivos:**
-- Modificar: `src/modules/demandas/schemas.ts`, `src/modules/demandas/consultas.ts`,
-  `src/modules/demandas/resumo-da-fila.ts`, `src/app/api/vistas-para-agente.test.ts` (G5)
-- Criar: `src/modules/demandas/origem.test.ts`
+- Já no ramo (não mudam nesta volta): `src/modules/demandas/schemas.ts`, `src/modules/demandas/consultas.ts`,
+  `src/modules/demandas/resumo-da-fila.ts`, `src/modules/demandas/consultas.test.ts` (G5),
+  `src/modules/demandas/origem.test.ts` (criado)
+- Modificar (passo 3b, G5): `src/app/api/demandas/demandas.test.ts`, `src/modules/demandas/entrada-qa.test.ts`,
+  `src/app/(painel)/demandas/fila.test.ts`, `src/app/(painel)/demandas/fila-qa.test.ts`,
+  `src/app/(painel)/demandas/fila-a1.test.ts`, `src/app/(painel)/demandas/fila-a1-qa.test.ts`
+- **Não** muda: `src/app/api/vistas-para-agente.test.ts` (cobre ESP, RSK e DEC; a G5 da volta 2 apontava esse arquivo
+  por engano), nenhum arquivo de produção de `src/app/`
 
 **Interfaces produzidas:** `ORIGENS_DA_DEMANDA`, `OrigemDaDemanda`, `origemDaAutoria`, `origemDoResponsavel`,
-`DemandaResumo.origem`, filtro `origem` em `filtroDemandasSchema`, `paginaDeDemandas` e `contarDemandasPorStatus`.
+`condicaoDaOrigem`, `DemandaResumo.origem`, filtro `origem` em `filtroDemandasSchema`, `paginaDeDemandas` e
+`contarDemandasPorStatus`.
 
-- [ ] **Passo 1: escrever os testes que falham** — `origem.test.ts`, banco real, com uma demanda de cada origem (pessoa
+- [ ] **Passo 1: escrever os testes que falham** (feito, commit 7c8c206) — `origem.test.ts`, banco real, com uma demanda de cada origem (pessoa
   por `criarDemanda`, agente `orquestrador` por `criarDemanda`, Awave por `criarDemanda` com `atorDeIntegracao('awave')`):
   - `origemDaAutoria('pessoa', 'u')` → `'pessoa'`; `('agente', 'risco')` → `'agente'`; `('integracao', 'awave')` →
     `'awave'`; `('integracao', 'construir')` e `('outro', 'x')` lançam.
@@ -1492,9 +1515,10 @@ C-17 (enum do filtro)
   - Plano de execução: `EXPLAIN` da página com `origem = 'awave'` sobre 5 mil demandas inseridas pelo migrator (como em
     `resumo-da-fila.test.ts`) usa `demanda_autor_criada_idx` ou não lê a tabela inteira; o trecho vai na entrega.
 
-- [ ] **Passo 2: rodar e ver falhar** — `pnpm test src/modules/demandas/origem.test.ts`.
+- [ ] **Passo 2: rodar e ver falhar** (feito, commit 7c8c206) — `pnpm test src/modules/demandas/origem.test.ts`.
 
-- [ ] **Passo 3: implementar**
+- [ ] **Passo 3: implementar** (feito, commits 7c8c206 e 4306728; o código no ramo tem ainda o `default` exaustivo em
+  `origemDoResponsavel` e `condicaoDaOrigem`, pelo G3.4)
 
 ```ts
 // src/modules/demandas/schemas.ts
@@ -1547,7 +1571,45 @@ export function condicaoDaOrigem(o: OrigemDaDemanda): SQL {
 `autorId` no item); `contarDemandasPorStatus` aceita `Pick<FiltroDemandas, 'tipo' | 'linhaServicoProvavel' | 'origem'>`
 e aplica a mesma condição.
 
-- [ ] **Passo 4: verificar** — `pnpm test`, `pnpm lint`, `pnpm typecheck`; G4 vazio.
+- [ ] **Passo 3a: ver o vermelho que esta volta fecha** — antes de editar, `pnpm test` (3 falhas: `entrada-qa.test.ts:163`,
+  `demandas.test.ts:223` e `:394`) e `pnpm typecheck` (4 erros nos ajudantes `demanda` do painel); o trecho das duas
+  saídas vai na entrega como o "visto falhando" desta volta.
+
+- [ ] **Passo 3b: ajustar os testes existentes (G5, D-22), e só isto**
+
+```ts
+// src/modules/demandas/entrada-qa.test.ts — no it "GET /api/demandas (fila) e GET /api/demandas/:id/historico ...".
+// A linha 162 (texto) e a 164 (contemSentinela) ficam como estão; só a 163 é trocada por estas três linhas.
+    expect(Object.keys(item!)).not.toContain('texto');
+    // D-22 do 0016: o item da fila traz a origem do RF-10 (lida da autoria), nunca a da entrada bruta ({ canal, referencia },
+    // dado de terceiro). Lista fechada das chaves e valor exato da enumeração: nenhuma outra chave, nenhum objeto.
+    expect(Object.keys(item!).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'origem', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
+    expect(item!.origem).toBe('pessoa');
+    expect(contemSentinela(corpoLista)).toBe(false);
+```
+
+```ts
+// src/app/api/demandas/demandas.test.ts — linhas 223 e 394: a mesma lista, com 'origem' no lugar alfabético.
+['criadaEm', 'id', 'linhaServicoProvavel', 'origem', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']
+```
+
+```ts
+// src/app/(painel)/demandas/fila.test.ts, fila-qa.test.ts, fila-a1.test.ts e fila-a1-qa.test.ts — ajudante `demanda`.
+  rascunhoAgente: false,
+  origem: 'pessoa',
+  criadaEm: ...,   // como está
+  ...extra,
+```
+
+Regras do passo: nenhuma asserção sai além da linha 163 de `entrada-qa.test.ts`, que vira três; os títulos dos `it` e
+`describe` ficam; nenhum outro teste de `src/app/` muda (se o `pnpm test` apontar outro, pare e devolva ao `05-plano`).
+A demanda de `entrada-qa.test.ts` é criada pela "cto" pela rota da entrada, então a autoria é `pessoa`: se o valor
+lido for outro, o erro está no código, não na guarda.
+
+- [ ] **Passo 4: verificar** — `pnpm test`, `pnpm lint`, `pnpm typecheck` verdes; G4 vazio; IN-16: a entrega diz o
+  número de linhas com `expect(` de `entrada-qa.test.ts`, `demandas.test.ts` e `consultas.test.ts` antes e depois
+  (contado com Read): `entrada-qa.test.ts` sobe um, os outros dois ficam iguais; `git diff 59ddf37 --stat -- src test scripts drizzle e2e`
+  mostra só os arquivos da lista acima.
 
 ---
 
@@ -2630,7 +2692,7 @@ Awave, Bearer e **sem** `Origin` responde 201 com as seis chaves.
 | IN-13 | T02 |
 | IN-14 | T04, T06 (503), T13 (log) |
 | IN-15 | G4 em toda revisão; T06 (CA-09.1, 09.2, 09.4), T11 (CA-09.3), T20 (build de produção) |
-| IN-16 | T03 (piso de D-17), T16 (`origem` refletida) e G5 |
+| IN-16 | T03 (piso de D-17), T07 (guarda da origem da entrada bruta trocada por lista fechada, D-22), T16 (`origem` refletida) e G5 |
 | IN-17 | T01, T15 |
 | IN-18 | T14 (D-20, parte verificável); o texto na `10-documentacao` |
 

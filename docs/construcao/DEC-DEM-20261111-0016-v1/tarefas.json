@@ -5,7 +5,7 @@
   { "id": "T04", "titulo": "Limite por integração e tempo limite das transações de integração (IN-09, IN-14)", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
   { "id": "T05", "titulo": "Leitura pelo Awave só da própria demanda, em seis chaves (IN-08)", "engenheiro": "engenheiro-backend", "fase": "Awave", "risco": "alto" },
   { "id": "T06", "titulo": "O Awave cria demanda: autoria, campos, sem disparo, limite e contrato (IN-05)", "engenheiro": "engenheiro-backend", "fase": "Awave", "risco": "alto" },
-  { "id": "T07", "titulo": "Origem da demanda: leitura, listagem e filtro (servidor)", "engenheiro": "engenheiro-dados-bd", "fase": "Awave", "risco": "baixo" },
+  { "id": "T07", "titulo": "Origem da demanda: leitura, listagem e filtro (servidor)", "engenheiro": "engenheiro-backend", "fase": "Awave", "risco": "alto" },
   { "id": "T08", "titulo": "Confirmação da demanda do Awave e nenhum agente de IA antes dela (IN-06, IN-07)", "engenheiro": "engenheiro-backend", "fase": "Confirmação", "risco": "alto" },
   { "id": "T09", "titulo": "Conferência e montagem do pedido extraídas da geração", "engenheiro": "engenheiro-backend", "fase": "Construir", "risco": "alto" },
   { "id": "T10", "titulo": "Leituras do pedido no histórico: pendentes, gerado, entregues, recebido (IN-10)", "engenheiro": "engenheiro-dados-bd", "fase": "Construir", "risco": "alto" },
