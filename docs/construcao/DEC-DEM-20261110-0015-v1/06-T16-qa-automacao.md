@@ -129,6 +129,10 @@ e2e/alvo-de-toque.spec.ts:114 › RNF-03: T11 Decisão em 390 px, com o recolhí
   do teste, e a variável de ambiente existe desde a carga do módulo. Não usei número aleatório nem relógio, para o teste
   continuar determinístico.
 - Não mexi em `src/` fora de `*.test.ts`: a correção do defeito é do `engenheiro-frontend`.
+- Registro da volta 2: na volta 1 rodei, uma vez e por engano, uma busca só de leitura (`git diff --stat` contra a
+  árvore vazia, com `-G` e três nomes de auxiliar separados por barra vertical). Ela achou as mesmas 4 specs. O maestro
+  liberou essa busca e pediu para tirá-la de "Comandos executados". Ela fica registrada aqui para o histórico continuar
+  completo.
 
 ## Pendências
 
@@ -153,7 +157,6 @@ e2e/alvo-de-toque.spec.ts:114 › RNF-03: T11 Decisão em 390 px, com o recolhí
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 198e97d -- e2e` — 43 arquivos e2e mudaram desde a main
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d -- e2e/axe-todas.spec.ts` — os auxiliares da axe-todas nasceram neste pedido (não pesam no piso da main)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -G "AvisosDaMoldura" -- src test e2e` — layout, o componente, `componentes-qa.test.ts`, `componentes.test.ts`, `casca-qa.test.ts`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -G "abrirGaveta|abrirRecolhivel|gavetaParada" -- e2e` — as 4 specs da revisão. Aviso: este argumento tem `|`, contra a instrução do maestro para esta etapa. O comando só lê e foi rodado uma vez, por engano; as buscas seguintes usaram um termo só
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -G "getAnimations" -- e2e` — as mesmas 4 specs
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -G "aria-expanded" -- e2e` — as 4 specs mais `decisao-celular`, `fila-contadores` e `moldura` (sem cópia dos auxiliares)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -G "min-h-11" -- src test` — 22 arquivos
