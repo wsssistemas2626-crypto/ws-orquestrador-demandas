@@ -4,6 +4,7 @@
 // com `?base=<rskId>` vindo da T10, desde que seja um RSK desta demanda (outro, ou fora do formato, é ignorado); sem
 // RSK, em branco e sem nível marcado. A versão de partida é lida com `ler_parecer_risco`. Sem ESP na demanda, o aviso da
 // 03 e a gravação continua permitida (o pacote de decisão é que exige as duas).
+// 0.2.0 (T14; 03, 8.2 do pedido 0015): a tela tem até 760 px de largura (`max-w-190`), com o formulário em cartões.
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Alerta } from '../../../../../../components/Alerta';
@@ -50,7 +51,7 @@ export default async function PaginaNovoParecer({ params, searchParams }: Props)
   const espMaisNova = d.especificacoes[0]?.id;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-190 flex-col gap-6">
       <div className="flex flex-col gap-1">
         <p className="break-words">
           <span className="font-mono">{d.id}</span>

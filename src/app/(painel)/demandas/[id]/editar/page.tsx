@@ -1,6 +1,7 @@
 // T06 Editar dados da demanda (03, T06). Server Component: a pessoa (C-04), a autorização de `alterar_demanda` (a mesma
 // de PATCH /api/demandas/:id), o id pela regex antes de tocar o banco (C-17) e os valores atuais por obterDemanda (sem
 // texto bruto). Id fora do formato ou que não existe: 404 (03, 2.8), com o título da aba da 2.8.
+// 0.2.0 (T14; 03, 8.2 do pedido 0015): a tela tem até 760 px de largura (`max-w-190`), com as seções em cartões.
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Alerta } from '../../../../../components/Alerta';
@@ -25,9 +26,9 @@ export default async function PaginaEditarDemanda({ params }: Props) {
   if (!d) notFound();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-190 flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <p className="font-mono text-texto-suave">{d.id}</p>
+        <p className="font-mono text-tinta-media">{d.id}</p>
         <h1>{TEXTOS_DEMANDA.tituloEditar}</h1>
       </div>
       <Alerta tipo="informacao">{TEXTOS_DEMANDA.avisoEdicao}</Alerta>

@@ -12,6 +12,7 @@ import { Alerta } from '../../../../../../components/Alerta';
 import { AreaTexto } from '../../../../../../components/AreaTexto';
 import { Botao, classeDoBotao } from '../../../../../../components/Botao';
 import { useConfirmarSaida } from '../../../../../../components/CamposDaDemanda';
+import { Cartao } from '../../../../../../components/Cartao';
 import {
   caminhoDeChegadaDoParecer,
   entradaDoParecer,
@@ -40,12 +41,15 @@ const OPCOES_NIVEL = NIVEIS_DO_PARECER.map((n) => ({ valor: n, rotulo: ROTULO_NI
 
 type Props = { demandaId: string; versaoEsperada: number; idNovo: string; inicial: ValoresDoParecer };
 
+// 0.2.0 (T14; 03, 8.2 do pedido 0015): cada fieldset fica num Cartao, sem mudar a legenda nem os campos.
 function Secao({ legenda, children }: { legenda: string; children: ReactNode }) {
   return (
-    <fieldset className="flex min-w-0 flex-col gap-4">
-      <legend className="mb-2 text-lg font-semibold">{legenda}</legend>
-      {children}
-    </fieldset>
+    <Cartao>
+      <fieldset className="flex min-w-0 flex-col gap-4">
+        <legend className="mb-2 text-lg font-semibold">{legenda}</legend>
+        {children}
+      </fieldset>
+    </Cartao>
   );
 }
 
@@ -130,8 +134,8 @@ export function FormularioParecer({ demandaId, versaoEsperada, idNovo, inicial }
           </Alerta>
         </div>
       ) : null}
-      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-8">
-        {texto('resumo', TEXTOS_RSK.resumo)}
+      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-5">
+        <Cartao>{texto('resumo', TEXTOS_RSK.resumo)}</Cartao>
         {RISCOS.map((r) => (
           <Secao key={r.nivel} legenda={r.titulo}>
             <GrupoOpcoes
@@ -145,9 +149,9 @@ export function FormularioParecer({ demandaId, versaoEsperada, idNovo, inicial }
             {texto(r.comentario, TEXTOS_RSK.comentario)}
           </Secao>
         ))}
-        {lista('recomendacoesMitigacao', TEXTOS_RSK.recomendacoes)}
-        {lista('preCondicoes', TEXTOS_RSK.preCondicoes, TEXTOS_RSK.dicaPreCondicoes)}
-        {texto('envolverJuridicoOuAdministradoraQuando', TEXTOS_RSK.envolver, { dica: TEXTOS_RSK.dicaEnvolver })}
+        <Cartao>{lista('recomendacoesMitigacao', TEXTOS_RSK.recomendacoes)}</Cartao>
+        <Cartao>{lista('preCondicoes', TEXTOS_RSK.preCondicoes, TEXTOS_RSK.dicaPreCondicoes)}</Cartao>
+        <Cartao>{texto('envolverJuridicoOuAdministradoraQuando', TEXTOS_RSK.envolver, { dica: TEXTOS_RSK.dicaEnvolver })}</Cartao>
         <div className="flex flex-wrap items-center gap-4">
           <Botao type="submit" carregando={enviando} textoCarregando={TEXTOS_RSK.gravando}>
             {TEXTOS_RSK.gravar(idNovo)}

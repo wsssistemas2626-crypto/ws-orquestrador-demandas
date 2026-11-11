@@ -13,6 +13,7 @@ import { AreaTexto } from '../../../../../../components/AreaTexto';
 import { Botao, classeDoBotao } from '../../../../../../components/Botao';
 import { CampoTexto, descritores, Dica } from '../../../../../../components/CampoTexto';
 import { useConfirmarSaida } from '../../../../../../components/CamposDaDemanda';
+import { Cartao } from '../../../../../../components/Cartao';
 import {
   caminhoDeChegada,
   CONTAS_REPOSITORIO,
@@ -52,13 +53,16 @@ type Props = {
   inicial: ValoresDaEspecificacao;
 };
 
+// 0.2.0 (T14; 03, 8.2 do pedido 0015): cada fieldset fica num Cartao, sem mudar a legenda, a dica nem os campos.
 function Secao({ legenda, dica, idDica, children }: { legenda: string; dica?: string; idDica?: string; children: ReactNode }) {
   return (
-    <fieldset aria-describedby={dica && idDica ? `${idDica}-dica` : undefined} className="flex min-w-0 flex-col gap-4">
-      <legend className="mb-2 text-lg font-semibold">{legenda}</legend>
-      {dica && idDica ? <Dica id={idDica}>{dica}</Dica> : null}
-      {children}
-    </fieldset>
+    <Cartao>
+      <fieldset aria-describedby={dica && idDica ? `${idDica}-dica` : undefined} className="flex min-w-0 flex-col gap-4">
+        <legend className="mb-2 text-lg font-semibold">{legenda}</legend>
+        {dica && idDica ? <Dica id={idDica}>{dica}</Dica> : null}
+        {children}
+      </fieldset>
+    </Cartao>
   );
 }
 
@@ -157,7 +161,7 @@ export function FormularioEspecificacao({ demandaId, tipo, versaoEsperada, idNov
           </Alerta>
         </div>
       ) : null}
-      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-8">
+      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-5">
         <Secao legenda={r.problema}>
           {texto('descricaoObjetiva', 'Descrição objetiva (obrigatório)')}
           {texto('situacaoAtual', 'Situação atual')}
@@ -177,8 +181,8 @@ export function FormularioEspecificacao({ demandaId, tipo, versaoEsperada, idNov
           {texto('dadosEntidades', 'Entidades')}
           {texto('dadosCamposCriticos', 'Campos críticos')}
         </Secao>
-        {texto('restricoesTecnicas', r.restricoes)}
-        {lista('duvidasEmAberto', r.duvidas, r.duvidas, TEXTOS_ESP.dicaDuvidas)}
+        <Cartao>{texto('restricoesTecnicas', r.restricoes)}</Cartao>
+        <Cartao>{lista('duvidasEmAberto', r.duvidas, r.duvidas, TEXTOS_ESP.dicaDuvidas)}</Cartao>
         <Secao legenda={rotulos.legenda}>
           <CampoTexto
             id={nomes.sistemaAlvo}

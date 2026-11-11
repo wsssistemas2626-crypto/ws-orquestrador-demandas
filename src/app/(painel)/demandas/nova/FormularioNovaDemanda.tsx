@@ -8,6 +8,9 @@
 // Validação ao enviar (03, 2.5): os erros vão ao Resumo de erros, que recebe o foco; os erros da API entram no mesmo
 // resumo, campo a campo; o resto vira alerta de envio. O que foi digitado nunca se perde num erro, e sair com conteúdo
 // não salvo pede confirmação.
+//
+// 0.2.0 (T14; 03, 8.2 do pedido 0015): cada seção e o grupo "Como criar a demanda?" ficam num Cartao, com 20 px entre
+// os blocos (03, 2.4); campos, ordem, textos, validação e diálogo não mudam.
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -16,6 +19,7 @@ import { AreaTexto } from '../../../../components/AreaTexto';
 import { Botao, classeDoBotao } from '../../../../components/Botao';
 import { CampoTexto } from '../../../../components/CampoTexto';
 import { CamposDaDemanda, Secao, useConfirmarSaida } from '../../../../components/CamposDaDemanda';
+import { Cartao } from '../../../../components/Cartao';
 import {
   AVISO_DEMANDA,
   entradaDoFormulario,
@@ -121,9 +125,11 @@ export function FormularioNovaDemanda({ estado, pendente }: Props) {
       {estado === 'desligado' ? <Alerta tipo="informacao">{TEXTOS_DEMANDA.desligado}</Alerta> : null}
       {estado === 'suspenso' ? <Alerta tipo="informacao">{TEXTOS_DEMANDA.suspenso}</Alerta> : null}
 
-      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-8">
+      <form noValidate onSubmit={enviar} aria-busy={enviando} className="flex flex-col gap-5">
         {escolheModo ? (
-          <GrupoOpcoes nome="modo" legenda={TEXTOS_DEMANDA.comoCriar} opcoes={OPCOES_MODO} valor={modo} onMudar={(m) => setModo(m as ModoEntrada)} />
+          <Cartao>
+            <GrupoOpcoes nome="modo" legenda={TEXTOS_DEMANDA.comoCriar} opcoes={OPCOES_MODO} valor={modo} onMudar={(m) => setModo(m as ModoEntrada)} />
+          </Cartao>
         ) : null}
 
         <Secao titulo="Texto recebido">

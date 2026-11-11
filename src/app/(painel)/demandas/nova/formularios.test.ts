@@ -118,6 +118,15 @@ describe('T04 Nova demanda: agente orquestrador ligado', () => {
     expect(p).not.toContain('>Classificação</h2>');
   });
 
+  // 0.2.0 (T14; 03, 8.2 do pedido 0015): o e2e sobe com os agentes desligados e não vê este grupo; aqui se confere que
+  // ele também fica num Cartao, como as seções (e2e/reflow.spec.ts confere as outras no navegador).
+  it('T14: o grupo "Como criar a demanda?" e as seções ficam em cartões', () => {
+    const p = nova({ estado: 'disponivel' });
+    expect(p).toMatch(/<section class="rounded-cartao [^"]*"><fieldset[^>]*><legend class="font-medium">Como criar a demanda\?<\/legend>/);
+    for (const s of ['Texto recebido', 'Solicitante'])
+      expect(p).toMatch(new RegExp(`<section aria-labelledby="[^"]+" class="rounded-cartao [^"]*"><h2 id="[^"]+"[^>]*>${s}</h2>`));
+  });
+
   it('aviso de minimização e o botão "Enviar ao agente"', () => {
     const p = nova({ estado: 'disponivel' });
     expect(p).toContain(
