@@ -12,7 +12,8 @@
 // rolagem e não da tela (06-T14-tech-lead, Minor 3). Nenhuma regra do axe é desligada.
 // Nada é gravado: a validação da tela barra o envio, e o teste confere zero POST (Server Action) e a demanda igual
 // pela API. Cada tela abre numa aba nova do mesmo contexto: o formulário sujo da anterior não segura a navegação.
-// C-36: não cria demanda nem versão. Usa a demanda do seed `espListaDeTextos`, só para leitura. Um login só.
+// C-36: não cria demanda nem versão. Usa a demanda do seed `espListaDeTextos`, só para leitura. Um login por tela, num
+// teste por tela (06-T16-testes, volta 3).
 import type { Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
 import { LIMITE_ANEXOS, TEXTOS_DEMANDA } from '../src/components/dados-da-demanda';
@@ -93,33 +94,74 @@ async function axeNasDuasLarguras(p: Page, rotulo: string): Promise<void> {
   await semViolacoes(p, `${rotulo} em 1280 px`);
 }
 
+// 06-T16-testes (volta 3): T06, T07 e T08 eram um teste só, com seis análises do axe, e levaram 27,6 s dos 30 s
+// com a suíte rodando sozinha. Viraram um teste por tela, cada um com o próprio login, a mesma demanda do seed e a
+// conferência de que nada mudou na demanda. As conferências e o axe de cada tela são os de antes.
+async function entrarELerDemanda(page: Page): Promise<{ id: string; antes: unknown }> {
+  await entrarComo(page, 'administradora');
+  const id = await demandaDoSeed(page, TITULOS_DO_E2E.espListaDeTextos);
+  return { id, antes: await api<unknown>(page, 'GET', `/api/demandas/${id}`) };
+}
+
+// A T06 sozinha ainda levava 24,1 s, medidos por passo: 9,1 s nos 50 cliques de "Adicionar anexo", 5,6 s no axe em
+// 320 px e 3,8 s no de 1280 px. Por isso ela virou três testes, todos no mesmo estado, montado por este auxiliar:
+// anexos no limite, a referência longa no Anexo 1 e o título vazio, depois do envio e do link do resumo. O primeiro faz
+// as conferências de layout; o segundo, o axe em 320 px; o terceiro, o axe em 1280 px. Os anexos entram por Enter no
+// botão (a ativação de teclado de um botão), sem as esperas de clique por coordenada, que eram o que pesava. O clique
+// em "Adicionar anexo" continua coberto na nova-demanda.spec.
+const ROTULO_T06 = 'T06 com anexos no limite e erros';
+
+async function t06NoLimiteComErros(page: Page, id: string): Promise<{ p: Page; posts: string[] }> {
+  // T06: anexos até o limite. A dica do limite fica ligada ao botão desabilitado (token trocado na T14).
+  const { p, posts } = await abrirAba(page, `/demandas/${id}/editar`, 'Editar dados da demanda');
+  const adicionar = p.getByRole('button', { name: 'Adicionar anexo', exact: true });
+  for (let i = 0; i < LIMITE_ANEXOS && (await adicionar.isEnabled()); i++) await adicionar.press('Enter');
+  await expect(adicionar).toBeDisabled();
+  await expect(p.getByRole('group', { name: /^Anexo \d+$/ })).toHaveCount(LIMITE_ANEXOS);
+  await expect(adicionar).toHaveAccessibleDescription(TEXTOS_DEMANDA.erroLimiteAnexos);
+  await p
+    .getByRole('group', { name: 'Anexo 1', exact: true })
+    .getByLabel('Referência', { exact: true })
+    .fill(`https://exemplo.test/${'caminhoficticiosemespaco'.repeat(12)}`);
+  await p.getByLabel('Título (obrigatório)', { exact: true }).fill('');
+  await errosAVista(p, 'T06', 'Salvar alterações', 'Título: Informe o título.', 'Título (obrigatório)');
+  return { p, posts };
+}
+
 test.describe('320 px com o conteúdo crescido', () => {
   test.use({ viewport: ESTREITA });
 
-  test('T06, T07 e T08: anexos no limite, itens novos e resumo de erros sem rolagem lateral, tudo em cartões, foco fora da barra e axe; nada gravado', async ({ page }) => {
-    await entrarComo(page, 'administradora');
-    const id = await demandaDoSeed(page, TITULOS_DO_E2E.espListaDeTextos);
-    const antes = await api<unknown>(page, 'GET', `/api/demandas/${id}`);
+  test('T06: anexos no limite e resumo de erros sem rolagem lateral, tudo em cartões e foco fora da barra; nada gravado', async ({ page }) => {
+    const { id, antes } = await entrarELerDemanda(page);
+    const { p, posts } = await t06NoLimiteComErros(page, id);
+    await semRolagemLateral(p, ROTULO_T06);
+    await camposEmCartoes(p, ROTULO_T06, 4);
+    expect(posts, 'T06: nada enviado').toEqual([]);
+    expect(await api<unknown>(page, 'GET', `/api/demandas/${id}`), 'a demanda e as versões não mudaram').toEqual(antes);
+  });
 
-    // T06: anexos até o limite. A dica do limite fica ligada ao botão desabilitado (token trocado na T14).
-    {
-      const { p, posts } = await abrirAba(page, `/demandas/${id}/editar`, 'Editar dados da demanda');
-      const adicionar = p.getByRole('button', { name: 'Adicionar anexo', exact: true });
-      for (let i = 0; i < LIMITE_ANEXOS && (await adicionar.isEnabled()); i++) await adicionar.click();
-      await expect(adicionar).toBeDisabled();
-      await expect(p.getByRole('group', { name: /^Anexo \d+$/ })).toHaveCount(LIMITE_ANEXOS);
-      await expect(adicionar).toHaveAccessibleDescription(TEXTOS_DEMANDA.erroLimiteAnexos);
-      await p
-        .getByRole('group', { name: 'Anexo 1', exact: true })
-        .getByLabel('Referência', { exact: true })
-        .fill(`https://exemplo.test/${'caminhoficticiosemespaco'.repeat(12)}`);
-      await p.getByLabel('Título (obrigatório)', { exact: true }).fill('');
-      await errosAVista(p, 'T06', 'Salvar alterações', 'Título: Informe o título.', 'Título (obrigatório)');
-      await semRolagemLateral(p, 'T06 com anexos no limite e erros');
-      await camposEmCartoes(p, 'T06 com anexos no limite e erros', 4);
-      await axeNasDuasLarguras(p, 'T06 com anexos no limite e erros');
-      expect(posts, 'T06: nada enviado').toEqual([]);
-    }
+  test('T06: axe em 320 px com anexos no limite e resumo de erros; nada gravado', async ({ page }) => {
+    const { id, antes } = await entrarELerDemanda(page);
+    const { p, posts } = await t06NoLimiteComErros(page, id);
+    await p.evaluate(() => window.scrollTo(0, 0));
+    await semViolacoes(p, `${ROTULO_T06} em 320 px`);
+    expect(posts, 'T06: nada enviado').toEqual([]);
+    expect(await api<unknown>(page, 'GET', `/api/demandas/${id}`), 'a demanda e as versões não mudaram').toEqual(antes);
+  });
+
+  test('T06: axe em 1280 px com anexos no limite e resumo de erros; nada gravado', async ({ page }) => {
+    const { id, antes } = await entrarELerDemanda(page);
+    const { p, posts } = await t06NoLimiteComErros(page, id);
+    // A mesma sequência do teste único: a página volta ao topo em 320 px e só então a janela passa a 1280 px.
+    await p.evaluate(() => window.scrollTo(0, 0));
+    await p.setViewportSize(COMPUTADOR);
+    await semViolacoes(p, `${ROTULO_T06} em 1280 px`);
+    expect(posts, 'T06: nada enviado').toEqual([]);
+    expect(await api<unknown>(page, 'GET', `/api/demandas/${id}`), 'a demanda e as versões não mudaram').toEqual(antes);
+  });
+
+  test('T07: itens novos, sistema alvo longo e resumo de erros sem rolagem lateral, tudo em cartões, foco fora da barra e axe; nada gravado', async ({ page }) => {
+    const { id, antes } = await entrarELerDemanda(page);
 
     // T07: três dúvidas a mais, sistema alvo longo sem ponto de quebra e a descrição objetiva vazia.
     {
@@ -140,6 +182,12 @@ test.describe('320 px com o conteúdo crescido', () => {
       await axeNasDuasLarguras(p, 'T07 com itens novos e erros');
       expect(posts, 'T07: nada enviado').toEqual([]);
     }
+
+    expect(await api<unknown>(page, 'GET', `/api/demandas/${id}`), 'a demanda e as versões não mudaram').toEqual(antes);
+  });
+
+  test('T08: itens novos nas duas listas e resumo de erros sem rolagem lateral, tudo em cartões, foco fora da barra e axe; nada gravado', async ({ page }) => {
+    const { id, antes } = await entrarELerDemanda(page);
 
     // T08: dois itens a mais em cada lista e o "Resumo" acima do limite.
     {

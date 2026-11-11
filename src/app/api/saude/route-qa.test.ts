@@ -67,8 +67,12 @@ describe('GET /api/saude QA', () => {
       await pool.end();
     }
   });
+  // 06-T16-testes (volta 3): os dois testes de 200 abrem antes a conexão do pool, como o route.test.ts e como num app de
+  // pé. Sem isso, a primeira conexão (TCP e autenticação) caía dentro dos 150 ms da rota e, com a suíte inteira rodando,
+  // a resposta saía 503 (expected 503 to be 200, na suíte de unidade da 06-T16-testes).
   it('200 só com { status: ok }: sem versão, sem cabeçalho de servidor, com nosniff e no-referrer', async () => {
     definirDepsParaTeste(deps);
+    await deps.pool.query('select 1');
     const r = await GET();
     expect(r.status).toBe(200);
     expect(await r.text()).toBe('{"status":"ok"}');
@@ -81,6 +85,7 @@ describe('GET /api/saude QA', () => {
   });
   it('a resposta de 200 não deixa linha de log (o healthcheck roda a cada poucos segundos)', async () => {
     definirDepsParaTeste(deps);
+    await deps.pool.query('select 1');
     expect((await GET()).status).toBe(200);
     expect(linhas).toHaveLength(0);
   });
