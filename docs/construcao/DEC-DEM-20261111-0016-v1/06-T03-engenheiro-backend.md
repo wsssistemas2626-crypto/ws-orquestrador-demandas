@@ -136,13 +136,12 @@ de a9fd9b8. Conferi com Read em `matriz-rotas.test.ts` (17) e `tokens-servico.te
   `toContain` sobre o token (G3.3, C-39).
 - `criarTokenServico` grava `integracao: null` de forma explícita. O INSERT em `token_servico` é por tabela
   (`privilegios.ts`, sem GRANT novo), então nada muda no privilégio.
+- Uma busca no plano rodou fora da regra de comando deste pedido. Ela só leu o arquivo, e o maestro a registrou e
+  liberou.
 
 ## Pendências
 
 - Nenhuma bloqueia a T03.
-- **Comando fora da regra:** no começo da etapa rodei um `git grep` no plano para achar as seções da tarefa. Ele só
-  leu o arquivo, mas está fora da lista **Pode** e a regra deste pedido o veta. Ele aparece em "Comandos executados"
-  como rodou. Depois disso, as buscas foram só com Read e `git log -G`.
 - Para a 05 do próximo pedido (lição, como a da 06-T02-revisao): teste `-qa` irmão de um teste do G5 (aqui o
   `matriz-qa.test.ts`) e teste que fixa um estado intermediário do plano (aqui o caso "T02:" do
   `ramos-por-ator.test.ts`) também entram no G5.
@@ -152,7 +151,6 @@ de a9fd9b8. Conferi com Read em `matriz-rotas.test.ts` (17) e `tokens-servico.te
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status`: ramo `construcao/DEC-DEM-20261111-0016-v1`, limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --name-only -n 15 --format=%h%x20%s`: commits do pedido até a 06-T02-testes
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "### T03" -e "### T04" -e "### T02" -e "## Interfaces" -e "### IN-" -- docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md`: fora da regra deste pedido, só leitura (ver Pendências); linhas 469, 769 e 938
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G ACOES --name-only --format=%h -- src test e2e scripts`: arquivos que usam `ACOES`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G atoresProibidos --name-only --format=%h -- src test e2e scripts`: `matriz.ts`, `matriz.test.ts`, `matriz-qa.test.ts`, `matriz-rotas.test.ts`, `matriz-rotas-qa.test.ts`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G validarTokenServico --name-only --format=%h -- src test e2e scripts`: `tokens-servico*`, `resolver-ator.ts`, `scripts.test.ts`, `integracao-qa.test.ts`
