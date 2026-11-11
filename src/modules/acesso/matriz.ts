@@ -2,7 +2,7 @@
 // chamam a mesma função. O ator `sistema` não passa em nenhuma ação: as mudanças automáticas usam funções internas
 // que não chamam `autorizar`. Ação, agente ou papel desconhecido é negado.
 import { ErroDominio } from '../../lib/erros';
-import { AGENTES, PAPEIS, ehPapel, type Agente, type Ator, type Papel } from './ator';
+import { AGENTES, PAPEIS, ehIntegracao, ehPapel, type Agente, type Ator, type Integracao, type Papel } from './ator';
 import { MENSAGENS_ACESSO } from './mensagens';
 
 export const ACOES = [
@@ -28,10 +28,11 @@ export const ACOES = [
 ] as const;
 export type Acao = (typeof ACOES)[number];
 
-type Linha = { readonly pessoa: 'qualquer' | 'cto' | null; readonly agentes: readonly Agente[] };
+// `integracoes` (0.3.0, IN-01): lista de permissão fechada por integração; nasce vazia em toda ação (a T03 abre as do RF-03).
+type Linha = { readonly pessoa: 'qualquer' | 'cto' | null; readonly agentes: readonly Agente[]; readonly integracoes: readonly Integracao[] };
 
-const linha = (pessoa: Linha['pessoa'], agentes: readonly Agente[]): Linha =>
-  Object.freeze({ pessoa, agentes: Object.freeze([...agentes]) });
+const linha = (pessoa: Linha['pessoa'], agentes: readonly Agente[], integracoes: readonly Integracao[] = []): Linha =>
+  Object.freeze({ pessoa, agentes: Object.freeze([...agentes]), integracoes: Object.freeze([...integracoes]) });
 
 const QUALQUER_PESSOA_SEM_AGENTE = linha('qualquer', []);
 const LEITURA = linha('qualquer', AGENTES);
@@ -74,9 +75,23 @@ function pessoaPode(l: Linha, papel: Papel): boolean {
 function permitido(ator: Ator, acao: Acao): boolean {
   const l = linhaDa(acao);
   if (!l) return false;
-  if (ator.tipo === 'pessoa') return ehPapel(ator.papel) && pessoaPode(l, ator.papel);
-  if (ator.tipo === 'agente') return (AGENTES as readonly string[]).includes(ator.agente) && l.agentes.includes(ator.agente);
-  return false;
+  // IN-02: um ramo por tipo de ator; a integração nunca passa pelo ramo do agente.
+  switch (ator.tipo) {
+    case 'pessoa':
+      return ehPapel(ator.papel) && pessoaPode(l, ator.papel);
+    case 'agente':
+      return (AGENTES as readonly string[]).includes(ator.agente) && l.agentes.includes(ator.agente);
+    case 'integracao':
+      return ehIntegracao(ator.integracao) && l.integracoes.includes(ator.integracao);
+    case 'sistema':
+      return false;
+    default: {
+      // Tipo fora da lista (montado à mão): negado, sem lançar outro erro.
+      const nunca: never = ator;
+      void nunca;
+      return false;
+    }
+  }
 }
 
 export function autorizar(ator: Ator, acao: Acao): void {

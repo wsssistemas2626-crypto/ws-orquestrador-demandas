@@ -37,6 +37,10 @@ const ACOES = {
   conta_desativada: true,
   token_criado: true,
   token_revogado: true,
+  // 0.3.0 (DEC-DEM-20261111-0016-v1, T02): a confirmação da demanda do Awave e a entrega e o recebimento do pedido.
+  demanda_confirmada: true,
+  pedido_entregue: true,
+  pedido_recebido: true,
 } as const satisfies Record<AcaoEvento, true>;
 const TODAS = Object.keys(ACOES) as AcaoEvento[];
 
@@ -61,9 +65,9 @@ const ev = (acao: AcaoEvento, parcial: Partial<EventoVisivel> = {}): EventoVisiv
 
 const LIXO = /undefined|null|NaN|\[object|function/;
 
-describe('textoDoEvento: os 24 eventos (03, T05 "Histórico")', () => {
-  it('a lista de ações tem 24 itens', () => {
-    expect(TODAS).toHaveLength(24);
+describe('textoDoEvento: os 27 eventos (03, T05 "Histórico"; 0.3.0, 03, 5.6)', () => {
+  it('a lista de ações tem 27 itens', () => {
+    expect(TODAS).toHaveLength(27);
   });
 
   it.each(TODAS)('%s: texto não vazio e legível, com qualquer ator e sem antes nem depois', (acao) => {

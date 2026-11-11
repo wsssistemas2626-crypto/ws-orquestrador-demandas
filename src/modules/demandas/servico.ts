@@ -7,7 +7,7 @@ import { demanda } from '../../db/schema';
 import { comTransacao, type Transacao } from '../../db/transacao';
 import type { Deps } from '../../lib/deps';
 import { ErroDominio } from '../../lib/erros';
-import type { Ator, AtorPessoa } from '../acesso/ator';
+import { atorDesconhecido, type Ator, type AtorPessoa } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { MENSAGENS_ACESSO } from '../acesso/mensagens';
 import { dispararSeLigado } from '../agentes/gatilhos';
@@ -46,12 +46,21 @@ const CAMPOS_EDITAVEIS = [
 
 type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number];
 
-// Exportada para os serviços de ESP, RSK e DEC (T18 a T20): a mesma autoria gravada em todo artefato (C-11).
+// Exportada para os serviços de ESP, RSK e DEC (T18 a T20): a mesma autoria gravada em todo artefato (C-11). As versões
+// continuam só com pessoa e agente (ADR-24): integração e sistema lançam. autorizar já os negou; isto só protege contra
+// uso sem autorizar.
 export function autoriaDo(ator: Ator): { autorTipo: 'pessoa' | 'agente'; autorId: string } {
-  if (ator.tipo === 'agente') return { autorTipo: 'agente', autorId: ator.agente };
-  if (ator.tipo === 'pessoa') return { autorTipo: 'pessoa', autorId: ator.usuarioId };
-  // autorizar já negou o sistema; isto só protege contra uso sem autorizar.
-  throw new ErroDominio('sem_permissao', MENSAGENS_ACESSO.sem_permissao);
+  switch (ator.tipo) {
+    case 'agente':
+      return { autorTipo: 'agente', autorId: ator.agente };
+    case 'pessoa':
+      return { autorTipo: 'pessoa', autorId: ator.usuarioId };
+    case 'integracao':
+    case 'sistema':
+      throw new ErroDominio('sem_permissao', MENSAGENS_ACESSO.sem_permissao);
+    default:
+      return atorDesconhecido(ator);
+  }
 }
 
 const executar = <T>(deps: DepsDemanda, t: Transacao | undefined, corpo: (t: Transacao) => Promise<T>): Promise<T> =>

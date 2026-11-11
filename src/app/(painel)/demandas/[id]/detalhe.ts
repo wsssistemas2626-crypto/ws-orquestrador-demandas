@@ -5,6 +5,7 @@
 import type { OpcaoDoGrupo } from '../../../../components/GrupoOpcoes';
 import {
   NOME_AGENTE,
+  NOME_INTEGRACAO,
   ROTULO_LINHA,
   ROTULO_PAPEL_SOLICITANTE,
   ROTULO_STATUS,
@@ -246,10 +247,22 @@ export function duvidasEmAberto(
   return d.duvidasEntrada.length > 0 ? { origem: TEXTOS_DETALHE.duvidasDaEntrada, itens: d.duvidasEntrada } : null;
 }
 
-// "Criada por": a pessoa pelo nome da conta, o agente pelo nome da 2.6; conta que não existe mais, "Não informado".
+// "Criada por": a pessoa pelo nome da conta, o agente pelo nome da 2.6, a integração pelo nome dela (0.3.0, 03, 5.1);
+// conta que não existe mais, "Não informado".
 export function rotuloResponsavel(r: Responsavel): string {
-  if (r.tipo === 'agente') return NOME_AGENTE[r.agente];
-  return r.nome ?? TEXTOS_DETALHE.naoInformado;
+  switch (r.tipo) {
+    case 'agente':
+      return NOME_AGENTE[r.agente];
+    case 'integracao':
+      return NOME_INTEGRACAO[r.integracao];
+    case 'pessoa':
+      return r.nome ?? TEXTOS_DETALHE.naoInformado;
+    default: {
+      const nunca: never = r;
+      void nunca;
+      return TEXTOS_DETALHE.naoInformado;
+    }
+  }
 }
 
 // --- histórico ---

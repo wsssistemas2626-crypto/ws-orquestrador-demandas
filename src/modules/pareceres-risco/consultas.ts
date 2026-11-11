@@ -4,12 +4,13 @@ import { desc, eq, max, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { demanda, especificacaoTecnica, parecerRisco, user } from '../../db/schema';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import type { Ator } from '../acesso/ator';
+import { atorDesconhecido, type Ator } from '../acesso/ator';
 import {
   contaDoAutor,
   listaMinima,
   responsavelDe,
   responsavelMinimo,
+  semPermissao,
   textoMinimoOuNulo,
   type Responsavel,
   type ResponsavelMinimo,
@@ -70,7 +71,21 @@ export type ParecerRiscoVistaMinima = Omit<ParecerRiscoVista, 'autor'> & { autor
 // M-a do 0009 (RF-20): o texto livre e as listas de texto passam pelo mesmo `minimizar` da entrada do agente, com
 // `nomes`, o nome do solicitante da demanda (nomesDosSolicitantes). Os níveis e os ids citados ficam iguais.
 export function vistaDoParecerPara(ator: Ator, v: ParecerRiscoVista & Extras, nomes: readonly string[]): ParecerRiscoVista | ParecerRiscoVistaMinima {
-  if (ator.tipo === 'pessoa') return v;
+  // IN-02: agente e sistema (D-05), a mínima de hoje; integração não lê RSK (RF-03) e nunca recebe a vista do agente.
+  switch (ator.tipo) {
+    case 'pessoa':
+      return v;
+    case 'agente':
+    case 'sistema':
+      return vistaMinimaDoParecer(v, nomes);
+    case 'integracao':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
+function vistaMinimaDoParecer(v: ParecerRiscoVista & Extras, nomes: readonly string[]): ParecerRiscoVistaMinima {
   return {
     id: v.id,
     demandaId: v.demandaId,

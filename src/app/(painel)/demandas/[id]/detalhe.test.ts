@@ -313,6 +313,10 @@ describe('versões, dúvidas e autoria', () => {
     expect(rotuloResponsavel({ tipo: 'agente', agente: 'insumo_tecnico' })).toBe('Agente de insumo técnico');
     expect(rotuloResponsavel({ tipo: 'pessoa', nome: null })).toBe('Não informado');
   });
+
+  it('autoria de integração (0.3.0, 03, 5.1): o nome da integração', () => {
+    expect(rotuloResponsavel({ tipo: 'integracao', integracao: 'awave' })).toBe('Awave');
+  });
 });
 
 describe('histórico: Antes e Depois (C-30: só os valores de enumeração gravados)', () => {

@@ -6,7 +6,7 @@
 import type { Db } from '../../db';
 import { evento } from '../../db/schema';
 import type { Relogio } from '../../lib/relogio';
-import type { Ator } from '../acesso/ator';
+import { atorDesconhecido, type Ator } from '../acesso/ator';
 
 export type AcaoEvento =
   | 'demanda_criada'
@@ -33,7 +33,11 @@ export type AcaoEvento =
   | 'conta_criada'
   | 'conta_desativada'
   | 'token_criado'
-  | 'token_revogado';
+  | 'token_revogado'
+  // 0.3.0 (RF-15): a pessoa confirmou a demanda do Awave; o /construir buscou o pedido e confirmou o recebimento.
+  | 'demanda_confirmada'
+  | 'pedido_entregue'
+  | 'pedido_recebido';
 
 export type NovoEvento = {
   ator: Ator;
@@ -70,16 +74,25 @@ export function mudancaDeCampo(campo: string, antes: unknown, depois: unknown): 
   return { antes: { [campo]: valorDeEnumeracao(antes) }, depois: { [campo]: valorDeEnumeracao(depois) } };
 }
 
+// IN-02 e IN-12: a integração grava o próprio nome em ator_id e o prefixo do token; tipo desconhecido lança, e nada é
+// gravado como outro ator.
 function colunasDoAtor(ator: Ator): { atorTipo: Ator['tipo']; atorId: string; atorTokenPrefixo: string | null } {
   switch (ator.tipo) {
     case 'pessoa':
       return { atorTipo: 'pessoa', atorId: ator.usuarioId, atorTokenPrefixo: null };
     case 'agente':
       return { atorTipo: 'agente', atorId: ator.agente, atorTokenPrefixo: ator.prefixoToken };
+    case 'integracao':
+      return { atorTipo: 'integracao', atorId: ator.integracao, atorTokenPrefixo: ator.prefixoToken };
     case 'sistema':
       return { atorTipo: 'sistema', atorId: 'sistema', atorTokenPrefixo: null };
+    default:
+      return atorDesconhecido(ator);
   }
 }
+
+// Só para teste (ramos-por-ator.test.ts): a mesma função, sem mudar o uso interno.
+export const colunasDoAtorParaTeste = colunasDoAtor;
 
 // `tx` é a transação de quem chama, quando houver: o evento entra ou sai junto com a mudança que ele registra.
 export async function registrarEvento(tx: Db, ev: NovoEvento, relogio: Relogio): Promise<void> {

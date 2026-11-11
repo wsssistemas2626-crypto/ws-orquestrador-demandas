@@ -6,14 +6,16 @@ import type { Db } from '../../db';
 import { decisao, demanda, especificacaoTecnica, execucaoAgente, pacoteDecisao, parecerRisco, user } from '../../db/schema';
 import type { Anexo, LinhaServico, PapelSolicitante, Urgencia } from '../../db/schema/demandas';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import { AGENTES, type Agente, type Ator } from '../acesso/ator';
+import { AGENTES, atorDesconhecido, ehIntegracao, type Agente, type Ator, type Integracao } from '../acesso/ator';
+import { MENSAGENS_ACESSO } from '../acesso/mensagens';
 import { minimizarValor } from '../dados-pessoais/minimizar';
 import { expressaoDesatualizado } from '../pacotes-decisao/desatualizado';
 import { expressaoSubstituidoPor } from '../pacotes-decisao/substituido';
 import type { FiltroDemandas, Status, Tipo } from './schemas';
 
-// `nome` nulo só quando a conta não existe mais (o app não apaga conta; a desativação mantém a linha).
-export type Responsavel = { tipo: 'pessoa'; nome: string | null } | { tipo: 'agente'; agente: Agente };
+// `nome` nulo só quando a conta não existe mais (o app não apaga conta; a desativação mantém a linha). A integração
+// (0.3.0) aparece pelo nome da lista.
+export type Responsavel = { tipo: 'pessoa'; nome: string | null } | { tipo: 'agente'; agente: Agente } | { tipo: 'integracao'; integracao: Integracao };
 export type StatusDecisao = 'pendente' | 'aprovada' | 'devolvida' | 'arquivada';
 
 export type VersaoResumo = { id: string; versao: number; criadaEm: Date; autor: Responsavel; rascunhoAgente: boolean };
@@ -62,9 +64,17 @@ const ehAgente = (v: string): v is Agente => (AGENTES as readonly string[]).incl
 
 // Exportada para as leituras de ESP, RSK e DEC (T18 a T20): a mesma autoria visível em toda vista.
 export function responsavelDe(autorTipo: string, autorId: string, nome: string | null): Responsavel {
-  if (autorTipo === 'pessoa') return { tipo: 'pessoa', nome };
-  // O id do agente só é gravado a partir de um ator resolvido (C-11); fora da lista é linha corrompida, e vira 500.
-  if (autorTipo === 'agente' && ehAgente(autorId)) return { tipo: 'agente', agente: autorId };
+  switch (autorTipo) {
+    case 'pessoa':
+      return { tipo: 'pessoa', nome };
+    case 'agente':
+      if (ehAgente(autorId)) return { tipo: 'agente', agente: autorId };
+      break;
+    case 'integracao':
+      if (ehIntegracao(autorId)) return { tipo: 'integracao', integracao: autorId };
+      break;
+  }
+  // Gravado só a partir de um ator resolvido (C-11) e dos CHECK; fora da lista é linha corrompida, e vira 500.
   throw new Error('autoria desconhecida');
 }
 
@@ -185,7 +195,7 @@ export async function obterDemanda(db: Db, id: string): Promise<DemandaVista> {
 // M-06 (C-10, RF-20): a vista para quem não é pessoa. Sem solicitanteNome e anexos (as chaves somem), e a autoria de
 // pessoa sem o nome da conta, na demanda e nas versões; a autoria de agente fica igual. O mesmo critério da entrada do
 // agente (entrada-agente.ts).
-export type ResponsavelMinimo = { tipo: 'pessoa' } | { tipo: 'agente'; agente: Agente };
+export type ResponsavelMinimo = { tipo: 'pessoa' } | { tipo: 'agente'; agente: Agente } | { tipo: 'integracao'; integracao: Integracao };
 export type VersaoResumoMinima = Omit<VersaoResumo, 'autor'> & { autor: ResponsavelMinimo };
 export type PacoteResumoMinimo = Omit<PacoteResumo, 'autor'> & { autor: ResponsavelMinimo };
 export type DemandaVistaMinima = Omit<DemandaVista, 'solicitanteNome' | 'anexos' | 'responsavel' | 'especificacoes' | 'pareceresRisco' | 'pacotesDecisao'> & {
@@ -196,7 +206,22 @@ export type DemandaVistaMinima = Omit<DemandaVista, 'solicitanteNome' | 'anexos'
 };
 
 // Exportada para as vistas mínimas de ESP, RSK e DEC (M-2 do 0008): uma regra só de autoria para quem não é pessoa.
-export const responsavelMinimo = (r: Responsavel): ResponsavelMinimo => (r.tipo === 'pessoa' ? { tipo: 'pessoa' } : { tipo: 'agente', agente: r.agente });
+// Montado chave a chave por tipo (IN-02): a integração não vira agente, e o nome da conta da pessoa não sai.
+export function responsavelMinimo(r: Responsavel): ResponsavelMinimo {
+  switch (r.tipo) {
+    case 'pessoa':
+      return { tipo: 'pessoa' };
+    case 'agente':
+      return { tipo: 'agente', agente: r.agente };
+    case 'integracao':
+      return { tipo: 'integracao', integracao: r.integracao };
+    default:
+      return atorDesconhecido(r);
+  }
+}
+
+// Integração em vista ou listagem que ela não tem (IN-02, D-01): a mesma recusa da matriz.
+export const semPermissao = (): ErroDominio => new ErroDominio('sem_permissao', MENSAGENS_ACESSO.sem_permissao);
 
 // M-1 do 0008 (RF-20): o texto livre passa pelo mesmo `minimizar` da entrada do agente, com o nome do solicitante da
 // própria demanda. Nulo continua nulo. Exportados para as vistas mínimas de ESP, RSK e DEC (M-a do 0009): uma regra só.
@@ -230,10 +255,24 @@ const versaoMinima = (v: VersaoResumo): VersaoResumoMinima => ({
   rascunhoAgente: v.rascunhoAgente,
 });
 
-// Lista de permissão: só pessoa vê a vista inteira. Para qualquer outro ator, o objeto é montado chave a chave, e um campo
-// novo da vista não sai para o agente sem entrar aqui.
+// Lista de permissão: só pessoa vê a vista inteira. Agente e sistema (D-05, o de hoje) recebem o objeto montado chave a
+// chave, e um campo novo da vista não sai para o agente sem entrar aqui. Integração (IN-02, D-01): recusada até a vista
+// própria de seis chaves (T06); nunca recebe a do agente.
 export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | DemandaVistaMinima {
-  if (ator.tipo === 'pessoa') return d;
+  switch (ator.tipo) {
+    case 'pessoa':
+      return d;
+    case 'agente':
+    case 'sistema':
+      return vistaMinimaDaDemanda(d);
+    case 'integracao':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
+function vistaMinimaDaDemanda(d: DemandaVista): DemandaVistaMinima {
   const nomes = nomesDoSolicitante(d.solicitanteNome);
   return {
     id: d.id,
@@ -315,8 +354,19 @@ export async function listarDemandas(db: Db, filtro: FiltroDemandas): Promise<Pa
 }
 
 // M-1 do 0008: a listagem da API. Lista de permissão: só pessoa vê o título original; qualquer outro ator recebe o
-// título minimizado com o nome do solicitante do próprio item.
+// título minimizado com o nome do solicitante do próprio item. Integração (IN-02): recusada antes de qualquer leitura (a
+// matriz nega listar_demandas a toda integração; isto protege contra uso sem autorizar).
 export async function listarDemandasPara(db: Db, filtro: FiltroDemandas, ator: Ator): Promise<PaginaDeDemandas> {
+  switch (ator.tipo) {
+    case 'pessoa':
+    case 'agente':
+    case 'sistema':
+      break;
+    case 'integracao':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
   const { linhas, ...resto } = await paginaDeDemandas(db, filtro);
   const ehPessoa = ator.tipo === 'pessoa';
   return { itens: linhas.map((l) => resumoDe(l, ehPessoa ? l.titulo : textoMinimo(l.titulo, nomesDoSolicitante(l.solicitanteNome)))), ...resto };

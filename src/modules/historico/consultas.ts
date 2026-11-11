@@ -1,15 +1,20 @@
 // Leitura do histórico de uma demanda (RF-21), do mais novo para o mais antigo. A pessoa aparece pelo nome e pelo papel
 // da conta (junção com `user`), nunca pelo id interno; o agente, pelo nome, sem o prefixo do token, que fica só na
-// coluna para auditoria (C-09).
+// coluna para auditoria (C-09). A integração (0.3.0, IN-13, D-19) aparece pelo nome da lista e pelo prefixo do token,
+// só quando ele casa o formato de prefixo.
 import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { evento, user } from '../../db/schema';
-import { AGENTES, type Agente, type Papel } from '../acesso/ator';
+import { AGENTES, ehIntegracao, type Agente, type Integracao, type Papel } from '../acesso/ator';
 import type { AcaoEvento } from './registrar';
 
 // `nome` e `papel` nulos só quando a conta não existe mais (o app não apaga conta: a desativação mantém a linha); o
-// evento continua no histórico.
-export type AtorVisivel = { tipo: 'pessoa'; nome: string | null; papel: Papel | null } | { tipo: 'agente'; agente: Agente } | { tipo: 'sistema' };
+// evento continua no histórico. `integracao` nula só para nome fora da lista (linha que o CHECK do IN-12 recusaria).
+export type AtorVisivel =
+  | { tipo: 'pessoa'; nome: string | null; papel: Papel | null }
+  | { tipo: 'agente'; agente: Agente }
+  | { tipo: 'integracao'; integracao: Integracao | null; prefixo: string | null }
+  | { tipo: 'sistema' };
 
 export type EventoVisivel = {
   id: number;
@@ -24,10 +29,24 @@ export type EventoVisivel = {
 
 const ehAgente = (v: string): v is Agente => (AGENTES as readonly string[]).includes(v);
 
-function atorVisivel(l: { atorTipo: string; atorId: string; nome: string | null; papel: Papel | null }): AtorVisivel {
-  if (l.atorTipo === 'pessoa') return { tipo: 'pessoa', nome: l.nome, papel: l.papel };
-  if (l.atorTipo === 'agente' && ehAgente(l.atorId)) return { tipo: 'agente', agente: l.atorId };
-  return { tipo: 'sistema' };
+// O formato do prefixo gravado (tokens-servico.ts): 8 caracteres base64url.
+const RE_PREFIXO = /^[A-Za-z0-9_-]{8}$/;
+
+function atorVisivel(l: { atorTipo: string; atorId: string; prefixo: string | null; nome: string | null; papel: Papel | null }): AtorVisivel {
+  switch (l.atorTipo) {
+    case 'pessoa':
+      return { tipo: 'pessoa', nome: l.nome, papel: l.papel };
+    case 'agente':
+      return ehAgente(l.atorId) ? { tipo: 'agente', agente: l.atorId } : { tipo: 'sistema' };
+    case 'integracao': {
+      // IN-13 e D-19: só o prefixo da coluna, só se casar a regex e só de integração da lista; nunca token, hash nem
+      // sha256.
+      if (!ehIntegracao(l.atorId)) return { tipo: 'integracao', integracao: null, prefixo: null };
+      return { tipo: 'integracao', integracao: l.atorId, prefixo: l.prefixo !== null && RE_PREFIXO.test(l.prefixo) ? l.prefixo : null };
+    }
+    default:
+      return { tipo: 'sistema' };
+  }
 }
 
 export async function listarHistorico(db: Db, demandaId: string): Promise<EventoVisivel[]> {
@@ -37,6 +56,7 @@ export async function listarHistorico(db: Db, demandaId: string): Promise<Evento
       ocorridoEm: evento.ocorridoEm,
       atorTipo: evento.atorTipo,
       atorId: evento.atorId,
+      prefixo: evento.atorTokenPrefixo,
       nome: user.name,
       papel: user.papel,
       entidade: evento.entidade,
