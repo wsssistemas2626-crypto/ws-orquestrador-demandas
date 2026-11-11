@@ -1,4 +1,4 @@
-// Ajudantes dos testes das integrações (T03, T04): ator montado à mão, com o prefixo fictício `ficticio` (G3.3), token
+// Ajudantes dos testes das integrações (T03, T04, T06): corpo do Awave, ator montado à mão, com o prefixo fictício `ficticio` (G3.3), token
 // de integração real, só gerado em tempo de teste, nunca escrito em arquivo, em log nem em mensagem de expect, e demanda
 // do Awave gravada direto no banco (pelo migrator), como o POST do Awave gravaria (IN-05).
 import { criarDb } from '../src/db';
@@ -10,7 +10,17 @@ import { NOME_DA_INTEGRACAO, type AtorIntegracao, type Integracao } from '../src
 import { criarTokenDeIntegracao } from '../src/modules/acesso/tokens-servico';
 import type { BancoDeTeste } from './banco';
 
-export const atorDeIntegracao = (integracao: Integracao, prefixoToken = 'ficticio'): AtorIntegracao => ({ tipo: 'integracao', integracao, prefixoToken });
+// O corpo que a tool do Awave manda (01, seção 4; awave-agents 0ab8ced), com texto fictício (RNF-08).
+export const CORPO_DO_AWAVE: Readonly<Record<string, string>> = Object.freeze({
+  titulo: 'Relatório semanal fictício',
+  tipo: 'melhoria',
+  solicitanteNome: 'Awave',
+  solicitantePapel: 'outro',
+  descricaoProblema: 'Texto fictício.',
+  contexto: 'Demanda aberta pelo agente "jarvis" do Awave, com aprovação do dono em /aprovacoes.',
+});
+
+export const atorDeIntegracao =(integracao: Integracao, prefixoToken = 'ficticio'): AtorIntegracao => ({ tipo: 'integracao', integracao, prefixoToken });
 
 export async function tokenDeIntegracao(deps: Deps, integracao: Integracao): Promise<string> {
   return (await comTransacao(deps.pool, (t) => criarTokenDeIntegracao(t, integracao, deps.relogio))).token;

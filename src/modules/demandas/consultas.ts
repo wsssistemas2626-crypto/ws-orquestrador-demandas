@@ -257,10 +257,18 @@ const versaoMinima = (v: VersaoResumo): VersaoResumoMinima => ({
   rascunhoAgente: v.rascunhoAgente,
 });
 
+// A integração é autora da demanda pela autoria gravada (nunca pelo solicitanteNome, que a pessoa edita).
+const ehAutoraDa = (ator: AtorIntegracao, d: Pick<DemandaVista, 'responsavel'>): boolean =>
+  d.responsavel.tipo === 'integracao' && d.responsavel.integracao === ator.integracao;
+
 // Lista de permissão: só pessoa vê a vista inteira. Agente e sistema (D-05, o de hoje) recebem o objeto montado chave a
-// chave, e um campo novo da vista não sai para o agente sem entrar aqui. Integração (IN-02, D-01): recusada até a vista
-// própria de seis chaves (T06); nunca recebe a do agente.
-export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | DemandaVistaMinima {
+// chave, e um campo novo da vista não sai para o agente sem entrar aqui. Integração (IN-02, IN-08, D-16): só a vista de
+// seis chaves (o 201 do POST do Awave), e só da demanda que ela criou; nunca recebe a do agente. O GET por id da
+// integração não passa por aqui (lerDemandaPara); a conferência da autoria é defesa em profundidade.
+export function vistaDaDemandaPara(ator: AtorIntegracao, d: DemandaVista): DemandaVistaDaIntegracao;
+export function vistaDaDemandaPara(ator: Exclude<Ator, AtorIntegracao>, d: DemandaVista): DemandaVista | DemandaVistaMinima;
+export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | DemandaVistaMinima | DemandaVistaDaIntegracao;
+export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | DemandaVistaMinima | DemandaVistaDaIntegracao {
   switch (ator.tipo) {
     case 'pessoa':
       return d;
@@ -268,6 +276,7 @@ export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | 
     case 'sistema':
       return vistaMinimaDaDemanda(d);
     case 'integracao':
+      if (ehAutoraDa(ator, d)) return vistaDaIntegracao(d);
       throw semPermissao();
     default:
       return atorDesconhecido(ator);

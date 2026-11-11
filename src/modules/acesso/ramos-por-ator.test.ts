@@ -1,6 +1,6 @@
 // IN-02 (T02 do DEC-DEM-20261111-0016-v1): o tipo novo de ator, `integracao`, nunca cai no ramo do agente. Toda vista
 // e toda autoria que hoje decidem "pessoa ou o resto" passam a ter o ramo próprio da integração, que lança
-// `sem_permissao` até a tarefa que abre cada caminho (D-01).
+// `sem_permissao` até a tarefa que abre cada caminho (D-01; a vista da demanda abriu na T06).
 import { describe, expect, it } from 'vitest';
 import type { DemandaVista } from '../demandas/consultas';
 import { listarDemandasPara, responsavelDe, responsavelMinimo, vistaDaDemandaPara } from '../demandas/consultas';
@@ -44,9 +44,13 @@ describe('IN-02', () => {
     expect(() => vistaDoParecerPara(awave, {} as never, [])).toThrow(SEM_PERMISSAO);
     expect(() => vistaDoPacotePara(awave, {} as never, [])).toThrow(SEM_PERMISSAO);
   });
-  it('D-01: a vista da demanda para integração lança até a T06', () => {
-    expect(() => vistaDaDemandaPara(awave, demanda)).toThrow(SEM_PERMISSAO);
-    expect(() => vistaDaDemandaPara(construir, demanda)).toThrow(SEM_PERMISSAO);
+  // G5 (T06): a recusa do D-01 virou a vista de seis chaves, e só para a integração autora da demanda.
+  it('T06: a vista da demanda para integração tem as seis chaves, só para a integração que a criou', () => {
+    const doAwave = { ...demanda, responsavel: { tipo: 'integracao', integracao: 'awave' } } as DemandaVista;
+    expect(Object.keys(vistaDaDemandaPara(awave, doAwave)).sort()).toEqual(['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
+    expect(() => vistaDaDemandaPara(construir, doAwave)).toThrow(SEM_PERMISSAO);
+    expect(() => vistaDaDemandaPara(awave, { ...doAwave, responsavel: { tipo: 'pessoa', nome: null } })).toThrow(SEM_PERMISSAO);
+    expect(() => vistaDaDemandaPara(awave, { ...doAwave, responsavel: { tipo: 'agente', agente: 'orquestrador' } })).toThrow(SEM_PERMISSAO);
   });
   it('a listagem lança para integração', async () => {
     await expect(listarDemandasPara({} as never, { limit: 20, offset: 0 }, awave)).rejects.toEqual(SEM_PERMISSAO);
