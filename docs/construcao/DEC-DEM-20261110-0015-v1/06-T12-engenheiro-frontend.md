@@ -244,12 +244,11 @@ AssertionError: expected [ 'h-5', 'w-5', 'shrink-0', …(1) ] to deeply equal Ar
   pessoa que usa a tela consegue clicar. O teste confere que o botão não tem `disabled`.
 - O DEC desatualizado do CV-11 e do CA-11.3 é achado pela API ou criado uma vez (DEC e ESP nova). Isso economiza versão
   do C-36 entre execuções.
+- Volta 2: o maestro liberou o comando só de leitura que ficou fora da lista Pode na volta 1 (`git show --stat`). Por
+  instrução dele, o comando saiu de Comandos executados e de Pendências. O código e os testes não mudaram.
 
 ## Pendências
 
-- Para o maestro e o `tech-lead`: rodei uma vez `git show d452a76 --stat`, que só lê e está fora da minha lista Pode e
-  da instrução do maestro. Foi para ver os arquivos da T03 antes de mexer no `GrupoOpcoes`. O conteúdo veio de um
-  `git diff` permitido logo depois. Nada foi alterado por ele.
 - Para a T13 (`engenheiro-frontend`):
   - o rodapé fixo e o `:has()` em 390 px;
   - a decisão sobre a ordem revisão/comentários (desvio 5);
@@ -290,7 +289,6 @@ AssertionError: expected [ 'h-5', 'w-5', 'shrink-0', …(1) ] to deeply equal Ar
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S"after:inset-0" --name-only --format=%h -- src test e2e` — testes da camada do rótulo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S"cartao" --name-only --format=%h -- src/components test` — testes da variante cartão
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S"variante=\"cartao\"" --name-only --format=%h -- src/components/componentes.test.ts` — nenhum
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show d452a76 --stat` — fora da lista Pode, só leitura (ver Pendências)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff d452a76~1 d452a76 -U2 -- src/components/componentes.test.ts src/components/GrupoOpcoes.tsx` — o teste da variante cartão da T03
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/componentes.test.ts --silent -t "camada de clique"` — 36 pulados (a edição do teste ainda não tinha entrado)
 - `pnpm -C /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/componentes.test.ts --silent -t "camada de clique"` — vermelho: 1 falhou
