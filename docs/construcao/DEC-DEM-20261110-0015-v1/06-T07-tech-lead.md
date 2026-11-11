@@ -78,9 +78,8 @@ Important.** Os achados Minor estão em Pendências.
 - Nenhum achado bloqueia. Todos são Minor (comentário, robustez de teste, dívida forçada pelo G4), e a seção 12 manda
   Minor para Pendências.
 - `proximo: qa-automacao`, porque a etapa seguinte da tarefa é a `06-T07-testes`.
-- **Comando fora da lista Pode:** para localizar as seções do plano, rodei uma vez `git grep`, que só lê. Ele não está
-  na minha lista Pode, e o argumento tinha `\|`. Está declarado abaixo do jeito que rodou. Nenhum arquivo foi alterado
-  por ele, e a revisão não depende dele, porque o plano foi lido depois com Read.
+- Volta 2: o maestro liberou o `git grep` só de leitura que rodei na volta 1 para localizar as seções do plano, fora
+  da lista Pode, e pediu que ele saísse de Comandos executados. O parecer não mudou.
 
 ## Pendências
 
@@ -93,13 +92,10 @@ Important.** Os achados Minor estão em Pendências.
   `resumo-da-fila.ts`. O impacto é baixo e o custo de unificar é menos de 1 h quando o G4 deixar de valer (parecer 5).
 - `seguranca-aplicacao` (08): divergência já registrada pelo engenheiro entre o texto do CV-06 ("só `page.tsx`") e o
   D-08 do plano (`leituras-da-fila.ts`). O estático segue o D-08.
-- Maestro: o `git grep` acima está fora da lista Pode. Se o `conferir` recusar a entrega por isso, tirar o item de
-  Comandos executados não muda o parecer.
 
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 179946e` — 3 arquivos de código novos, mais a entrega e `passagens.jsonl`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "^### T\|^## " 8e6b04e -- docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md` — fora da lista Pode (ver Decisões); T07 na linha 1053
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d --stat -- src/proxy.ts src/proxy.test.ts next.config.ts src/app/api src/db drizzle src/modules/acesso src/worker src/jobs src/agents src/lib/auth.ts src/lib/auth-cliente.ts src/lib/qr.ts src/lib/log.ts src/lib/erros.ts src/instrumentation.ts pnpm-workspace.yaml "src/app/(painel)/configuracao/agentes/acoes.ts" "src/app/(painel)/demandas/[id]/acoes.ts" "src/app/(painel)/demandas/[id]/editar/acoes.ts" "src/app/(painel)/demandas/[id]/especificacoes/nova/acoes.ts" "src/app/(painel)/demandas/[id]/pacotes-decisao/novo/acoes.ts" "src/app/(painel)/demandas/[id]/pareceres-risco/novo/acoes.ts" "src/app/(painel)/demandas/nova/acoes.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes-pedido.ts" "src/app/(painel)/pacotes-decisao/[decId]/acoes.ts"` — vazio (CV-01)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 198e97d --stat -- src/modules` — só `resumo-da-fila.ts` e `resumo-da-fila.test.ts`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo
