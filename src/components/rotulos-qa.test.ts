@@ -49,6 +49,9 @@ const ATORES: EventoVisivel['ator'][] = [
   { tipo: 'pessoa', nome: null, papel: null },
   { tipo: 'agente', agente: 'risco' },
   { tipo: 'sistema' },
+  // 0.3.0 (06-T02-testes, Minor 1 da revisão): o ator de integração, da lista e fora dela.
+  { tipo: 'integracao', integracao: 'awave', prefixo: 'ficticio' },
+  { tipo: 'integracao', integracao: null, prefixo: null },
 ];
 
 const ev = (acao: AcaoEvento, parcial: Partial<EventoVisivel> = {}): EventoVisivel => ({
@@ -93,6 +96,11 @@ describe('textoDoEvento: os 27 eventos (03, T05 "Histórico"; 0.3.0, 03, 5.6)', 
       papel: 'SENTINELA-papel',
       status: 'SENTINELA-status-demanda',
       tentativas: 'SENTINELA-tentativas',
+      // 0.3.0 (06-T02-testes, Minor 2 da revisão): as chaves que os textos de token leem, e o hash e o sha256.
+      integracao: 'SENTINELA-integracao',
+      prefixo: 'SENTINELA-prefixo',
+      hash: 'SENTINELA-hash',
+      sha256: 'SENTINELA-sha256',
     };
     const t = textoDoEvento(ev(acao, { antes: livre, depois: livre }));
     expect(t).not.toContain('SENTINELA');
