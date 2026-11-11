@@ -1026,7 +1026,7 @@ linha `sob_medida`:
 
 | Chave | Título | O seed cria além da demanda |
 |---|---|---|
-| `textoDeTerceiro` | `<script>window.__xss=1</script> Pedido ‮ com texto de terceiro <img src=x onerror="window.__xss=2"> (fictício)` | nada (o e2e cria ESP, RSK e DEC pela API) |
+| `textoDeTerceiro` | `<script>window.__xss=1</script> Pedido ${RLO} com texto de terceiro <img src=x onerror="window.__xss=2"> (fictício)`, com `const RLO = String.fromCodePoint(0x202e)`: o caractere de direção RIGHT-TO-LEFT OVERRIDE (U+202E) vem de código e nunca fica cru no fonte nem neste plano (Trojan Source; `test/estatico/sem-controle-bidi.test.ts`) | nada (o e2e cria ESP, RSK e DEC pela API) |
 | `etapasSemVersoes` | `Etapas sem versões (fictício)` | nada |
 | `etapasDupla` | `Etapas com uma de duas aprovações (fictício)` | ESP v1, RSK v1 e DEC v1 de pessoa, nível `cto_e_administradora`, com a aprovação do CTO na opção A, pelas funções de serviço de hoje com a conta fictícia "cto" |
 | `decisaoOpcaoB` | `Aprovar a opção B (fictício)` | nada |
