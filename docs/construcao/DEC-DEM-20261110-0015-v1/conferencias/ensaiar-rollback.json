@@ -17,32 +17,32 @@
     {
       "nome": "anterior",
       "ok": true,
-      "detalhe": "versão da main: http://127.0.0.1:3200/api/saude respondeu 200 em 173 s"
+      "detalhe": "versão da main: http://127.0.0.1:3200/api/saude respondeu 200 em 60 s"
     },
     {
       "nome": "backup",
       "ok": true,
-      "detalhe": "106 KB, impressão 5928a978d3c8c34c"
+      "detalhe": "106 KB, impressão fdbfd1bf0a41780d"
     },
     {
       "nome": "nova",
       "ok": true,
-      "detalhe": "versão do ramo sobre o banco da main: http://127.0.0.1:3200/api/saude respondeu 200 em 42 s"
+      "detalhe": "versão do ramo sobre o banco da main: http://127.0.0.1:3200/api/saude respondeu 200 em 45 s"
     },
     {
       "nome": "restauracao",
       "ok": true,
-      "detalhe": "banco igual ao backup (impressão 5928a978d3c8c34c)"
+      "detalhe": "banco igual ao backup (impressão fdbfd1bf0a41780d)"
     },
     {
       "nome": "volta",
       "ok": true,
-      "detalhe": "a versão da main voltou sobre o banco migrado e de novo sobre o backup: http://127.0.0.1:3200/api/saude respondeu 200 em 12 s"
+      "detalhe": "a versão da main voltou sobre o banco migrado e de novo sobre o backup: http://127.0.0.1:3200/api/saude respondeu 200 em 13 s"
     },
     {
       "nome": "ida_de_novo",
       "ok": true,
-      "detalhe": "versão do ramo depois da volta: http://127.0.0.1:3200/api/saude respondeu 200 em 46 s"
+      "detalhe": "versão do ramo depois da volta: http://127.0.0.1:3200/api/saude respondeu 200 em 43 s"
     },
     {
       "nome": "derrubar",
@@ -50,6 +50,6 @@
       "detalhe": "projeto e volumes removidos"
     }
   ],
-  "sha": "47b14f52c5c99ad5e2d3127ccb08e1cc108c3975",
-  "em": "2026-11-11T16:18:32.731Z"
+  "sha": "0c002cc1efd5003bcdf1d4e2632a2b347c6b35a8",
+  "em": "2026-11-11T16:58:33.613Z"
 }
