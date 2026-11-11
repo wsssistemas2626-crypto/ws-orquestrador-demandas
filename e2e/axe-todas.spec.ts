@@ -17,7 +17,7 @@
 // 2FA e nenhuma falha de senha ou de código é somada a ela. Na T01, o erro é o de campo vazio, que não chega ao servidor.
 import { type Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
-import { api, entrarComo, entrarSoComSenha, expect, ipFicticio, semViolacoes, semViolacoesNasDuasLarguras, test } from './apoio';
+import { abrirGaveta, abrirRecolhivel, api, entrarComo, entrarSoComSenha, expect, ipFicticio, semViolacoes, semViolacoesNasDuasLarguras, test } from './apoio';
 
 type ListaDemandas = { itens: { id: string; titulo: string }[] };
 type Pacote = { id: string; rascunhoAgente: boolean; statusDecisao: string };
@@ -82,15 +82,8 @@ async function axe(page: Page, rotulo: string): Promise<void> {
 const CELULAR = { width: 390, height: 844 } as const;
 const COMPUTADOR = { width: 1280, height: 720 } as const;
 
-// Abre um recolhível ("Mais filtros" na T03, "Ver vantagens…" na T11), que só tem botão abaixo de 768 px. O clique
-// antes da hidratação não faz nada: ele só se repete enquanto o botão segue fechado.
-async function abrirRecolhivel(page: Page, nome: RegExp): Promise<void> {
-  const botao = page.locator('main').getByRole('button', { name: nome });
-  await expect(async () => {
-    if ((await botao.getAttribute('aria-expanded')) !== 'true') await botao.click({ timeout: 1_000 });
-    await expect(botao).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
-  }).toPass({ timeout: 10_000 });
-}
+// `abrirRecolhivel` ("Mais filtros" na T03, "Ver vantagens…" na T11) e `abrirGaveta` vêm de e2e/apoio.ts (06-T16-testes,
+// Minor 2 da 06-T16-tech-lead).
 
 test('T01 Entrar: vazio, com erro e passo 2 (código)', async ({ page }) => {
   await page.setExtraHTTPHeaders({ 'x-real-ip': ipFicticio() });
@@ -155,12 +148,7 @@ test('T03 Fila: com dados, filtrada, vazia com filtro e com filtro inválido', a
   await expect(page.locator('main').getByRole('status')).toHaveText(/^[\d.]+ demandas? encontradas?\.$/);
   await abrirRecolhivel(page, /^Mais filtros/);
   await axe(page, 'T03 com "Mais filtros" aberto');
-  const gaveta = page.getByRole('dialog', { name: 'Menu' });
-  await expect(async () => {
-    if (!(await gaveta.isVisible())) await page.getByRole('button', { name: 'Menu', exact: true }).click({ timeout: 1_000 });
-    await expect(gaveta).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 10_000 });
-  await gaveta.evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)).then(() => undefined));
+  await abrirGaveta(page);
   await semViolacoes(page, 'T03 com a gaveta aberta (390 × 844)');
   await page.setViewportSize(COMPUTADOR);
 });

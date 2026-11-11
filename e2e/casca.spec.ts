@@ -3,7 +3,7 @@
 // não cria demanda nem versão (C-36). Os dois testes de "Sair" encerram só a sessão aberta pelo próprio teste.
 import type { Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
-import { api, entrarComo, expect, semViolacoes, test } from './apoio';
+import { abrirGaveta, api, entrarComo, expect, gavetaParada, semViolacoes, test } from './apoio';
 
 // Título da demanda de tipo bug do seed fictício (scripts/seed-ficticio.ts), a que tem ESP, RSK e o DEC de rascunho de
 // agente (o mesmo DEC da axe-todas e da fontes.spec).
@@ -25,25 +25,8 @@ const gaveta = (page: Page) => page.getByRole('dialog', { name: 'Menu' });
 const navegacao = (page: Page) => page.getByRole('navigation', { name: 'Principal' });
 const classeDoHtml = (page: Page) => page.evaluate(() => document.documentElement.className);
 
-// Abre a gaveta pelo botão "Menu". O clique antes da hidratação não faz nada; por isso a abertura é conferida e, se não
-// abriu, o clique se repete (o botão só abre, nunca fecha: repetir é seguro).
-// T16 (06-T13-qa-automacao e M4 da 06-T13-tech-lead): o clique só se repete se a gaveta ainda estiver fechada. Com a
-// hidratação lenta, o React reaplica o clique feito antes dela e a gaveta abre depois do 1 s de espera; um novo clique
-// em "Menu" cairia no véu do <dialog> modal ("subtree intercepts pointer events") até o tempo acabar. É a mesma linha
-// do abrirGaveta do casca-qa.spec.ts. Depois, espera o fim da entrada de 200 ms (`gaveta-entra`), para nenhum clique por
-// coordenada cair no véu durante a animação (Minor 1 da 06-T05-tech-lead, volta 1).
-async function abrirGaveta(page: Page): Promise<void> {
-  await expect(async () => {
-    if (!(await gaveta(page).isVisible())) await botaoMenu(page).click({ timeout: 1_000 });
-    await expect(gaveta(page)).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 10_000 });
-  await gavetaParada(page);
-}
-
-// A gaveta parada no lugar: o fim das animações do <dialog> (sem animação, com movimento reduzido, a lista é vazia).
-async function gavetaParada(page: Page): Promise<void> {
-  await gaveta(page).evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)).then(() => undefined));
-}
+// `abrirGaveta` e `gavetaParada` vêm de e2e/apoio.ts (06-T16-testes, Minor 2 da 06-T16-tech-lead): clique em "Menu" só
+// com a gaveta fechada, repetido até abrir, e o fim da entrada de 200 ms antes de seguir.
 
 // "Sair" pela casca ou pela gaveta (CV-16): um POST para a saída do Better Auth, a tela vai a /entrar e o cookie antigo,
 // posto de volta, recebe 401 na API (C-07 de hoje).

@@ -181,6 +181,31 @@ describe('AvisosDaMoldura: fronteiras (03, 2.7)', () => {
   });
 });
 
+// 06-T16-testes (Minor 1 da 06-T16-tech-lead): "Ver agentes e teto" é link solto (03, 2.4), com alvo de 44 px de altura
+// abaixo de 768 px e de 24 px a partir de 768 px (RNF-03). O e2e/alvo-de-toque.spec.ts não chega ao estado de agentes
+// suspensos (só lê), então a vigia do alvo deste link fica aqui, no HTML.
+describe('AvisosDaMoldura: "Ver agentes e teto" com alvo de toque de link solto (RNF-03; 03, 2.4)', () => {
+  const s = html(h(AvisosDaMoldura, { tetoMensal: 10, suspenso: true, totalDemandas: 0 }));
+  const link = /<a [^>]*href="\/configuracao\/agentes"[^>]*>Ver agentes e teto<\/a>/.exec(s)?.[0] ?? '';
+  const classes = (/class="([^"]*)"/.exec(link)?.[1] ?? '').split(/\s+/);
+
+  it('o link existe e leva à T12', () => {
+    expect(link).not.toBe('');
+  });
+
+  it('44 px de altura abaixo de 768 px e 24 px a partir de 768 px, num elemento que aceita altura (inline-flex)', () => {
+    expect(classes).toContain('min-h-11');
+    expect(classes).toContain('md:min-h-6');
+    expect(classes).toContain('inline-flex');
+    expect(classes).toContain('items-center');
+  });
+
+  it('fica fora do <p> do aviso, sem texto solto ao lado: é link solto, e o e2e de alvo de toque o mede quando aparece', () => {
+    expect(s).toMatch(/<\/p><a [^>]*href="\/configuracao\/agentes"[^>]*>Ver agentes e teto<\/a><\/div>/);
+    expect(s).not.toMatch(/<p>[^<]*<a /);
+  });
+});
+
 describe('CabecalhoPainel: um item atual por rota do painel (03, 1 e 2.7)', () => {
   const ROTAS: Array<[string, 'Demandas' | 'Nova demanda' | 'Agentes e teto']> = [
     ['/demandas', 'Demandas'],

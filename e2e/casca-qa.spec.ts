@@ -13,7 +13,7 @@
 // Só leitura: entra pela API e abre telas; não cria demanda (C-36). O teste de "Sair" encerra só a própria sessão.
 import type { Page } from '@playwright/test';
 import { CONTAS_FICTICIAS } from '../scripts/seed-ficticio';
-import { api, entrarComo, expect, test } from './apoio';
+import { abrirGaveta, api, entrarComo, expect, gavetaParada, test } from './apoio';
 
 const CONTA = `${CONTAS_FICTICIAS.cto.nome} (CTO)`;
 const TITULO_BUG_DO_SEED = 'Pedidos do marketplace duplicados no ERP (fictício)';
@@ -36,17 +36,9 @@ async function demandaBugDoSeed(page: Page): Promise<string> {
   return bug.id;
 }
 
-// Igual ao casca.spec: o clique antes da hidratação pode não abrir; o botão só abre, então repetir é seguro.
-// 06-T13-testes: só repete o clique se a gaveta ainda estiver fechada. Com a hidratação lenta (suíte inteira), o clique
-// anterior pode abrir a gaveta depois de 1 s de espera (o React reaplica o clique feito antes da hidratação); aí o
-// clique seguinte em "Menu" cai no véu do <dialog> modal ("subtree intercepts pointer events") e nunca passa, como na
-// falha vista uma vez na 06-T13-construcao. A gaveta continua tendo de abrir pelo "Menu"; nada do que vem depois muda.
-async function abrirGaveta(page: Page): Promise<void> {
-  await expect(async () => {
-    if (!(await gaveta(page).isVisible())) await botaoMenu(page).click({ timeout: 1_000 });
-    await expect(gaveta(page)).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 10_000 });
-}
+// `abrirGaveta` e `gavetaParada` vêm de e2e/apoio.ts, os mesmos do casca.spec (06-T16-testes, Minor 2 da
+// 06-T16-tech-lead): clique em "Menu" só com a gaveta fechada (06-T13-testes), repetido até abrir, e o fim da entrada
+// de 200 ms. A gaveta continua tendo de abrir pelo "Menu"; nada do que vem depois muda.
 
 test.beforeEach(async ({ page }) => {
   await entrarComo(page, 'cto');
@@ -137,8 +129,8 @@ test.describe('celular (390 × 844)', () => {
     await abrirGaveta(page);
     const g = gaveta(page);
     // A gaveta entra pela esquerda em 200 ms: antes do fim, o ponto onde ela vai ficar ainda é véu. O clique por
-    // localizador espera o elemento parar; a espera explícita deixa isso dito.
-    await g.evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)));
+    // localizador espera o elemento parar; a espera explícita deixa isso dito (o abrirGaveta já espera, e esta linha fica).
+    await gavetaParada(page);
     expect((await g.boundingBox())?.x).toBe(0);
     await g.getByText(CONTA, { exact: true }).click();
     await expect(g).toBeVisible();
@@ -178,7 +170,7 @@ test.describe('celular (390 × 844)', () => {
     await abrirGaveta(page);
     // 06-T11-testes: a medida espera o fim da entrada de 200 ms, como no teste do clique acima. Medida durante a
     // animação, a caixa vinha com a fração de pixel do transform (272.00000762939453) e o teste falhava às vezes.
-    await gaveta(page).evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)));
+    await gavetaParada(page);
     // min(320 px, 85 %) em 320 px: 272 px, e o véu fica à direita.
     expect(await largura(page, 'dialog#gaveta-menu')).toBe(272);
     await expect(gaveta(page).getByRole('button', { name: 'Sair' })).toBeInViewport();

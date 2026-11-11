@@ -61,9 +61,17 @@ function origem(): string {
 // limite por IP do Better Auth (10 por minuto, C-06) não liga um teste ao outro. Com `n` abaixo de 64.000, o terceiro
 // octeto vai de 0 a 255 e o quarto de 1 a 250. Se a rota passar por um proxy que regrava `x-real-ip`, o limite volta a
 // valer pelo IP real. Exportado para os testes de tela de login (T37), que o põem em `setExtraHTTPHeaders`.
+//
+// 06-T16-testes: o contador começa num bloco de 8.000 IPs escolhido pelo índice do worker (TEST_WORKER_INDEX, que o
+// Playwright põe em cada worker). Depois de um teste que falha, o Playwright troca o worker e este módulo volta a
+// carregar com o contador em 0: o teste seguinte repetia os primeiros IPs do worker anterior, ainda dentro do mesmo
+// minuto, e o C-06 da autenticacao-qa recebia 429 na 10.ª tentativa, e não na 11.ª. Cada worker novo tem índice novo, e
+// dois workers seguidos nunca começam no mesmo bloco.
+const IPS_POR_WORKER = 8_000;
+const INICIO_DO_WORKER = (Number(process.env.TEST_WORKER_INDEX ?? '0') || 0) * IPS_POR_WORKER;
 let contadorIp = 0;
 export function ipFicticio(): string {
-  const n = contadorIp++ % 64_000;
+  const n = (INICIO_DO_WORKER + contadorIp++) % 64_000;
   return `198.18.${Math.floor(n / 250)}.${(n % 250) + 1}`;
 }
 
@@ -126,6 +134,42 @@ export async function semViolacoesNasDuasLarguras(page: Page, rotulo: string): P
   await page.evaluate(() => window.scrollTo(0, 0));
   await semViolacoes(page, `${rotulo} (390 × 844)`);
   await page.setViewportSize(antes);
+}
+
+// 06-T16-testes (Minor 2 da 06-T16-tech-lead): os auxiliares de gaveta e de recolhível num lugar só. Antes eram cópias em
+// casca.spec, casca-qa.spec, axe-todas.spec e alvo-de-toque.spec, de dois jeitos (uma delas não esperava a animação), e
+// a instabilidade do M4 da 06-T13-tech-lead nasceu de duas cópias que se afastaram.
+const gavetaDoMenu = (page: Page) => page.getByRole('dialog', { name: 'Menu' });
+
+// A gaveta parada no lugar: o fim das animações do <dialog> (sem animação, com movimento reduzido, a lista é vazia).
+export async function gavetaParada(page: Page): Promise<void> {
+  await gavetaDoMenu(page).evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)).then(() => undefined));
+}
+
+// Abre a gaveta pelo botão "Menu" (abaixo de 768 px) e espera o fim da entrada de 200 ms.
+//   - O clique antes da hidratação não faz nada; por isso a abertura é conferida e, se não abriu, o clique se repete.
+//   - O clique só se repete com a gaveta ainda fechada: com a hidratação lenta, o React reaplica o clique feito antes
+//     dela e a gaveta abre depois do 1 s de espera; um novo clique em "Menu" cairia no véu do <dialog> modal ("subtree
+//     intercepts pointer events") até o tempo acabar (06-T13-testes e M4 da 06-T13-tech-lead).
+//   - O fim da animação vem depois, para nenhum clique por coordenada nem medida cair na gaveta ainda entrando (Minor 1
+//     da 06-T05-tech-lead, volta 1, e 06-T11-testes).
+export async function abrirGaveta(page: Page): Promise<void> {
+  const gaveta = gavetaDoMenu(page);
+  await expect(async () => {
+    if (!(await gaveta.isVisible())) await page.getByRole('button', { name: 'Menu', exact: true }).click({ timeout: 1_000 });
+    await expect(gaveta).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
+  await gavetaParada(page);
+}
+
+// Abre um recolhível do `main` ("Mais filtros" na T03, "Ver vantagens…" na T11), que só tem botão abaixo de 768 px. O
+// clique antes da hidratação não faz nada: ele só se repete enquanto o botão segue fechado.
+export async function abrirRecolhivel(page: Page, nome: RegExp): Promise<void> {
+  const botao = page.locator('main').getByRole('button', { name: nome });
+  await expect(async () => {
+    if ((await botao.getAttribute('aria-expanded')) !== 'true') await botao.click({ timeout: 1_000 });
+    await expect(botao).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
 }
 
 // Uma demanda própria do e2e, criada pelo seed fictício (scripts/seed-ficticio.ts, TITULOS_DO_E2E) e procurada pelo
