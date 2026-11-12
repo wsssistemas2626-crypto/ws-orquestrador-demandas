@@ -32,7 +32,9 @@ describe('textos (03, T11 "Pedido de Construção"; 04, C-28)', () => {
   it('os da 03, por inteiro, e o aviso de C-28 do plano', () => {
     expect(TEXTOS_PEDIDO).toMatchObject({
       titulo: 'Pedido de Construção',
-      texto: 'Gere o pedido, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma. O envio ao /construir é manual nesta versão.',
+      // 0.3.0 (T19 do DEC-DEM-20261111-0016-v1, CA-16.3): o texto da 03, 6.2, que não diz mais que o envio é só manual.
+      texto:
+        'Gere o pedido. Com a busca automática do /construir ligada, ele pega o pedido gerado na busca seguinte (a cada 5 minutos), e o recebimento aparece no topo desta página. Com a busca desligada, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma.',
       // D3 do 0013: texto da 02-triagem, para revisão da ux-ui-design.
       avisoDadoPessoal:
         'O pedido vai para o repositório git da estruturaAutonoma. Não deixe nome, e-mail, telefone ou CPF de qualquer pessoa ou do cliente no título, na descrição, na ESP nem no parecer de risco.',

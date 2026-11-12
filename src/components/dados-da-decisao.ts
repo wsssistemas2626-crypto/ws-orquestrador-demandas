@@ -121,6 +121,8 @@ export const TEXTOS_DECISAO = {
   comentariosDaDecisao: 'Comentários',
   lembrete: 'A demanda continua em Pronta para decisão até alguém mudar o status para Aprovada no detalhe da demanda.',
   irParaDemanda: 'Ir para a demanda',
+  // 0.3.0 (T19 do DEC-DEM-20261111-0016-v1; 03, 6.1 e seção 9): a linha do cabeçalho depois do pedido_recebido.
+  recebido: (data: string) => `Recebido pelo /construir em ${data}.`,
   erros: {
     decisao: 'Escolha a decisão.',
     opcao: 'Escolha a opção A ou a opção B.',
@@ -497,6 +499,17 @@ function linhaDe(papel: PapelAprovacao, a: Aprovador | undefined): string {
 export function linhasDeAprovacao(p: Pick<PacoteDecisaoVista, 'nivelAprovacaoRequerido' | 'aprovadores'>): string[] | null {
   if (p.nivelAprovacaoRequerido !== 'cto_e_administradora') return null;
   return (['cto', 'administradora'] as const).map((papel) => linhaDe(papel, p.aprovadores.find((a) => a.papel === papel)));
+}
+
+// --- recebimento pelo /construir (0.3.0) ---
+
+// "Recebido pelo /construir em <data e hora>." (RF-15, CA-15.1; 03, 6.1): a data do primeiro pedido_recebido do DEC
+// (recebimentoDoPedido, T10) no fuso do sistema, e o ISO para o <time>. Sem pedido_recebido, nenhuma linha (CA-15.2):
+// não há texto de "aguardando", porque o painel não sabe se a busca automática está ligada. Vale em toda situação do
+// DEC (substituído, desatualizado, demanda em status final): é um fato que já aconteceu.
+export function linhaDoRecebimento(recebidoEm: Date | null): { texto: string; iso: string } | null {
+  if (recebidoEm === null) return null;
+  return { texto: TEXTOS_DECISAO.recebido(formatarDataHora(recebidoEm)), iso: recebidoEm.toISOString() };
 }
 
 // --- chegada ---

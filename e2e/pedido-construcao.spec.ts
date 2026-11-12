@@ -138,8 +138,9 @@ test('CA-26.3: só depois de aprovado; gerar por ação; baixar devolve <DEC-id>
 
   await aprovar(page, decId);
   await page.reload();
+  // 0.3.0 (T19 do DEC-DEM-20261111-0016-v1, CA-16.3): o texto da 03, 6.2, que não diz mais que o envio é só manual.
   await expect(secao(page)).toContainText(
-    'Gere o pedido, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma. O envio ao /construir é manual nesta versão.',
+    'Gere o pedido. Com a busca automática do /construir ligada, ele pega o pedido gerado na busca seguinte (a cada 5 minutos), e o recebimento aparece no topo desta página. Com a busca desligada, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma.',
   );
   // D3 do 0013: o aviso novo e, antes do botão, a caixa desmarcada, obrigatória e com rótulo associado; o botão segue
   // habilitado (validação no envio).

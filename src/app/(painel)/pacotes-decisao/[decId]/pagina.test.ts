@@ -10,6 +10,7 @@ import { exigirPessoaNaPagina } from '../../../../modules/acesso/exigir-pessoa';
 import { autorizar } from '../../../../modules/acesso/matriz';
 import { obterDemanda, type DemandaVista, type VersaoResumo } from '../../../../modules/demandas/consultas';
 import { obterPacoteDecisao, type PacoteDecisaoVista } from '../../../../modules/pacotes-decisao/consultas';
+import { recebimentoDoPedido } from '../../../../modules/pedido-construcao/pendentes';
 import PaginaDecisao, { generateMetadata } from './page';
 
 vi.mock('next/navigation', () => ({
@@ -36,11 +37,14 @@ vi.mock('../../../../modules/pacotes-decisao/consultas', async (original) => {
 });
 vi.mock('./acoes', () => ({ registrarDecisaoNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
 vi.mock('./acoes-pedido', () => ({ gerarPedidoNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
+// T19 do DEC-DEM-20261111-0016-v1: a leitura do recebimento (T10) é dublê; sem pedido_recebido por padrão.
+vi.mock('../../../../modules/pedido-construcao/pendentes', () => ({ recebimentoDoPedido: vi.fn() }));
 
 const mExigir = vi.mocked(exigirPessoaNaPagina);
 const mAutorizar = vi.mocked(autorizar);
 const mDemanda = vi.mocked(obterDemanda);
 const mPacote = vi.mocked(obterPacoteDecisao);
+const mRecebimento = vi.mocked(recebimentoDoPedido);
 
 const CTO: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-cto', nome: 'Pessoa Ficticia CTO', papel: 'cto' };
 const ADM: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-adm', nome: 'Pessoa Ficticia Administradora', papel: 'administradora' };
@@ -127,6 +131,7 @@ beforeEach(() => {
   mExigir.mockResolvedValue(CTO);
   mPacote.mockResolvedValue(pacote());
   mDemanda.mockResolvedValue(demanda());
+  mRecebimento.mockResolvedValue(null);
 });
 
 describe('T11: acesso e leitura', () => {
@@ -596,7 +601,10 @@ describe('T11: Pedido de Construção (T44)', () => {
     expect(s).toMatch(/<section aria-labelledby="pedido-construcao"[^>]*><h2 id="pedido-construcao"[^>]*>Pedido de Construção<\/h2>/);
     expect(s.search(TITULO_DA_SECAO)).toBeGreaterThan(s.search(/<h2[^>]*>Registrar decisão<\/h2>/));
     const secao = s.slice(s.search(TITULO_DA_SECAO));
-    expect(secao).toContain('Gere o pedido, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma. O envio ao /construir é manual nesta versão.');
+    // 0.3.0 (T19, CA-16.3): o texto da 03, 6.2, que não diz mais que o envio é só manual.
+    expect(secao).toContain(
+      'Gere o pedido. Com a busca automática do /construir ligada, ele pega o pedido gerado na busca seguinte (a cada 5 minutos), e o recebimento aparece no topo desta página. Com a busca desligada, baixe ou copie o JSON e grave-o na pasta pedidos/ da estruturaAutonoma.',
+    );
     // D3 do 0013: o aviso novo e, entre ele e o botão, a caixa desmarcada com rótulo associado e obrigatória; o botão
     // continua habilitado (validação no envio).
     expect(secao).toContain(
@@ -993,5 +1001,101 @@ describe('T13: nenhuma exigência de aprovação escondida em alguma largura (06
         ];
         for (const m of marcas) expect(escondido(s, m), `${r}: ${m}`).toBeNull();
       }
+  });
+});
+
+// T19 do DEC-DEM-20261111-0016-v1 (RF-15; CA-15.1, CA-15.2; 03, 6.1, 6.3 e seção 10; D-11): a linha "Recebido pelo
+// /construir em …" no cabeçalho, depois de "Repositório destino" e antes das citações. A leitura é a do histórico
+// (recebimentoDoPedido, T10), feita depois de autorizar a leitura do pacote; o axe e o <time> no navegador ficam no e2e
+// (e2e/recebido-construir.spec.ts).
+describe('T19: "Recebido pelo /construir em …" (RF-15)', () => {
+  const RECEBIDO = new Date('2026-11-11T17:32:00Z');
+  const LINHA = 'Recebido pelo /construir em';
+  const V2 = `DEC-${ID}-v2`;
+  const aprovacaoCto = { papel: 'cto' as const, nome: CTO.nome, opcao: 'A' as const, registradaEm: APROVADO, referenciaDocumento: null, dataDocumento: null };
+  const aprovado = (extra: Partial<PacoteDecisaoVista> = {}) =>
+    pacote({
+      statusDecisao: 'aprovada',
+      aprovadores: [aprovacaoCto],
+      decisao: { opcaoEscolhida: 'A', comentarios: null, decididaPor: CTO.nome, decididaEm: APROVADO },
+      ...extra,
+    });
+  // O <p> inteiro da linha: o visto decorativo e o texto, com a data em <time>.
+  const paragrafo = (s: string) => /<p [^>]*><svg [\s\S]*?<\/svg><span>Recebido pelo \/construir em [\s\S]*?<\/span><\/p>/.exec(s)?.[0];
+
+  it('lê o recebimento do DEC depois de autorizar e de achar o pacote; id fora do formato e pacote inexistente não leem', async () => {
+    await pagina();
+    expect(mRecebimento).toHaveBeenCalledTimes(1);
+    expect(mRecebimento).toHaveBeenCalledWith(DB, DEC);
+    expect(mAutorizar.mock.invocationCallOrder[0]!).toBeLessThan(mRecebimento.mock.invocationCallOrder[0]!);
+    expect(mPacote.mock.invocationCallOrder[0]!).toBeLessThan(mRecebimento.mock.invocationCallOrder[0]!);
+    // A autorização continua a de hoje: nenhuma ação nova.
+    expect(mAutorizar.mock.calls.map((c) => c[1])).toEqual(['ler_pacote_decisao', 'ler_demanda']);
+
+    mRecebimento.mockClear();
+    await expect(pagina('qualquer-coisa')).rejects.toThrow('NEXT_NOT_FOUND');
+    const { ErroDominio } = await import('../../../../lib/erros');
+    mPacote.mockRejectedValue(new ErroDominio('nao_encontrado', 'x'));
+    await expect(pagina()).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mRecebimento).not.toHaveBeenCalled();
+  });
+
+  it('CA-15.2: sem pedido_recebido, a linha não existe e o cabeçalho é o de hoje', async () => {
+    mPacote.mockResolvedValue(aprovado());
+    const s = await pagina();
+    expect(s).not.toContain(LINHA);
+    expect(s).not.toContain('text-positivo');
+    expect(s).not.toContain('aguardando o /construir');
+  });
+
+  it('CA-15.1: a linha depois de "Repositório destino" e antes das citações, com o visto decorativo e a data em <time>', async () => {
+    mPacote.mockResolvedValue(aprovado());
+    mRecebimento.mockResolvedValue(RECEBIDO);
+    const s = await pagina();
+    const p = paragrafo(s);
+    expect(p).toBeDefined();
+    // O texto da 03, 6.1, com a data no fuso do sistema; a mesma frase que linhaDoRecebimento monta.
+    expect(p!.replace(/<svg [\s\S]*?<\/svg>/, '').replace(/<[^>]+>/g, '')).toBe('Recebido pelo /construir em 11/11/2026 às 14:32.');
+    expect(p).toMatch(/<time date[tT]ime="2026-11-11T17:32:00\.000Z">11\/11\/2026 às 14:32<\/time>\.<\/span><\/p>$/);
+    // O ícone não carrega a informação: aria-hidden, sem foco, cor positivo; o texto fica em tinta.
+    const svg = /<svg [^>]*>/.exec(p!)![0];
+    expect(svg).toContain('aria-hidden="true"');
+    expect(svg).toContain('focusable="false"');
+    expect(svg).toMatch(/class="[^"]*\btext-positivo\b/);
+    expect(/^<p [^>]*>/.exec(p!)![0]).toMatch(/class="[^"]*\btext-tinta\b/);
+    // Conteúdo estático: sem role, sem tabindex, sem link nem botão.
+    expect(p).not.toMatch(/\srole=|\stabindex=|<a\s|<button/i);
+    // Ordem do cabeçalho: repositório, recebido, citações, e tudo antes do primeiro h2.
+    const repositorio = s.indexOf('Repositório destino: wsssistemas2626-crypto/sistema-ficticio');
+    const recebido = s.indexOf(LINHA);
+    const cita = s.indexOf('Cita: ');
+    expect(repositorio).toBeGreaterThan(0);
+    expect(repositorio).toBeLessThan(recebido);
+    expect(recebido).toBeLessThan(cita);
+    expect(recebido).toBeLessThan(s.search(/<h2/));
+    expect(s.split(LINHA)).toHaveLength(2);
+  });
+
+  it('CA-15.1: aparece em toda situação do DEC: substituído, desatualizado e com a demanda em status final, mesmo sem a seção do pedido', async () => {
+    mRecebimento.mockResolvedValue(RECEBIDO);
+    const casos: Array<[string, PacoteDecisaoVista, DemandaVista]> = [
+      ['substituído', aprovado({ substituido: true, substituidoPor: V2 }), demanda({ status: 'aprovada' })],
+      ['desatualizado', aprovado({ desatualizado: true }), demanda({ status: 'aprovada', especificacoes: [resumo(`ESP-${ID}-v3`), resumo(ESP)] })],
+      ['demanda encerrada', aprovado(), demanda({ status: 'encerrada' })],
+      ['demanda entregue', aprovado(), demanda({ status: 'entregue' })],
+    ];
+    for (const [nome, p, d] of casos) {
+      mPacote.mockResolvedValue(p);
+      mDemanda.mockResolvedValue(d);
+      const s = await pagina();
+      expect(paragrafo(s), nome).toContain('11/11/2026 às 14:32</time>.');
+      if (nome !== 'demanda encerrada' && nome !== 'demanda entregue') expect(s, nome).not.toMatch(/<h2[^>]*>Pedido de Construção<\/h2>/);
+    }
+  });
+
+  it('03, 6.3: falha ao ler o recebimento vai para a tela de erro de hoje, sem mostrar a linha pela metade', async () => {
+    mPacote.mockResolvedValue(aprovado());
+    mRecebimento.mockRejectedValue(new Error('falha fictícia do recebimento'));
+    await expect(pagina()).rejects.toThrow('falha fictícia do recebimento');
   });
 });
