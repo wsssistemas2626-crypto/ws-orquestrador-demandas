@@ -36,6 +36,8 @@ import { criarTokenServico } from '../../src/modules/acesso/tokens-servico';
 import type { DepsAgente } from '../../src/modules/agentes/executar';
 import type { DepsAviso } from '../../src/modules/avisos/aviso-dec';
 import { EnviadorResend } from '../../src/modules/avisos/enviador';
+import { criarDemandaSchema } from '../../src/modules/demandas/schemas';
+import { criarDemanda } from '../../src/modules/demandas/servico';
 import { CONFIG_TESTE } from '../auth';
 import { novoBanco, type BancoDeTeste } from '../banco';
 import { AGORA_TESTE, criarDepsDeTeste } from '../deps';
@@ -531,6 +533,20 @@ it(
   'T13 (a) Awave: POST com sentinelas no título, na descrição, no contexto, no solicitante e nos anexos; GET da própria; 400 e 429 provocados; nenhum sentinela nem texto de token nas saídas',
   async () => {
     const tokenAwave = await tokenDeIntegracao(deps, 'awave');
+    // 06-T13-testes: o teste de cima termina com os agentes desligados (passo 2d), e este fluxo também roda sozinho (-t),
+    // com a configuração inicial. Sem ligar aqui, "nenhum agente foi acionado" (IN-06) passaria pelo motivo errado. Os
+    // quatro ficam ligados durante o fluxo; uma demanda de pessoa, sem sentinela, prova que o gatilho está vivo; no fim
+    // eles voltam a desligados, para o fluxo (b) rodar como antes.
+    await b.poolMigrator.query(`update configuracao_agente set ligado = true, modelo = $1`, [MODELO]);
+    const controle = await criarDemanda(
+      deps,
+      { tipo: 'pessoa', usuarioId: 'u-controle-t13', nome: 'Pessoa Ficticia Controle', papel: 'cto' },
+      criarDemandaSchema.parse({ ...CORPO_DO_AWAVE, solicitanteNome: 'Pessoa Ficticia Controle' }),
+    );
+    const execucoesDoControle = await b.poolMigrator.query<{ agente: string }>(`select agente from execucao_agente where chave_entrada = $1`, [
+      `demanda:${controle.id}`,
+    ]);
+    expect(execucoesDoControle.rows.map((r) => r.agente), 'controle: o gatilho do insumo técnico está vivo').toEqual(['insumo_tecnico']);
     const inicio = linhasDoLog.length;
     const comSentinelas = {
       ...CORPO_DO_AWAVE,
@@ -587,6 +603,7 @@ it(
            or artefato_id in (select id from demanda where autor_tipo = 'integracao')`,
     );
     expect(execucoesDoAwave.rows[0].n).toBe(0);
+    await b.poolMigrator.query('update configuracao_agente set ligado = false');
   },
   120_000,
 );
