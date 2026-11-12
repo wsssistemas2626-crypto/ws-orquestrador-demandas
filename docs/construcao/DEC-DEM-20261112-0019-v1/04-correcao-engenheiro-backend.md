@@ -116,6 +116,9 @@ faz. Corrigi o teste com `concluirJobs` antes do último batimento, sem mudar c�
   arquivo, porque o banco de verdade não deixa gravar essa autoria.
 - M-d só na regra da tela. A Próxima ação herda o estado da seção (`dados-da-confirmacao-qa`), então não precisou de outra
   mudança.
+- A suíte de ponta a ponta rodou a pedido do maestro, porque a regra da tela mudou no M-d. Ela está fora da minha lista
+  **Pode**, e o maestro registrou o bloqueio e a liberação. Resultado: 276 testes passaram, 9 foram pulados e nenhum
+  falhou.
 - Sem rota, tela, migration, GRANT, pacote ou variável de ambiente novos. Nenhuma linha de log nova. Dados de teste
   fictícios, e tokens só gerados em tempo de teste.
 
@@ -160,7 +163,6 @@ faz. Corrigi o teste com `concluirJobs` antes do último batimento, sem mudar c�
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — 12 alterados e 4 testes novos, todos em `src/`
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — suíte inteira: 306 de 306 arquivos, 6485 de 6485 testes, código 0
-- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — pedido pelo maestro porque a regra da tela mudou (M-d): 276 passaram, 9 pulados, 0 falharam, código 0
 
 ## Critério de pronto atendido
 
