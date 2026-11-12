@@ -59,6 +59,9 @@ export const SELO_RASCUNHO: SeloFixo = { texto: 'Rascunho de agente', cor: 'viol
 export const SELO_DESATUALIZADO: SeloFixo = { texto: 'Desatualizado', cor: 'vermelho', tracejado: false };
 // 0.1.13: o DEC aprovado que um aprovado mais novo da demanda substituiu. Texto da triagem, para revisão da ux-ui-design.
 export const SELO_SUBSTITUIDO: SeloFixo = { texto: 'Substituído', cor: 'cinza', tracejado: false };
+// 0.3.0 (03, seções 2 e 9; 5.1 item 2): no cabeçalho da T05, só com a demanda do Awave aguardando confirmação
+// (estadoDaConfirmacao). Âmbar (`atencao` / `atencao-fundo`), a cor de selo que já existe; a fila não o mostra.
+export const SELO_AGUARDANDO_CONFIRMACAO: SeloFixo = { texto: 'Aguardando confirmação', cor: 'ambar', tracejado: false };
 
 export const ROTULO_TIPO: Readonly<Record<TipoDemanda, string>> = {
   bug: 'Bug',

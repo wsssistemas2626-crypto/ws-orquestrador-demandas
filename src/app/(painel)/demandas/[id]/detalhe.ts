@@ -17,9 +17,11 @@ import type { DemandaVista, Responsavel } from '../../../../modules/demandas/con
 import type { Status } from '../../../../modules/demandas/schemas';
 import type { EventoVisivel } from '../../../../modules/historico/consultas';
 
-// Âncoras da navegação "Nesta página" (03, T05): o id fica no `h2` de cada seção, com tabindex="-1".
+// Âncoras da navegação "Nesta página" (03, T05): o id fica no `h2` de cada seção, com tabindex="-1". 0.3.0 (03, 5.1 item
+// 3 e 5.5): `confirmacao`, a seção "Confirmação do Awave", que a linha 14 da Próxima ação aponta.
 export const ID_SECAO = {
   dados: 'dados',
+  confirmacao: 'confirmacao',
   duvidas: 'duvidas-em-aberto',
   versoes: 'versoes',
   status: 'mudar-status',
@@ -33,6 +35,7 @@ export const TEXTOS_DETALHE = {
   nestaPagina: 'Nesta página',
   secoes: {
     dados: 'Dados',
+    confirmacao: 'Confirmação do Awave',
     duvidas: 'Dúvidas em aberto',
     versoes: 'Versões',
     status: 'Mudar status',
@@ -53,6 +56,8 @@ export const TEXTOS_DETALHE = {
     impacto: 'Impacto percebido',
     anexos: 'Anexos',
     criadaEm: 'Criada em',
+    // 0.3.0 (03, 5.1 item 1): antes de "Criada por", com ROTULO_ORIGEM da autoria (nunca do solicitanteNome).
+    origem: 'Origem',
     criadaPor: 'Criada por',
   },
   duvidasDaEsp: (id: string) => `Da ${id}.`,

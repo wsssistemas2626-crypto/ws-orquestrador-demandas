@@ -24,6 +24,9 @@ export type DadosDasEtapas = {
   decMaisNovo: Pick<PacoteDecisaoVista, 'id' | 'statusDecisao' | 'desatualizado' | 'nivelAprovacaoRequerido' | 'aprovadores' | 'decisao'> | null;
   historico: readonly Pick<EventoVisivel, 'acao' | 'entidadeId'>[];
   temSecaoDeDuvidas: boolean;
+  // 0.3.0 (T17; 03, 5.5; D-06): demanda do Awave sem `demanda_confirmada` e fora de status final, que a página tira de
+  // estadoDaConfirmacao (dados-da-confirmacao.ts). Opcional: ausente vale como false, e a 0.2.0 não muda.
+  aguardaConfirmacaoDoAwave?: boolean;
 };
 export type EstadoDaEtapa =
   | 'Registrada'
@@ -41,7 +44,9 @@ export type EstadoDaEtapa =
   | 'Ainda não gerado'
   | 'Depois da aprovação';
 export type EtapaDaDemanda = { numero: 1 | 2 | 3 | 4 | 5; nome: string; idVersao: string | null; estado: EstadoDaEtapa; feita: boolean; atual: boolean };
-export type DestinoDaAcao = { tipo: 'pagina'; href: string } | { tipo: 'secao'; secao: 'duvidas' | 'status' };
+export type DestinoDaAcao = { tipo: 'pagina'; href: string } | { tipo: 'secao'; secao: SecaoDaAcao };
+// As seções da própria página que a Próxima ação aponta; a âncora de cada uma é ID_SECAO[secao] (detalhe.ts).
+type SecaoDaAcao = 'duvidas' | 'status' | 'confirmacao';
 export type ProximaAcao = { linha: number; oQueFalta: string; detalhe: string | null; quemAge: string; link: { rotulo: string; destino: DestinoDaAcao } | null };
 
 type DecMaisNovo = NonNullable<DadosDasEtapas['decMaisNovo']>;
@@ -141,7 +146,7 @@ const acao = (linha: number, oQueFalta: string, quemAge: string, link: Link = nu
   link,
 });
 
-const secao = (rotulo: string, s: 'duvidas' | 'status'): Link => ({ rotulo, destino: { tipo: 'secao', secao: s } });
+const secao = (rotulo: string, s: SecaoDaAcao): Link => ({ rotulo, destino: { tipo: 'secao', secao: s } });
 
 // Páginas da demanda (T07, T08, T09) e do DEC (T11): constante de rota mais id que casa a regex; senão, sem link.
 const paraDemanda = (id: string, caminho: 'especificacoes/nova' | 'pareceres-risco/novo' | 'pacotes-decisao/novo', rotulo: string): Link =>
@@ -189,7 +194,8 @@ function linhaDoStatus(status: Status, vigente: PacoteResumo | null): ProximaAca
   }
 }
 
-// As 13 linhas da spec (4.4), nessa ordem; vale a primeira que casar.
+// As 13 linhas da spec (4.4), nessa ordem; vale a primeira que casar. 0.3.0 (03, 5.5): a linha 14, a confirmação da
+// demanda do Awave, entra depois da 2 e antes da 3; o número 14 é só identificador, para não renumerar as de 0.2.0.
 export function proximaAcao(x: DadosDasEtapas): ProximaAcao {
   conferir(x);
   const d = x.demanda;
@@ -197,6 +203,14 @@ export function proximaAcao(x: DadosDasEtapas): ProximaAcao {
   if (emStatusFinal(d.status)) return acao(1, `Nada. A demanda está em ${ROTULO_STATUS[d.status]}.`, 'Ninguém');
   const agente = d.agentesEmAndamento[0];
   if (agente) return acao(2, `Esperar o ${agenteNaFrase(agente.agente)} terminar ${ARTEFATO_DO_AGENTE[agente.agente]}.`, NOME_AGENTE[agente.agente]);
+  if (x.aguardaConfirmacaoDoAwave === true)
+    return acao(
+      14,
+      'Confirmar a demanda aberta pelo Awave.',
+      UMA_PESSOA,
+      secao('Ir para a confirmação', 'confirmacao'),
+      'Até a confirmação, nenhum agente de IA trabalha nela.',
+    );
   if (d.status === 'aguardando_informacao')
     return acao(
       3,
