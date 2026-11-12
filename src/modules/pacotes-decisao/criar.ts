@@ -17,6 +17,7 @@ import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { agendarAviso } from '../avisos/aviso-dec';
+import { exigirVisivelPara } from '../demandas/confirmacao';
 import { nomesDoSolicitante } from '../demandas/consultas';
 import { autoriaDo, type DepsComFila } from '../demandas/servico';
 import { mudarStatusPeloSistema, recusarSeDemandaFinal } from '../demandas/transicoes';
@@ -134,6 +135,9 @@ async function criarComNomes(
   const corpo = async (tr: Transacao): Promise<{ id: string; nomes: string[] }> => {
     const { tx } = tr;
     const d = await travarDemanda(tx, demandaId);
+    // M-1 da 0019 (P3): agente e sistema numa demanda que aguarda confirmação → o 404 da inexistente, antes do status
+    // final (sem oráculo pelo 409) e do limite (que não é consumido).
+    await exigirVisivelPara(tx, ator, demandaId);
     recusarSeDemandaFinal(d.status);
     await conferirLimite(tx, ator, 'artefato', deps.relogio);
     // O worker cita a ESP e o RSK que a entrada leu (M-01): se entrou versão mais nova depois, o DEC nasce desatualizado.

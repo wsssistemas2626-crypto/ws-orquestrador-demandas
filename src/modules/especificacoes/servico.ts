@@ -13,6 +13,7 @@ import type { Ator } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { dispararSeLigado } from '../agentes/gatilhos';
 import { registrarEvento } from '../historico/registrar';
+import { exigirVisivelPara } from '../demandas/confirmacao';
 import { nomesDoSolicitante } from '../demandas/consultas';
 import { autoriaDo, type DepsComFila } from '../demandas/servico';
 import { mudarStatusPeloSistema, recusarSeDemandaFinal } from '../demandas/transicoes';
@@ -57,6 +58,9 @@ async function criarComNomes(
   const corpo = async (tr: Transacao): Promise<{ id: string; nomes: string[] }> => {
     const { tx } = tr;
     const atual = await travarDemanda(tx, demandaId);
+    // M-1 da 0019 (P3): agente e sistema numa demanda que aguarda confirmação → o 404 da inexistente, antes do status
+    // final (sem oráculo pelo 409) e do limite (que não é consumido).
+    await exigirVisivelPara(tx, ator, demandaId);
     recusarSeDemandaFinal(atual.status);
     await conferirLimite(tx, ator, 'artefato', deps.relogio);
     const campos = validarCamposDeConstrucao(atual.tipo, entrada);

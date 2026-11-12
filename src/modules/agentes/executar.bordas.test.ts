@@ -167,18 +167,22 @@ beforeEach(async () => {
 afterEach(() => substituirDestinoDoLog(null));
 
 describe('recusa do serviço depois de o schema passar (pendências da 06-T27-revisao)', () => {
-  it('execução sem demanda (demandaId nulo) → nao_encontrado no gravar: falhou com recusada_pelo_servico, uso erro, sem artefato nem nova tentativa', async () => {
+  // Mudança aprovada (M-5 da 0019, P2: falha fechada do agente sem demanda): a execução sem demanda já não chega ao
+  // provedor. Antes, o provedor era chamado e o gravar recusava (recusada_pelo_servico, com uso `erro`); agora a guarda
+  // recusa antes, com entrada_nao_encontrada, sem chamada nem uso. Ficam: falhou, sem artefato, sem nova tentativa, sem
+  // texto no evento e sem Sentry.
+  it('mudança aprovada (M-5 da 0019): execução sem demanda (demandaId nulo) → falhou entrada_nao_encontrada antes do provedor, sem uso, artefato nem nova tentativa', async () => {
     provedor.respostas.push(resposta(RSK_VALIDO));
     const id = (await novaExecucao('risco', `esp:${esp.id}`, null))!;
     expect(await executarAgente(deps, id)).toBe('falhou');
 
-    expect(provedor.chamadas).toHaveLength(1);
+    expect(provedor.chamadas).toHaveLength(0);
     expect(await contarRsk(dem.id)).toBe(0);
     expect(await execucao(id)).toMatchObject({ status: 'falhou', tentativas: 1, artefato_id: null, bloqueada_ate: null, proxima_tentativa_em: null });
-    expect(await usos(id)).toEqual([{ demanda_id: null, modelo: MODELO, tokens_entrada: 1_000, tokens_saida: 200, custo: '0.006000', resultado: 'erro' }]);
+    expect(await usos(id)).toEqual([]);
     const ev = await eventosDa(id);
     expect(ev).toEqual([
-      { acao: 'falha_agente', ator_tipo: 'agente', ator_id: 'risco', demanda_id: null, depois: { agente: 'risco', tentativas: 1, motivo: 'recusada_pelo_servico' } },
+      { acao: 'falha_agente', ator_tipo: 'agente', ator_id: 'risco', demanda_id: null, depois: { agente: 'risco', tentativas: 1, motivo: 'entrada_nao_encontrada' } },
     ]);
     expect(contemSentinela(JSON.stringify(ev))).toBe(false);
     expect(await jobs(id)).toHaveLength(1);

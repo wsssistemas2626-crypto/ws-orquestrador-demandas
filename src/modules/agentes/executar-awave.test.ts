@@ -79,13 +79,15 @@ beforeEach(async () => {
 });
 
 describe('IN-06 no worker (D-07): passo 3c', () => {
-  it('insumo técnico na demanda do Awave não confirmada: ignorada, agente_ignorado sem_confirmacao, sem provedor nem uso', async () => {
+  // Mudança aprovada (M-5 da 0019, P2 e P5 da 02-triagem): o bloqueio não gasta a chave. O retorno e o status trocam
+  // `ignorada` por `aguardando_confirmacao` e `pendente`; a recusa (provedor, uso, ESP e o evento) fica como estava.
+  it('insumo técnico na demanda do Awave não confirmada: aguardando_confirmacao (mudança aprovada, M-5 da 0019), agente_ignorado sem_confirmacao, sem provedor nem uso', async () => {
     const dem = await doAwave();
     await ligar('insumo_tecnico');
     provedor.respostas.push(resposta(ESP_SEM_DUVIDA()));
     const id = await novaExecucao('insumo_tecnico', `demanda:${dem.id}`, dem.id);
-    expect(await executarAgente({ ...base, provedor }, id)).toBe('ignorada');
-    expect(await statusDa(id)).toBe('ignorada');
+    expect(await executarAgente({ ...base, provedor }, id)).toBe('aguardando_confirmacao');
+    expect(await statusDa(id)).toBe('pendente');
     expect(provedor.chamadas).toEqual([]);
     expect(await usos(id)).toBe(0);
     expect(await eventosDa(id)).toEqual([
@@ -104,13 +106,14 @@ describe('IN-06 no worker (D-07): passo 3c', () => {
     expect(textoDoEvento(ev!)).toBe('Agente de insumo técnico não rodou: demanda aberta pelo Awave ainda não confirmada');
   });
 
-  it('o risco (esp:) na demanda do Awave não confirmada também é ignorado, sem chamar o provedor', async () => {
+  // Mudança aprovada (M-5 da 0019): o retorno troca `ignorada` por `aguardando_confirmacao`; o resto não muda.
+  it('o risco (esp:) na demanda do Awave não confirmada também é recusado (mudança aprovada, M-5 da 0019: aguardando_confirmacao), sem chamar o provedor', async () => {
     const dem = await doAwave();
     const esp = await criarEspecificacao(base, cto, dem.id, criarEspecificacaoSchema.parse(ESP_SEM_DUVIDA()));
     await ligar('risco');
     provedor.respostas.push(resposta(PROMPTS.risco.exemploSaida));
     const id = await novaExecucao('risco', `esp:${esp.id}`, dem.id);
-    expect(await executarAgente({ ...base, provedor }, id)).toBe('ignorada');
+    expect(await executarAgente({ ...base, provedor }, id)).toBe('aguardando_confirmacao');
     expect(provedor.chamadas).toEqual([]);
     expect(await usos(id)).toBe(0);
     expect(await eventosDa(id)).toEqual([

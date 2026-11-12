@@ -4,12 +4,13 @@
 import { rota } from '../../../lib/rota';
 import { nomesDosSolicitantes } from '../../../modules/demandas/consultas';
 // M-2 do 0008: cada item segue vistaDoPacotePara. M-a do 0009: a lista cruza demandas, e cada item é minimizado com o
-// nome do solicitante da própria demanda (uma consulta só para a página).
-import { listarPacotes, vistaDoPacotePara } from '../../../modules/pacotes-decisao/consultas';
+// nome do solicitante da própria demanda (uma consulta só para a página). A-1 da 04-revisao da 0019: a lista decide pelo
+// ator, e o agente não vê o DEC de demanda que aguarda confirmação (nem nos itens nem no total).
+import { listarPacotesPara, vistaDoPacotePara } from '../../../modules/pacotes-decisao/consultas';
 import { filtroPacotesSchema } from '../../../modules/pacotes-decisao/schemas';
 
 export const GET = rota({ acao: 'ler_pacote_decisao', rota: '/api/pacotes-decisao', query: filtroPacotesSchema }, async ({ deps, ator, query }) => {
-  const { itens, ...pagina } = await listarPacotes(deps.db, query);
+  const { itens, ...pagina } = await listarPacotesPara(deps.db, query, ator);
   const nomes = await nomesDosSolicitantes(
     deps.db,
     itens.map((v) => v.demandaId),

@@ -5,13 +5,16 @@
 // A varredura não muda a execução: só envia o job da próxima tentativa, com a singletonKey dela (`…:t<n+1>`). Se o job
 // dessa tentativa ainda está na fila, a política `stately` descarta o envio repetido; se dois chegarem ao worker, a
 // reivindicação condicional (ADR-07) deixa um só rodar. O log leva só a instância e a quantidade (C-21).
-import { and, asc, eq, lt, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt, ne, not, or, sql } from 'drizzle-orm';
 import { execucaoAgente, workerBatimento } from '../db/schema';
 import { comTransacao } from '../db/transacao';
 import type { Deps } from '../lib/deps';
 import { FILAS } from '../lib/fila';
 import { log } from '../lib/log';
-import { chaveDoJob } from '../modules/agentes/execucoes';
+import { AGENTES, type Agente } from '../modules/acesso/ator';
+import { adiadaAteConfirmacao, chaveDoJob } from '../modules/agentes/execucoes';
+import { estadoDoAgente } from '../modules/agentes/gatilhos';
+import { semEsperaDeConfirmacao } from '../modules/demandas/confirmacao';
 
 // Folga antes de reenfileirar a pendente: o job dela pode só estar esperando a vez na fila.
 export const FOLGA_PENDENTE_MS = 60_000;
@@ -37,14 +40,27 @@ export async function batimento(deps: DepsBatimento, instancia: string): Promise
     .delete(workerBatimento)
     .where(and(lt(workerBatimento.vistoEm, new Date(agora.getTime() - GUARDA_BATIMENTO_MS)), ne(workerBatimento.instancia, instancia)));
 
-  // A pendente da 1ª tentativa não tem proxima_tentativa_em: conta a hora em que ela foi criada ou mudou por último.
+  // A pendente da 1ª tentativa não tem proxima_tentativa_em: conta a hora em que ela foi criada ou mudou por último. M-5
+  // da 0019: a pendente cuja demanda aguarda a confirmação de uma pessoa não é órfã (o worker a devolveu de propósito, e
+  // a confirmação a reenfileira); sem este filtro, ela voltaria ao worker a cada minuto. A-3 da 04-revisao: a execução
+  // adiada até a confirmação também espera enquanto o agente dela não está disponível (desligado ou suspenso pelo teto):
+  // o worker a encerraria como `ignorada` e gastaria a chave; quando o agente volta, ela é reenfileirada aqui e roda.
   const limitePendente = new Date(agora.getTime() - FOLGA_PENDENTE_MS);
+  const indisponiveis: Agente[] = [];
+  for (const agente of AGENTES) if ((await estadoDoAgente(deps.db, agente, deps.relogio)) !== 'disponivel') indisponiveis.push(agente);
+  const adiadaComAgenteIndisponivel =
+    indisponiveis.length === 0 ? undefined : and(inArray(execucaoAgente.agente, indisponiveis), adiadaAteConfirmacao(execucaoAgente.id));
   const orfas = await deps.db
     .select({ id: execucaoAgente.id, agente: execucaoAgente.agente, chaveEntrada: execucaoAgente.chaveEntrada, tentativas: execucaoAgente.tentativas })
     .from(execucaoAgente)
     .where(
       or(
-        and(eq(execucaoAgente.status, 'pendente'), lt(sql`coalesce(${execucaoAgente.proximaTentativaEm}, ${execucaoAgente.atualizadaEm})`, limitePendente)),
+        and(
+          eq(execucaoAgente.status, 'pendente'),
+          lt(sql`coalesce(${execucaoAgente.proximaTentativaEm}, ${execucaoAgente.atualizadaEm})`, limitePendente),
+          semEsperaDeConfirmacao(execucaoAgente.demandaId),
+          adiadaComAgenteIndisponivel ? not(adiadaComAgenteIndisponivel) : undefined,
+        ),
         and(eq(execucaoAgente.status, 'em_andamento'), lt(execucaoAgente.bloqueadaAte, agora)),
       ),
     )

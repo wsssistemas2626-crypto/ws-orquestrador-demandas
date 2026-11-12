@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 10/11/2026 (0.1.13: o DEC aprovado mais novo substitui o anterior, no lugar da recusa da A-02, com a recusa do DEC só do CTO sobre um aprovado de dupla aprovação, no RF-13 e no RF-14); 04/11/2026 (0.1.10: nomes do 201 tirados da demanda travada nos três `POST` e guarda dos `extras` também em `criarPacoteDecisaoComNomes`, no RF-10); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` e teste estático dos `extras` do DEC, no RF-10); 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
+| Atualizado em | 12/11/2026 (0.3.1: recusa da demanda do Awave não confirmada para o agente, antes do status final e do limite, na ordem da criação); 10/11/2026 (0.1.13: o DEC aprovado mais novo substitui o anterior, no lugar da recusa da A-02, com a recusa do DEC só do CTO sobre um aprovado de dupla aprovação, no RF-13 e no RF-14); 04/11/2026 (0.1.10: nomes do 201 tirados da demanda travada nos três `POST` e guarda dos `extras` também em `criarPacoteDecisaoComNomes`, no RF-10); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` e teste estático dos `extras` do DEC, no RF-10); 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-08 a RF-14 |
 | Fontes no código | `src/modules/especificacoes/`, `src/modules/pareceres-risco/`, `src/modules/pacotes-decisao/` (`criar.ts`, `decidir.ts`, `desatualizado.ts`, `substituido.ts`, `consultas.ts`, `schemas.ts`), `src/modules/demandas/consultas.ts` (`PacoteResumo`), `src/modules/historico/registrar.ts`, `src/modules/versoes.ts`, `drizzle/0003_rls_privilegios_dominio.sql` |
@@ -12,8 +12,9 @@ linha da demanda:
 isso serializa a versão N e fecha a corrida entre uma aprovação e uma ESP nova (C-13). Cada criação conta no limite de
 60 versões por hora por ator (ESP, RSK e DEC somados); acima, 429.
 
-Na criação de ESP, RSK e DEC, a ordem dentro da transação é: trava da demanda → recusa em status final → limite por
-ator → o resto. Numa demanda `entregue` ou `encerrada` ([cap. 03](03-demandas.md#rf-07-status-e-transições)), a
+Na criação de ESP, RSK e DEC, a ordem dentro da transação é: trava da demanda → (desde a 0.3.1, só para agente e
+`sistema`) recusa da demanda do Awave não confirmada, com o 404 da demanda inexistente (`exigirVisivelPara`,
+[cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)) → recusa em status final → limite por ator → o resto. Numa demanda `entregue` ou `encerrada` ([cap. 03](03-demandas.md#rf-07-status-e-transições)), a
 criação, pela pessoa ou pelo agente, responde 409:
 
 ```json

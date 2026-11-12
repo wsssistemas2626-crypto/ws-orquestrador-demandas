@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.0: atores de integração `awave` e `construir`, token de integração, matriz com a coluna das integrações e as quatro ações novas, tempo limite e 503 das integrações, Bearer sem `Origin`); 04/11/2026 (0.1.11: nome grudado na vista mínima, `reduzirErro`, `lerCode`, `erroJaReduzido` e `mapearErro` sem lançar, `ehErro` e `lerDigest`, `stack` lido uma vez no envio ao Sentry); 04/11/2026 (0.1.10: partes do nome do solicitante na vista mínima, `name` do erro lido uma vez e só como texto, marca do Sentry depois do envio); 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
+| Atualizado em | 12/11/2026 (0.3.1: prazo total nas transações das integrações, contando a espera por conexão, em "Tempo limite"; demanda do Awave não confirmada invisível para agente e `sistema`, na matriz); 12/11/2026 (0.3.0: atores de integração `awave` e `construir`, token de integração, matriz com a coluna das integrações e as quatro ações novas, tempo limite e 503 das integrações, Bearer sem `Origin`); 04/11/2026 (0.1.11: nome grudado na vista mínima, `reduzirErro`, `lerCode`, `erroJaReduzido` e `mapearErro` sem lançar, `ehErro` e `lerDigest`, `stack` lido uma vez no envio ao Sentry); 04/11/2026 (0.1.10: partes do nome do solicitante na vista mínima, `name` do erro lido uma vez e só como texto, marca do Sentry depois do envio); 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-01, RF-02, RNF-10, RNF-12, RNF-13; controles C-01 a C-21 de `04-seguranca-aplicacao.md`; RF-01 a RF-03, RF-09 e RF-11 do pedido 0016 (0.3.0) e os controles IN-01 a IN-04, IN-09, IN-14 e IN-15 dele |
-| Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `ator.ts`, `bloqueio-verificacao.ts`), `src/modules/integracoes/tempo-limite.ts`, `src/modules/limites.ts`, `src/db/schema/acesso.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/reduzir-erro.ts`, `src/lib/sentry.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
+| Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `ator.ts`, `bloqueio-verificacao.ts`), `src/modules/integracoes/tempo-limite.ts`, `src/db/transacao.ts` (desde a 0.3.1), `src/modules/demandas/confirmacao.ts` (desde a 0.3.1), `src/modules/limites.ts`, `src/db/schema/acesso.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/reduzir-erro.ts`, `src/lib/sentry.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
 
 ## RF-01. Login com 2FA
 
@@ -76,11 +76,23 @@ teto, no uso de IA, em `configuracao_agente` nem em `GET /api/agentes` (RF-11 do
 - **Limite:** o Awave cria no máximo 10 demandas em 60 minutos ([cap. 03](03-demandas.md#rf-03-criar-demanda)). O
   `construir` não tem limite de taxa novo. Integração sem limite definido no código lança erro, e nunca fica "sem
   limite" (`limiteDe`, IN-09).
-- **Tempo limite** (ADR-28, `src/modules/integracoes/tempo-limite.ts`): só na transação de um ator de integração, o
-  servidor põe `lock_timeout` de 2 s e `statement_timeout` de 5 s (10 s na entrega do pedido), abaixo do corte do
-  cliente (10 s no Awave, 15 s no `/construir`). Estourou: `ROLLBACK` e 503 `indisponivel` com a mensagem fixa "O
-  Orquestrador não concluiu o pedido a tempo e nada foi gravado. Tente de novo em alguns minutos.", sem texto do
-  Postgres. Pessoa e agente seguem como antes.
+- **Tempo limite** (ADR-28, `src/modules/integracoes/tempo-limite.ts`, `src/db/transacao.ts`). Vale só na transação
+  que o serviço abre para um ator de integração (`executarComOrcamento`). Pessoa, agente e `sistema` seguem com o
+  `statement_timeout` do pool e sem prazo total. São duas camadas:
+  - **piso por instrução** (desde a 0.3.0): `lock_timeout` de 2 s e `statement_timeout` de 5 s, ou 10 s na entrega do
+    pedido (`limitarTempo`, `SET LOCAL` com literais, rodados na abertura da transação);
+  - **prazo total da transação** (desde a 0.3.1, M-3): 8 s, ou 12 s na entrega (`PRAZO_TOTAL_MS`, `prazoTotalDe`),
+    abaixo do corte do cliente (10 s no Awave, 15 s no `/construir`). O prazo começa antes de pedir a conexão ao pool,
+    então a espera por uma conexão livre conta. Antes de cada instrução, `comTransacao` confere o que resta. Com o
+    prazo vencido, lança `PrazoDaTransacaoEsgotado`. Com o restante abaixo do piso, baixa o `statement_timeout` e o
+    `lock_timeout` até ele, por `set_config` com o valor por parâmetro. O prazo é conferido de novo antes do COMMIT. A
+    conexão que chegar depois do prazo volta ao pool. O pool não tem `connectionTimeoutMillis`, que valeria para todos
+    os atores.
+
+  Estourou qualquer das duas: `ROLLBACK` e 503 `indisponivel` com a mensagem fixa "O Orquestrador não concluiu o pedido
+  a tempo e nada foi gravado. Tente de novo em alguns minutos.", sem texto do Postgres. No `POST /api/demandas` do
+  Awave, a resposta 201 é lida dentro da mesma transação (desde a 0.3.1, M-2). Por isso, nada é gravado sem que o
+  Awave receba o 201.
 - **Ramos exaustivos** (ADR-22, IN-02): todo ponto do código que decide pelo tipo do ator é um `switch` com `never`.
   Um tipo de ator novo quebra o `typecheck`, em vez de cair no ramo do agente.
 
@@ -130,6 +142,17 @@ recebe só seis chaves, `id`, `titulo` (minimizado), `tipo`, `status`, `criadaEm
 ele criou. A de outro autor responde o mesmo 404 da demanda que não existe, saído da mesma consulta, com a autoria no
 `WHERE` (`obterDemandaDaIntegracao`, ADR-23, IN-08). As vistas de ESP, RSK e DEC lançam `sem_permissao` para
 integração.
+
+Desde a 0.3.1 (M-1 do pedido 0019, que substitui o CA-10.6 do 0016), a matriz não basta para o agente ler ou gravar
+numa demanda do Awave. Para agente e `sistema`, a demanda do Awave que nenhuma pessoa confirmou não existe:
+
+- leitura por id, de demanda, ESP, RSK ou DEC, e as listas de ESP, RSK e DEC dela: o mesmo 404 da inexistente;
+- `GET /api/demandas` e `GET /api/pacotes-decisao`: fora dos itens e do `total`;
+- criação de ESP, RSK ou DEC: o mesmo 404, sem gravar nada.
+
+A regra é uma só, `exigirVisivelPara` (`src/modules/demandas/confirmacao.ts`), com a versão SQL
+`condicaoVisivelAoAgente` para as listas. Autoria fora da lista conhecida nunca é visível (falha fechada). Pessoa e
+integração não passam por ela. Detalhe no [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030).
 
 ## Proteção das rotas
 

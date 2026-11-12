@@ -10,7 +10,7 @@ import { ErroDominio } from '../../lib/erros';
 import type { Ator } from '../acesso/ator';
 import { exigirAtorPessoa } from '../acesso/ator-pessoa';
 import { autorizar } from '../acesso/matriz';
-import { dispararSeLigado } from '../agentes/gatilhos';
+import { dispararOuReenfileirar } from '../agentes/gatilhos';
 import { registrarEvento } from '../historico/registrar';
 import { travarDemanda } from '../versoes';
 import { jaConfirmada } from './confirmacao';
@@ -54,7 +54,8 @@ export async function confirmarDemanda(deps: DepsComFila, ator: Ator, id: string
       { ator: pessoa, demandaId: id, entidade: 'demanda', entidadeId: id, acao: 'demanda_confirmada', depois: { confirmada: true } },
       deps.relogio,
     );
-    await dispararSeLigado(tr, deps, 'insumo_tecnico', `demanda:${id}`, id);
+    // M-5 da 0019: se o worker devolveu a execução precoce a pendente (sem gastar a chave), ela é reenfileirada.
+    await dispararOuReenfileirar(tr, deps, 'insumo_tecnico', `demanda:${id}`, id);
     return { jaConfirmada: false };
   };
   return t ? corpo(t) : comTransacao(deps.pool, corpo);

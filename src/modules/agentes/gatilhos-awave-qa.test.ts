@@ -146,7 +146,9 @@ describe('IN-06 de ponta a ponta: gatilho, fila e worker com o provedor ligado',
     expect(await passadaDoWorker(dem.id, provedor)).toBe(1);
     expect(provedor.chamadas).toEqual([]);
     expect(await usosDa(dem.id)).toBe(0);
-    expect(await execucoesDa(dem.id)).toEqual([{ agente: 'consolidacao', chave_entrada: `rsk:${rsk.id}`, status: 'ignorada' }]);
+    // Mudança aprovada (M-5 da 0019, pendência da 02-triagem): a execução bloqueada volta a `pendente` em vez de ficar
+    // `ignorada`; provedor não chamado, uso zero e o evento continuam exigidos.
+    expect(await execucoesDa(dem.id)).toEqual([{ agente: 'consolidacao', chave_entrada: `rsk:${rsk.id}`, status: 'pendente' }]);
     const { rows } = await b.poolMigrator.query(`select acao, ator_tipo, depois from evento where entidade = 'execucao_agente' and entidade_id = $1`, [id]);
     expect(rows).toEqual([{ acao: 'agente_ignorado', ator_tipo: 'sistema', depois: { agente: 'consolidacao', motivo: 'sem_confirmacao' } }]);
     expect(capturarErro).not.toHaveBeenCalled();

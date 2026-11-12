@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.0: conferência e montagem em `conferir.ts`, a mesma da geração e da entrega; seção "Entrega ao /construir", com as três rotas novas; texto da seção do pedido e "Recebido pelo /construir em …" na T11); 10/11/2026 (0.1.13: só o DEC aprovado mais novo gera, 409 do substituído, linha 6 da orientação e T11 do substituído, no RF-22; substituído marcado no RF-23); 04/11/2026 (0.1.12: recusa com o nome do solicitante, confirmação sem dado pessoal no corpo e na T11, `aprovadoPor` com o papel, no RF-22); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo de C-28 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
+| Atualizado em | 12/11/2026 (0.3.1: entrega e recebimento sob a mesma trava do DEC; recebimento só do hash da última entrega; entrega grava quando o hash difere do último; prazo total; DEC de demanda do Awave não confirmada fora da lista do agente, no RF-23); 12/11/2026 (0.3.0: conferência e montagem em `conferir.ts`, a mesma da geração e da entrega; seção "Entrega ao /construir", com as três rotas novas; texto da seção do pedido e "Recebido pelo /construir em …" na T11); 10/11/2026 (0.1.13: só o DEC aprovado mais novo gera, 409 do substituído, linha 6 da orientação e T11 do substituído, no RF-22; substituído marcado no RF-23); 04/11/2026 (0.1.12: recusa com o nome do solicitante, confirmação sem dado pessoal no corpo e na T11, `aprovadoPor` com o papel, no RF-22); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo de C-28 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-22, RF-23; RNF-15; RF-12 a RF-15 do pedido 0016 (0.3.0) |
 | Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `conferir.ts`, `entregar.ts`, `receber.ts`, `pendentes.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`, `schemas.ts`), `src/modules/dados-pessoais/detectores.ts`, `src/modules/dados-pessoais/minimizar.ts` (`temNome`), `src/modules/pacotes-decisao/criar.ts` (`descricaoSemRotulos`), `src/modules/pacotes-decisao/substituido.ts`, `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/(painel)/pacotes-decisao/[decId]/` (`SecaoPedido.tsx`, `acoes-pedido.ts`), `src/components/dados-do-pedido.ts`, `src/components/dados-da-decisao.ts` (`linhaDoRecebimento`), `src/app/api/pacotes-decisao/route.ts`, `src/app/api/pedidos-construcao/` |
@@ -285,15 +285,21 @@ cada busca.
 
 ### Entrega (`entregar_pedido`)
 
-`entregarPedido` (`entregar.ts`), numa transação com o tempo limite da entrega (10 s):
+`entregarPedido` (`entregar.ts`), numa transação com o orçamento da entrega: 10 s por instrução e, desde a 0.3.1, prazo
+total de 12 s, contando a espera por conexão ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)):
 
+0. desde a 0.3.1 (M-4), a primeira instrução é a trava consultiva do DEC, `travarPedido` (`pendentes.ts`), a mesma do
+   recebimento. A entrega e o recebimento do mesmo DEC entram em fila. A ordem das travas é sempre a do pedido e depois
+   a da demanda (dentro de `conferirEMontarPedido`);
 1. sem `pedido_gerado` por pessoa para esse DEC → 404, igual ao do DEC que não existe;
 2. `conferirEMontarPedido`: as mesmas conferências e a mesma montagem da geração, passos 3 a 11 do
    [RF-22](#rf-22-gerar-o-pedido), **sem** pedir de novo a confirmação sem dado pessoal (ela foi dada na geração). As
    recusas são as da geração (404, 409 e 422, com as mesmas mensagens), sem evento. O nome conferido é o atual do
    solicitante, então um solicitante renomeado depois da geração pode fazer a entrega ser recusada;
-3. o SHA-256 dos bytes é calculado pelo servidor. Se esse hash ainda não foi entregue para o DEC, grava
-   `pedido_entregue` com `{ sha256 }`. Repetir a entrega dos mesmos bytes não grava de novo (um evento por hash);
+3. o SHA-256 dos bytes é calculado pelo servidor. Se ele difere do hash da última entrega do DEC
+   (`ultimoShaEntregue`, `pendentes.ts`), grava `pedido_entregue` com `{ sha256 }`. Repetir a entrega dos mesmos bytes
+   não grava de novo. Desde a 0.3.1, a sequência X → Y → X grava três eventos, para a última entrega ser de fato a
+   última (na 0.3.0, era um evento por hash, e o terceiro não era gravado);
 4. 200, `content-type: application/json; charset=utf-8`, com o corpo **byte a byte igual** ao da geração (CA-22.2).
 
 A rota é `POST`, e não `GET`, porque grava evento. Ela não tem corpo: o `/construir` manda só o Bearer, sem `Origin` e
@@ -301,20 +307,25 @@ sem `content-type`.
 
 ### Recebimento (`confirmar_recebimento_pedido`)
 
-`receberPedido` (`receber.ts`), com o corpo `{ "sha256": "<64 hexadecimais minúsculos>" }`, numa transação sob uma
-trava por DEC:
+`receberPedido` (`receber.ts`), com o corpo `{ "sha256": "<64 hexadecimais minúsculos>" }`, numa transação com o
+orçamento padrão (prazo total de 8 s desde a 0.3.1). A primeira instrução é a trava consultiva do DEC, `travarPedido`,
+a mesma da entrega (desde a 0.3.1, M-4). O recebimento só lê os hashes entregues depois de travar, então um recebimento
+que chega durante uma entrega espera ela terminar. Ele não trava a demanda, e por isso não espera uma edição de pessoa.
 
 | Situação | Resposta |
 |---|---|
 | `sha256` ausente ou fora do formato, ou chave a mais | 400 `entrada_invalida`, com "Informe o sha256 com 64 caracteres hexadecimais minúsculos." em `campos`, antes de olhar o DEC |
 | DEC inexistente ou sem `pedido_gerado` por pessoa | 404 |
 | DEC sem nenhuma entrega | 409 "Este pedido ainda não foi entregue ao /construir. Peça a entrega antes de confirmar o recebimento." |
-| hash diferente de todo `pedido_entregue` do DEC | 409 "O SHA-256 enviado não confere com o pedido entregue. Busque o pedido de novo.", sem evento |
-| hash igual ao de uma entrega | 204 e `pedido_recebido` com o hash do servidor |
+| hash diferente do da **última** entrega do DEC, inclusive o de uma entrega anterior já substituída (desde a 0.3.1) | 409 "O SHA-256 enviado não confere com o pedido entregue. Busque o pedido de novo.", sem evento. A resposta não diz se o hash já foi entregue |
+| hash igual ao da última entrega | 204 e `pedido_recebido` com o hash do servidor |
 | o mesmo recebimento de novo | 204, sem evento novo |
 
-O recebimento compara com os hashes que a entrega gravou e não remonta o pedido. Por isso, um DEC substituído,
-desatualizado ou com a demanda em status final **depois** da entrega ainda confirma o recebimento.
+O recebimento compara com o hash da última entrega gravada (`ultimoShaEntregue`) e não remonta o pedido. Por isso, um
+DEC substituído, desatualizado ou com a demanda em status final **depois** da entrega ainda confirma o recebimento. Na
+0.3.0, qualquer hash já entregue confirmava. Um recebimento atrasado de uma entrega antiga tirava o DEC da lista de
+pendentes, e a entrega nova ficava sem confirmação. Desde a 0.3.1, ele recebe 409, e o `/construir` busca o pedido de
+novo.
 
 ### No painel
 
@@ -338,3 +349,11 @@ derivado: é o DEC sem linha em `decisao`, inclusive o que tem só uma das duas 
 traz também o DEC substituído, com `substituido: true` e `substituidoPor` com o id do aprovado vigente; não há filtro
 nem status próprio para ele ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)). Quem busca o DEC que
 gera filtra `substituido: false`.
+
+Desde a 0.3.1 (A-1 da revisão do pedido 0019), a rota usa `listarPacotesPara` (`src/modules/pacotes-decisao/consultas.ts`):
+
+- pessoa vê todos os DEC;
+- agente e `sistema` não veem o DEC de demanda do Awave que nenhuma pessoa confirmou, nem nos itens nem no `total`
+  (`demandaVisivelAoAgente`, [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030));
+- o DEC sem demanda também não entra para eles (falha fechada);
+- integração recebe 403 antes de qualquer leitura.

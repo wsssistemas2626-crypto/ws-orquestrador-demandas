@@ -39,14 +39,15 @@ export type EstadoDaConfirmacao =
 // 03, 5.4: só a demanda do Awave tem a seção. Confirmada vale em qualquer status (é um fato que já aconteceu); sem
 // confirmação, o status final tira o botão. A confirmação mostrada é a primeira: o histórico chega do mais novo para o
 // mais antigo (listarHistorico), então é a última da lista. O servidor grava uma só (CA-06.3, IN-07); a regra só
-// escolhe de forma estável se houver mais.
+// escolhe de forma estável se houver mais. M-d da 04-revisao da 0019: a mesma regra do servidor (jaConfirmada, B-3): só o
+// evento de pessoa confirma; o de agente, sistema ou integração não conta.
 export function estadoDaConfirmacao(x: { origem: OrigemDaDemanda; status: Status; historico: readonly EventoDaConfirmacao[] }): EstadoDaConfirmacao {
   switch (x.origem) {
     case 'pessoa':
     case 'agente':
       return { tipo: 'nao_se_aplica' };
     case 'awave': {
-      const confirmacao = x.historico.findLast((e) => e.acao === 'demanda_confirmada');
+      const confirmacao = x.historico.findLast((e) => e.acao === 'demanda_confirmada' && e.ator.tipo === 'pessoa');
       if (confirmacao) return { tipo: 'confirmada', ator: rotuloAtor(confirmacao.ator), em: confirmacao.ocorridoEm };
       if (STATUS_FINAIS_NA_TELA.includes(x.status)) return { tipo: 'final_sem_confirmacao', status: x.status };
       return { tipo: 'aguardando' };

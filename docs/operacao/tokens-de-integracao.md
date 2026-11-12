@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.3.0 |
-| Atualizado em | 12/11/2026 (`documentacao-tecnica`, pedido 0016: primeira versão) |
+| Versão | 0.3.1 |
+| Atualizado em | 12/11/2026 (`documentacao-tecnica`, pedido 0019: a limitação da 0.3.0 saiu; os tokens de produção se emitem com a 0.3.1 no ar); 12/11/2026 (`documentacao-tecnica`, pedido 0016: primeira versão) |
 | Dono | `documentacao-tecnica` (operação: `devops-sre`; sistema: Fabiano) |
 | Quem executa | Fabiano. Emitir, trocar e revogar token de produção é ação dele, no console do serviço `app` do Easypanel |
 | Situação | vigente, ainda não executado em produção. A primeira execução é a UAT da 0.3.0 (UAT-03, UAT-09, UAT-10 e UAT-12 de `docs/construcao/DEC-DEM-20261111-0016-v1/07-qa-funcional.md`, seção 7), que também testa este texto |
@@ -24,9 +24,10 @@ Regras que valem para os dois:
 - O banco guarda só o SHA-256 do token e o prefixo (8 caracteres). Ninguém recupera um token perdido: emita outro.
 - O prefixo identifica o token no histórico e na revogação, sem revelá-lo.
 - Revogar um token não afeta os outros, de agente ou de integração.
-- **Limitação conhecida da 0.3.0:** a revisão do pedido 0016 recomenda publicar uma 0.3.1 curta antes de emitir os
-  tokens de produção. Até essa versão, não emita os tokens `awave` e `construir` de produção. Sem token emitido, as
-  rotas das integrações respondem 401, e nada fica exposto.
+- **Emita os tokens de produção só com a 0.3.1 ou posterior no ar.** A 0.3.1 corrigiu os cinco médios da revisão da
+  0.3.0. A 0.3.0 não vai ao ar sozinha: entra junto com a 0.3.1, pela "Publicação conjunta 0.2.0 → 0.3.1"
+  ([deploy.md, seção 5](deploy.md)). Se a produção voltar para a 0.3.0 com os tokens emitidos, desligue antes a busca
+  em `pedidos/config/orquestrador.json` e revogue o token `awave` (deploy.md, seção 6, "Volta da 0.3.1").
 
 ## 1. Emitir
 

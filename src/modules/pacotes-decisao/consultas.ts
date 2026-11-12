@@ -3,7 +3,7 @@
 // para `aprovada` usa (RF-07, RF-12); `substituido` e `substituidoPor` (0.1.13) vêm de expressaoSubstituidoPor. A autoria aparece como nas outras versões: pessoa pelo nome da conta, agente pelo
 // nome do agente, nunca pelo id interno da conta. `especificacaoCitada` e `niveisRisco` existem para a revisão visível
 // na tela de decisão (C-14); são os da ESP e do RSK citados, e não os mais novos.
-import { asc, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from '../../db';
 import { aprovacao, decisao, demanda, especificacaoTecnica, pacoteDecisao, parecerRisco, user } from '../../db/schema';
@@ -12,6 +12,7 @@ import type { TipoDemanda } from '../../db/schema/demandas';
 import type { NivelRisco } from '../../db/schema/versoes';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import { atorDesconhecido, type Ator } from '../acesso/ator';
+import { demandaVisivelAoAgente } from '../demandas/confirmacao';
 import {
   contaDoAutor,
   listaMinimaOuNula,
@@ -293,12 +294,13 @@ function condicaoDoStatus(status: StatusDecisao | undefined): SQL | undefined {
   return eq(decisao.statusDecisao, status);
 }
 
+type PaginaDePacotes = { itens: PacoteDecisaoVista[]; total: number; limit: number; offset: number };
+
 // Todos os DEC, do mais novo para o mais antigo, com o filtro por status de decisão (RF-23) e a paginação da fila.
-export async function listarPacotes(
-  db: Db,
-  filtro: FiltroPacotes,
-): Promise<{ itens: PacoteDecisaoVista[]; total: number; limit: number; offset: number }> {
-  const onde = condicaoDoStatus(filtro.statusDecisao);
+// `soVisiveisAoAgente` (A-1 da 04-revisao da 0019): o mesmo `onde` dos itens e do total deixa de fora o DEC de demanda
+// que aguarda a confirmação de uma pessoa. Quem decide é listarPacotesPara.
+export async function listarPacotes(db: Db, filtro: FiltroPacotes, op: { soVisiveisAoAgente: boolean } = { soVisiveisAoAgente: false }): Promise<PaginaDePacotes> {
+  const onde = and(condicaoDoStatus(filtro.statusDecisao), op.soVisiveisAoAgente ? demandaVisivelAoAgente(pacoteDecisao.demandaId) : undefined);
   const linhas = await selecao(db)
     .where(onde)
     .orderBy(desc(pacoteDecisao.criadaEm), desc(pacoteDecisao.demandaId), desc(pacoteDecisao.versao))
@@ -307,4 +309,21 @@ export async function listarPacotes(
   const itens = await vistas(db, linhas);
   const [contagem] = await db.select({ n: count() }).from(pacoteDecisao).leftJoin(decisao, eq(decisao.pacoteDecisaoId, pacoteDecisao.id)).where(onde);
   return { itens, total: contagem?.n ?? 0, limit: filtro.limit, offset: filtro.offset };
+}
+
+// A listagem da API (GET /api/pacotes-decisao), pelo tipo do ator, no padrão de listarDemandasPara. Pessoa vê todos;
+// agente e sistema não veem o DEC de demanda que aguarda confirmação (M-1 da 0019), nem nos itens nem no total;
+// integração não lê DEC (IN-02), recusada antes de qualquer leitura.
+export async function listarPacotesPara(db: Db, filtro: FiltroPacotes, ator: Ator): Promise<PaginaDePacotes> {
+  switch (ator.tipo) {
+    case 'pessoa':
+      return listarPacotes(db, filtro, { soVisiveisAoAgente: false });
+    case 'agente':
+    case 'sistema':
+      return listarPacotes(db, filtro, { soVisiveisAoAgente: true });
+    case 'integracao':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
 }

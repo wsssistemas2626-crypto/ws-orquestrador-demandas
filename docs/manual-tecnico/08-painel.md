@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.0: origem e filtro "Origem" na T03; origem, selo "Aguardando confirmação", seção "Confirmação do Awave" e linha 14 da Próxima ação na T05; "Recebido pelo /construir em …" e texto novo da seção do pedido na T11; rótulos do histórico); 11/11/2026 (0.2.0: novo visual, com identidade, casca e gaveta, fila com contadores, T05 com barra de etapas e "Próxima ação", T11 por três botões e no celular, telas públicas, o que não mudou, testes nas duas larguras, capturas e pendências novas); 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
+| Atualizado em | 12/11/2026 (0.3.1: o estado da seção "Confirmação do Awave" só aceita a confirmação de pessoa, na T05); 12/11/2026 (0.3.0: origem e filtro "Origem" na T03; origem, selo "Aguardando confirmação", seção "Confirmação do Awave" e linha 14 da Próxima ação na T05; "Recebido pelo /construir em …" e texto novo da seção do pedido na T11; rótulos do histórico); 11/11/2026 (0.2.0: novo visual, com identidade, casca e gaveta, fila com contadores, T05 com barra de etapas e "Próxima ação", T11 por três botões e no celular, telas públicas, o que não mudou, testes nas duas larguras, capturas e pendências novas); 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-26; RNF-11, RNF-16; RF-01 a RF-17 do pedido `DEC-DEM-20261110-0015-v1` (0.2.0); RF-06, RF-10, RF-11 e RF-15 do pedido `DEC-DEM-20261111-0016-v1` (0.3.0) |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/app/globals.css`, `src/app/fontes.ts`, `src/components/` (inclusive `casca/` e `marca/`), `src/proxy.ts`, `e2e/` |
@@ -253,7 +253,10 @@ entre a 2 e a 3.
 - **Seção "Confirmação do Awave"** (`ConfirmarDemanda.tsx`; textos em `TEXTOS_CONFIRMACAO`,
   `src/components/dados-da-confirmacao.ts`), depois de Dados, com o `h2 id="confirmacao"` focável e o item em "Nesta
   página". Só existe na demanda do Awave. O estado sai de `estadoDaConfirmacao`, função pura sobre a origem, o status e
-  o histórico que a página já lê:
+  o histórico que a página já lê. Desde a 0.3.1 (M-d da revisão do pedido 0019), ela só aceita o evento
+  `demanda_confirmada` com ator `pessoa`, a mesma regra do servidor (`jaConfirmada`). Um evento de agente, `sistema` ou
+  integração deixa a seção em "Aguardando", ou em "Status final sem confirmação" na demanda encerrada, e não toma o
+  lugar da confirmação de uma pessoa. O selo e a linha 14 da Próxima ação saem do mesmo estado:
 
   | Estado | O que aparece |
   |---|---|

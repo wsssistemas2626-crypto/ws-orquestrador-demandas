@@ -3,6 +3,213 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.3.1 — 2026-11-12
+
+Correção do pedido `DEC-DEM-20261112-0019-v1` (cadeia curta, tipo bug, risco médio). A revisão de código e de
+segurança da 0.3.0 (`docs/construcao/DEC-DEM-20261111-0016-v1/08-maestro.md`) não achou nada crítico nem alto, mas
+deixou cinco médios, M-1 a M-5. Esta versão corrige os cinco e três baixos, B-1 a B-3, **antes de emitir os tokens de
+produção** das integrações. Fabiano aprovou, como CTO, em 12/11. Base: a `main` da 0.3.0 (`d49de53`, merge do PR #17).
+
+Não há rota, tela, migration, variável de ambiente, dependência nem serviço novo. As mensagens são as de antes. Nenhum
+controle da 0.3.0 foi afrouxado. Os testes que mudaram de sentido ficaram mais restritos e estão registrados como
+mudança aprovada (abaixo).
+
+Ainda não foi publicada. A 0.3.0 não vai ao ar sozinha: a produção sai da 0.2.0 direto para a 0.3.1, que leva a
+migration `0007` da 0.3.0. O procedimento está no `docs/operacao/deploy.md`, seção 5, "Publicação conjunta 0.2.0 →
+0.3.1":
+
+1. antes do merge, o "Auto Deploy" desligado e os segredos de webhook ausentes. O merge da 0.3.1 não traz migration
+   nova em relação à 0.3.0, e o `deploy.yml` chamaria os webhooks sem a `0007`;
+2. backup;
+3. a `0007` num passo separado;
+4. o Deploy do `worker` e depois o do `app`.
+
+A volta (seção 6) tem dois destinos:
+
+- para a 0.3.0, só trocando a imagem, sem perder dado. Ela reabre o M-1 a M-5;
+- para a 0.2.0, só com o backup restaurado.
+
+Com a 0.3.1 no ar, os tokens `awave` e `construir` de produção podem ser emitidos
+([tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md)).
+
+### O que muda para quem usa
+
+- **Agente de IA não enxerga demanda do Awave antes da confirmação** (M-1). Para o token de agente e para o ator
+  `sistema`, a demanda que nenhuma pessoa confirmou não existe:
+  - `GET /api/demandas/:id` responde o mesmo 404 da demanda inexistente, com o mesmo corpo;
+  - a listagem `GET /api/demandas` não a traz, e o `total` não a conta;
+  - as leituras de ESP, RSK e DEC dela também respondem 404, inclusive as que uma pessoa gravou à mão, e a lista
+    `GET /api/pacotes-decisao` não traz o DEC dela;
+  - criar ESP, RSK ou DEC nela responde o mesmo 404, sem gravar nada e sem consumir o limite por ator.
+
+  Depois que uma pessoa com 2FA confirma, tudo segue como na 0.3.0. A pessoa vê e age como antes, confirmada ou não.
+  Isso substitui o CA-10.6 do pedido 0016, que dava a vista mínima ao agente antes da confirmação (decisão de Fabiano
+  em 12/11). A spec do pedido pedia 409 na criação. A triagem trocou por 404 (P3, decisão do maestro autorizada por
+  Fabiano), para o agente não saber que a demanda existe.
+- **Só a confirmação de uma pessoa conta** (B-3). O evento `demanda_confirmada` de outro ator não libera a demanda, nem
+  no servidor nem na tela. A seção "Confirmação do Awave" e o selo "Aguardando confirmação" da T05 usam a mesma regra
+  (M-d da revisão deste pedido).
+- **O insumo técnico roda depois da confirmação, mesmo que tenha chegado antes** (M-5). Uma execução de demanda do
+  Awave que chegue ao worker antes da confirmação passa a esperar, e não é mais encerrada. Quando a pessoa confirma,
+  ela roda uma vez. Se o agente estiver desligado ou suspenso pelo teto nessa hora, ela espera o agente voltar (A-3). Na
+  0.3.0, essa execução ficava `ignorada` e o insumo nunca rodava.
+- **O `/construir` só confirma a última entrega** (M-4). O recebimento aceita só o SHA-256 da entrega mais recente do
+  DEC. O hash de uma entrega anterior recebe 409 "O SHA-256 enviado não confere com o pedido entregue. Busque o pedido
+  de novo.", sem gravar nada. A entrega e o recebimento do mesmo DEC esperam um pelo outro.
+- **Prazo total nas integrações** (M-3 e M-2). Cada pedido do Awave e do `/construir` tem um prazo para a transação
+  inteira: 8 s, e 12 s na entrega do pedido. O prazo conta também a espera por uma conexão livre com o banco, e fica
+  abaixo do tempo que o cliente espera (10 s no Awave, 15 s no `/construir`). Passou do prazo: nada é gravado, e a
+  resposta é o 503 de sempre, "O Orquestrador não concluiu o pedido a tempo e nada foi gravado. Tente de novo em
+  alguns minutos.". O 201 do Awave é montado dentro dessa transação. Assim, a demanda não fica gravada com o Awave
+  recebendo erro, e a nova tentativa dele não cria uma segunda demanda. Pessoa e agentes não têm prazo total.
+
+A regra completa está no manual:
+[cap. 03](docs/manual-tecnico/03-demandas.md#demanda-aberta-pelo-awave-030),
+[cap. 05](docs/manual-tecnico/05-pedido-de-construcao.md#recebimento-confirmar_recebimento_pedido),
+[cap. 02](docs/manual-tecnico/02-acesso-e-seguranca.md#atores-de-integração-030) e
+[cap. 06](docs/manual-tecnico/06-agentes-de-ia.md#rf-16-execução-dos-agentes).
+
+### O que mudou na API
+
+Não há rota, corpo, campo nem mensagem novos.
+
+- Para agente (e `sistema`), a demanda do Awave não confirmada dá 404 em `GET /api/demandas/:id`, nas três listas
+  `GET /api/demandas/:id/especificacoes`, `/pareceres-risco` e `/pacotes-decisao` e nos três `GET` por id de ESP, RSK
+  e DEC. Ela fica fora de `GET /api/demandas` e de `GET /api/pacotes-decisao`, nos itens e no `total`.
+- `POST /api/demandas/:id/especificacoes`, `/pareceres-risco` e `/pacotes-decisao` com token de agente, nessa demanda:
+  404, antes do 409 de status final e do 429 do limite.
+- `POST /api/pedidos-construcao/:decId/recebimento`: 409 com a mensagem de hash diferente para todo hash que não é o da
+  última entrega.
+- `POST /api/pedidos-construcao/:decId/entrega`: grava `pedido_entregue` sempre que o hash difere do da última entrega.
+  A sequência X → Y → X grava três eventos, e repetir o mesmo hash não grava.
+- 503 `indisponivel`: também quando o prazo total da transação de uma integração passa.
+
+Referência no [manual, cap. 09](docs/manual-tecnico/09-referencia-api.md).
+
+### O que mudou no código
+
+- **Visibilidade para agente** (M-1, A-1 e M-c; `src/modules/demandas/confirmacao.ts`). `exigirVisivelPara` é o helper
+  único: para agente e sistema, a demanda que aguarda confirmação lança o mesmo `nao_encontrado` do id inexistente. Ele
+  é chamado em `lerDemandaPara`, nas seis rotas `GET` de ESP, RSK e DEC e nos três serviços de criação, logo depois de
+  `travarDemanda` e antes de `recusarSeDemandaFinal` e do limite. A mesma regra em SQL é `condicaoVisivelAoAgente`, na
+  listagem de demandas (`soVisiveisAoAgente`), e `demandaVisivelAoAgente`, na de DEC (`listarPacotesPara`, A-1). As
+  duas regras fecham para autoria fora da lista (M-c), e um teste confere uma contra a outra.
+- **Confirmação só de pessoa** (B-3 e M-d): `jaConfirmada` (`confirmacao.ts`) e `estadoDaConfirmacao`
+  (`src/components/dados-da-confirmacao.ts`) só aceitam o evento com ator `pessoa`.
+- **Worker** (M-5, A-3, M-a e M-b; `src/modules/agentes/`).
+  - O passo "3a" novo de `executar.ts` acha a demanda pela chave da entrada (`demandaDaChave`, `entrada-agente.ts`). A
+    execução cuja chave não acha, ou aponta outra demanda, ou nenhuma (fora o orquestrador), termina `falhou`, com o
+    motivo `entrada_nao_encontrada`, sem chamar o provedor.
+  - O passo "3c" passou a devolver a execução a `pendente`, sem job e sem contar a tentativa (`adiarAteConfirmacao`,
+    `devolverAPendenteSemJob`), com o resultado novo `aguardando_confirmacao`. Grava o mesmo evento
+    `agente_ignorado`/`sem_confirmacao` de antes. A decisão é conferida de novo sob a trava da demanda (M-a).
+  - `confirmarDemanda` chama `dispararOuReenfileirar` (`gatilhos.ts`). Ele reenfileira a execução que esperava
+    (`reenfileirarPendente`, que grava `atualizada_em`, M-b).
+  - O batimento (`src/jobs/batimento.ts`) não reenfileira a pendente cuja demanda aguarda confirmação. Também não
+    reenfileira a execução adiada cujo agente está desligado ou suspenso pelo teto (A-3).
+- **Recebimento e entrega** (M-4; `src/modules/pedido-construcao/`). As duas operações abrem com a mesma trava
+  consultiva, `travarPedido` (`pendentes.ts`), e o recebimento lê os hashes depois dela. `ultimoShaEntregue` decide o
+  recebimento e a gravação da entrega.
+- **Prazo total** (M-3 e A-2; `src/db/transacao.ts` e `src/modules/integracoes/tempo-limite.ts`):
+  - `comTransacao` aceita `prazoMs`, que corre desde a espera por `pool.connect()`. Passou do prazo: lança
+    `PrazoDaTransacaoEsgotado`, e a conexão que chegar tarde volta ao pool;
+  - antes de cada instrução, o tempo-limite em vigor baixa até o que resta, por `set_config` com parâmetro;
+  - `PRAZO_TOTAL_MS` (8 s e 12 s) e `prazoTotalDe` dão o prazo só para integração;
+  - os `SET LOCAL` de antes (2 s de trava; 5 s por instrução, 10 s na entrega) continuam como piso. Eles rodam na
+    abertura da transação, antes do restante (A-2);
+  - `traduzirTempoEsgotado` leva o prazo esgotado ao 503. A classe entrou em `CLASSES_DO_PROJETO`. O pool não ganhou
+    `connectionTimeoutMillis`, porque o prazo vale só para integração.
+- **201 do Awave** (M-2; `src/modules/demandas/servico.ts`, `src/app/api/demandas/route.ts`). `criarDemanda` tem uma
+  sobrecarga por tipo de ator. Para a integração, a vista de seis chaves sai de `obterDemandaDaIntegracao` dentro da
+  transação com prazo, e nada é lido depois do COMMIT.
+- **Script de token** (B-2; `scripts/criar-token-servico.ts`). `donoDosArgumentos` exige exatamente um entre `--agente`
+  e `--integracao`. Sem nenhum ou com os dois, lança "Informe exatamente um entre --agente e --integracao.", e
+  `executarCriarToken` decide o dono por `switch` com `never`. Não há caminho que saia com sucesso sem emitir.
+- **e2e** (B-1): `e2e/integracoes.spec.ts` com `test.use({ trace: 'off' })`. O teste estático
+  `test/estatico/trace-e2e.test.ts` reprova toda spec que mande credencial no cabeçalho sem desligar o trace.
+- **Seed** (`scripts/seed-ficticio.ts`): a demanda do Awave encerrada no seed passou a ser achada pelo título da
+  entrada, porque o 201 do Awave traz o título minimizado.
+- **Testes:** 13 arquivos novos de regressão, cobrindo todos os achados, cada um visto falhando antes do código.
+  - Mudaram de sentido, como mudança aprovada (IN-16), com a regra nova no lugar: `criacao-awave.test.ts` (CA-10.6),
+    `executar-awave.test.ts`, `gatilhos-awave-qa.test.ts`, `executar.bordas.test.ts`, `origem.test.ts`,
+    `origem-qa.test.ts` e `recebimento-qa.test.ts`.
+  - Mudaram por inventário: `reduzir-erro.test.ts` e `projeto.test.ts`.
+  - Nenhum teste foi apagado, pulado ou afrouxado.
+- **Versão:** o `package.json` passou de 0.3.0 para 0.3.1.
+- **Documentação:**
+  - estas notas;
+  - a versão no `README.md`, no manual técnico e no `docs/operacao/`;
+  - no manual: cap. 01, 02, 03, 04, 05, 06, 08, 09 e 10, o índice e o glossário;
+  - a limitação conhecida saiu das notas da 0.3.0 e do `tokens-de-integracao.md`;
+  - as seções 1, 4, 5, 6 e 10 do `deploy.md` vieram da `05-devops-sre.md`.
+
+### Verificações desta versão
+
+- `pnpm test`: 6.485 de 6.485, em 306 arquivos (`04-correcao-engenheiro-backend.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção: 276 passaram, 9 capturas puladas de propósito e nenhuma falha
+  (`04-correcao-engenheiro-backend.md`; o mesmo na `04-qa-automacao.md`). Na homologação, 271 passaram
+  (`05-devops-sre.md`).
+- Revisão de código e de segurança (`04-maestro.md`): três altos (A-1 a A-3) e quatro médios (M-a a M-d), corrigidos
+  no mesmo pedido. O reteste da `seguranca-aplicacao` (`04-seguranca-aplicacao.md`) não deixou crítico nem alto aberto.
+- Imagem construída na homologação: 1,77 GB em disco e 440 MB de conteúdo, igual à da 0.3.0.
+- Ensaio de rollback 0.3.1 → 0.3.0: `alteram_dado: false` e `volta_sem_restaurar: true`.
+- `pnpm audit --prod` não rodou no pedido. O `pnpm-lock.yaml` é o da 0.3.0, e o job `dependencias` do CI do PR roda a
+  auditoria.
+- O CI do PR fica para a Parada 3.
+
+### Pendências abertas
+
+Para Fabiano:
+
+- **Antes do merge** (`deploy.md`, seção 5, passo 1), confirmar quatro coisas:
+  - os segredos `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER` não existem no repositório;
+  - o "Auto Deploy" está desligado no `app` e no `worker`;
+  - as imagens da 0.2.0 estão rotuladas `:v0.2.0`;
+  - o host faz `docker pull` da imagem privada do GHCR.
+- **Publicação conjunta 0.2.0 → 0.3.1**, nesta ordem: backup antes, a `0007` num passo separado, Deploy do `worker` e
+  depois do `app`, e conferência. Snapshot no hPanel: hoje ele congela a VPS e exige reboot manual. Depois disso:
+  - emitir os tokens `awave` e `construir` e guardá-los ([tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md));
+  - ligar a busca em `pedidos/config/orquestrador.json`;
+  - rodar a UAT da 0.3.0.
+- **BR-3 (risco residual):** os ids das demandas são sequenciais. O agente pode perceber uma lacuna e deduzir que
+  existe uma demanda escondida, sem ver o conteúdo dela. O aceite é de Fabiano, com a `gestao-riscos`.
+- **Spec das integrações** (`docs/superpowers/specs/2026-11-11-ws-orquestrador-demandas-integracoes-design.md`): ainda
+  descreve o comportamento da 0.3.0. Os trechos desatualizados são estes:
+  - o RF-10 com o CA-10.6;
+  - o RF-14 e o C09 (recebimento de qualquer hash entregue; um `pedido_entregue` por hash);
+  - o ADR-26;
+  - o ADR-28 e os "Tempos limite", sem o prazo total.
+
+  Nenhum agente da cadeia curta edita a spec. A atualização fica com o maestro, na Parada 3. Vale o código, descrito no
+  manual.
+
+Para outras áreas:
+
+- `devops-sre` (proposta para uma versão futura): o `deploy.yml` comparar `drizzle/` com o commit que está em produção,
+  e não com o push anterior.
+- `seguranca-aplicacao` e `tech-lead`, como dívida:
+  - O-1: a opção `abertura` de `comTransacao` aceita qualquer função e roda fora do controle do prazo;
+  - código 6: em transação com prazo, não usar `Promise.all`, porque cada instrução recebe o restante inteiro;
+  - código 8: um `set_config` a mais por instrução abaixo do piso;
+  - código 9: duplicação de `ultimoShaEntregue` com `shasEntregues`, e de `TEMPO_ESGOTADO`;
+  - código 10: a regra de visibilidade é chamada à mão em cada rota e serviço, e o certo é centralizá-la.
+- O-2 (funcional): um job que já está na fila quando o agente é desligado continua terminando `ignorada`/`desligado`.
+  Isso vale também para a execução adiada que já tinha sido reenfileirada.
+- O-3 (informativo): o adiamento no worker trava a demanda sem `lock_timeout`, e pode esperar uma edição de pessoa até
+  o `statement_timeout` do pool.
+- Não conferido: o `agentesEmAndamento` da T05 pode mostrar a execução que espera a confirmação como agente
+  trabalhando.
+- `qa-automacao`, para observar no CI:
+  - dois testes de `src/db/transacao-prazo.test.ts` medem tempo real e podem oscilar. Se falharem, troque a medida por
+    relógio injetado, sem alargar o limite;
+  - `visibilidade-agente-0019.test.ts` depende da ordem dos testes dentro de um `describe`;
+  - `reflow.spec.ts:57` e `reflow-t15-qa.spec.ts:105` estão perto do teto de 24 s.
+
+Seguem abertas, sem mudança neste pedido, as pendências da 0.3.0, menos a limitação conhecida, que esta versão fecha.
+Dos baixos da revisão da 0.3.0, esta versão fecha o B-1 a B-3; o B-4 a B-7 continuam. O B-7 permite que uma pessoa
+grave à mão ESP, RSK e DEC numa demanda do Awave não confirmada.
+
 ## 0.3.0 — 2026-11-12
 
 Melhoria do pedido `DEC-DEM-20261111-0016-v1` (cadeia completa, risco médio): **duas integrações internas com acesso
@@ -16,9 +223,10 @@ o mesmo comportamento. Os contratos que o Awave (`awave-agents`, commit 0ab8ced)
 (`buscar-pedidos.mjs`, commit dfedf16) já usam não mudaram. Não há processo, fila, job, pacote nem variável de
 ambiente nova. **Há uma migration, a `0007`, só aditiva**: a primeira desde que o sistema entrou no ar.
 
-Ainda não foi publicada. O merge, a publicação e os tokens de produção são de Fabiano. A publicação segue o
-`docs/operacao/deploy.md`, seção 5, "Publicação da 0.3.0": backup antes, migration num passo separado, Deploy do
-`worker` e depois do `app`. A volta para a 0.2.0 **exige restaurar esse backup** (seção 6).
+Ainda não foi publicada. O merge, a publicação e os tokens de produção são de Fabiano. Desde a 0.3.1, a 0.3.0 não se
+publica sozinha: entra na produção junto com a 0.3.1, pela "Publicação conjunta 0.2.0 → 0.3.1" do
+`docs/operacao/deploy.md`, seção 5 (backup antes, migration num passo separado, Deploy do `worker` e depois do `app`).
+A volta para a 0.2.0 **exige restaurar esse backup** (seção 6).
 
 ### O que muda para quem usa
 
@@ -107,13 +315,6 @@ Referência completa no [manual, cap. 09](docs/manual-tecnico/09-referencia-api.
   10) e o `docs/operacao/tokens-de-integracao.md`, novo, com emissão, guarda, troca e revogação dos dois tokens. As
   seções 4, 5, 6 e 10 do `docs/operacao/deploy.md` vieram da `09-devops-sre.md`.
 
-### Limitação conhecida
-
-**Não emita os tokens de produção do Awave e do `/construir` na 0.3.0.** A revisão de código e de segurança
-(`08-maestro.md`) não achou nada crítico nem alto, mas recomenda corrigir cinco achados médios numa 0.3.1 curta antes
-de emitir esses tokens. Sem token emitido, nenhuma integração alcança as rotas novas (401), então publicar a 0.3.0 não
-expõe nada. Os detalhes ficam na entrega da revisão.
-
 ### O que ficou fora desta versão
 
 Pela spec (seção 6), não entraram:
@@ -150,9 +351,9 @@ Para Fabiano:
   `worker` (com a origem GitHub, o merge publicaria a 0.3.0 sem a migration), rotular as imagens em uso como `:v0.2.0`
   e conferir que o host lê a imagem privada do GHCR. Snapshot no hPanel: hoje ele congela a VPS e exige reboot manual,
   então decida antes se tira ou fica só com o backup.
-- **0.3.1 antes dos tokens** (limitação conhecida, acima). Depois dela: emitir os tokens `awave` e `construir`,
-  guardá-los ([tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md)), ligar a busca em
-  `pedidos/config/orquestrador.json` e rodar o teste ponta a ponta pela rede interna.
+- **Tokens:** só com a 0.3.1 no ar, que corrige os cinco médios da revisão (ver a 0.3.1, acima). Depois dela: emitir
+  os tokens `awave` e `construir`, guardá-los ([tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md)),
+  ligar a busca em `pedidos/config/orquestrador.json` e rodar o teste ponta a ponta pela rede interna.
 - **UAT:** o roteiro de 16 passos da `07-qa-funcional.md`, seção 7, em produção, logo depois do deploy e antes do uso
   normal das integrações, só com dado fictício e sem a palavra "Awave" no título.
 - **QF-0016-01 (baixa):** a palavra "Awave" vira "[nome removido]" no título e no contexto que o Awave lê de volta e

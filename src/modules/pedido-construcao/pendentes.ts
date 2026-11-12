@@ -4,7 +4,7 @@
 // `entidade_id`, pelo índice `evento_acao_entidade_idx` (ADR-27, RNF-02). Só leitura: nada aqui grava evento (CA-12.6).
 // A lista não monta o pedido: um DEC cuja entrega seria recusada (por exemplo, pelo nome do solicitante) continua nela
 // até o recebimento (P-02); não há corte por data (P-03).
-import { and, asc, eq, isNotNull, min, notExists, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, min, notExists, notInArray, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from '../../db';
 import { decisao, demanda, evento, pacoteDecisao } from '../../db/schema';
@@ -80,6 +80,23 @@ export async function shasEntregues(db: Db, decId: string): Promise<string[]> {
     .orderBy(asc(evento.id));
   const shas = linhas.map((l) => l.sha256).filter((s): s is string => typeof s === 'string' && RE_SHA256.test(s));
   return [...new Set(shas)];
+}
+
+// M-4 da 0019 (P1): o hash da última entrega, o do `pedido_entregue` de maior id que casa com o formato do servidor;
+// null sem nenhuma. É o único que o recebimento aceita, e a entrega grava de novo quando o hash muda.
+export async function ultimoShaEntregue(db: Db, decId: string): Promise<string | null> {
+  const linhas = await db
+    .select({ sha256: sql<string | null>`${evento.depois}->>'sha256'` })
+    .from(evento)
+    .where(and(eq(evento.acao, 'pedido_entregue'), eq(evento.entidade, ENTIDADE), eq(evento.entidadeId, decId)))
+    .orderBy(desc(evento.id));
+  return linhas.map((l) => l.sha256).find((s): s is string => typeof s === 'string' && RE_SHA256.test(s)) ?? null;
+}
+
+// M-4 da 0019: a entrega e o recebimento do mesmo DEC entram na mesma fila, sob a mesma trava consultiva, até o fim da
+// transação. Chamada sempre como a primeira instrução das duas. A chave vai por parâmetro (G3.6).
+export async function travarPedido(tx: Db, decId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`pedido:${decId}`}, 0))`);
 }
 
 // IN-11: o recebimento com este hash já foi gravado para este DEC (a repetição não grava de novo).

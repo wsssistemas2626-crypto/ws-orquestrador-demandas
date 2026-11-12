@@ -2,6 +2,7 @@
 // mais nova para a mais antiga (RF-08). Adaptadores finos sobre o serviço: autorização, Zod e erro ficam em rota(); a
 // autoria vem só do ator (C-11). O id da demanda passa pela regex antes de qualquer consulta (C-17).
 import { paramId, rota } from '../../../../../lib/rota';
+import { exigirVisivelPara } from '../../../../../modules/demandas/confirmacao';
 import { nomesDaDemanda } from '../../../../../modules/demandas/consultas';
 // M-2 do 0008: no GET, cada item segue vistaDaEspecificacaoPara. M-a do 0009: o 201 do POST também, e o texto livre sai
 // minimizado para quem não é pessoa, com o nome do solicitante da demanda do caminho.
@@ -20,7 +21,9 @@ export const POST = rota(
   },
 );
 
+// M-1 da 0019: para agente e sistema, a demanda que aguarda confirmação dá o mesmo 404 da inexistente, antes de listar.
 export const GET = rota({ acao: 'ler_especificacao', rota: '/api/demandas/[id]/especificacoes', params: paramId.demanda }, async ({ deps, ator, params }) => {
+  await exigirVisivelPara(deps.db, ator, params.id);
   const itens = await listarEspecificacoes(deps.db, params.id);
   const nomes = await nomesDaDemanda(deps.db, params.id);
   return { json: { itens: itens.map((v) => vistaDaEspecificacaoPara(ator, v, nomes)) } };

@@ -8,7 +8,7 @@ import type { AutorDemanda } from '../../db/schema/demandas';
 import { comTransacao, type Transacao } from '../../db/transacao';
 import type { Deps } from '../../lib/deps';
 import { ErroDominio } from '../../lib/erros';
-import { NOME_DA_INTEGRACAO, atorDesconhecido, type Ator, type AtorPessoa } from '../acesso/ator';
+import { NOME_DA_INTEGRACAO, atorDesconhecido, type Ator, type AtorIntegracao, type AtorPessoa } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { dispararSeLigado } from '../agentes/gatilhos';
 import { mudancaDeCampo, registrarEvento } from '../historico/registrar';
@@ -16,7 +16,7 @@ import { executarComOrcamento } from '../integracoes/tempo-limite';
 import { conferirLimite } from '../limites';
 import { temPacoteAprovadoAtualizado } from '../pacotes-decisao/desatualizado';
 import { travarDemanda } from '../versoes';
-import { obterDemanda, semPermissao, type DemandaVista } from './consultas';
+import { obterDemanda, obterDemandaDaIntegracao, semPermissao, type DemandaVista, type DemandaVistaDaIntegracao } from './consultas';
 import { proximoIdDemanda } from './gerar-id';
 import type { AlterarDemanda, CriarDemanda } from './schemas';
 import { conferirTransicaoManual } from './transicoes';
@@ -162,32 +162,39 @@ async function dispararAoCriar(tr: Transacao, deps: DepsComFila, ator: Ator, id:
 const executar = <T>(deps: DepsDemanda, t: Transacao | undefined, corpo: (t: Transacao) => Promise<T>): Promise<T> =>
   t ? corpo(t) : comTransacao(deps.pool, corpo);
 
-// ADR-28 e IN-14: a integração cria sob o orçamento de tempo dela (lock_timeout e statement_timeout, 503 fixo). Pessoa,
-// agente e sistema seguem com a transação de hoje, sem tradução nova de erro (RNF-09).
-function naTransacaoDaCriacao<T>(deps: DepsDemanda, ator: Ator, t: Transacao | undefined, corpo: (t: Transacao) => Promise<T>): Promise<T> {
-  switch (ator.tipo) {
-    case 'integracao':
-      return executarComOrcamento(deps.pool, ator, 'padrao', t, corpo);
-    case 'pessoa':
-    case 'agente':
-    case 'sistema':
-      return executar(deps, t, corpo);
-    default:
-      return atorDesconhecido(ator);
-  }
-}
-
+// A integração recebe a vista de seis chaves (IN-08, D-16); pessoa e agente, a DemandaVista de hoje.
+export function criarDemanda(
+  deps: DepsComFila,
+  ator: AtorIntegracao,
+  entrada: CriarDemanda,
+  t?: Transacao,
+  extras?: { duvidasEntrada?: string[] },
+): Promise<DemandaVistaDaIntegracao>;
+export function criarDemanda(
+  deps: DepsComFila,
+  ator: Exclude<Ator, AtorIntegracao>,
+  entrada: CriarDemanda,
+  t?: Transacao,
+  extras?: { duvidasEntrada?: string[] },
+): Promise<DemandaVista>;
+export function criarDemanda(
+  deps: DepsComFila,
+  ator: Ator,
+  entrada: CriarDemanda,
+  t?: Transacao,
+  extras?: { duvidasEntrada?: string[] },
+): Promise<DemandaVista | DemandaVistaDaIntegracao>;
 export async function criarDemanda(
   deps: DepsComFila,
   ator: Ator,
   entrada: CriarDemanda,
   t?: Transacao,
   extras: { duvidasEntrada?: string[] } = {},
-): Promise<DemandaVista> {
+): Promise<DemandaVista | DemandaVistaDaIntegracao> {
   autorizar(ator, 'criar_demanda');
   const autoria = autoriaDaDemanda(ator);
   const campos = camposDaEntrada(ator, entrada, extras);
-  const id = await naTransacaoDaCriacao(deps, ator, t, async (tr) => {
+  const gravar = async (tr: Transacao): Promise<string> => {
     const { tx } = tr;
     // C-36 e IN-09: limite antes do id. O nextval só roda aqui, depois do Zod (na entrada) e do limite, dentro da
     // transação.
@@ -225,8 +232,20 @@ export async function criarDemanda(
     );
     await dispararAoCriar(tr, deps, ator, novoId);
     return novoId;
-  });
-  return obterDemanda(t?.tx ?? deps.db, id);
+  };
+  switch (ator.tipo) {
+    // ADR-28, IN-14 e M-2 da 0019: a integração cria sob o orçamento de tempo dela, e a vista de seis chaves do 201 sai
+    // de dentro da mesma transação orçada. Nada é lido depois do COMMIT, e a integração nunca passa por obterDemanda.
+    case 'integracao':
+      return executarComOrcamento(deps.pool, ator, 'padrao', t, async (tr) => obterDemandaDaIntegracao(tr.tx, ator, await gravar(tr)));
+    // Pessoa, agente e sistema seguem com a transação de hoje, sem tradução nova de erro (RNF-09).
+    case 'pessoa':
+    case 'agente':
+    case 'sistema':
+      return obterDemanda(t?.tx ?? deps.db, await executar(deps, t, gravar));
+    default:
+      return atorDesconhecido(ator);
+  }
 }
 
 type Mudanca = { campo: CampoEditavel; antes: unknown; depois: unknown };
