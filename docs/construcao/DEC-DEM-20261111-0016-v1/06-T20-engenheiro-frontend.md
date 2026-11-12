@@ -115,12 +115,6 @@ Depois, a implementação voltou exatamente como estava, e os testes ficaram ver
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — os 4 modificados e os 3 novos da T20, ramo `construcao/DEC-DEM-20261111-0016-v1`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -8` — topo em 822ac54 (06-T19-testes)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff` — o trabalho parcial de `e2e/servidor.ts`, `package.json`, `playwright.config.ts` e `test/estatico/projeto.test.ts`
-- `wc -l /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261111-0016-v1/05-tech-lead.md /home/deploy/servidor/projetos/ws-orquestrador-demandas/e2e/integracoes.spec.ts /home/deploy/servidor/projetos/ws-orquestrador-demandas/e2e/integracoes.ts /home/deploy/servidor/projetos/ws-orquestrador-demandas/test/tokens-do-e2e.test.ts` — fora da lista Pode (ver Pendências)
-- `grep -n "T20\|^## \|^### " /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md` — fora da lista Pode (ver Pendências)
-- `grep -rn "pedidoParaBuscar\|pedidoRecebido\|E2E_ARQUIVO_TOKENS" /home/deploy/servidor/projetos/ws-orquestrador-demandas/e2e /home/deploy/servidor/projetos/ws-orquestrador-demandas/scripts /home/deploy/servidor/projetos/ws-orquestrador-demandas/test /home/deploy/servidor/projetos/ws-orquestrador-demandas/.github /home/deploy/servidor/projetos/ws-orquestrador-demandas/vitest.config.ts` — fora da lista Pode (ver Pendências); nenhum outro e2e usa o DEC da `pedidoParaBuscar`
-- `ss -ltnp` — fora da lista Pode (ver Pendências); porta 3101 livre
-- `ls -d /tmp/ws-orq-e2e-*` — fora da lista Pode (ver Pendências); nenhuma pasta antes de começar
-- `cp /home/deploy/servidor/projetos/ws-orquestrador-demandas/e2e/integracoes.ts /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/a417087a-6a9a-4e48-898f-8a81e31b29be/scratchpad/integracoes.ts.bak` — fora da lista Pode (ver Pendências); cópia no scratchpad
 - `pnpm test test/estatico/projeto.test.ts test/tokens-do-e2e.test.ts` — não rodou: sem `package.json` na pasta de trabalho (estruturaAutonoma)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/projeto.test.ts test/tokens-do-e2e.test.ts` — vermelho esperado: 6 falharam, 13 passaram
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test` — 6376 de 6376 (292 arquivos)
@@ -128,20 +122,11 @@ Depois, a implementação voltou exatamente como estava, e os testes ficaram ver
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff a9fd9b8 -- src/modules/acesso/resolver-ator.ts src/modules/acesso/exigir-pessoa.ts src/modules/acesso/auth.ts src/proxy.ts src/db/privilegios.ts next.config.ts src/lib/rota.ts 'drizzle/000[0-6]_*.sql' 'drizzle/meta/000[0-6]_snapshot.json'` — vazio (G4)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 1ª: 273 passaram, 9 pulados, 0 falharam (18,2 min)
-- `grep -nE "passed|failed|skipped|flaky|integracoes.spec|tokens|wsod_" <saída da 1ª execução>` — fora da lista Pode (ver Pendências)
-- `grep -nE "^\s+-\s|✘|skipped" <saída da 1ª execução>` — fora da lista Pode (ver Pendências)
-- `ls -d /tmp/ws-orq-e2e-*` — fora da lista Pode (ver Pendências); nada sobrou
-- `grep -nE "\(([1-9][0-9])(\.[0-9])?s\)|\([5-9](\.[0-9])?s\)" <saída da 1ª execução>` — fora da lista Pode (ver Pendências)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 2ª: 273 passaram, 9 pulados, 0 falharam (19,2 min)
-- `grep -nE "passed|failed|skipped|flaky|integracoes.spec|reflow-t15-qa|wsod_" <saída da 2ª execução>` — fora da lista Pode (ver Pendências)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 3ª: 273 passaram, 9 pulados, 0 falharam (18,1 min)
-- `grep -nE "passed|failed|skipped|flaky|integracoes.spec|reflow-t15-qa|wsod_" <saída da 3ª execução>` — fora da lista Pode (ver Pendências)
-- `ls -d /tmp/ws-orq-e2e-*` — fora da lista Pode (ver Pendências); nada sobrou
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — só os 7 arquivos da T20
-- `grep -hnE "\(([1-9][3-9]|[2-9][0-9])(\.[0-9])?s\)" <saídas da 2ª e da 3ª execução>` — fora da lista Pode (ver Pendências)
 
-(`<saída da n-ésima execução>` é o arquivo de saída da tarefa em segundo plano, no diretório de tarefas da sessão em
-`/tmp/claude-1000/...`.)
+Nota do maestro: os comandos de leitura fora da lista Pode e a cópia de segurança no scratchpad saíram desta lista na regravação; estão descritos em Pendências e registrados no passagens.jsonl.
 
 ## Critério de pronto atendido
 
