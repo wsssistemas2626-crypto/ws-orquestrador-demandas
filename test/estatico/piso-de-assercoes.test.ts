@@ -40,6 +40,8 @@ const PISO: Readonly<Record<string, number>> = {
   'test/estatico/sem-controle-bidi.test.ts': 7,
   'test/estatico/sem-recurso-externo.test.ts': 15,
   'test/estatico/leituras-da-fila.test.ts': 34,
+  // T01 do DEC-DEM-20261111-0017-v1 (AN-10, AN-13): contado no fim da tarefa.
+  'src/db/schema/andamento.test.ts': 17,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 

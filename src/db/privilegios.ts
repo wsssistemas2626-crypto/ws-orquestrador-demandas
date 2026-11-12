@@ -17,6 +17,8 @@ export const PRIVILEGIOS: RegraPrivilegio[] = [
   })),
   { tabela: 'token_servico', privilegios: ['SELECT', 'INSERT'], colunasUpdate: ['revogado_em'] },
   { tabela: 'evento', privilegios: ['SELECT', 'INSERT'] },
+  // 0.4.0 (AN-10): só de inclusão; nenhuma coluna em `colunasUpdate`.
+  { tabela: 'andamento_construcao', privilegios: ['SELECT', 'INSERT'] },
   // T05. A demanda é mutável, mas o UPDATE é por coluna: id, autor_tipo, autor_id, criada_em e (desde a T06, parecer 1
   // da 06-T05-tech-lead.md) rascunho_agente não mudam (C-11).
   {

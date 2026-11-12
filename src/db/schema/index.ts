@@ -5,3 +5,4 @@ export * from './versoes';
 export * from './decisao';
 export * from './agentes';
 export * from './operacao';
+export * from './andamento';
