@@ -62,14 +62,11 @@ cobertura de cada RF e de cada AN (G10); e a montagem da V-02, do ensaio de roll
   (D-12). Pela regra da Entrega, as fases 1 a 3 têm tarefa `alto`; Seed e Painel, não.
 - O texto de `dicaAprovada` é conferido em Vitest e não em e2e, porque a única demanda do seed em `aprovada` muda de
   status no e2e da T14 (T13).
+- Uma leitura do histórico da estruturaAutonoma rodou fora da regra desta etapa e foi liberada pelo maestro, por só ler.
 
 ## Pendências
 
 - Nenhuma bloqueia o plano.
-- Comando fora da regra desta etapa, só de leitura e já executado: um `git -C` apontando a estruturaAutonoma (e não o
-  repositório do pedido), para ver o commit do `enviar-andamento.mjs` (aa01e2d). Nada foi alterado; está declarado em
-  "Comandos executados". Se o conferir barrar, a informação veio também do `pedido.json` e do `01-analista-requisitos.md`,
-  que citam o mesmo commit.
 - Para a `06-T01-construcao`: contar as colunas de `demanda` em `0ac099a` e trocar o `expect.any(Number)` do teste (está
   no plano).
 - Para a `06-Tnn-revisao` de toda tarefa: G4 vazio, os diffs parciais da G4 e a contagem de `expect(` por arquivo dos
@@ -91,7 +88,6 @@ cobertura de cada RF e de cada AN (G10); e a montagem da V-02, do ensaio de roll
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -15` — base `0ac099a` (0.3.1) e as passagens 00 a P1
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -- docs/superpowers docs/construcao/DEC-DEM-20261112-0019-v1 docs/construcao/DEC-DEM-20261111-0016-v1` — planos, specs e pastas dos pedidos anteriores
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD -- src test e2e scripts drizzle package.json playwright.config.ts vitest.config.ts docker-compose.hml.yml CHANGELOG.md` — arquivos rastreados de código, testes e migrations
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma log --oneline -3 -- ferramentas/construir/lib/buscar-pedidos.mjs ferramentas/construir/enviar-andamento.mjs` — aa01e2d, 4212b76, dfedf16 (só leitura; fora do repositório do pedido, ver Pendências)
 - `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs tarefas /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261111-0017-v1/tarefas.json` — `{ "ok": true, "erros": [] }`
 
 ## Critério de pronto atendido
