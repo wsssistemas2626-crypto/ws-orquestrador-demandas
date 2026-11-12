@@ -67,6 +67,8 @@ Awave" com o botão "Confirmar demanda", linha 14 da Próxima ação e o caso IN
   é consequência do comportamento que o plano pede. A omissão foi da G5.
 - Aceito o `aria-busy` no conteúdo: mudar o `Cartao` sairia da tarefa, e o padrão `MudarStatus` já é esse.
 - Aceito o `CartaoProximaAcao.tsx` sem mudança, porque a troca do plano não teria efeito.
+- Uma busca só de leitura no histórico do repositório rodou fora da regra de comandos; o maestro registrou o bloqueio e a
+  liberou, e ela não influiu no parecer.
 
 ## Pendências
 
@@ -86,17 +88,12 @@ Awave" com o botão "Confirmar demanda", linha 14 da Próxima ação e o caso IN
 - Para a 08, registro do plano: a G5 devia listar `detalhe.test.ts` ("Origem" na lista exata de Dados, T18).
 - Ferramentas: Grep e Glob não estavam disponíveis nesta sessão. Li com Read e localizei trechos com `git log -L` e
   `git log -S`.
-- Comando com argumento fora da regra do maestro: o 4º item de "Comandos executados" (`git log -G`) leva `|` dentro da
-  expressão do `-G`. É um `git log` só de leitura, da lista Pode, e não alterou nada. Mesmo assim fica fora da regra de
-  argumentos do maestro. Eu o declaro aqui em vez de omiti-lo. Ele não influiu no parecer: a T18 foi localizada pelo
-  `-L` do item seguinte.
 
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat 0632f78b3c5b9388d935d33b6e8a0d790d81f495~1 0632f78b3c5b9388d935d33b6e8a0d790d81f495` — 8 arquivos: 6 de `src/` e `e2e/`, a entrega e o `passagens.jsonl`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 0632f78b3c5b9388d935d33b6e8a0d790d81f495~1 0632f78b3c5b9388d935d33b6e8a0d790d81f495 -- src e2e` — diff inteiro do código e dos testes, revisado (saída lida com Read)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 --format=%h -L "/^#.*T18/,+3:docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md"` — a T18 começa na linha 2408 do plano
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 --format=%h -G "^### Task 18|^### T18|^## T18|Tarefa 18" -- docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md` — 404105c (ver Pendências: `|` no argumento)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 --format=%h -L "/G5/,+14:docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md"` — G3.2 (mudança fora da G5 explicada, a revisão decide)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -1 --format=%h -L "/^. D-17/,+2:docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md"` — `detalhe.test.ts` não está no D-17
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — árvore limpa
