@@ -1,0 +1,41 @@
+{
+  "pedido": "DEC-DEM-20261112-0019-v1",
+  "demanda": {
+    "id": "DEM-20261112-0019",
+    "tipo": "bug",
+    "titulo": "Orquestrador 0.3.1: correções da revisão da 0.3.0 antes de emitir os tokens de integração (M-1 a M-5 e três baixos)",
+    "descricao": "A revisão de código e de segurança da 0.3.0 (pedido DEC-DEM-20261111-0016-v1, docs/construcao/DEC-DEM-20261111-0016-v1/08-maestro.md, PR #17, merge d49de53 em 12/11) não achou crítico nem alto, mas deixou cinco médios. A recomendação do maestro, aprovada por Fabiano em 12/11 ('pode seguir com a 0.3.1, autorizado commit e merge'), é corrigi-los numa 0.3.1 antes de emitir os tokens de produção das integrações awave e construir. M-1: o token de agente lê o texto e escreve ESP/RSK/DEC numa demanda do Awave ainda não confirmada (src/modules/demandas/consultas.ts:386 e :328, src/modules/especificacoes/servico.ts:55, src/modules/pareceres-risco/servico.ts:63, criação do pacote de decisão); o D1 ('até uma pessoa confirmar, nenhum agente de IA trabalha nela') só vale no worker. M-2: src/modules/demandas/servico.ts:229 lê o 201 do POST do Awave depois do COMMIT, fora do orçamento de tempo e sem tradução para 503, o que pode duplicar demanda na nova tentativa do cliente. M-3: src/modules/integracoes/tempo-limite.ts:27 orça por instrução (lock_timeout e statement_timeout), não pela transação, e a espera por conexão do pool não tem limite. M-4: src/modules/pedido-construcao/receber.ts:38 trava em pedido:<decId> e a entrega trava na demanda (travarDemanda em conferirEMontarPedido); numa corrida, o recebimento grava o hash antigo. M-5: src/modules/agentes/executar.ts:239 a guarda do worker usa exec.demandaId e não a demanda da chaveEntrada que montarEntrada lê, e encerra a execução como ignorada gastando a chave única. Baixos que entram junto: B-1 e2e/integracoes.spec.ts sem test.use({ trace: 'off' }) (token do e2e pode ir ao trace); B-2 scripts/criar-token-servico.ts:114 sem else final (sai com sucesso sem emitir); B-3 src/modules/demandas/confirmacao.ts:8 jaConfirmada aceita demanda_confirmada de qualquer ator. Base: main (d49de53, versão 0.3.0)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261112-0019-v1",
+    "conteudo": "Correções sem rota nova, sem tela nova e sem migration nova. (M-1) Para ator agente: GET de demanda do Awave que aguarda confirmação (aguardaConfirmacao) responde o mesmo 404 da demanda inexistente, sem revelar existência; a listagem para agente não traz essa demanda; criar ESP, RSK e pacote de decisão com ator agente numa demanda que aguarda confirmação é recusado com 409 e mensagem fixa, sem gravar nada. Isso substitui o CA-10.6 do pedido 0016 (a vista mínima ao agente só vale depois da confirmação); Fabiano aprovou em 12/11. Pessoa com 2FA continua vendo e agindo como hoje. (M-2) No ramo integracao do POST /api/demandas, a vista de 6 chaves do 201 é montada dentro da mesma transação orçada (obterDemandaDaIntegracao com tr.tx, ou a partir de novoId, campos e agora), e qualquer estouro vira o 503 de mensagem fixa; nada de leitura depois do COMMIT. (M-3) Orçamento por transação nas transações das integrações: prazo total (Awave 8 s, /construir 12 s, menores que os tempos-limite dos clientes, 10 s e 15 s) que encerra a transação com ROLLBACK e 503, incluindo a espera por conexão do pool; os SET LOCAL de hoje continuam como piso. (M-4) Entrega e recebimento do mesmo DEC usam a mesma trava (a da demanda, ou pedido:<decId> nas duas), e o recebimento lê os hashes entregues depois de travar; teste de corrida entrega nova × recebimento do hash anterior. (M-5) A guarda do worker confere a demanda da entrada que montarEntrada usa (chaveEntrada), falha fechada para agente diferente de orquestrador sem demanda, e ao bloquear por falta de confirmação não gasta a chave: a execução volta a pendente ou é removida de modo que a confirmação posterior dispare normalmente; teste: job precoce bloqueado, depois confirmação, e o insumo técnico roda uma vez. (B-1) test.use({ trace: 'off' }) em e2e/integracoes.spec.ts. (B-2) executarCriarToken com else final que lança, ou switch com never. (B-3) jaConfirmada exige ator_tipo = 'pessoa'. Testes: cada correção com teste que falha antes e passa depois; nenhuma asserção de segurança existente é apagada ou afrouxada (IN-16); e2e verde. Versão 0.3.1 no package.json e seção 0.3.1 no CHANGELOG."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261112-0019-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe em autorização (leitura e escrita do agente), em transações com tempo-limite, em travas de concorrência e no worker dos agentes de IA. Riscos: afrouxar sem querer um controle da 0.3.0 ao corrigir (proibido: todos os testes de segurança da 0.3.0 continuam passando, só se acrescenta); o 404 do agente revelar existência por diferença de texto ou tempo; o prazo total cortar transação de pessoa (só vale para integração); a mudança da guarda do worker reabrir disparo antes da confirmação (teste explícito). Sem migration, a volta para a 0.3.0 é só trocar a imagem. Publicação no ar só com aprovação de Fabiano. Nenhum dado pessoal real (JUR-2026-002, 7.4)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261112-0019-v1",
+    "opcaoEscolhida": "Corrigir M-1 a M-5 e os baixos B-1 a B-3 da revisão da 0.3.0 numa 0.3.1, antes de emitir os tokens de produção; no M-1, agente recebe 404 e 409 em demanda do Awave que aguarda confirmação (substitui o CA-10.6 do 0016)",
+    "aprovadoPor": "cto",
+    "aprovadoEm": "2026-11-12"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Agente recebe 404 (igual ao inexistente) ao ler e 409 ao criar ESP, RSK ou DEC em demanda do Awave que aguarda confirmação; depois da confirmação, tudo como na 0.3.0",
+    "O 201 do POST do Awave sai de dentro da transação orçada; estouro vira 503 sem gravar",
+    "Transações das integrações têm prazo total, inclusive a espera por conexão, menor que o tempo-limite do cliente",
+    "Entrega e recebimento do mesmo DEC entram na mesma fila; o recebimento nunca grava hash antigo depois de entrega nova",
+    "A guarda do worker usa a demanda da entrada, falha fechada sem demanda e não gasta a chave ao bloquear; a confirmação posterior dispara uma vez",
+    "e2e/integracoes.spec.ts com trace desligado; script de token sem caminho de sucesso sem emissão; jaConfirmada só aceita pessoa",
+    "Nenhum teste de segurança da 0.3.0 apagado ou afrouxado"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde",
+    "Versão 0.3.1 no package.json e seção 0.3.1 no CHANGELOG",
+    "PR com CI verde"
+  ]
+}
