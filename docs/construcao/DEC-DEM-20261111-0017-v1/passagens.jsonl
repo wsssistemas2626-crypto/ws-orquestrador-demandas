@@ -1,3 +1,4 @@
 {"pedido":"DEC-DEM-20261111-0017-v1","etapa":"01-requisitos","de":"analista-requisitos","para":"arquiteto-solucoes","status":"pronto","volta":0,"inicio":"2026-11-12T22:17:46.000Z","fim":"2026-11-12T22:25:45.785Z","minutos":8,"motivo":null}
 {"pedido":"DEC-DEM-20261111-0017-v1","etapa":"02-arquitetura","de":"arquiteto-solucoes","para":"seguranca-aplicacao","status":"pronto","volta":0,"inicio":"2026-11-12T22:25:46.000Z","fim":"2026-11-12T22:32:02.589Z","minutos":6,"motivo":null}
 {"pedido":"DEC-DEM-20261111-0017-v1","etapa":"03-interface","de":"ux-ui-design","para":"seguranca-aplicacao","status":"pronto","volta":0,"inicio":"2026-11-12T22:25:46.000Z","fim":"2026-11-12T22:34:52.711Z","minutos":9,"motivo":null}
+{"pedido":"DEC-DEM-20261111-0017-v1","etapa":"04-ameacas","de":"seguranca-aplicacao","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-11-12T22:34:52.000Z","fim":"2026-11-12T22:42:31.112Z","minutos":8,"motivo":null}
