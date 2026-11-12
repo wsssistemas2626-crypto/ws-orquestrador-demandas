@@ -1,16 +1,16 @@
 // T09 do DEC-DEM-20261110-0015-v1: a T03 no arranjo A1, no navegador. Contadores que filtram (RF-05), a tabela densa
 // com Etapas e Idade (RF-06) e a lista de cartões abaixo de 768 px (RF-07), em 1280 × 720, 390 × 844 e 320 px.
 //
-// C-36 (G3.10 do plano): esta spec não cria demanda nem versão. Ela lê as demandas do seed fictício (23 no banco novo:
-// mais de 20, o que dá a página 2) e as contagens da própria API, para rodar também na homologação, que já pode ter
-// outras demandas.
+// C-36 (G3.10 do plano): esta spec não cria demanda nem versão. Ela lê as demandas do seed fictício (28 no banco novo,
+// desde a T15 do DEC-DEM-20261111-0016-v1: mais de 20, o que dá a página 2) e as contagens da própria API, para rodar
+// também na homologação, que já pode ter outras demandas.
 //   - conta "cto": 0 demandas e 0 versões.
 import { type Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
-import { ROTULO_STATUS } from '../src/components/rotulos';
+import { ROTULO_ORIGEM, ROTULO_STATUS } from '../src/components/rotulos';
 import { api, demandaDoSeed, entrarComo, expect, semViolacoes, test } from './apoio';
 
-type Lista = { itens: { id: string; titulo: string; status: keyof typeof ROTULO_STATUS }[]; total: number };
+type Lista = { itens: { id: string; titulo: string; status: keyof typeof ROTULO_STATUS; origem: keyof typeof ROTULO_ORIGEM }[]; total: number };
 
 const LEGENDA_TODAS = 'Demandas, da mais nova para a mais antiga';
 const FILTRO_INVALIDO = 'Algum filtro do endereço não é válido. Mostrando todas as demandas.';
@@ -167,9 +167,11 @@ test.describe('celular', () => {
       await expect(cartao.getByRole('link', { name: d.id, exact: true })).toHaveAttribute('href', `/demandas/${d.id}`);
       await expect(cartao.getByRole('heading', { level: 3 })).toHaveText(d.titulo);
       await expect(cartao).toContainText(ROTULO_STATUS[d.status]);
-      expect(await cartao.locator('dt').allTextContents()).toEqual(['Tipo', 'Urgência', 'Linha de serviço', 'Etapas', 'Idade']);
-      await expect(cartao.locator('dd')).toHaveCount(5);
-      await expect(cartao.locator('dd').nth(3)).toContainText(/^Etapas: ESP (feita|por fazer), RSK (feita|por fazer), DEC (feita|por fazer)/);
+      // T16 do DEC-DEM-20261111-0016-v1 (03, 4.1 item 7): "Origem" depois de Urgência; as etapas passam ao 5.º dd.
+      expect(await cartao.locator('dt').allTextContents()).toEqual(['Tipo', 'Urgência', 'Origem', 'Linha de serviço', 'Etapas', 'Idade']);
+      await expect(cartao.locator('dd')).toHaveCount(6);
+      await expect(cartao.locator('dd').nth(2)).toHaveText(ROTULO_ORIGEM[d.origem]);
+      await expect(cartao.locator('dd').nth(4)).toContainText(/^Etapas: ESP (feita|por fazer), RSK (feita|por fazer), DEC (feita|por fazer)/);
       await expect(cartao.locator('time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}T/);
     }
     await semViolacoes(page, 'fila em cartões em 390 px');

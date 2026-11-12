@@ -3,8 +3,9 @@
 // Contadores por status da T03 (RF-05; 03, 4.5): um form GET para /demandas com "Todas" e um botão de envio por status
 // (name="status", value do enum ou vazio, aria-pressed). Ativar (clique, Enter ou Espaço) leva ao endereço do contador,
 // já montado no servidor por contadoresDaFila (CV-07: só do filtro validado e do enum), com o mesmo pedido de foco no
-// resultado da fila de hoje; sem script, o GET comum filtra do mesmo jeito. O tipo e a linha de serviço da URL vão
-// ocultos, depois do grupo (o endereço sai na ordem status, tipo, linha); nenhum outro campo vai junto.
+// resultado da fila de hoje; sem script, o GET comum filtra do mesmo jeito. O tipo, a linha de serviço e (0.3.0, 03, 4.1
+// item 3) a origem da URL vão ocultos, depois do grupo (o endereço sai na ordem status, tipo, linha, origem); nenhum
+// outro campo vai junto.
 //
 // Estados: com número; sem número quando a contagem falhou (os botões filtram, e o texto da 03 aparece abaixo); e
 // carregando (aria-busy, barra escondida no lugar do número, botões desabilitados). Nada aqui lê dado.
@@ -36,7 +37,7 @@ const BOTAO =
 
 type Props = {
   contadores: readonly ContadorDaFila[];
-  filtro: Pick<FiltroDemandas, 'tipo' | 'linhaServicoProvavel'>;
+  filtro: Pick<FiltroDemandas, 'tipo' | 'linhaServicoProvavel' | 'origem'>;
   idFoco: string;
   erro?: boolean;
   carregando?: boolean;
@@ -92,6 +93,7 @@ export function ContadoresDaFila({ contadores, filtro, idFoco, erro = false, car
       {erro ? <p className="mt-2 text-[0.8125rem] text-tinta-media">{TEXTOS_CONTADORES.erro}</p> : null}
       {filtro.tipo ? <input type="hidden" name="tipo" value={filtro.tipo} /> : null}
       {filtro.linhaServicoProvavel ? <input type="hidden" name="linhaServicoProvavel" value={filtro.linhaServicoProvavel} /> : null}
+      {filtro.origem ? <input type="hidden" name="origem" value={filtro.origem} /> : null}
     </form>
   );
 }

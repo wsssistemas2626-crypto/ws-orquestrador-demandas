@@ -514,7 +514,8 @@ describe('FiltrosFila: bordas', () => {
   it('sem filtro, as três seleções ficam em "Todos" ou "Todas", e só uma opção marcada em cada', () => {
     const s = renderToStaticMarkup(h(FiltrosFila, { filtro: {}, idFoco: ID_RESULTADO }));
     // T09: as duas seleções que ficaram (Tipo e Linha de serviço); o status vai oculto, vazio, e "Todas" é o pressionado.
-    expect(s.match(/selected=""/g)).toHaveLength(2);
+    // T16 do DEC-DEM-20261111-0016-v1: mais a seleção Origem (03, 4.1 item 1), também em "Todas".
+    expect(s.match(/selected=""/g)).toHaveLength(3);
     expect(s).toContain('<input type="hidden" name="status" value=""/>');
     const c = renderToStaticMarkup(h(ContadoresDaFila, { contadores: contadoresDaFila(null, SEM_FILTRO, hrefDaFila), filtro: {}, idFoco: ID_RESULTADO }));
     expect(c.match(/aria-pressed="true"/g)).toHaveLength(1);
@@ -524,7 +525,8 @@ describe('FiltrosFila: bordas', () => {
   it('o formulário não tem campo de limit nem de offset: filtrar volta à página 1', () => {
     const s = renderToStaticMarkup(h(FiltrosFila, { filtro: { status: 'nova' }, idFoco: ID_RESULTADO }));
     expect(s).not.toMatch(/name="(limit|offset)"/);
-    expect(s.match(/name="/g)).toHaveLength(3);
+    // status (oculto), tipo, origem (T16 do DEC-DEM-20261111-0016-v1) e linha de serviço.
+    expect(s.match(/name="/g)).toHaveLength(4);
   });
 });
 

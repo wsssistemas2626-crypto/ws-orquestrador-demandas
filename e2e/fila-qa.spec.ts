@@ -117,8 +117,11 @@ test.describe('sem script', () => {
     await page.goto('/demandas');
     await campo(page, 'Tipo').selectOption('bug');
     await page.getByRole('button', { name: 'Filtrar' }).click();
-    await expect(page).toHaveURL(/\/demandas\?status=&tipo=bug&linhaServicoProvavel=$/);
+    // T16 do DEC-DEM-20261111-0016-v1: sem script, o GET comum segue a ordem do DOM, e "Origem" fica entre Tipo e Linha
+    // de serviço (03, 4.1 item 1, e seção 10: a ordem do Tab). Com script, o endereço sai na ordem de hrefDaFila.
+    await expect(page).toHaveURL(/\/demandas\?status=&tipo=bug&origem=&linhaServicoProvavel=$/);
     await expect(campo(page, 'Tipo')).toHaveValue('bug');
+    await expect(campo(page, 'Origem')).toHaveValue('');
     await expect(page.locator('main form input[type="hidden"][name="status"]')).toHaveValue('');
     await expect(page.getByText(FILTRO_INVALIDO)).toHaveCount(0);
     // Sem script, a lista dentro do Suspense não troca o esqueleto pelo resultado (achado Minor 1 da 06-T38-testes):

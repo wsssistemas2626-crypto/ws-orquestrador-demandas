@@ -6,6 +6,7 @@ import type { Anexo, LinhaServico, Origem, PapelSolicitante, StatusDemanda, Tipo
 import type { NivelRisco } from '../db/schema/versoes';
 import type { Agente, Integracao, Papel } from '../modules/acesso/ator';
 import type { StatusDecisao } from '../modules/demandas/consultas';
+import type { OrigemDaDemanda } from '../modules/demandas/schemas';
 import type { EventoVisivel } from '../modules/historico/consultas';
 import { RE_ID_DEC } from './dados-do-pacote';
 
@@ -83,6 +84,10 @@ export const ROTULO_LINHA: Readonly<Record<LinhaServico, string>> = {
 };
 
 export const ROTULO_URGENCIA: Readonly<Record<Urgencia, string>> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+
+// 0.3.0 (03, seções 2 e 9; RF-10): a origem da demanda, lida da autoria, na fila (filtro, linha e cartão) e nos Dados da
+// T05. A ordem é a das opções do filtro "Origem".
+export const ROTULO_ORIGEM: Readonly<Record<OrigemDaDemanda, string>> = { pessoa: 'Pessoa', agente: 'Agente de IA', awave: 'Awave' };
 
 // Canal de origem e tipo de anexo (03, T04): os mesmos textos das opções de T04, para o detalhe (T05).
 export const ROTULO_CANAL_ORIGEM: Readonly<Record<NonNullable<Origem['canal']>, string>> = {

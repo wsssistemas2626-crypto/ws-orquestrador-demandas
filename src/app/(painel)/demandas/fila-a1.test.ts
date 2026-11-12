@@ -244,7 +244,8 @@ describe('ResultadoDaFila no arranjo A1 (RF-06, RF-07)', () => {
     expect(primeiro).toMatch(/data-cor="azul"[^>]*>Nova<\/span>/);
     expect(primeiro).toMatch(/<h3[^>]*><bdi>Conciliação de pedidos \(fictício 42\)<\/bdi><\/h3>/);
     expect(primeiro).toMatch(/border-dashed[^>]*>Rascunho de agente<\/span>/);
-    expect([...primeiro.matchAll(/<dt[^>]*>([^<]*)<\/dt>/g)].map((m) => m[1])).toEqual(['Tipo', 'Urgência', 'Linha de serviço', 'Etapas', 'Idade']);
+    // T16 do DEC-DEM-20261111-0016-v1 (03, 4.1 item 7): "Origem" depois de Urgência e antes de Linha de serviço.
+    expect([...primeiro.matchAll(/<dt[^>]*>([^<]*)<\/dt>/g)].map((m) => m[1])).toEqual(['Tipo', 'Urgência', 'Origem', 'Linha de serviço', 'Etapas', 'Idade']);
     expect(primeiro).toContain('>Bug</dd>');
     expect(primeiro).toContain('>Automação e integração</dd>');
     expect(primeiro).toContain('Etapas: ESP feita, RSK feita, DEC por fazer');

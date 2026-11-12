@@ -11,12 +11,12 @@ import { classeDoBotao } from '../../../components/Botao';
 import { Esqueleto } from '../../../components/Esqueleto';
 import { MarcasDeEtapa } from '../../../components/MarcasDeEtapa';
 import { Paginacao } from '../../../components/Paginacao';
-import { COR_STATUS, ROTULO_LINHA, ROTULO_STATUS, ROTULO_TIPO, SELO_RASCUNHO } from '../../../components/rotulos';
+import { COR_STATUS, ROTULO_LINHA, ROTULO_ORIGEM, ROTULO_STATUS, ROTULO_TIPO, SELO_RASCUNHO } from '../../../components/rotulos';
 import { Selo } from '../../../components/Selo';
 import { Tabela } from '../../../components/Tabela';
 import type { DemandaResumo } from '../../../modules/demandas/consultas';
 import type { EtapasNaFila } from '../../../modules/demandas/resumo-da-fila';
-import { filtroDemandasSchema, type FiltroDemandas } from '../../../modules/demandas/schemas';
+import { filtroDemandasSchema, type FiltroDemandas, type OrigemDaDemanda } from '../../../modules/demandas/schemas';
 import { CartoesDaFila, etapasDe, ID_RESULTADO, IdadeDaDemanda, NAO_INFORMADA, UrgenciaDaDemanda } from './CartoesDaFila';
 import { BotaoTentarDeNovo, NavegacaoDaFila, ResultadoAnunciado } from './FiltrosFila';
 
@@ -36,6 +36,8 @@ export const TEXTOS_FILA = {
   rotuloRegiao: 'Tabela de demandas',
   // 0.2.0 (03, seção 9): a etiqueta acima do h1.
   etiqueta: 'Fila',
+  // 0.3.0 (03, 4.1 item 6, e seção 9): a segunda linha da célula Título, "Origem: Pessoa".
+  origem: (o: OrigemDaDemanda) => `Origem: ${ROTULO_ORIGEM[o]}`,
 } as const;
 
 // 0.2.0 (03, seção 9): entra "Etapas"; "Criada em" vira "Idade".
@@ -53,15 +55,16 @@ export function lerFiltroDaFila(p: Parametros): { filtro: FiltroDemandas; invali
   return r.success ? { filtro: r.data, invalido: false } : { filtro: PADRAO, invalido: true };
 }
 
-export const temFiltro = (f: FiltroDemandas): boolean => Boolean(f.status || f.tipo || f.linhaServicoProvavel);
+export const temFiltro = (f: FiltroDemandas): boolean => Boolean(f.status || f.tipo || f.linhaServicoProvavel || f.origem);
 
 // "Demandas com status Aguardando informação, da mais nova para a mais antiga" (03, T03). Com mais de um filtro, as
-// partes vêm na ordem dos campos, ligadas por vírgula e "e".
+// partes vêm na ordem dos campos, ligadas por vírgula e "e". 0.3.0 (03, 4.1 item 5): a origem entra por último.
 export function legendaDaFila(f: FiltroDemandas): string {
   const partes = [
     f.status ? `status ${ROTULO_STATUS[f.status]}` : null,
     f.tipo ? `tipo ${ROTULO_TIPO[f.tipo]}` : null,
     f.linhaServicoProvavel ? `linha de serviço ${ROTULO_LINHA[f.linhaServicoProvavel]}` : null,
+    f.origem ? `origem ${ROTULO_ORIGEM[f.origem]}` : null,
   ].filter((x): x is string => x !== null);
   if (partes.length === 0) return 'Demandas, da mais nova para a mais antiga';
   const ultima = partes.pop();
@@ -75,33 +78,51 @@ export function textoDemandasEncontradas(total: number): string {
 }
 
 // O endereço da fila com os filtros ativos e o deslocamento pedido; o padrão (página 1, 20 por página) não aparece.
+// 0.3.0 (03, 4.1 item 2): a origem vem depois da linha de serviço (status, tipo, linha, origem, limit, offset). Só o
+// valor do enum, já validado pelo schema, chega aqui (CV-07).
 export function hrefDaFila(f: FiltroDemandas, offset: number): string {
   const q = new URLSearchParams();
   if (f.status) q.set('status', f.status);
   if (f.tipo) q.set('tipo', f.tipo);
   if (f.linhaServicoProvavel) q.set('linhaServicoProvavel', f.linhaServicoProvavel);
+  if (f.origem) q.set('origem', f.origem);
   if (f.limit !== PADRAO.limit) q.set('limit', String(f.limit));
   if (offset > 0) q.set('offset', String(offset));
   const consulta = q.toString();
   return consulta ? `/demandas?${consulta}` : '/demandas';
 }
 
+// Os filtros que os contadores levam ocultos e com que contam (03, 4.1 item 3): tipo, linha e origem. O status, a página
+// e o limite não entram (RF-05 da 0.2.0). Montado campo a campo, só do filtro já validado (CV-07).
+export function filtroDosContadores(f: FiltroDemandas): Pick<FiltroDemandas, 'tipo' | 'linhaServicoProvavel' | 'origem'> {
+  return { tipo: f.tipo, linhaServicoProvavel: f.linhaServicoProvavel, origem: f.origem };
+}
+
+// A chave do Suspense dos contadores: remonta (e conta de novo) quando tipo, linha ou origem mudam; o status não.
+export function chaveDosContadores(f: FiltroDemandas): string {
+  return `contadores ${f.tipo ?? ''} ${f.linhaServicoProvavel ?? ''} ${f.origem ?? ''}`;
+}
+
 const textoOuNaoInformada = (v: string | undefined): string => v ?? TEXTOS_FILA.naoInformada;
 
 // Uma linha da tabela (03, 4.4). O título é texto de terceiro, isolado por <bdi> ao lado do selo (CV-18). O id em Mono
-// 600 (03, 2.3).
+// 600 (03, 2.3). 0.3.0 (03, 4.1 item 6): a célula Título ganha a segunda linha "Origem: <rótulo>", em texto de apoio
+// (13 px, tinta-media), como a data sob a Idade; sem coluna nova.
 function linhaDaDemanda(d: DemandaResumo, etapas: EtapasNaFila, agora: Date) {
   return [
     <Link key="id" className="font-mono text-[0.8125rem] font-semibold text-acao-escura underline underline-offset-2" href={`/demandas/${d.id}`}>
       {d.id}
     </Link>,
-    <span key="titulo" className="inline-flex flex-wrap items-center gap-2 text-sm font-semibold">
-      <bdi>{d.titulo}</bdi>
-      {d.rascunhoAgente ? (
-        <Selo cor={SELO_RASCUNHO.cor} tracejado={SELO_RASCUNHO.tracejado}>
-          {SELO_RASCUNHO.texto}
-        </Selo>
-      ) : null}
+    <span key="titulo" className="flex flex-col gap-1">
+      <span className="inline-flex flex-wrap items-center gap-2 text-sm font-semibold">
+        <bdi>{d.titulo}</bdi>
+        {d.rascunhoAgente ? (
+          <Selo cor={SELO_RASCUNHO.cor} tracejado={SELO_RASCUNHO.tracejado}>
+            {SELO_RASCUNHO.texto}
+          </Selo>
+        ) : null}
+      </span>
+      <span className="text-[0.8125rem] text-tinta-media">{TEXTOS_FILA.origem(d.origem)}</span>
     </span>,
     ROTULO_TIPO[d.tipo],
     <Selo key="status" cor={COR_STATUS[d.status]}>

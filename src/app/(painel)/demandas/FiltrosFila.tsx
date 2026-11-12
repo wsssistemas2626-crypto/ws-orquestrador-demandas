@@ -14,7 +14,7 @@ import { useEffect, useSyncExternalStore, type FormEvent, type MouseEvent, type 
 import { Botao } from '../../../components/Botao';
 import { Recolhivel } from '../../../components/Recolhivel';
 import { RegiaoAviso } from '../../../components/RegiaoAviso';
-import { ROTULO_LINHA, ROTULO_TIPO } from '../../../components/rotulos';
+import { ROTULO_LINHA, ROTULO_ORIGEM, ROTULO_TIPO } from '../../../components/rotulos';
 import { Selecao, type OpcaoSelecao } from '../../../components/Selecao';
 import type { FiltroDemandas } from '../../../modules/demandas/schemas';
 
@@ -122,8 +122,9 @@ export function BotaoTentarDeNovo() {
 // --- filtros ---
 
 // T09 (03, 4.2): o status sai do formulário (os contadores o escolhem) e vai num campo oculto, com o valor da URL já
-// validado, para "Filtrar" mantê-lo. O endereço continua com os nomes de hoje, na mesma ordem.
-const CAMPOS = ['status', 'tipo', 'linhaServicoProvavel'] as const;
+// validado, para "Filtrar" mantê-lo. O endereço continua com os nomes de hoje, na mesma ordem. 0.3.0 (03, 4.1 item 2):
+// a origem entra depois da linha de serviço, a ordem de hrefDaFila.
+const CAMPOS = ['status', 'tipo', 'linhaServicoProvavel', 'origem'] as const;
 
 const opcoes = (primeira: string, rotulos: Readonly<Record<string, string>>): OpcaoSelecao[] => [
   { valor: '', rotulo: primeira },
@@ -132,18 +133,20 @@ const opcoes = (primeira: string, rotulos: Readonly<Record<string, string>>): Op
 
 const OPCOES_TIPO = opcoes('Todos', ROTULO_TIPO);
 const OPCOES_LINHA = opcoes('Todas', ROTULO_LINHA);
+// 0.3.0 (03, 4.1 item 1): "Todas", "Pessoa", "Agente de IA", "Awave".
+const OPCOES_ORIGEM = opcoes('Todas', ROTULO_ORIGEM);
 
-// "Mais filtros" do celular (03, 4.3 e seção 9), com quantos de Tipo e Linha de serviço estão na URL.
+// "Mais filtros" do celular (03, 4.3 e seção 9), com quantos de Tipo, Origem e Linha de serviço estão na URL.
 export function rotuloMaisFiltros(ativos: number): string {
   if (ativos === 0) return 'Mais filtros';
   return ativos === 1 ? 'Mais filtros (1 ativo)' : `Mais filtros (${ativos} ativos)`;
 }
 
-type Props = { filtro: Pick<FiltroDemandas, 'status' | 'tipo' | 'linhaServicoProvavel'>; idFoco: string };
+type Props = { filtro: Pick<FiltroDemandas, 'status' | 'tipo' | 'linhaServicoProvavel' | 'origem'>; idFoco: string };
 
 export function FiltrosFila({ filtro, idFoco }: Props) {
   const router = useRouter();
-  const ativos = (filtro.tipo ? 1 : 0) + (filtro.linhaServicoProvavel ? 1 : 0);
+  const ativos = (filtro.tipo ? 1 : 0) + (filtro.linhaServicoProvavel ? 1 : 0) + (filtro.origem ? 1 : 0);
 
   // O endereço leva só os filtros escolhidos ("Todos" não entra) e volta à página 1.
   function aoEnviar(e: FormEvent<HTMLFormElement>) {
@@ -167,6 +170,7 @@ export function FiltrosFila({ filtro, idFoco }: Props) {
           <legend className="px-1 font-semibold">Filtros</legend>
           <div className="flex flex-col gap-4 md:flex-row md:flex-wrap">
             <Selecao id="filtro-tipo" name="tipo" rotulo="Tipo" opcoes={OPCOES_TIPO} defaultValue={filtro.tipo ?? ''} />
+            <Selecao id="filtro-origem" name="origem" rotulo="Origem" opcoes={OPCOES_ORIGEM} defaultValue={filtro.origem ?? ''} />
             <Selecao
               id="filtro-linha"
               name="linhaServicoProvavel"
