@@ -220,7 +220,7 @@ describe('GET /api/demandas', () => {
     const { itens } = JSON.parse(texto) as { itens: Array<Record<string, unknown>> };
     expect(itens.length).toBeGreaterThan(0);
     for (const i of itens) {
-      expect(Object.keys(i).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
+      expect(Object.keys(i).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'origem', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
     }
   });
 
@@ -391,7 +391,7 @@ describe('M-06: minimização da leitura de demanda para quem não é pessoa', (
       expect(contemSentinela(texto)).toBe(false);
       const { itens } = JSON.parse(texto) as { itens: Array<Record<string, unknown>> };
       expect(itens.length).toBeGreaterThan(0);
-      for (const i of itens) expect(Object.keys(i).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
+      for (const i of itens) expect(Object.keys(i).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'origem', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
     }
   });
 

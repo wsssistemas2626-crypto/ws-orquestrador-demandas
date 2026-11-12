@@ -160,7 +160,10 @@ describe('RF-06 e CA-21.3: nenhuma outra leitura traz o texto bruto nem a origem
     const item = itens.find((i) => i.id === id);
     expect(item).toBeDefined();
     expect(Object.keys(item!)).not.toContain('texto');
-    expect(Object.keys(item!)).not.toContain('origem');
+    // D-22 do 0016: o item da fila traz a origem do RF-10 (lida da autoria), nunca a da entrada bruta ({ canal, referencia },
+    // dado de terceiro). Lista fechada das chaves e valor exato da enumeração: nenhuma outra chave, nenhum objeto.
+    expect(Object.keys(item!).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'origem', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
+    expect(item!.origem).toBe('pessoa');
     expect(contemSentinela(corpoLista)).toBe(false);
 
     const historico = await chamarRota(GET_HISTORICO, { caminho: `/api/demandas/${id}/historico`, params: { id }, cookie: cookieCto });

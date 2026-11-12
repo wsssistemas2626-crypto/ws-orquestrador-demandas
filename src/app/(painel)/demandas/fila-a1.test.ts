@@ -40,6 +40,7 @@ const demanda = (n: number, extra: Partial<DemandaResumo> = {}): DemandaResumo =
   urgencia: 'media',
   linhaServicoProvavel: 'automacao_integracao',
   rascunhoAgente: false,
+  origem: 'pessoa',
   // 07/11/2026 às 10:00 em São Paulo: 3 dias antes do AGORA.
   criadaEm: new Date('2026-11-07T13:00:00Z'),
   ...extra,

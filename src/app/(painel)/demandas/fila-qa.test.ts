@@ -69,6 +69,7 @@ const demanda = (n: number, extra: Partial<DemandaResumo> = {}): DemandaResumo =
   urgencia: 'media',
   linhaServicoProvavel: 'sob_medida',
   rascunhoAgente: false,
+  origem: 'pessoa',
   criadaEm: new Date('2026-10-22T17:05:00Z'),
   ...extra,
 });
