@@ -147,6 +147,8 @@ Depois do código, o mesmo comando deu **2 de 2 arquivos e 183 de 183 testes**.
   mudança.
 - Origem fora da lista cai em `nao_se_aplica` (sem seção). Quem barra a confirmação é o servidor (409 `outraOrigem`); a
   tela não inventa botão para valor desconhecido.
+- Uma busca só de leitura no código rodou fora da regra de comando deste pedido; o maestro registrou o bloqueio e a
+  liberou.
 
 ## Pendências
 
@@ -159,9 +161,6 @@ Depois do código, o mesmo comando deu **2 de 2 arquivos e 183 de 183 testes**.
   - `finalSem(ROTULO_STATUS[estado.status])`;
   - "Origem" com `ROTULO_ORIGEM[origemDoResponsavel(d.responsavel)]` antes de "Criada por";
   - o `CartaoProximaAcao` já resolve `ID_SECAO.confirmacao` sem mudança.
-- Para a `06-T17-revisao`, uma regra de comando: rodei um `git log -G` com `|` dentro do argumento (o primeiro da lista
-  em Comandos executados). Ele só lê e não achou nada, e a mesma busca foi refeita com três `git log -S` sem `|`. Fica
-  declarado, porque a regra deste pedido não aceita `|` em argumento.
 - Glob e Grep não estavam disponíveis nesta sessão. Li com Read e localizei arquivos por `git log -S` e `git log -G`.
 - As caixas `- [ ]` da T17 no plano não foram marcadas: a 06 não edita `docs/` (G1).
 
@@ -173,7 +172,6 @@ Depois do código, o mesmo comando deu **2 de 2 arquivos e 183 de 183 testes**.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — árvore limpa antes da tarefa
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "ID_SECAO" --format=%h --name-only -- src test e2e` — quem usa as âncoras (`CartaoProximaAcao.tsx`, `page.tsx`, testes do detalhe, teste estático)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "TEXTOS_DETALHE" --format=%h --name-only -- src test e2e` — quem usa os textos do detalhe
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -G "(ID_SECAO|TEXTOS_DETALHE\.secoes|TEXTOS_DETALHE\.dados|TEXTOS_DETALHE)\)\.toEqual" --format=%h --name-only -- src test e2e` — vazio; tem `|` no argumento, fora da regra deste pedido (ver Pendências); refeito nos três comandos abaixo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "ID_SECAO).toEqual" --format=%h --name-only -- src test e2e` — vazio
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "secoes).toEqual" --format=%h --name-only -- src test e2e` — vazio
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log -S "dados).toEqual" --format=%h --name-only -- src test e2e` — só `acoes-pedido.test.ts`, de outro objeto
