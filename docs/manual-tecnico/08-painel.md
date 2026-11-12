@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 11/11/2026 (0.2.0: novo visual, com identidade, casca e gaveta, fila com contadores, T05 com barra de etapas e "Próxima ação", T11 por três botões e no celular, telas públicas, o que não mudou, testes nas duas larguras, capturas e pendências novas); 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
+| Atualizado em | 12/11/2026 (0.3.0: origem e filtro "Origem" na T03; origem, selo "Aguardando confirmação", seção "Confirmação do Awave" e linha 14 da Próxima ação na T05; "Recebido pelo /construir em …" e texto novo da seção do pedido na T11; rótulos do histórico); 11/11/2026 (0.2.0: novo visual, com identidade, casca e gaveta, fila com contadores, T05 com barra de etapas e "Próxima ação", T11 por três botões e no celular, telas públicas, o que não mudou, testes nas duas larguras, capturas e pendências novas); 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RF-26; RNF-11, RNF-16; RF-01 a RF-17 do pedido `DEC-DEM-20261110-0015-v1` (0.2.0) |
+| Cobre | RF-26; RNF-11, RNF-16; RF-01 a RF-17 do pedido `DEC-DEM-20261110-0015-v1` (0.2.0); RF-06, RF-10, RF-11 e RF-15 do pedido `DEC-DEM-20261111-0016-v1` (0.3.0) |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/app/globals.css`, `src/app/fontes.ts`, `src/components/` (inclusive `casca/` e `marca/`), `src/proxy.ts`, `e2e/` |
 
 Todas as telas são em pt-BR, com os textos de `03-ux-ui-design.md` (do pedido 0001 e, desde a 0.2.0, do pedido 0015).
@@ -18,21 +18,26 @@ decisão no celular, o da proposta C (C2). **Só a camada visual mudou**: rotas,
 permissões são os da 0.1.13 ([O que não mudou](#o-que-não-mudou-rf-15)). Os RF citados nas seções abaixo, de RF-01 a
 RF-17, são os do pedido 0015, e não os do sistema.
 
+Na 0.3.0 (pedido `DEC-DEM-20261111-0016-v1`), a base visual é a da 0.2.0, sem componente, variação ou token novo. Entram
+leituras e textos para as integrações: a origem da demanda na T03 e na T05, a confirmação da demanda do Awave na T05 e
+o recebimento pelo `/construir` na T11. A T12 não muda: as integrações não aparecem nela. As capturas de tela
+continuam as da 0.2.0 e não mostram essas mudanças ([Capturas de tela](#capturas-de-tela)).
+
 ## Telas
 
 | Tela | Rota | O que faz | RF |
 |---|---|---|---|
 | T01 Entrar | `/entrar` | senha e depois o código do aplicativo ou um código de recuperação; moldura pública desde a 0.2.0 | RF-01 |
 | T02 Configurar 2FA | `/configurar-2fa` | QR, chave para digitar, confirmação do código e códigos de recuperação; única tela aberta à sessão sem 2FA, por até 15 min; moldura pública desde a 0.2.0 | RF-01 |
-| T03 Fila de demandas | `/demandas` | contadores por status que filtram (desde a 0.2.0); filtros por tipo e linha de serviço na URL, aplicados por botão; tabela com etapas e idade, ou cartões no celular; total encontrado; entradas que aguardam o agente | RF-06 |
+| T03 Fila de demandas | `/demandas` | contadores por status que filtram (desde a 0.2.0); filtros por tipo, origem (desde a 0.3.0) e linha de serviço na URL, aplicados por botão; tabela com etapas, idade e a origem embaixo do título, ou cartões no celular; total encontrado; entradas que aguardam o agente | RF-06 |
 | T04 Nova demanda | `/demandas/nova` | colar o texto e preencher os campos, ou mandar ao agente orquestrador quando ligado | RF-03, RF-05, RF-20 |
-| T05 Detalhe | `/demandas/[id]` | barra das cinco etapas e cartão "Próxima ação" (desde a 0.2.0); dados, dúvidas, versões de ESP, RSK e DEC (com o selo "Substituído" no DEC aprovado substituído, desde a 0.1.13), mudança manual de status, texto recebido (com a data do expurgo), histórico completo, agente trabalhando | RF-06, RF-07, RF-12, RF-15, RF-21, RF-24 |
+| T05 Detalhe | `/demandas/[id]` | barra das cinco etapas e cartão "Próxima ação" (desde a 0.2.0); origem nos dados e, na demanda do Awave, o selo "Aguardando confirmação" e a seção "Confirmação do Awave" (desde a 0.3.0); dados, dúvidas, versões de ESP, RSK e DEC (com o selo "Substituído" no DEC aprovado substituído, desde a 0.1.13), mudança manual de status, texto recebido (com a data do expurgo), histórico completo, agente trabalhando | RF-06, RF-07, RF-12, RF-15, RF-21, RF-24 |
 | T06 Editar demanda | `/demandas/[id]/editar` | editar os campos | RF-06 |
 | T07 Nova ESP | `/demandas/[id]/especificacoes/nova` | começa com a mais nova; destino por conta e sistema | RF-08 |
 | T08 Novo RSK | `/demandas/[id]/pareceres-risco/novo` | três níveis, comentários, listas | RF-09 |
 | T09 Novo DEC | `/demandas/[id]/pacotes-decisao/novo` | resumo, opções A e B, recomendação, nível de aprovação | RF-10 |
 | T10 Ver ESP ou RSK | `/especificacoes/[espId]`, `/pareceres-risco/[rskId]` | somente leitura | RF-11 |
-| T11 Decisão | `/pacotes-decisao/[decId]` | revisão do destino, dos níveis e do nível de aprovação; decisão por três botões ("Aprovar a opção X", "Devolver", "Arquivar", desde a 0.2.0) com confirmação em diálogo; arranjo próprio no celular (desde a 0.2.0); aprovar indisponível e explicado quando desatualizado; gerar, baixar e copiar o pedido; aviso sobre dado pessoal no pedido; caixa de confirmação sem dado pessoal antes de gerar (desde a 0.1.12, [cap. 05](05-pedido-de-construcao.md#na-t11)); no DEC substituído, o selo, o aviso com o link para o DEC que gera e nenhuma seção do pedido (desde a 0.1.13, [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)) | RF-12, RF-13, RF-14, RF-22 |
+| T11 Decisão | `/pacotes-decisao/[decId]` | revisão do destino, dos níveis e do nível de aprovação; decisão por três botões ("Aprovar a opção X", "Devolver", "Arquivar", desde a 0.2.0) com confirmação em diálogo; arranjo próprio no celular (desde a 0.2.0); aprovar indisponível e explicado quando desatualizado; gerar, baixar e copiar o pedido; "Recebido pelo /construir em …" no cabeçalho (desde a 0.3.0); aviso sobre dado pessoal no pedido; caixa de confirmação sem dado pessoal antes de gerar (desde a 0.1.12, [cap. 05](05-pedido-de-construcao.md#na-t11)); no DEC substituído, o selo, o aviso com o link para o DEC que gera e nenhuma seção do pedido (desde a 0.1.13, [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)) | RF-12, RF-13, RF-14, RF-22 |
 | T12 Agentes e teto | `/configuracao/agentes` | interruptor e modelo de cada agente, teto, gasto do mês, batimento do worker, último expurgo; as duas contas leem, só a `cto` altera | RF-17, RF-18, RF-19 |
 | Sem permissão | `/sem-permissao` | conta sem papel válido; moldura pública desde a 0.2.0 | RF-01 |
 | Erro e 404 | `src/app/error.tsx`, 404 da raiz e do painel | "Não foi possível carregar esta página." e "Tentar de novo"; o 404 do painel fica dentro da casca, o da raiz na moldura pública | — |
@@ -136,16 +141,26 @@ O cabeçalho tem a etiqueta "Fila", o `h1` "Demandas" e o botão "Nova demanda".
 - Se a contagem falha, os botões ficam sem número e continuam filtrando, com o texto "Não foi possível contar as
   demandas por status. Os filtros por status continuam funcionando.".
 
-**Filtros:** só Tipo e Linha de serviço, com "Filtrar" e "Limpar filtros". Mudar o seletor não aplica nada sozinho. O
-seletor de Status saiu, e um campo oculto mantém o status da URL. No celular, os dois filtros e os botões ficam no
-recolhível "Mais filtros" ("Mais filtros (1 ativo)", "Mais filtros (2 ativos)").
+**Filtros:** Tipo, Origem (desde a 0.3.0) e Linha de serviço, nessa ordem, com "Filtrar" e "Limpar filtros". Mudar o
+seletor não aplica nada sozinho. O seletor de Status saiu, e um campo oculto mantém o status da URL. No celular, os
+filtros e os botões ficam no recolhível "Mais filtros" ("Mais filtros (1 ativo)", "Mais filtros (2 ativos)"), que conta
+também a origem.
+
+**Origem** (desde a 0.3.0, RF-10 do pedido 0016): o seletor "Origem" (`name="origem"`) tem as opções Todas, Pessoa,
+Agente de IA e Awave (`ROTULO_ORIGEM`, `rotulos.ts`). Na URL, `origem` vem depois de `linhaServicoProvavel`; valor fora
+da lista mostra `TEXTOS_FILA.filtroInvalido`. "Limpar filtros" tira também a origem. Os contadores levam a origem
+oculta, e o total de cada um respeita tipo, linha **e** origem. No título do resultado, a parte "origem <rótulo>" vem
+por último (`legendaDaFila`; por exemplo, "Demandas com status Nova e origem Awave, da mais nova para a mais antiga"). A origem sai da autoria,
+nunca do solicitante. A fila mostra o selo "Rascunho de agente" na demanda do Awave, mas não o "Aguardando
+confirmação", que só aparece na T05.
 
 **Resultado:** o título `h2 id="resultado-da-fila"` (com `tabindex="-1"`) e "N demandas encontradas.", também anunciado
 na região de aviso. A tabela e a lista usam o mesmo título, com um id só.
 
 **Tabela, a partir de 768 px**, com as colunas Id, Título, Tipo, Status, Etapas, Urgência, Linha de serviço e Idade:
 
-- o Id é um link em Mono; o Título leva o selo de rascunho quando há;
+- o Id é um link em Mono; o Título leva o selo de rascunho quando há e, desde a 0.3.0, uma segunda linha
+  "Origem: <rótulo>" (13 px, `tinta-media`), em vez de uma coluna nova;
 - Etapas tem três marcas, ESP, RSK e DEC. A marca feita é cheia em marinho, e a por fazer é branca com borda tracejada.
   As marcas são `aria-hidden`, e o leitor de tela lê o texto oculto "Etapas: ESP feita, RSK feita, DEC por fazer"
   (`textoDasEtapas`). Cada uma conta como feita com **qualquer** versão daquele tipo, mesmo um DEC ainda pendente;
@@ -155,7 +170,8 @@ na região de aviso. A tabela e a lista usam o mesmo título, com um id só.
 - a tabela tem `caption` só para leitor de tela e `th scope="col"`. Fica numa região rolável com `tabindex="0"`.
 
 **Cartões, abaixo de 768 px** (`CartoesDaFila.tsx`): uma lista `ul`/`li`, com os mesmos dados. No topo ficam o id
-(link) e o selo de status; depois, o título num `h3` e uma `dl` com Tipo, Urgência, Linha de serviço, Etapas e Idade. Só
+(link) e o selo de status; depois, o título num `h3` e uma `dl` com Tipo, Urgência, Origem (desde a 0.3.0), Linha de
+serviço, Etapas e Idade. Só
 o id é link, o cartão não. Em cada largura, só a tabela ou só a lista está na árvore de acessibilidade. Não há rolagem
 lateral em 390 nem em 320 px.
 
@@ -168,8 +184,8 @@ com "Todas" marcado) e sucesso.
 Arquivos: `src/app/(painel)/demandas/[id]/page.tsx`, `BarraDeEtapas.tsx`, `CartaoProximaAcao.tsx`, `Historico.tsx` e
 `src/components/dados-das-etapas.ts`.
 
-**Arranjo:** a partir de 1200 px, há duas colunas. A principal (2/3) tem Dados, Dúvidas, Versões, Status e Texto
-recebido; a lateral (1/3) tem Próxima ação e Histórico. Abaixo de 1200 px, a tela tem uma coluna só. A ordem no DOM é
+**Arranjo:** a partir de 1200 px, há duas colunas. A principal (2/3) tem Dados, Confirmação do Awave (só na demanda
+do Awave, desde a 0.3.0), Dúvidas, Versões, Status e Texto recebido; a lateral (1/3) tem Próxima ação e Histórico. Abaixo de 1200 px, a tela tem uma coluna só. A ordem no DOM é
 a mesma em toda largura: trilha, cabeçalho, "Nesta página", alertas, barra de etapas, **Próxima ação**, Dados,
 Dúvidas, Versões, Status, Texto recebido e **Histórico**.
 
@@ -213,6 +229,10 @@ DEC para a marca DEC ficar cheia (R-01, nas pendências).
 | 11 | `em_construcao` | "Acompanhar a construção. Quando terminar, mudar o status para Entregue ou Devolvida pela construção." | idem | "Mudar o status" |
 | 12 | `devolvida` | "Ler o motivo da devolução no histórico e voltar a demanda para Em construção ou Em análise." | idem | "Mudar o status" |
 | 13 | qualquer outro caso | "Acompanhar a demanda." | "Sem responsável definido" | — |
+| 14 (desde a 0.3.0; avaliada depois da 2 e antes da 3) | demanda do Awave não confirmada, fora de status final | "Confirmar a demanda aberta pelo Awave.", com o detalhe "Até a confirmação, nenhum agente de IA trabalha nela." | Uma pessoa (CTO ou administradora) | "Ir para a confirmação" |
+
+A linha 14 tem esse número só para não renumerar as linhas da 0.2.0; a ordem de avaliação é a da tabela acima, com ela
+entre a 2 e a 3.
 
 - O cartão só informa: não libera, não esconde e não decide nada. `etapasDaDemanda` e `proximaAcao` são funções puras,
   chamadas só pela página (`test/estatico/dados-das-etapas.test.ts`). De `src/modules/` elas só importam tipos.
@@ -222,6 +242,32 @@ DEC para a marca DEC ficar cheia (R-01, nas pendências).
   `autorizar(pessoa, 'ler_pacote_decisao')`. O id vem da demanda, nunca da URL.
 - Se o DEC ou a ESP lidos não forem os mais novos da demanda, as funções lançam erro, e a T05 mostra a tela de erro. O
   mesmo vale para DEC aprovado sem opção registrada (R-02, nas pendências).
+
+**Demanda do Awave** (desde a 0.3.0, RF-06 e RF-10 do pedido 0016; regra do servidor no
+[cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)):
+
+- **Dados:** "Origem" antes de "Criada por", com o rótulo da autoria (Pessoa, Agente de IA ou Awave). "Criada por" de
+  integração diz "Awave". Vale para toda demanda.
+- **Selo "Aguardando confirmação"** (âmbar, sem tracejado, `SELO_AGUARDANDO_CONFIRMACAO`) no cabeçalho, só na demanda
+  do Awave não confirmada e fora de status final.
+- **Seção "Confirmação do Awave"** (`ConfirmarDemanda.tsx`; textos em `TEXTOS_CONFIRMACAO`,
+  `src/components/dados-da-confirmacao.ts`), depois de Dados, com o `h2 id="confirmacao"` focável e o item em "Nesta
+  página". Só existe na demanda do Awave. O estado sai de `estadoDaConfirmacao`, função pura sobre a origem, o status e
+  o histórico que a página já lê:
+
+  | Estado | O que aparece |
+  |---|---|
+  | Aguardando | "Esta demanda foi aberta pelo Awave e ainda não foi confirmada. Até uma pessoa confirmar, nenhum agente de IA trabalha nela."; "Ao confirmar, a demanda segue o fluxo de qualquer outra: se o agente de insumo técnico estiver ligado, ele recebe o título, a descrição e o contexto e começa a especificação técnica."; "Leia os dados antes. Se a demanda não deve seguir, não confirme: use Mudar status e escolha Encerrada."; e o botão "Confirmar demanda" (44 px, com a consequência ligada por `aria-describedby`) |
+  | Enviando | "Confirmando…", botão desabilitado, seção com `aria-busy` |
+  | Sucesso | "Demanda confirmada." na região de aviso, foco no `h2` da seção; o selo some |
+  | Confirmada | "Confirmada por <pessoa> em <data e hora>." e "Desde a confirmação, a demanda segue o fluxo de qualquer outra." |
+  | Status final sem confirmação | "Esta demanda foi aberta pelo Awave e não foi confirmada. Ela está em <status>, um status final: não há confirmação a fazer.", sem botão |
+  | Erro (409, 403, rede) | alerta com foco, "Não foi possível concluir: " e a mensagem do servidor |
+
+  Não há diálogo de confirmação (P-01): a consequência está escrita acima do botão. O botão chama a Server Action
+  `confirmarDemandaNoPainel`; quem decide se pode é o servidor.
+- **Próxima ação:** linha 14 (acima).
+- A partir de 1200 px, a coluna principal passa de 5 para 6 linhas na grade. A barra de etapas não muda.
 
 ## Decisão, T11 (RF-11, RF-12)
 
@@ -260,6 +306,12 @@ diálogo e as validações são os da 0.1.13 ([cap. 04](04-versoes-e-decisao.md#
 **Cabeçalho**, em toda largura: o id em Mono, os selos, o `h1` "Decisão: <título>", a linha com a demanda, o nível de
 aprovação e a criação, a linha nova **"Repositório destino: <valor>"** e as citações. Depois vêm os alertas de antes
 (desatualizado, substituído, rascunho).
+
+Desde a 0.3.0 (RF-15 do pedido 0016), depois de "Repositório destino", a linha **"Recebido pelo /construir em <data e
+hora>."**, com um visto decorativo e `<time>`, quando o DEC tem `pedido_recebido`. Ela aparece em toda situação do DEC
+(substituído, desatualizado, demanda em status final) e não é focável. Sem recebimento, a linha não existe. O texto da
+seção "Pedido de Construção" também mudou: ele cita a busca automática e a cópia manual
+([cap. 05](05-pedido-de-construcao.md#na-t11)).
 
 **A partir de 1200 px:** à esquerda (3/5) ficam Aprovações, Resumo executivo, Recomendação, Opções e "Revisão antes de
 decidir"; à direita (2/5), o cartão "Registrar decisão", que não é fixo. Depois de aprovado, a seção do Pedido de

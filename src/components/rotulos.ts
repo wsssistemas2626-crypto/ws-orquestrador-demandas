@@ -4,8 +4,9 @@
 import type { NivelAprovacao } from '../db/schema/decisao';
 import type { Anexo, LinhaServico, Origem, PapelSolicitante, StatusDemanda, TipoDemanda, Urgencia } from '../db/schema/demandas';
 import type { NivelRisco } from '../db/schema/versoes';
-import type { Agente, Papel } from '../modules/acesso/ator';
+import type { Agente, Integracao, Papel } from '../modules/acesso/ator';
 import type { StatusDecisao } from '../modules/demandas/consultas';
+import type { OrigemDaDemanda } from '../modules/demandas/schemas';
 import type { EventoVisivel } from '../modules/historico/consultas';
 import { RE_ID_DEC } from './dados-do-pacote';
 
@@ -58,6 +59,9 @@ export const SELO_RASCUNHO: SeloFixo = { texto: 'Rascunho de agente', cor: 'viol
 export const SELO_DESATUALIZADO: SeloFixo = { texto: 'Desatualizado', cor: 'vermelho', tracejado: false };
 // 0.1.13: o DEC aprovado que um aprovado mais novo da demanda substituiu. Texto da triagem, para revisão da ux-ui-design.
 export const SELO_SUBSTITUIDO: SeloFixo = { texto: 'Substituído', cor: 'cinza', tracejado: false };
+// 0.3.0 (03, seções 2 e 9; 5.1 item 2): no cabeçalho da T05, só com a demanda do Awave aguardando confirmação
+// (estadoDaConfirmacao). Âmbar (`atencao` / `atencao-fundo`), a cor de selo que já existe; a fila não o mostra.
+export const SELO_AGUARDANDO_CONFIRMACAO: SeloFixo = { texto: 'Aguardando confirmação', cor: 'ambar', tracejado: false };
 
 export const ROTULO_TIPO: Readonly<Record<TipoDemanda, string>> = {
   bug: 'Bug',
@@ -83,6 +87,10 @@ export const ROTULO_LINHA: Readonly<Record<LinhaServico, string>> = {
 };
 
 export const ROTULO_URGENCIA: Readonly<Record<Urgencia, string>> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+
+// 0.3.0 (03, seções 2 e 9; RF-10): a origem da demanda, lida da autoria, na fila (filtro, linha e cartão) e nos Dados da
+// T05. A ordem é a das opções do filtro "Origem".
+export const ROTULO_ORIGEM: Readonly<Record<OrigemDaDemanda, string>> = { pessoa: 'Pessoa', agente: 'Agente de IA', awave: 'Awave' };
 
 // Canal de origem e tipo de anexo (03, T04): os mesmos textos das opções de T04, para o detalhe (T05).
 export const ROTULO_CANAL_ORIGEM: Readonly<Record<NonNullable<Origem['canal']>, string>> = {
@@ -114,6 +122,10 @@ export const NOME_AGENTE: Readonly<Record<Agente, string>> = {
   consolidacao: 'Agente de consolidação',
 };
 
+// 0.3.0 (03, 5.6): o nome da integração no histórico e em "Criada por". Cópia de NOME_DA_INTEGRACAO do servidor
+// (acesso/ator.ts), porque este arquivo só importa tipos dos módulos; um teste confere que são iguais (D-14).
+export const NOME_INTEGRACAO: Readonly<Record<Integracao, string>> = Object.freeze({ awave: 'Awave', construir: '/construir' });
+
 export const ROTULO_PAPEL: Readonly<Record<Papel, string>> = { cto: 'CTO', administradora: 'Administradora' };
 
 // Rótulos dos campos da demanda, os de 03 T04, para "Alterou "<rótulo do campo>"" no histórico.
@@ -138,18 +150,48 @@ export function formatarDinheiro(v: number): string {
   return `US$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// O formato do prefixo do token (tokens-servico.ts): só ele aparece na tela, nunca o token, o hash ou o sha256. Cópia
+// (o arquivo vai ao navegador), conferida por teste (tokens-integracao.test.ts).
+export const RE_PREFIXO = /^[A-Za-z0-9_-]{8}$/;
+const prefixoValido = (v: unknown): string | null => (typeof v === 'string' && RE_PREFIXO.test(v) ? v : null);
+const ehIntegracaoNaTela = (v: unknown): v is Integracao => typeof v === 'string' && Object.prototype.hasOwnProperty.call(NOME_INTEGRACAO, v);
+
 export function rotuloAtor(a: EventoVisivel['ator']): string {
-  if (a.tipo === 'agente') return NOME_AGENTE[a.agente];
-  if (a.tipo === 'sistema') return 'Sistema';
-  // Nome ou papel nulos só se a conta não existir mais (o app não apaga conta): a linha continua legível.
-  const papel = a.papel ? ROTULO_PAPEL[a.papel] : null;
-  if (a.nome && papel) return `${a.nome} (${papel})`;
-  return a.nome ?? papel ?? NAO_INFORMADO;
+  switch (a.tipo) {
+    case 'agente':
+      return NOME_AGENTE[a.agente];
+    case 'sistema':
+      return 'Sistema';
+    // 03, 5.6: "<nome> (prefixo <p>)"; sem prefixo no formato, só o nome; integração fora da lista, "Integração".
+    case 'integracao': {
+      if (!ehIntegracaoNaTela(a.integracao)) return 'Integração';
+      const prefixo = prefixoValido(a.prefixo);
+      return prefixo ? `${NOME_INTEGRACAO[a.integracao]} (prefixo ${prefixo})` : NOME_INTEGRACAO[a.integracao];
+    }
+    case 'pessoa': {
+      // Nome ou papel nulos só se a conta não existir mais (o app não apaga conta): a linha continua legível.
+      const papel = a.papel ? ROTULO_PAPEL[a.papel] : null;
+      if (a.nome && papel) return `${a.nome} (${papel})`;
+      return a.nome ?? papel ?? NAO_INFORMADO;
+    }
+    default: {
+      // Tipo fora da lista (montado à mão): a linha continua legível, sem dado do ator.
+      const nunca: never = a;
+      void nunca;
+      return NAO_INFORMADO;
+    }
+  }
 }
 
 // --- textos do histórico ---
 
 const ehAgente = (v: unknown): v is Agente => typeof v === 'string' && v in NOME_AGENTE;
+
+// O DEC citado nos eventos do pedido (03, 5.6): só com o formato de id de DEC; senão, a frase genérica.
+const doPacote = (id: string): string => (RE_ID_DEC.test(id) ? id : 'um pacote de decisão');
+
+// " (prefixo <p>)" dos eventos de token, só com prefixo no formato.
+const comPrefixo = (p: string | null): string => (p ? ` (prefixo ${p})` : '');
 
 // O nome do agente no meio da frase: "O agente de risco …".
 export const agenteNaFrase = (a: Agente): string => NOME_AGENTE[a].charAt(0).toLowerCase() + NOME_AGENTE[a].slice(1);
@@ -163,12 +205,13 @@ export const ARTEFATO_DO_AGENTE: Readonly<Record<Agente, string>> = {
 };
 
 // Motivo de `agente_ignorado` (T27), que a 03 não descreve. B-5 do 0006: `demanda_final` (executar.ts) vale para os
-// dois status finais, entregue e encerrada.
+// dois status finais, entregue e encerrada. 0.3.0 (D-18): `sem_confirmacao`, o passo 3c do worker (IN-06).
 const MOTIVO_IGNORADO: Readonly<Record<string, string>> = {
   desligado: 'agente desligado',
   sem_preco: 'modelo sem preço vigente',
   sem_provedor: 'provedor de IA não configurado',
   demanda_final: 'demanda já entregue ou encerrada',
+  sem_confirmacao: 'demanda aberta pelo Awave ainda não confirmada',
 };
 
 const ROTULO_DECISAO_NO_HISTORICO: Readonly<Record<string, string>> = {
@@ -259,9 +302,24 @@ export function textoDoEvento(e: EventoVisivel, op: { retencaoDias?: number } = 
       return 'Criou a conta';
     case 'conta_desativada':
       return 'Desativou a conta';
-    case 'token_criado':
-      return 'Criou um token de serviço';
-    case 'token_revogado':
-      return 'Revogou um token de serviço';
+    // 0.3.0 (03, 5.6): com integração da lista, o nome dela; com prefixo no formato, o prefixo. Agente ou nada: o texto
+    // de antes. Nunca o token, o hash ou o sha256.
+    case 'token_criado': {
+      const integracao = ehIntegracaoNaTela(d.integracao) ? d.integracao : null;
+      if (!integracao) return 'Criou um token de serviço';
+      return `Criou um token de serviço para o ${NOME_INTEGRACAO[integracao]}${comPrefixo(prefixoValido(d.prefixo))}`;
+    }
+    case 'token_revogado': {
+      const integracao = ehIntegracaoNaTela(d.integracao) ? d.integracao : null;
+      const prefixo = prefixoValido(d.prefixo);
+      if (integracao) return `Revogou o token de serviço do ${NOME_INTEGRACAO[integracao]}${comPrefixo(prefixo)}`;
+      return prefixo ? `Revogou o token de serviço de prefixo ${prefixo}` : 'Revogou um token de serviço';
+    }
+    case 'demanda_confirmada':
+      return 'Confirmou a demanda aberta pelo Awave';
+    case 'pedido_entregue':
+      return `Buscou o Pedido de Construção de ${doPacote(e.entidadeId)}`;
+    case 'pedido_recebido':
+      return `Confirmou o recebimento do Pedido de Construção de ${doPacote(e.entidadeId)}`;
   }
 }

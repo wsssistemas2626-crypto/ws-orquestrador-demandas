@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.11: nome grudado na vista mínima, `reduzirErro`, `lerCode`, `erroJaReduzido` e `mapearErro` sem lançar, `ehErro` e `lerDigest`, `stack` lido uma vez no envio ao Sentry); 04/11/2026 (0.1.10: partes do nome do solicitante na vista mínima, `name` do erro lido uma vez e só como texto, marca do Sentry depois do envio); 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
+| Atualizado em | 12/11/2026 (0.3.0: atores de integração `awave` e `construir`, token de integração, matriz com a coluna das integrações e as quatro ações novas, tempo limite e 503 das integrações, Bearer sem `Origin`); 04/11/2026 (0.1.11: nome grudado na vista mínima, `reduzirErro`, `lerCode`, `erroJaReduzido` e `mapearErro` sem lançar, `ehErro` e `lerDigest`, `stack` lido uma vez no envio ao Sentry); 04/11/2026 (0.1.10: partes do nome do solicitante na vista mínima, `name` do erro lido uma vez e só como texto, marca do Sentry depois do envio); 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RF-01, RF-02, RNF-10, RNF-12, RNF-13; controles C-01 a C-21 de `04-seguranca-aplicacao.md` |
-| Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `bloqueio-verificacao.ts`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/reduzir-erro.ts`, `src/lib/sentry.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
+| Cobre | RF-01, RF-02, RNF-10, RNF-12, RNF-13; controles C-01 a C-21 de `04-seguranca-aplicacao.md`; RF-01 a RF-03, RF-09 e RF-11 do pedido 0016 (0.3.0) e os controles IN-01 a IN-04, IN-09, IN-14 e IN-15 dele |
+| Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `ator.ts`, `bloqueio-verificacao.ts`), `src/modules/integracoes/tempo-limite.ts`, `src/modules/limites.ts`, `src/db/schema/acesso.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/reduzir-erro.ts`, `src/lib/sentry.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
 
 ## RF-01. Login com 2FA
 
@@ -44,25 +44,67 @@
   - cookie de sessão e `Authorization` juntos → 400;
   - token fora do formato, revogado ou inexistente → 401, com uma mensagem só;
   - sem cookie e sem token → 401.
-- Cada token é de um agente. O que o agente pode fazer está na matriz abaixo; fora dela, 403.
-- O worker não usa token: chama os módulos direto com o ator `agente` (ADR-02). O token existe para um agente externo.
+- Cada token é de um agente ou, desde a 0.3.0, de uma integração (abaixo). O que cada um pode fazer está na matriz;
+  fora dela, 403.
+- O worker não usa token: chama os módulos direto com o ator `agente` (ADR-02). O token existe para um agente externo e
+  para as integrações.
+
+## Atores de integração (0.3.0)
+
+Desde a 0.3.0 (pedido `DEC-DEM-20261111-0016-v1`, ADR-20 e ADR-21), há um quarto tipo de ator, `integracao`, ao lado
+de `pessoa`, `agente` e `sistema`. A lista é fechada, `INTEGRACOES = ['awave', 'construir']` (`src/db/schema/acesso.ts`),
+e é a mesma dos CHECK do banco. Integração **não** está em `AGENTES`: não aparece na tela de agentes, no interruptor, no
+teto, no uso de IA, em `configuracao_agente` nem em `GET /api/agentes` (RF-11 do pedido).
+
+| Integração | Quem é | Ações | Para quê |
+|---|---|---|---|
+| `awave` | o Awave (agentes da empresa, serviço `empresa-ia`) | `criar_demanda`, `ler_demanda` | abrir demanda quando o dono aprova em `/aprovacoes` do Awave, e ler as que ele mesmo criou ([cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)) |
+| `construir` | a busca automática do `/construir` (CA-F-01) | `listar_pedidos_pendentes`, `entregar_pedido`, `confirmar_recebimento_pedido` | buscar o Pedido de Construção que uma pessoa gerou no painel, sem cópia manual ([cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030)) |
+
+- **Token:** o mesmo formato, a mesma geração e o mesmo hash do token de agente (`wsod_` + 32 bytes; no banco, só o
+  SHA-256 e o prefixo de 8 caracteres), na mesma tabela `token_servico`. A linha tem dono agente **ou** integração,
+  nunca os dois nem nenhum (`token_servico_dono_check`).
+- **Resolução** (`validarTokenServico`, IN-03): a linha vale como agente só com `agente` da lista e `integracao` nula, e
+  como integração só com `integracao` da lista e `agente` nulo. Qualquer outra linha é token inválido: 401
+  "Token de serviço inválido ou revogado.", a mesma mensagem de token revogado ou inexistente.
+- **Emissão e revogação** pelos scripts de sempre, com `--integracao awave|construir` (exclusivo com `--agente`). O
+  procedimento de produção, com onde cada token mora, a troca a cada 12 meses e como achar o prefixo sem exibir o token,
+  está em [docs/operacao/tokens-de-integracao.md](../operacao/tokens-de-integracao.md).
+- **Autoria e histórico:** o ato da integração grava o evento com `ator_tipo = 'integracao'`, `ator_id` = o nome da
+  integração e o prefixo do token (`evento_ator_integracao_check`). O histórico do painel mostra "Awave (prefixo …)" ou
+  "/construir (prefixo …)", só com prefixo no formato `^[A-Za-z0-9_-]{8}$`. Nunca o token, o hash nem o SHA-256.
+- **Limite:** o Awave cria no máximo 10 demandas em 60 minutos ([cap. 03](03-demandas.md#rf-03-criar-demanda)). O
+  `construir` não tem limite de taxa novo. Integração sem limite definido no código lança erro, e nunca fica "sem
+  limite" (`limiteDe`, IN-09).
+- **Tempo limite** (ADR-28, `src/modules/integracoes/tempo-limite.ts`): só na transação de um ator de integração, o
+  servidor põe `lock_timeout` de 2 s e `statement_timeout` de 5 s (10 s na entrega do pedido), abaixo do corte do
+  cliente (10 s no Awave, 15 s no `/construir`). Estourou: `ROLLBACK` e 503 `indisponivel` com a mensagem fixa "O
+  Orquestrador não concluiu o pedido a tempo e nada foi gravado. Tente de novo em alguns minutos.", sem texto do
+  Postgres. Pessoa e agente seguem como antes.
+- **Ramos exaustivos** (ADR-22, IN-02): todo ponto do código que decide pelo tipo do ator é um `switch` com `never`.
+  Um tipo de ator novo quebra o `typecheck`, em vez de cair no ramo do agente.
 
 ## Matriz de acesso
 
-`autorizar(ator, acao)` (`matriz.ts`) é a única porta. Ação, agente ou papel desconhecido é negado. O ator `sistema`
-não passa em nenhuma ação: as mudanças automáticas de status usam funções internas que não chamam `autorizar`.
+`autorizar(ator, acao)` (`matriz.ts`) é a única porta. Ação, agente, integração ou papel desconhecido é negado. O ator
+`sistema` não passa em nenhuma ação: as mudanças automáticas de status usam funções internas que não chamam
+`autorizar`. Desde a 0.3.0, cada linha tem também a lista das integrações (`integracoes`), vazia por padrão: ação nova
+nasce negada para toda integração (IN-01). Só cinco pares abrem.
 
-| Ação | Pessoa | Agente |
-|---|---|---|
-| `criar_demanda` | qualquer papel | `orquestrador` |
-| `listar_demandas`, `ler_demanda`, `ler_especificacao`, `ler_parecer_risco`, `ler_pacote_decisao` | qualquer papel | os quatro |
-| `criar_especificacao` | qualquer papel | `insumo_tecnico` |
-| `criar_parecer_risco` | qualquer papel | `risco` |
-| `criar_pacote_decisao` | qualquer papel | `consolidacao` |
-| `alterar_demanda`, `registrar_entrada`, `ler_texto_bruto`, `ler_historico` | qualquer papel | nenhum |
-| `registrar_decisao`, `gerar_pedido_construcao` | qualquer papel (a regra do papel na decisão está no [cap. 04](04-versoes-e-decisao.md#rf-13-decisão)) | nenhum |
-| `ler_configuracao_agentes`, `ler_teto` | qualquer papel | nenhum |
-| `alterar_agente`, `alterar_teto` | só `cto` | nenhum |
+| Ação | Pessoa | Agente | Integração |
+|---|---|---|---|
+| `criar_demanda` | qualquer papel | `orquestrador` | `awave` |
+| `ler_demanda` | qualquer papel | os quatro | `awave` (só a demanda que ele criou) |
+| `listar_demandas`, `ler_especificacao`, `ler_parecer_risco`, `ler_pacote_decisao` | qualquer papel | os quatro | nenhuma |
+| `criar_especificacao` | qualquer papel | `insumo_tecnico` | nenhuma |
+| `criar_parecer_risco` | qualquer papel | `risco` | nenhuma |
+| `criar_pacote_decisao` | qualquer papel | `consolidacao` | nenhuma |
+| `alterar_demanda`, `registrar_entrada`, `ler_texto_bruto`, `ler_historico` | qualquer papel | nenhum | nenhuma |
+| `registrar_decisao`, `gerar_pedido_construcao` | qualquer papel (a regra do papel na decisão está no [cap. 04](04-versoes-e-decisao.md#rf-13-decisão)) | nenhum | nenhuma |
+| `confirmar_demanda` (desde a 0.3.0) | qualquer papel, só pelo painel ([cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)) | nenhum | nenhuma |
+| `ler_configuracao_agentes`, `ler_teto` | qualquer papel | nenhum | nenhuma |
+| `alterar_agente`, `alterar_teto` | só `cto` | nenhum | nenhuma |
+| `listar_pedidos_pendentes`, `entregar_pedido`, `confirmar_recebimento_pedido` (desde a 0.3.0) | nenhuma | nenhum | `construir` |
 
 A autoria (quem criou, em nome de quem aprovou, se é rascunho de agente) vem sempre do ator resolvido. Nenhum schema
 de entrada tem campo de autoria, e o Zod descarta chave desconhecida (C-11).
@@ -83,6 +125,12 @@ de antes de uma edição, a parte escrita toda em minúscula, o nome todo em mai
 parte curta grudada a outra parte que começa por ela (`AnaBelax`) e o nome de outras pessoas saem em claro
 ([cap. 06](06-agentes-de-ia.md#rf-20-minimização), [CHANGELOG](../../CHANGELOG.md)).
 
+Desde a 0.3.0, o Awave tem vista própria, menor que a do agente: em `ler_demanda` e no 201 de `criar_demanda` ele
+recebe só seis chaves, `id`, `titulo` (minimizado), `tipo`, `status`, `criadaEm` e `atualizadaEm`, e só da demanda que
+ele criou. A de outro autor responde o mesmo 404 da demanda que não existe, saído da mesma consulta, com a autoria no
+`WHERE` (`obterDemandaDaIntegracao`, ADR-23, IN-08). As vistas de ESP, RSK e DEC lançam `sem_permissao` para
+integração.
+
 ## Proteção das rotas
 
 `rota(...)` (`src/lib/rota.ts`) faz, nesta ordem, antes de tocar o banco:
@@ -91,7 +139,9 @@ parte curta grudada a outra parte que começa por ela (`AnaBelax`) e o nome de o
    formato, 404 sem consulta;
 2. CSRF (C-15): em `POST`, `PATCH`, `PUT` e `DELETE` com cookie, `Origin` igual à do `BETTER_AUTH_URL` (senão 403) e
    `Content-Type: application/json` (senão 415). Sem cookie, só Bearer, o `Origin` não é exigido, mas o corpo
-   continua só em JSON;
+   declarado continua só em JSON. Isso continua valendo depois da CSP e da vigilância de origem da 0.2.0, também com o
+   `Host: orquestrador_app` da rede interna (RF-09 do pedido 0016): o Awave e o `/construir` chamam sem `Origin`. A
+   rota sem corpo (a entrega do pedido) aceita `POST` sem corpo e sem `content-type`;
 3. `resolverAtor` e `autorizar`;
 4. query e corpo pelo Zod; corpo acima de 512 KB → 413 antes do parse;
 5. a função do módulo.
@@ -107,7 +157,8 @@ segue até a resposta, o log e o Sentry.
 - Só o `log` de `src/lib/log.ts` (pino), que descarta qualquer campo fora da lista de permissão. `console.*` é
   proibido em `src/` pelo ESLint. Nível por `LOG_LEVEL` (padrão `info`).
 - Uma linha por requisição: método, padrão da rota (nunca o caminho com o id nem a query), status, ms, tipo de ator e
-  código do erro.
+  código do erro. Para integração, o tipo sai `integracao`, sem o nome dela, o prefixo, o hash, o `decId` ou o corpo
+  (desde a 0.3.0, IN-14).
 - Erro do Postgres vai ao log reduzido a classe e código. Desde a 0.1.8 (B-b), `normalizarErro` (`src/lib/log.ts`)
   reduz também o valor em `erro` que não é `Error`: sai `{ "classe": "desconhecido" }`, com `code` só quando passa em
   `lerCode` (`src/lib/reduzir-erro.ts`). A exceção é o erro que já chega reduzido, na forma exata `{ classe, code? }`

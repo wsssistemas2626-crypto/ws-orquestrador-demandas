@@ -115,7 +115,8 @@ describe('listarDemandas', () => {
 
   it('o item resumido tem só os campos da fila: sem solicitante, texto livre, anexos nem autor', async () => {
     const [item] = (await listarDemandas(b.db, filtro({ tipo: 'bug', limit: '1' }))).itens;
-    expect(Object.keys(item!).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
+    // T07 do 0016 (RF-10): a origem entra no item, como enumeração; o autor continua fora.
+    expect(Object.keys(item!).sort()).toEqual(['criadaEm', 'id', 'linhaServicoProvavel', 'origem', 'rascunhoAgente', 'status', 'tipo', 'titulo', 'urgencia']);
   });
 
   it('mesma data de criação: desempata pelo id, do maior para o menor', async () => {

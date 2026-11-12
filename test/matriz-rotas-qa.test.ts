@@ -16,7 +16,7 @@ import { definirDepsParaTeste, type Deps } from '../src/lib/deps';
 import { substituirDestinoDoLog } from '../src/lib/log';
 import { paramId, rota, type HandlerRota } from '../src/lib/rota';
 import { AGENTES, PAPEIS } from '../src/modules/acesso/ator';
-import { ACOES, atoresProibidos, type Acao } from '../src/modules/acesso/matriz';
+import { ACOES, MATRIZ, atoresProibidos, type Acao } from '../src/modules/acesso/matriz';
 import { novoBanco, type BancoDeTeste } from './banco';
 import { criarDepsDeTeste } from './deps';
 import {
@@ -27,6 +27,7 @@ import {
   chamarSemCredencial,
   padraoDaRota,
   prepararCredenciais,
+  type AtorDeTeste,
   type Credenciais,
   type Metodo,
 } from './requisicao';
@@ -156,8 +157,11 @@ describe('CA-02.1 e CA-01.3: quem é barrado nunca chega à função, em todos o
         expect((await chamarComParametroInvalido(h, metodo)).status, `${metodo} parâmetro inválido`).toBe(404);
         expect(chamadas, `${metodo}: a função rodou para quem foi barrado`).toBe(0);
 
-        // Controle: uma pessoa cto com 2FA chega à função (as ações sem pessoa não existem na matriz).
-        expect((await chamarComo(h, metodo, { tipo: 'pessoa', papel: 'cto' }, cred)).status, `${metodo} cto`).toBe(200);
+        // Controle: quem a linha permite chega à função. Pessoa cto com 2FA; nas ações sem pessoa (as três do /construir,
+        // 0.3.0), a integração da linha.
+        const semPessoa = MATRIZ[acao].pessoa === null;
+        const controle: AtorDeTeste = semPessoa ? { tipo: 'integracao', integracao: MATRIZ[acao].integracoes[0]! } : { tipo: 'pessoa', papel: 'cto' };
+        expect((await chamarComo(h, metodo, controle, cred)).status, `${metodo} ${semPessoa ? 'integração' : 'cto'}`).toBe(200);
         expect(chamadas, `${metodo}: o controle não chegou à função`).toBe(1);
       }
     });

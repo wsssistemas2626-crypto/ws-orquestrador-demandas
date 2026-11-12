@@ -4,13 +4,14 @@ import { desc, eq, max, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { demanda, especificacaoTecnica, user } from '../../db/schema';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import type { Ator } from '../acesso/ator';
+import { atorDesconhecido, type Ator } from '../acesso/ator';
 import {
   contaDoAutor,
   listaMinima,
   listaMinimaOuNula,
   responsavelDe,
   responsavelMinimo,
+  semPermissao,
   textoMinimo,
   textoMinimoOuNulo,
   type Responsavel,
@@ -89,7 +90,21 @@ export function vistaDaEspecificacaoPara(
   v: EspecificacaoVista & { versaoMaisNova?: string },
   nomes: readonly string[],
 ): EspecificacaoVista | EspecificacaoVistaMinima {
-  if (ator.tipo === 'pessoa') return v;
+  // IN-02: agente e sistema (D-05), a mínima de hoje; integração não lê ESP (RF-03) e nunca recebe a vista do agente.
+  switch (ator.tipo) {
+    case 'pessoa':
+      return v;
+    case 'agente':
+    case 'sistema':
+      return vistaMinimaDaEspecificacao(v, nomes);
+    case 'integracao':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
+function vistaMinimaDaEspecificacao(v: EspecificacaoVista & { versaoMaisNova?: string }, nomes: readonly string[]): EspecificacaoVistaMinima {
   return {
     id: v.id,
     demandaId: v.demandaId,

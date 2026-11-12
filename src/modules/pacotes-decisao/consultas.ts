@@ -11,12 +11,13 @@ import type { NivelAprovacao, Opcao, OpcaoDecisao, PapelAprovacao } from '../../
 import type { TipoDemanda } from '../../db/schema/demandas';
 import type { NivelRisco } from '../../db/schema/versoes';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
-import type { Ator } from '../acesso/ator';
+import { atorDesconhecido, type Ator } from '../acesso/ator';
 import {
   contaDoAutor,
   listaMinimaOuNula,
   responsavelDe,
   responsavelMinimo,
+  semPermissao,
   textoMinimo,
   textoMinimoOuNulo,
   type Responsavel,
@@ -211,7 +212,22 @@ function opcaoMinima(o: Opcao, nomes: readonly string[]): Opcao {
 // da ESP citada) passa pelo mesmo `minimizar` da entrada do agente, com `nomes`, o nome do solicitante da demanda do DEC
 // (nomesDosSolicitantes). Ids, sistema alvo, repositório, níveis e status ficam iguais. A pessoa não usa `nomes`.
 export function vistaDoPacotePara(ator: Ator, v: PacoteDecisaoVista, nomes: readonly string[]): PacoteDecisaoVista | PacoteDecisaoVistaMinima {
-  if (ator.tipo === 'pessoa') return v;
+  // IN-02: agente e sistema (D-05), a mínima de hoje; integração não lê DEC (RF-03; o /construir recebe só o pedido, por
+  // rota própria) e nunca recebe a vista do agente.
+  switch (ator.tipo) {
+    case 'pessoa':
+      return v;
+    case 'agente':
+    case 'sistema':
+      return vistaMinimaDoPacote(v, nomes);
+    case 'integracao':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
+function vistaMinimaDoPacote(v: PacoteDecisaoVista, nomes: readonly string[]): PacoteDecisaoVistaMinima {
   return {
     id: v.id,
     demandaId: v.demandaId,

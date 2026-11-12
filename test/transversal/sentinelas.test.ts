@@ -36,9 +36,13 @@ import { criarTokenServico } from '../../src/modules/acesso/tokens-servico';
 import type { DepsAgente } from '../../src/modules/agentes/executar';
 import type { DepsAviso } from '../../src/modules/avisos/aviso-dec';
 import { EnviadorResend } from '../../src/modules/avisos/enviador';
+import { criarDemandaSchema } from '../../src/modules/demandas/schemas';
+import { criarDemanda } from '../../src/modules/demandas/servico';
 import { CONFIG_TESTE } from '../auth';
 import { novoBanco, type BancoDeTeste } from '../banco';
 import { AGORA_TESTE, criarDepsDeTeste } from '../deps';
+import { CORPO_DO_AWAVE, tokenDeIntegracao } from '../integracoes';
+import { chamadasDoConstruir, sha256DoTexto } from '../pedidos-construcao';
 import { ProvedorFalso } from '../provedor-falso';
 import { chamarRota, type OpRequisicao } from '../requisicao';
 import { SENTINELAS, contemSentinela } from '../sentinelas';
@@ -472,4 +476,188 @@ it(
     }
   },
   180_000,
+);
+
+// --- T13 do DEC-DEM-20261111-0016-v1 (IN-12 transversal, IN-14, RNF-04, RNF-05, IN-04): os fluxos das duas integrações.
+// Cada fluxo cria o próprio token e os próprios dados, e confere todas as saídas capturadas desde o beforeAll: com ou sem
+// o teste acima antes, nenhuma saída pode ter sentinela nem o texto de um token. As asserções de hoje (pino, console,
+// Sentry falso, pgboss, execucao_agente) valem também aqui, e entram duas novas: nenhum sentinela em `antes`/`depois`
+// dos eventos de integração, e nenhum texto de token depois do prefixo em log, eventos e pgboss.
+
+// O texto do token depois de `wsod_` e do prefixo de 8 caracteres: o que nunca pode sair, nem pedaço do token inteiro.
+const textoDepoisDoPrefixo = (token: string) => token.slice('wsod_'.length + 8);
+
+type EventoDeIntegracao = { ator_id: string; acao: string; ator_token_prefixo: string | null; antes: unknown; depois: unknown };
+
+async function conferirSaidasDasIntegracoes(tokensReais: Record<string, string>, erros: Array<{ rotulo: string; corpo: string }>): Promise<EventoDeIntegracao[]> {
+  await Sentry.flush(2_000);
+  const linhasPgboss = await todasAsLinhasDoPgboss();
+  const execucoes = (await b.poolMigrator.query('select * from execucao_agente order by criada_em')).rows;
+  const eventos = (await b.poolMigrator.query('select * from evento order by id')).rows;
+  const eventosDeIntegracao = (
+    await b.poolMigrator.query<EventoDeIntegracao>(
+      `select ator_id, acao, ator_token_prefixo, antes, depois from evento where ator_tipo = 'integracao' order by id`,
+    )
+  ).rows;
+
+  // As de hoje.
+  expect(contemSentinela(linhasDoLog.join(''))).toBe(false);
+  expect(contemSentinela(linhasDoConsole.join(''))).toBe(false);
+  expect(contemSentinela(envelopesDoSentry.join(''))).toBe(false);
+  expect(contemSentinela(JSON.stringify(linhasPgboss))).toBe(false);
+  expect(contemSentinela(JSON.stringify(execucoes))).toBe(false);
+  // IN-12: o evento de integração descreve o que foi gravado só por enumeração e hash, nunca por texto vindo de fora.
+  expect(contemSentinela(JSON.stringify(eventosDeIntegracao.map((e) => [e.antes, e.depois])))).toBe(false);
+  // IN-04 e C-39: nem o token, nem o texto dele depois do prefixo, nem o `wsod_`, em log, console, Sentry, eventos e pgboss.
+  const todasAsSaidas = [linhasDoLog.join(''), linhasDoConsole.join(''), envelopesDoSentry.join(''), JSON.stringify(eventos), JSON.stringify(linhasPgboss)].join('\n');
+  for (const [nome, token] of Object.entries(tokensReais)) {
+    expect(textoDepoisDoPrefixo(token).length, nome).toBe(35);
+    expect(todasAsSaidas.includes(token), `token ${nome} numa saída`).toBe(false);
+    expect(todasAsSaidas.includes(textoDepoisDoPrefixo(token)), `texto do token ${nome} depois do prefixo numa saída`).toBe(false);
+  }
+  expect([linhasDoLog.join(''), JSON.stringify(eventos), JSON.stringify(linhasPgboss)].join('\n').includes('wsod_'), 'wsod_ no log, nos eventos ou no pgboss').toBe(false);
+  // RNF-10 e C-20: o erro devolvido à integração não leva sentinela, pilha, SQL nem nome interno.
+  for (const { rotulo, corpo } of erros) {
+    expect(corpo.length, rotulo).toBeGreaterThan(0);
+    expect(contemSentinela(corpo), rotulo).toBe(false);
+    expect(corpo, rotulo).not.toMatch(/\n\s+at |\.ts:\d+|node_modules/);
+    expect(corpo, rotulo).not.toMatch(/insert into|violates|postgres|drizzle|ErroDominio|ZodError|pgboss|[0-9a-f]{64}/i);
+  }
+  return eventosDeIntegracao;
+}
+
+const linhasNovasDoLog = (desde: number) =>
+  linhasDoLog.slice(desde).map((l) => JSON.parse(l) as { evento?: string; metodo?: string; rota?: string; status?: number; atorTipo?: string });
+
+it(
+  'T13 (a) Awave: POST com sentinelas no título, na descrição, no contexto, no solicitante e nos anexos; GET da própria; 400 e 429 provocados; nenhum sentinela nem texto de token nas saídas',
+  async () => {
+    const tokenAwave = await tokenDeIntegracao(deps, 'awave');
+    // 06-T13-testes: o teste de cima termina com os agentes desligados (passo 2d), e este fluxo também roda sozinho (-t),
+    // com a configuração inicial. Sem ligar aqui, "nenhum agente foi acionado" (IN-06) passaria pelo motivo errado. Os
+    // quatro ficam ligados durante o fluxo; uma demanda de pessoa, sem sentinela, prova que o gatilho está vivo; no fim
+    // eles voltam a desligados, para o fluxo (b) rodar como antes.
+    await b.poolMigrator.query(`update configuracao_agente set ligado = true, modelo = $1`, [MODELO]);
+    const controle = await criarDemanda(
+      deps,
+      { tipo: 'pessoa', usuarioId: 'u-controle-t13', nome: 'Pessoa Ficticia Controle', papel: 'cto' },
+      criarDemandaSchema.parse({ ...CORPO_DO_AWAVE, solicitanteNome: 'Pessoa Ficticia Controle' }),
+    );
+    const execucoesDoControle = await b.poolMigrator.query<{ agente: string }>(`select agente from execucao_agente where chave_entrada = $1`, [
+      `demanda:${controle.id}`,
+    ]);
+    expect(execucoesDoControle.rows.map((r) => r.agente), 'controle: o gatilho do insumo técnico está vivo').toEqual(['insumo_tecnico']);
+    const inicio = linhasDoLog.length;
+    const comSentinelas = {
+      ...CORPO_DO_AWAVE,
+      titulo: `Relatório ${SENTINELAS.texto}`,
+      descricaoProblema: `${SENTINELAS.texto} ${SENTINELAS.email} ${SENTINELAS.telefone}`,
+      contexto: `Contato ${SENTINELAS.nome}, ${SENTINELAS.token}, ${SENTINELAS.senha}`,
+      solicitanteNome: SENTINELAS.nome,
+      anexos: [{ tipo: 'url', referencia: `https://exemplo.test/${SENTINELAS.texto}`, descricao: SENTINELAS.email }],
+    };
+    const postAwave = (corpo: unknown) => chamar(rotaDemandas.POST, 'POST', '/api/demandas', { bearer: tokenAwave, semOrigin: true, corpo });
+    const erros: Array<{ rotulo: string; corpo: string }> = [];
+
+    // 400 com sentinelas em todo campo (o título vazio é o que recusa), antes de gastar o limite.
+    const r400 = await postAwave({ ...comSentinelas, titulo: '', [SENTINELAS.email]: SENTINELAS.senha });
+    expect(r400.status).toBe(400);
+    erros.push({ rotulo: '400 do Awave', corpo: await r400.text() });
+
+    const r201 = await postAwave(comSentinelas);
+    expect(r201.status).toBe(201);
+    const { id } = await corpoJson<{ id: string }>(r201);
+    const rGet = await chamar(rotaDemanda.GET, 'GET', `/api/demandas/${id}`, { bearer: tokenAwave, semOrigin: true, params: { id } });
+    expect(rGet.status).toBe(200);
+    // A leitura da própria demanda devolve o título dela (é do Awave); o que não pode é ir a log, evento ou fila.
+    expect((await corpoJson<{ titulo: string }>(rGet)).titulo).toContain(SENTINELAS.texto);
+
+    // Mais nove até o limite de 10 por hora do Awave, e o 11º recusado.
+    for (let i = 1; i < 10; i++) expect((await postAwave(comSentinelas)).status).toBe(201);
+    const r429 = await postAwave(comSentinelas);
+    expect(r429.status).toBe(429);
+    erros.push({ rotulo: '429 do Awave', corpo: await r429.text() });
+
+    // O fluxo exercitou as rotas: uma linha por requisição, todas do ator de integração.
+    expect(linhasNovasDoLog(inicio).map((l) => `${l.metodo} ${l.rota} ${l.status} ${l.atorTipo}`)).toEqual([
+      'POST /api/demandas 400 integracao',
+      'POST /api/demandas 201 integracao',
+      'GET /api/demandas/[id] 200 integracao',
+      ...Array.from({ length: 9 }, () => 'POST /api/demandas 201 integracao'),
+      'POST /api/demandas 429 integracao',
+    ]);
+
+    const eventos = (await conferirSaidasDasIntegracoes({ awave: tokenAwave }, erros)).filter((e) => e.ator_id === 'awave');
+    // As dez criações gravaram evento, com o prefixo e só as enumerações (o texto sentinela foi para a demanda, não para o
+    // evento); nenhum agente foi acionado para elas (IN-06).
+    expect(eventos).toHaveLength(10);
+    for (const e of eventos) {
+      expect(e.acao).toBe('demanda_criada');
+      expect(e.ator_token_prefixo).toMatch(/^[A-Za-z0-9_-]{8}$/);
+      expect(e.antes).toBeNull();
+      expect(e.depois).toEqual({ status: 'nova', tipo: 'melhoria' });
+    }
+    const execucoesDoAwave = await b.poolMigrator.query(
+      `select count(*)::int as n from execucao_agente
+        where demanda_id in (select id from demanda where autor_tipo = 'integracao')
+           or artefato_id in (select id from demanda where autor_tipo = 'integracao')`,
+    );
+    expect(execucoesDoAwave.rows[0].n).toBe(0);
+    await b.poolMigrator.query('update configuracao_agente set ligado = false');
+  },
+  120_000,
+);
+
+it(
+  'T13 (b) /construir: ESP com texto sentinela, DEC aprovado, geração por pessoa, pendentes, entrega e recebimento com SHA certo (204) e errado (409); nenhum sentinela nem texto de token nas saídas',
+  async () => {
+    const tokenConstruir = await tokenDeIntegracao(deps, 'construir');
+    const construir = chamadasDoConstruir(() => tokenConstruir);
+    const inicio = linhasDoLog.length;
+    const erros: Array<{ rotulo: string; corpo: string }> = [];
+
+    // Sem e-mail, telefone nem CPF, para a geração passar (C-28); o solicitante não é o nome sentinela (D1 do 0013).
+    const { decId } = await caminhoDaPessoa({ demanda: { solicitanteNome: 'Pessoa Ficticia Outra' } });
+    expect((await aprovar(decId)).status).toBe(200);
+    const rPedido = await gerarPedido(decId);
+    expect(rPedido.status).toBe(200);
+    const gerado = await rPedido.text();
+    // O sentinela chegou mesmo ao pedido: a asserção de ausência nas saídas não é vazia.
+    expect(gerado).toContain(SENTINELAS.texto);
+
+    const rLista = await construir.listar();
+    expect(rLista.status).toBe(200);
+    expect((await corpoJson<{ itens: Array<{ decId: string }> }>(rLista)).itens).toContainEqual({ decId });
+    const rEntrega = await construir.entregar(decId);
+    expect(rEntrega.status).toBe(200);
+    const recebido = await rEntrega.text();
+    expect(recebido).toBe(gerado);
+    const rErrado = await construir.receber(decId, { sha256: 'f'.repeat(64) });
+    expect(rErrado.status).toBe(409);
+    erros.push({ rotulo: '409 do recebimento com SHA errado', corpo: await rErrado.text() });
+    const rCerto = await construir.receber(decId, { sha256: sha256DoTexto(recebido) });
+    expect(rCerto.status).toBe(204);
+    const rDepois = await construir.listar();
+    expect((await corpoJson<{ itens: Array<{ decId: string }> }>(rDepois)).itens).not.toContainEqual({ decId });
+
+    expect(
+      linhasNovasDoLog(inicio)
+        .filter((l) => l.rota?.startsWith('/api/pedidos-construcao/'))
+        .map((l) => `${l.metodo} ${l.rota} ${l.status} ${l.atorTipo}`),
+    ).toEqual([
+      'GET /api/pedidos-construcao/pendentes 200 integracao',
+      'POST /api/pedidos-construcao/[decId]/entrega 200 integracao',
+      'POST /api/pedidos-construcao/[decId]/recebimento 409 integracao',
+      'POST /api/pedidos-construcao/[decId]/recebimento 204 integracao',
+      'GET /api/pedidos-construcao/pendentes 200 integracao',
+    ]);
+
+    const eventos = (await conferirSaidasDasIntegracoes({ construir: tokenConstruir }, erros)).filter((e) => e.ator_id === 'construir');
+    // A entrega e o recebimento gravaram só o hash do servidor (IN-12).
+    expect(eventos.map((e) => [e.acao, e.antes, e.depois])).toEqual([
+      ['pedido_entregue', null, { sha256: sha256DoTexto(recebido) }],
+      ['pedido_recebido', null, { sha256: sha256DoTexto(recebido) }],
+    ]);
+  },
+  120_000,
 );

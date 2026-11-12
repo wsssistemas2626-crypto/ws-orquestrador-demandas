@@ -23,6 +23,23 @@ const PISO: Readonly<Record<string, number>> = {
   'test/estatico/variaveis.test.ts': 8,
   'test/estatico/varreduras-qa.test.ts': 22,
   'test/estatico/worker-agendador.test.ts': 12,
+  // D-17 do pedido 0016 (IN-16): a9fd9b8, contado na T03.
+  'src/modules/acesso/matriz.test.ts': 44,
+  'src/modules/acesso/matriz-qa.test.ts': 37,
+  'src/modules/acesso/resolver-ator.test.ts': 20,
+  'src/modules/acesso/resolver-ator-qa.test.ts': 17,
+  'src/modules/acesso/tokens-servico.test.ts': 34,
+  'src/modules/acesso/tokens-servico-qa.test.ts': 26,
+  'src/modules/demandas/servico.test.ts': 77,
+  'src/modules/historico/registrar.test.ts': 12,
+  'src/modules/limites.test.ts': 21,
+  'src/db/privilegios.test.ts': 39,
+  'src/app/api/vistas-para-agente.test.ts': 96,
+  'test/matriz-rotas.test.ts': 17,
+  'test/transversal/sentinelas.test.ts': 59,
+  'test/estatico/sem-controle-bidi.test.ts': 7,
+  'test/estatico/sem-recurso-externo.test.ts': 15,
+  'test/estatico/leituras-da-fila.test.ts': 34,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 

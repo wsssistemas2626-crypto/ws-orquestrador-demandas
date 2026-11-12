@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.2.0 (novo visual do painel: casca com menu lateral e gaveta, fila com contadores, demanda com barra de etapas e "Próxima ação", decisão por três botões e no celular; só a camada visual mudou; ver o [cap. 08](08-painel.md) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.1.13, o DEC aprovado mais novo da demanda passou a substituir o aprovado anterior ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)) |
-| Atualizado em | 11/11/2026 |
+| Versão do sistema | 0.3.0 (atores de integração: o Awave cria demanda e lê as que criou, e o `/construir` busca o Pedido de Construção que uma pessoa gerou e confirma o recebimento; a demanda do Awave só vai a um agente de IA depois da confirmação por pessoa; origem da demanda na fila; ver o [cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030), o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.2.0, o painel ganhou o novo visual ([cap. 08](08-painel.md)) |
+| Atualizado em | 12/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
 | Fonte de verdade | o código do ramo (padrão técnico, seção 11). Onde a spec ou o plano dizem outra coisa, vale o código, e a diferença está apontada no capítulo |
@@ -22,15 +22,19 @@ O novo visual (0.2.0) tem spec própria, `docs/superpowers/specs/2026-11-10-ws-o
 com requisitos numerados de RF-01 a RF-17 **do pedido 0015**. Esses números não são os do sistema: o mapa deles está
 na seção [Requisitos do novo visual](#requisitos-do-novo-visual-020) abaixo.
 
+As integrações (0.3.0) também têm spec própria,
+`docs/superpowers/specs/2026-11-11-ws-orquestrador-demandas-integracoes-design.md`, com RF-01 a RF-16 **do pedido
+0016**. O mapa deles está em [Requisitos das integrações](#requisitos-das-integrações-030).
+
 ## Capítulos
 
 | Cap. | Assunto | Requisitos |
 |---|---|---|
-| [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco, versões da stack e fontes | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-19 |
-| [02](02-acesso-e-seguranca.md) | Login com 2FA, tokens de agente, matriz de acesso, CSRF, log | RF-01, RF-02, RNF-10, RNF-12, RNF-13 |
-| [03](03-demandas.md) | Demanda, entrada colando o texto, id, consulta, status, dúvida em aberto, histórico | RF-03 a RF-07, RF-15, RF-21 |
+| [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco, versões da stack e fontes | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-29 |
+| [02](02-acesso-e-seguranca.md) | Login com 2FA, tokens de agente e de integração, atores de integração, matriz de acesso, CSRF, log | RF-01, RF-02, RNF-10, RNF-12, RNF-13 |
+| [03](03-demandas.md) | Demanda, entrada colando o texto, id, consulta, origem, demanda aberta pelo Awave e confirmação, status, dúvida em aberto, histórico | RF-03 a RF-07, RF-15, RF-21 |
 | [04](04-versoes-e-decisao.md) | ESP, RSK e DEC em versões, desatualizado, decisão, substituição do DEC aprovado e dupla aprovação | RF-08 a RF-14 |
-| [05](05-pedido-de-construcao.md) | Pedido de Construção e filtro de pacotes por decisão | RF-22, RF-23 |
+| [05](05-pedido-de-construcao.md) | Pedido de Construção, entrega ao `/construir` e filtro de pacotes por decisão | RF-22, RF-23 |
 | [06](06-agentes-de-ia.md) | Os quatro agentes, uso, teto, interruptor, minimização e as pré-condições para ligar | RF-16 a RF-20 |
 | [07](07-worker-avisos-retencao.md) | Worker, aviso por e-mail e expurgo do texto bruto | RF-24, RF-25 |
 | [08](08-painel.md) | Telas do painel, identidade visual, casca, fila, demanda, decisão, acessibilidade e capturas | RF-26, RNF-11, RNF-16; RF-01 a RF-17 do pedido 0015 |
@@ -38,15 +42,16 @@ na seção [Requisitos do novo visual](#requisitos-do-novo-visual-020) abaixo.
 | [10](10-configuracao-e-scripts.md) | Variáveis de ambiente e scripts de operação | RNF-13, RNF-14 |
 
 Operação em produção (serviços do Easypanel, deploy, rollback, alertas) fica em
-[docs/operacao/deploy.md](../operacao/deploy.md).
+[docs/operacao/deploy.md](../operacao/deploy.md). Emissão, guarda, troca e revogação dos tokens das integrações ficam em
+[docs/operacao/tokens-de-integracao.md](../operacao/tokens-de-integracao.md).
 
 ## Mapa de cada RF
 
 | RF | Resumo | Capítulo |
 |---|---|---|
 | RF-01 | Login com senha e TOTP obrigatório; sem cadastro público | [02](02-acesso-e-seguranca.md#rf-01-login-com-2fa) |
-| RF-02 | Token de serviço por agente, só em rota de agente | [02](02-acesso-e-seguranca.md#rf-02-token-de-serviço-dos-agentes) |
-| RF-03 | Criar demanda pelo painel e pela API | [03](03-demandas.md#rf-03-criar-demanda) |
+| RF-02 | Token de serviço por agente, só em rota de agente; desde a 0.3.0, também por integração | [02](02-acesso-e-seguranca.md#rf-02-token-de-serviço-dos-agentes) |
+| RF-03 | Criar demanda pelo painel e pela API (desde a 0.3.0, também pelo Awave) | [03](03-demandas.md#rf-03-criar-demanda) |
 | RF-04 | Ids `DEM-AAAAMMDD-NNNN` e `<prefixo>-<demanda>-vN` | [03](03-demandas.md#rf-04-ids) |
 | RF-05 | Entrada colando o texto bruto | [03](03-demandas.md#rf-05-entrada-colando-o-texto) |
 | RF-06 | Consulta com filtros e paginação | [03](03-demandas.md#rf-06-consultar-e-alterar) |
@@ -65,7 +70,7 @@ Operação em produção (serviços do Easypanel, deploy, rollback, alertas) fic
 | RF-19 | Interruptor por agente | [06](06-agentes-de-ia.md#rf-19-interruptor-e-modelo) |
 | RF-20 | Minimização do que vai ao provedor | [06](06-agentes-de-ia.md#rf-20-minimização) |
 | RF-21 | Histórico só de inclusão | [03](03-demandas.md#rf-21-histórico) |
-| RF-22 | Pedido de Construção | [05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido) |
+| RF-22 | Pedido de Construção (desde a 0.3.0, também a entrega ao `/construir`) | [05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido) e [05](05-pedido-de-construcao.md#entrega-ao-construir-030) |
 | RF-23 | `GET /api/pacotes-decisao?statusDecisao=` | [05](05-pedido-de-construcao.md#rf-23-pacotes-por-status-de-decisão) |
 | RF-24 | Expurgo diário do texto bruto | [07](07-worker-avisos-retencao.md#rf-24-expurgo-do-texto-bruto) |
 | RF-25 | E-mail de DEC pronto | [07](07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail) |
@@ -96,6 +101,30 @@ Dado/Quando/Então estão em `docs/construcao/DEC-DEM-20261110-0015-v1/01-analis
 | RF-16 | Testes nas duas larguras, vigia de origem e CSP | [08](08-painel.md#acessibilidade-rnf-11) |
 | RF-17 | Versão 0.2.0, CHANGELOG, manual e capturas | [08](08-painel.md#capturas-de-tela) e [CHANGELOG](../../CHANGELOG.md) |
 
+## Requisitos das integrações (0.3.0)
+
+Os RF abaixo são do pedido `DEC-DEM-20261111-0016-v1` (spec de 11/11/2026), e não os do sistema. Os critérios
+Dado/Quando/Então estão em `docs/construcao/DEC-DEM-20261111-0016-v1/01-analista-requisitos.md`.
+
+| RF do pedido | Resumo | Capítulo |
+|---|---|---|
+| RF-01 | Ator `integracao` (`awave`, `construir`), só por Bearer, fora de `AGENTES` | [02](02-acesso-e-seguranca.md#atores-de-integração-030) |
+| RF-02 | Scripts de token com `--integracao`; troca e revogação pelo prefixo | [10](10-configuracao-e-scripts.md#scripts-de-operação) e [tokens-de-integracao.md](../operacao/tokens-de-integracao.md) |
+| RF-03 | Matriz com lista fechada por integração | [02](02-acesso-e-seguranca.md#matriz-de-acesso) |
+| RF-04 | O Awave cria demanda: autoria, rascunho, solicitante "Awave", evento | [03](03-demandas.md#demanda-aberta-pelo-awave-030) |
+| RF-05 | Demanda do Awave não dispara agente | [03](03-demandas.md#demanda-aberta-pelo-awave-030) e [06](06-agentes-de-ia.md#os-quatro-agentes) |
+| RF-06 | Confirmação por pessoa no painel | [03](03-demandas.md#demanda-aberta-pelo-awave-030) e [08](08-painel.md#demanda-t05-rf-08-a-rf-10) |
+| RF-07 | O Awave lê só a própria demanda, em seis chaves | [03](03-demandas.md#demanda-aberta-pelo-awave-030) |
+| RF-08 | Limite de 10 demandas por hora do Awave | [03](03-demandas.md#rf-03-criar-demanda) |
+| RF-09 | Bearer sem `Origin` continua aceito | [02](02-acesso-e-seguranca.md#proteção-das-rotas) |
+| RF-10 | Origem da demanda na fila, no detalhe e na API, com filtro | [03](03-demandas.md#rf-06-consultar-e-alterar) e [08](08-painel.md#fila-t03-rf-05-a-rf-07) |
+| RF-11 | Integração fora da tela de agentes, do teto e do uso de IA | [02](02-acesso-e-seguranca.md#atores-de-integração-030) e [06](06-agentes-de-ia.md#os-quatro-agentes) |
+| RF-12 | `GET /api/pedidos-construcao/pendentes` | [05](05-pedido-de-construcao.md#pendentes-listar_pedidos_pendentes) |
+| RF-13 | `POST /api/pedidos-construcao/:decId/entrega` | [05](05-pedido-de-construcao.md#entrega-entregar_pedido) |
+| RF-14 | `POST /api/pedidos-construcao/:decId/recebimento` | [05](05-pedido-de-construcao.md#recebimento-confirmar_recebimento_pedido) |
+| RF-15 | "Recebido pelo /construir em …" na T11 e rótulos do histórico | [05](05-pedido-de-construcao.md#no-painel), [08](08-painel.md#decisão-t11-rf-11-rf-12) e [03](03-demandas.md#rf-21-histórico) |
+| RF-16 | Versão 0.3.0, CHANGELOG, manual e `docs/operacao` | [CHANGELOG](../../CHANGELOG.md) e [tokens-de-integracao.md](../operacao/tokens-de-integracao.md) |
+
 ## Glossário
 
 Cada termo significa a mesma coisa em todos os capítulos.
@@ -115,8 +144,14 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Aprovação | Registro de uma pessoa (papel `cto` ou `administradora`) aprovando uma opção do DEC |
 | Pedido de Construção | JSON gerado do DEC aprovado vigente (desde a 0.1.13; o substituído recebe 409), no formato que o `validarPedido` do `/construir` aceita. Desde a 0.1.12, sai só com a confirmação sem dado pessoal, sem o nome do solicitante no texto e com o papel, e não o nome, em `aprovadoPor` ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)) |
 | Confirmação sem dado pessoal | O campo `confirmaSemDadoPessoal: true` do `POST .../pedido-construcao`, marcado na caixa da T11: quem gera declara que título, descrição, ESP e parecer de risco não têm dado pessoal de ninguém. Fica gravado no evento `pedido_gerado` (desde a 0.1.12) |
-| Ator | Quem faz a ação: `pessoa` (sessão com 2FA), `agente` (token de serviço ou job do worker) ou `sistema` (mudança automática) |
-| Vista mínima | O que a leitura de demanda pela API devolve a quem não é pessoa: sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) e, desde a 0.1.8, com o texto livre minimizado também nelas e no 201 da criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)) |
+| Ator | Quem faz a ação: `pessoa` (sessão com 2FA), `agente` (token de serviço ou job do worker), `sistema` (mudança automática) ou, desde a 0.3.0, `integracao` (token de integração) |
+| Integração | Sistema interno da empresa que chama a API com token próprio, fora dos agentes de IA: `awave` ou `construir`. Lista fechada no código; integração nova pede pedido e migration (desde a 0.3.0, [cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)) |
+| Prefixo do token de serviço | Os 8 caracteres depois de `wsod_` num token de agente ou de integração (não confundir com o token de CSS, abaixo). Identificam o token no histórico e na revogação sem revelá-lo |
+| Origem da demanda | `pessoa`, `agente` ou `awave`, lida da autoria gravada e nunca do solicitante (desde a 0.3.0). Não é a `origem` da entrada colando o texto (canal e referência) |
+| Confirmação da demanda do Awave | O evento `demanda_confirmada`, gravado quando uma pessoa com 2FA aperta "Confirmar demanda" na T05. Até ele existir, nenhum agente de IA trabalha na demanda do Awave (desde a 0.3.0) |
+| Pedido pendente | DEC com Pedido de Construção gerado por pessoa, ainda aprovado vigente, não desatualizado, com a demanda fora de status final e sem recebimento pelo `/construir` (desde a 0.3.0) |
+| Entrega e recebimento | A entrega é o `/construir` buscar o pedido (evento `pedido_entregue`, com o SHA-256 dos bytes); o recebimento é ele confirmar que gravou os mesmos bytes (evento `pedido_recebido`). Nenhum dos dois muda status (desde a 0.3.0) |
+| Vista mínima | O que a leitura de demanda pela API devolve a agente e a `sistema` (a integração `awave` recebe outra, menor, de seis chaves, desde a 0.3.0): sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) e, desde a 0.1.8, com o texto livre minimizado também nelas e no 201 da criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)) |
 | Rascunho de agente | ESP, RSK ou DEC gravado por um agente; a decisão exige confirmar que foi revisado |
 | Parte do nome | Pedaço do nome do solicitante, cortado em espaço, hífen e apóstrofo, com 3 letras ou mais e fora de `PARTICULAS_DO_NOME` (`partesDoNome`, `minimizar.ts`). Desde a 0.1.10, vira `[nome removido]` na entrada do agente e na API de quem não é pessoa quando, no texto, começa por maiúscula. Desde a 0.1.11, também grudada em número, `_` ou CamelCase, pela fronteira de `haFronteira` ([cap. 06](06-agentes-de-ia.md#rf-20-minimização)) |
 | Texto bruto | O texto colado na entrada (e-mail, mensagem). Dado pessoal de terceiro; guardado à parte e expurgado no prazo |
@@ -132,4 +167,4 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Contador de status | Botão da fila com um status e o total de demandas nele, que filtra a fila por esse status (desde a 0.2.0) |
 | Etapas da fila | As marcas ESP, RSK e DEC de cada linha da fila: feita quando a demanda tem ao menos uma versão daquele tipo (desde a 0.2.0). Não é o mesmo que a barra de etapas da T05 |
 | Barra de etapas | As cinco etapas da T05 (Demanda, Especificação, Parecer de risco, Decisão, Pedido de Construção), com o estado de cada uma e a etapa atual (`etapasDaDemanda`, desde a 0.2.0) |
-| Próxima ação | Cartão da T05 que diz o que falta, quem age e onde, pela primeira de 13 condições que casar (`proximaAcao`, desde a 0.2.0). Só informa; não libera nem esconde nada |
+| Próxima ação | Cartão da T05 que diz o que falta, quem age e onde, pela primeira condição que casar (`proximaAcao`, desde a 0.2.0): 13 linhas na 0.2.0 e, desde a 0.3.0, a linha 14, da confirmação da demanda do Awave. Só informa; não libera nem esconde nada |

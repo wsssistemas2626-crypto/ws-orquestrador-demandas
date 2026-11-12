@@ -2,12 +2,14 @@
 //   1. Postgres 16 descartável pelo Testcontainers, com o papel do app criado antes da migration (ADR-03);
 //   2. migrations e filas com o migrator (scripts/migrate.ts);
 //   3. seed fictício (scripts/seed-ficticio.ts), com SEED_FICTICIO=1 só aqui dentro, nunca no ambiente do processo;
+//   3a. T20 do DEC-DEM-20261111-0016-v1 (D-10): um token `awave` e um `construir` (criarTokenDeIntegracao, pelo papel do
+//      app), gravados em E2E_ARQUIVO_TOKENS com permissão 600; o arquivo e a pasta de `mkdtemp` somem ao encerrar;
 //   4. `next build` e depois `next start` na porta 3101, preso em 127.0.0.1, com DATABASE_URL do papel do app e segredo
 //      fictício. É o build de produção, como na homologação (08-correcao): o `next dev` do Next 16.4.1 recarregava a
 //      página sozinho no meio do teste, e trocava o Cache-Control da página por cima do no-store do proxy (M-04).
 // O build e o app recebem um ambiente montado do zero: só PATH, HOME e as três variáveis do app. Nenhuma chave de
 // provedor de IA ou de e-mail chega ao processo, nem a URL do migrator (C-27, RNF-14). Credenciais e segredo valem só
-// para este banco.
+// para este banco. Os tokens também: nascem neste banco descartável e nunca vão à saída nem ao ambiente do app (IN-04).
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -15,10 +17,13 @@ import pg from 'pg';
 import { migrar } from '../scripts/migrate';
 import { seedFicticio } from '../scripts/seed-ficticio';
 import { criarDb, criarPool } from '../src/db';
+import { comTransacao } from '../src/db/transacao';
 import type { ConfigApp } from '../src/lib/env';
 import { criarFila } from '../src/lib/fila';
 import { relogioDoSistema } from '../src/lib/relogio';
 import { criarAuth } from '../src/modules/acesso/auth';
+import { criarTokenDeIntegracao } from '../src/modules/acesso/tokens-servico';
+import { apagarTokensDoE2e, gravarTokensDoE2e } from './integracoes';
 
 const PORTA = '3101';
 const HOST = '127.0.0.1';
@@ -64,6 +69,30 @@ async function semear(urlApp: string): Promise<void> {
   }
 }
 
+// D-10: o arquivo vem do playwright.config.ts (E2E_ARQUIVO_TOKENS). O token não passa pela saída.
+let tokensGravados = false;
+
+async function emitirTokens(urlApp: string): Promise<void> {
+  const arquivo = process.env.E2E_ARQUIVO_TOKENS;
+  if (!arquivo) throw new Error('e2e: E2E_ARQUIVO_TOKENS ausente (playwright.config.ts)');
+  const pool = criarPool(urlApp, { max: 1 });
+  try {
+    const tokens = await comTransacao(pool, async (t) => ({
+      awave: (await criarTokenDeIntegracao(t, 'awave', relogioDoSistema)).token,
+      construir: (await criarTokenDeIntegracao(t, 'construir', relogioDoSistema)).token,
+    }));
+    gravarTokensDoE2e(arquivo, tokens);
+    tokensGravados = true;
+  } finally {
+    await pool.end().catch(() => undefined);
+  }
+}
+
+function apagarTokens(): void {
+  const arquivo = process.env.E2E_ARQUIVO_TOKENS;
+  if (arquivo) apagarTokensDoE2e(arquivo, tokensGravados);
+}
+
 const binNext = () => createRequire(import.meta.url).resolve('next/dist/bin/next');
 
 // `Record` em vez de `NodeJS.ProcessEnv` pelo mesmo motivo de lerConfigApp (NODE_ENV obrigatório nos tipos do Next);
@@ -100,6 +129,7 @@ let encerrando = false;
 async function encerrar(codigo: number): Promise<never> {
   if (!encerrando) {
     encerrando = true;
+    apagarTokens();
     next?.kill('SIGTERM');
     await banco?.stop().catch(() => undefined);
   }
@@ -120,6 +150,7 @@ try {
   await migrar(urlMigrator);
   const urlApp = urlDoApp(urlMigrator);
   await semear(urlApp);
+  await emitirTokens(urlApp);
   await construirNext(urlApp);
   next = subirNext(urlApp);
   next.on('exit', (codigo) => void encerrar(codigo ?? 1));

@@ -14,6 +14,11 @@
 // opções completas; "Registrar decisão"; Pedido de Construção. A partir de 1200 px, o conteúdo fica em 3/5 e o cartão
 // "Registrar decisão" em 2/5, não fixo; abaixo, uma coluna, e abaixo de 768 px o rodapé fixo da C2 (FormularioDecisao).
 // Nada sai do que a T11 mostra hoje, e as condições de cada parte são as de hoje.
+//
+// 0.3.0 (T19 do DEC-DEM-20261111-0016-v1; RF-15, CA-15.1 e CA-15.2; 03, 6.1 e 6.3): depois de autorizar e de achar o
+// pacote, a página lê o primeiro pedido_recebido do DEC no histórico (recebimentoDoPedido, T10). Com ele, a linha
+// "Recebido pelo /construir em …" entra no cabeçalho, depois do repositório destino e antes das citações, em toda
+// situação do DEC; sem ele, nada. Falha na leitura sobe para a tela de erro de hoje.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -26,6 +31,7 @@ import {
   chegadaNaDecisao,
   formularioDaConta,
   itensDaRevisao,
+  linhaDoRecebimento,
   linhasDeAprovacao,
   opcoesDaEscolha,
   rascunhosEmTexto,
@@ -39,10 +45,12 @@ import { secaoDoPedido, TEXTOS_PEDIDO } from '../../../../components/dados-do-pe
 import { Recolhivel } from '../../../../components/Recolhivel';
 import { COR_DECISAO, ROTULO_DECISAO, ROTULO_NIVEL_APROVACAO, SELO_DESATUALIZADO, SELO_RASCUNHO, SELO_SUBSTITUIDO } from '../../../../components/rotulos';
 import { Selo } from '../../../../components/Selo';
+import { obterDeps } from '../../../../lib/deps';
 import { formatarDataHora } from '../../../../lib/fuso';
 import { exigirPessoaNaPagina } from '../../../../modules/acesso/exigir-pessoa';
 import { autorizar } from '../../../../modules/acesso/matriz';
 import { RE_ID_DEMANDA } from '../../../../modules/demandas/gerar-id';
+import { recebimentoDoPedido } from '../../../../modules/pedido-construcao/pendentes';
 import { lerDemandaDaPagina } from '../../demandas/[id]/demanda-da-pagina';
 import { caminhos, rotuloResponsavel } from '../../demandas/[id]/detalhe';
 import { AlertaDeResultado, FormularioDecisao } from './FormularioDecisao';
@@ -88,6 +96,28 @@ function VoltarParaDemanda({ demandaId }: { demandaId: string }) {
   );
 }
 
+// "Recebido pelo /construir em <data e hora>." (03, 6.1 e seção 10): o visto do contador pressionado, decorativo e na
+// cor `positivo`; o texto em `tinta`, com a data em <time> (a do fim da frase, por lastIndexOf). Conteúdo estático: sem
+// role, sem foco. O texto fica num <span> próprio, para o espaço do flex não cair entre as partes da frase.
+function LinhaDoRecebimento({ em }: { em: Date }) {
+  const linha = linhaDoRecebimento(em);
+  if (!linha) return null;
+  const data = formatarDataHora(em);
+  const i = linha.texto.lastIndexOf(data);
+  return (
+    <p className="flex items-start gap-2 text-tinta">
+      <svg className="mt-1 size-4 shrink-0 text-positivo" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="m5 12 5 5 9-10" />
+      </svg>
+      <span>
+        {linha.texto.slice(0, i)}
+        <time dateTime={linha.iso}>{data}</time>
+        {linha.texto.slice(i + data.length)}
+      </span>
+    </p>
+  );
+}
+
 export default async function PaginaDecisao({ params, searchParams }: Props) {
   const { decId } = await params;
   const pessoa = await exigirPessoaNaPagina(RE_ID_DEC.test(decId) ? `/pacotes-decisao/${decId}` : '/demandas');
@@ -97,6 +127,8 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
   autorizar(pessoa, 'ler_demanda');
   const d = await lerDemandaDaPagina(p.demandaId);
   if (!d) notFound();
+  // RF-15: só depois de autorizar e de achar o pacote; a leitura é do histórico, sem ação nova na matriz.
+  const recebidoEm = await recebimentoDoPedido((await obterDeps()).db, p.id);
 
   const t = TEXTOS_DECISAO;
   const chegada = chegadaNaDecisao(await searchParams, p);
@@ -141,6 +173,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
         </p>
         {/* RF-12 e CV-12: o repositório destino visível sem abrir nada, em toda largura. */}
         <p className="[overflow-wrap:anywhere]">{t.repositorioNaLinha(p.especificacaoCitada.repositorioDestino)}</p>
+        {recebidoEm ? <LinhaDoRecebimento em={recebidoEm} /> : null}
         <p>
           {t.cita}
           <span className="font-mono">{p.especificacaoId}</span>{' '}

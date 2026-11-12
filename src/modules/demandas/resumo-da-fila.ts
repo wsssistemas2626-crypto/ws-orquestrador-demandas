@@ -7,17 +7,20 @@
 import { and, count, eq, exists, inArray } from 'drizzle-orm';
 import type { Db } from '../../db';
 import { demanda, especificacaoTecnica, pacoteDecisao, parecerRisco } from '../../db/schema';
+import { condicaoDaOrigem } from './consultas';
 import { STATUS, type FiltroDemandas, type Status } from './schemas';
 
 export type ContagemPorStatus = { porStatus: Record<Status, number>; todas: number };
 export type EtapasNaFila = { esp: boolean; rsk: boolean; dec: boolean };
 
-// Contagem por status com os filtros de tipo e de linha da URL; o status da URL não entra (cada contador é um status).
-// A tabela é limitada a 9.999 linhas pela demanda_seq: sem filtro, a contagem lê a tabela inteira de propósito.
-export async function contarDemandasPorStatus(db: Db, filtro: Pick<FiltroDemandas, 'tipo' | 'linhaServicoProvavel'>): Promise<ContagemPorStatus> {
+// Contagem por status com os filtros de tipo, de linha e de origem da URL (a origem pela mesma condição da página, RF-10
+// do 0016); o status da URL não entra (cada contador é um status). A tabela é limitada a 9.999 linhas pela demanda_seq:
+// sem filtro, a contagem lê a tabela inteira de propósito.
+export async function contarDemandasPorStatus(db: Db, filtro: Pick<FiltroDemandas, 'tipo' | 'linhaServicoProvavel' | 'origem'>): Promise<ContagemPorStatus> {
   const onde = and(
     filtro.tipo ? eq(demanda.tipo, filtro.tipo) : undefined,
     filtro.linhaServicoProvavel ? eq(demanda.linhaServicoProvavel, filtro.linhaServicoProvavel) : undefined,
+    filtro.origem ? condicaoDaOrigem(filtro.origem) : undefined,
   );
   const linhas = await db.select({ status: demanda.status, n: count() }).from(demanda).where(onde).groupBy(demanda.status);
   const porStatus = Object.fromEntries(STATUS.map((s) => [s, 0])) as Record<Status, number>;

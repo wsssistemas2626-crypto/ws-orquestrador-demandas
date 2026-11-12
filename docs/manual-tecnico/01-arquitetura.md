@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 11/11/2026 (0.2.0: leituras da fila em `demandas/`, `src/components/`, fontes Noto, ADR-13 a ADR-19); 10/11/2026 (0.1.13: substituído no módulo `pacotes-decisao/`); 31/10/2026 |
+| Atualizado em | 12/11/2026 (0.3.0: as duas integrações no desenho, módulos `integracoes/` e `pedido-construcao/` ampliado, migration `0007`, ADR-20 a ADR-29); 11/11/2026 (0.2.0: leituras da fila em `demandas/`, `src/components/`, fontes Noto, ADR-13 a ADR-19); 10/11/2026 (0.1.13: substituído no módulo `pacotes-decisao/`); 31/10/2026 |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RNF-01, RNF-02, RNF-05, RNF-17, ADR-01 a ADR-19 |
-| Fontes no código | `package.json`, `pnpm-workspace.yaml`, `src/worker/iniciar.ts`, `src/lib/rota.ts`, `src/lib/deps.ts`, `src/app/api/saude/route.ts`, `scripts/migrate.ts`, `next.config.ts`, `src/app/fontes.ts`, `src/app/layout.tsx`, `src/modules/demandas/resumo-da-fila.ts` |
+| Cobre | RNF-01, RNF-02, RNF-05, RNF-17, ADR-01 a ADR-29 |
+| Fontes no código | `package.json`, `pnpm-workspace.yaml`, `src/worker/iniciar.ts`, `src/lib/rota.ts`, `src/lib/deps.ts`, `src/app/api/saude/route.ts`, `scripts/migrate.ts`, `next.config.ts`, `src/app/fontes.ts`, `src/app/layout.tsx`, `src/modules/demandas/resumo-da-fila.ts`, `drizzle/0007_greedy_wendigo.sql` |
 
 ## Visão geral
 
@@ -25,6 +25,8 @@ adaptadores finos sobre as mesmas funções, com os mesmos schemas Zod e a mesma
 flowchart LR
   P[Pessoa com 2FA] -->|cookie de sessão| APP
   AE[Agente externo] -->|Bearer wsod_| APP
+  AW["Awave (empresa-ia)"] -->|"Bearer wsod_, rede interna, desde a 0.3.0"| APP
+  CO["/construir (crontab)"] -->|"Bearer wsod_, https, desde a 0.3.0"| APP
   APP[app: painel + /api] --> MOD[src/modules]
   WK[worker: pg-boss] --> MOD
   MOD --> DB[(Postgres 16: dados + esquema pgboss)]
@@ -33,6 +35,9 @@ flowchart LR
   APP -->|baixar JSON| PC[Pedido de Construção]
 ```
 
+Desde a 0.3.0, as duas integrações **chamam** o Orquestrador; o Orquestrador não chama ninguém de novo. Não há processo,
+fila, job, pacote nem variável de ambiente novos ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)).
+
 ## Módulos
 
 | Caminho | Responsabilidade |
@@ -40,19 +45,20 @@ flowchart LR
 | `src/app/(painel)/` | telas; cada página começa por `exigirPessoaNaPagina` |
 | `src/components/` | componentes de tela e regras de exibição puras (`dados-*.ts`). Desde a 0.2.0: a casca (`casca/`), a marca (`marca/MarcaWs.tsx`), `dados-da-fila.ts` e `dados-das-etapas.ts`. Não decidem acesso nem gravam nada ([cap. 08](08-painel.md)) |
 | `src/app/api/` | rotas; cada uma é `rota(...)` de `src/lib/rota.ts`, menos `/api/auth/*` e `/api/saude` |
-| `src/modules/acesso/` | Better Auth (senha + TOTP), tokens de serviço, `resolverAtor`, `exigirPessoa`, matriz de acesso |
-| `src/modules/demandas/` | criar, ler, alterar, gerador de id, máquina de status, entrada colando o texto, entradas pendentes; desde a 0.2.0, as duas leituras da fila do painel (`resumo-da-fila.ts`, só `SELECT`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)) |
+| `src/modules/acesso/` | Better Auth (senha + TOTP), tokens de serviço (de agente e, desde a 0.3.0, de integração), `resolverAtor`, `exigirPessoa`, matriz de acesso |
+| `src/modules/demandas/` | criar, ler, alterar, gerador de id, máquina de status, entrada colando o texto, entradas pendentes; desde a 0.2.0, as duas leituras da fila do painel (`resumo-da-fila.ts`, só `SELECT`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); desde a 0.3.0, a origem da demanda, a leitura pelo Awave e a confirmação por pessoa (`confirmar.ts`, `confirmacao.ts`, [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)) |
+| `src/modules/integracoes/` | desde a 0.3.0: tempo limite das transações de integração e o 503 `indisponivel` (`tempo-limite.ts`, ADR-28) |
 | `src/modules/especificacoes/`, `pareceres-risco/`, `pacotes-decisao/` | versões de ESP, RSK e DEC, desatualizado, substituído (desde a 0.1.13), decisão e dupla aprovação |
 | `src/modules/versoes.ts` | trava da demanda (`SELECT … FOR UPDATE`) e próxima versão |
-| `src/modules/limites.ts` | limite por ator: 30 demandas e 60 versões (ESP, RSK e DEC somados) por hora |
+| `src/modules/limites.ts` | limite por ator: 30 demandas e 60 versões (ESP, RSK e DEC somados) por hora; desde a 0.3.0, 10 demandas por hora para o Awave |
 | `src/modules/historico/` | eventos só de inclusão |
 | `src/modules/agentes/`, `src/agents/` | interruptores, teto, preço, execução, entrada do agente, provedor; prompts |
 | `src/modules/dados-pessoais/` | detectores (e-mail, telefone, CPF, CNPJ) e minimização |
-| `src/modules/pedido-construcao/` | montar, serializar e validar o Pedido de Construção |
+| `src/modules/pedido-construcao/` | montar, serializar e validar o Pedido de Construção; desde a 0.3.0, a conferência e a montagem compartilhadas (`conferir.ts`) e a entrega ao `/construir` (`pendentes.ts`, `entregar.ts`, `receber.ts`, [cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030)) |
 | `src/vendor/construir/` | cópia sem mudança do `validarPedido` do `/construir`, com SHA-256 conferido em teste (ADR-05) |
 | `src/modules/avisos/`, `retencao/` | e-mail de DEC pronto; expurgo |
 | `src/worker/`, `src/jobs/` | filas, agendamentos, batimento, varredura de execuções órfãs |
-| `src/db/`, `drizzle/` | esquema Drizzle e 7 migrations (`0000` a `0006`, três delas custom `rls_privilegios_*`) |
+| `src/db/`, `drizzle/` | esquema Drizzle e 8 migrations (`0000` a `0007`, três delas custom `rls_privilegios_*`). A `0007` (0.3.0) é gerada e só aditiva: ver [Banco](#banco) |
 | `src/lib/` | relógio injetável, fuso de São Paulo, log, erros, adaptador de rota, leitura do corpo, configuração |
 | `scripts/` | migrate, homologação, seed fictício e scripts de operação ([cap. 10](10-configuracao-e-scripts.md)) |
 
@@ -70,6 +76,17 @@ flowchart LR
   `token_servico`, `demanda`, `entrada_bruta`, `entrada_pendente`, `especificacao_tecnica`, `parecer_risco`,
   `pacote_decisao`, `aprovacao`, `decisao`, `evento`, `configuracao_agente`, `configuracao_ia`, `preco_modelo`,
   `execucao_agente`, `uso_ia`, `aviso_email`, `worker_batimento`, `rotina_execucao`.
+- **Migration `0007` (0.3.0)**, gerada por `pnpm db:generate` e só aditiva (`drizzle/0007_greedy_wendigo.sql`):
+  - `token_servico`: `agente` passa a anulável; coluna nova `integracao` (anulável); CHECK
+    `token_servico_integracao_check` (`awave`, `construir`) e `token_servico_dono_check` (exatamente um dono);
+  - `evento`: `evento_ator_tipo_check` aceita `integracao`; CHECK novo `evento_ator_integracao_check` (integração exige
+    `ator_id` da lista e prefixo); índice novo `evento_acao_entidade_idx (acao, entidade_id)` (ADR-27);
+  - `demanda`: `demanda_autor_tipo_check` aceita `integracao`; CHECK novo `demanda_autor_integracao_check` (só `awave`
+    e sempre rascunho).
+
+  Nenhuma linha muda e nenhuma coluna sai (`alteram_dado: false` no ensaio). Nenhum `GRANT` novo:
+  `token_servico.integracao` fica fora das colunas que o papel da aplicação atualiza. A volta para a 0.2.0 exige
+  restaurar o backup ([deploy.md, seção 6](../operacao/deploy.md)).
 
 ## Saúde
 
@@ -145,7 +162,8 @@ Divergências conhecidas, registradas no [CHANGELOG](../../CHANGELOG.md):
 - O RNF-01 da spec e do `01-analista-requisitos.md`, a linha de stack do plano e o `padrao-tecnico.md` ainda citam
   Next 16.3.8, Zod 4.6.5 e Better Auth 1.7.6. Vale o `package.json`.
 - O `padrao-tecnico.md` (seção 1) diz que mudar de linha do Next (16.3 → 16.4) pede ADR. A troca foi feita como
-  correção de segurança na 08, sem ADR.
+  correção de segurança na 08, sem ADR. Desde a 0.3.0, o ADR-29 registra a troca; o `padrao-tecnico.md` ainda não foi
+  atualizado.
 - Comentários e nomes de teste ainda citam "Better Auth 1.7.6" (por exemplo, `src/modules/acesso/bloqueio-verificacao.ts:5`
   e `src/db/schema/acesso.ts:1`). A suíte inteira passou com o 1.7.7 (3.697 de 3.697), inclusive
   `verificacao.test.ts` e `sonda-mutacao-qa.test.ts`, que fixam o comportamento do plugin `twoFactor`.
@@ -162,7 +180,7 @@ Desenvolvimento em 3101 (`pnpm dev`), nunca 3000 (painel do Easypanel). Postgres
 | ADR | Decisão |
 |---|---|
 | ADR-01 | Monólito modular, app e worker da mesma imagem |
-| ADR-02 | Worker chama os módulos direto; token de serviço só para agente externo |
+| ADR-02 | Worker chama os módulos direto; token de serviço só para agente externo (desde a 0.3.0, também para as integrações, ADR-20) |
 | ADR-03 | Imutabilidade por `GRANT` só de `SELECT, INSERT` ao `orquestrador_app`, com teste de guarda |
 | ADR-04 | Esquema do pg-boss criado pelo migrator; app e worker sobem sem criar esquema |
 | ADR-05 | `validarPedido` copiado sem mudança para `src/vendor/construir/pedido.mjs`, com SHA-256 conferido |
@@ -180,8 +198,19 @@ Desenvolvimento em 3101 (`pnpm dev`), nunca 3000 (painel do Easypanel). Postgres
 | ADR-17 | Barra de etapas e Próxima ação como funções puras de exibição, chamadas só por página |
 | ADR-18 | T11 com um formulário, três botões de envio e arranjo do celular só por CSS |
 | ADR-19 | Testes nas duas larguras sem projeto novo do Playwright; origem e CSP conferidas em todo e2e; capturas por spec |
+| ADR-20 | Integração é um quarto tipo de ator (`integracao`), com lista fechada no esquema e fora de `AGENTES` |
+| ADR-21 | Token de integração na mesma tabela `token_servico`: `agente` anulável, `integracao` nova, CHECK de exatamente um dono |
+| ADR-22 | Matriz com a coluna das integrações (vazia por padrão) e todo ramo por tipo de ator como `switch` exaustivo |
+| ADR-23 | Leitura do Awave por consulta própria, com a autoria no `WHERE` e vista de seis chaves |
+| ADR-24 | Autoria da demanda travada no banco e limite por integração (Awave: 10 por hora) |
+| ADR-25 | Sem disparo de agente para demanda de integração; confirmação só por pessoa, no painel; "confirmada" = o evento |
+| ADR-26 | A entrega ao `/construir` reaproveita a conferência e a montagem da geração; o hash fica no evento |
+| ADR-27 | Índice `evento (acao, entidade_id)` |
+| ADR-28 | Tempo limite do servidor abaixo do do cliente, só para integração; estouro vira 503 |
+| ADR-29 | Stack sem mudança; registra Next 16.4.1, Better Auth 1.7.7 e Zod 4.6.6 |
 
 O texto completo dos ADR-01 a ADR-12 está em `docs/construcao/DEC-DEM-20261022-0001-v1/02-arquiteto-solucoes.md`; o
-dos ADR-13 a ADR-19 (0.2.0), em `docs/construcao/DEC-DEM-20261110-0015-v1/02-arquiteto-solucoes.md`, seção 9. Na
+dos ADR-13 a ADR-19 (0.2.0), em `docs/construcao/DEC-DEM-20261110-0015-v1/02-arquiteto-solucoes.md`, seção 9; o dos
+ADR-20 a ADR-29 (0.3.0), em `docs/construcao/DEC-DEM-20261111-0016-v1/02-arquiteto-solucoes.md`. Na
 ADR-14 e na ADR-18, o plano trocou dois pontos: os nomes antigos de cor saíram de vez na T16 (D-01), e o recolhível
 é o componente `Recolhivel`, e não `<details>` (D-02, `05-tech-lead.md`).

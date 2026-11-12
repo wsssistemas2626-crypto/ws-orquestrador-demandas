@@ -1,0 +1,44 @@
+{
+  "pedido": "DEC-DEM-20261111-0016-v1",
+  "demanda": {
+    "id": "DEM-20261111-0016",
+    "tipo": "melhoria",
+    "titulo": "Orquestrador 0.3.0: atores de integração awave (criar e ler a própria demanda) e construir (buscar o Pedido de Construção)",
+    "descricao": "Hoje só pessoa com sessão e os quatro agentes de IA entram na API. Duas integrações internas precisam de acesso próprio e mínimo: (1) o Awave (agentes da empresa) abre demanda pela API quando o dono aprova em /aprovacoes do Awave; a tool do lado do Awave já está pronta (awave-agents, commit 0ab8ced) e define o contrato; (2) o /construir busca sozinho o Pedido de Construção que uma pessoa gerou no painel, sem cópia manual (CA-F-01); o lado do /construir já está pronto e desligado (estruturaAutonoma/ferramentas/construir/buscar-pedidos.mjs, commit dfedf16). Dar a eles o token de um agente de IA abriria a fila inteira e os misturaria ao interruptor, ao teto e ao uso de IA. Insumo completo, com contrato, critérios e riscos: estruturaAutonoma/pedidos/insumos/2026-11-11_orquestrador-integracao-awave.md."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261111-0016-v1",
+    "conteudo": "Base: main depois do merge do pedido 0015 (0.2.0); sai como 0.3.0. PARTE 1 (Awave). (1) Tipo de ator novo `integracao` (fora de AGENTES), com integracao 'awave', token de serviço próprio (wsod_, só o SHA-256 no banco, prefixo no histórico), emitido e revogado pelos scripts existentes. (2) Matriz: awave só em criar_demanda e ler_demanda; toda outra ação negada, inclusive listar_demandas, ESP, RSK, DEC, texto bruto, histórico, configuração e teto; o teste transversal da matriz cobre as integrações. (3) ler_demanda pelo awave só da demanda que ele criou; outra responde 404. (4) Visão do awave: id, titulo, tipo, status, criadaEm, atualizadaEm. (5) POST /api/demandas pelo awave grava autoria awave, rascunhoAgente true, solicitanteNome 'Awave' seja qual for o corpo, evento demanda_criada com ator e prefixo; NÃO dispara o insumo_tecnico mesmo ligado (decisão D1): a confirmação por pessoa dispara. (6) Limite de 10 demandas por hora para o awave (D2), 429 acima; os demais seguem com 30. (7) Painel: origem (Awave ou pessoa) na fila e no detalhe, com filtro. (8) awave fora da tela de agentes, do interruptor, do teto e do uso de IA. (9) Pedido com Authorization Bearer e sem cabeçalho Origin continua aceito depois da vigilância de origem e CSP da 0.2.0. Contrato que a tool do Awave já usa e não pode quebrar: POST <origem>/api/demandas, Bearer, JSON {titulo, tipo, solicitanteNome:'Awave', solicitantePapel:'outro', descricaoProblema, contexto}; sucesso só 201 com id DEM-AAAAMMDD-NNNN; erros 401, 403, 400/422 {erro, mensagem}, 429. PARTE 2 (construir, CA-F-01). (10) Integração 'construir' com token próprio e só três ações: listar_pedidos_pendentes, entregar_pedido, confirmar_recebimento_pedido. (11) GET /api/pedidos-construcao/pendentes → {itens:[{decId}]}: DEC com evento pedido_gerado por pessoa, ainda aprovado vigente (não substituído nem desatualizado, demanda fora de status final) e sem pedido_recebido. (12) POST /api/pedidos-construcao/:decId/entrega → 200 com o JSON do pedido byte a byte igual ao da geração (CA-22.2), refazendo as conferências 3 a 11 do RF-22 sem pedir de novo a confirmação; sem pedido_gerado → 404; evento pedido_entregue. (13) POST /api/pedidos-construcao/:decId/recebimento {sha256} → 204 se bate, 409 se não; evento pedido_recebido; repetir não grava de novo. (14) Detalhe do DEC mostra 'Recebido pelo /construir em <data>'. Migration só aditiva (ampliar CHECKs de token_servico, evento.ator_tipo e autoria; coluna anulável). Documentação: manual técnico (acesso e cap. 05) e docs/operacao com emissão, troca e revogação dos dois tokens. CHANGELOG e package.json 0.3.0."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261111-0016-v1",
+    "nivel": "medio",
+    "conteudo": "Mexe na matriz de acesso, no esquema (migration aditiva) e abre duas credenciais novas num sistema no ar. Token do Awave vazado: só cria demanda em rascunho, 10 por hora, e lê as próprias; revogação pelo prefixo. Token do construir vazado: só lê pedidos que uma pessoa já gerou (sem dado pessoal, conferido na geração) e confirma recebimento. Texto vindo de fora indo a um modelo de IA: sem disparo automático do insumo_tecnico para demanda do awave. Afrouxamento acidental da matriz: lista de permissão fechada por integração, teste transversal para toda ação. Vigilância de origem da 0.2.0 barrar chamada de servidor sem Origin: critério e teste de contrato. Migration em produção: só aditiva, ensaio de rollback na P3, snapshot antes do deploy (que é de Fabiano). Nenhum controle existente é afrouxado (C-09, C-10, C-11, C-28, C-30, C-36, A-02, axe)."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261111-0016-v1",
+    "opcaoEscolhida": "Opção A: tipo de ator novo `integracao` (awave e construir), fora dos agentes de IA; demanda do awave sem disparo automático do insumo técnico; limite de 10 por hora para o awave; CA-F-01 no mesmo pedido; endereço interno http://orquestrador_app para o Awave",
+    "aprovadoPor": "cto",
+    "aprovadoEm": "2026-11-11"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Token awave cria demanda com 201 e id DEM, como rascunho, origem Awave na fila, solicitanteNome Awave e evento com ator awave e prefixo",
+    "Token awave recebe 403 em toda ação fora de criar_demanda e ler_demanda, e 404 ao ler demanda de outro autor; a visão tem só os seis campos",
+    "Demanda do awave não cria execução nem job do insumo_tecnico, mesmo ligado",
+    "A 11ª demanda do awave na mesma hora recebe 429; o limite dos outros atores não muda",
+    "Token revogado recebe 401 com a mensagem de token inválido, sem afetar os demais tokens",
+    "Bearer sem cabeçalho Origin continua aceito, também pela rede interna (http://orquestrador_app)",
+    "Pedido gerado por pessoa aparece em pendentes para o token construir; a entrega devolve os mesmos bytes da geração; o recebimento com SHA-256 certo tira da lista e com errado responde 409",
+    "Token construir recebe 403 fora das três ações; awave, agentes e pessoa recebem 403 nas três rotas novas",
+    "O buscar-pedidos.mjs do /construir passa contra a homologação da 0.3.0 com um pedido fictício"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "Migration aditiva com ensaio de rollback aprovado",
+    "Manual técnico e docs/operacao atualizados (emissão, troca e revogação dos tokens awave e construir)",
+    "CHANGELOG e package.json na 0.3.0"
+  ]
+}

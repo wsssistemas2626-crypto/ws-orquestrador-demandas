@@ -680,3 +680,68 @@ describe('proximaAcao: bordas (06-T10-testes)', () => {
     expect(etapas.filter((e) => e.atual).map((e) => e.numero)).toEqual(final || primeiraNaoFeita === undefined ? [] : [primeiraNaoFeita]);
   });
 });
+
+// --- 0.3.0 (T17 do DEC-DEM-20261111-0016-v1; 03, 5.5): linha 14, a demanda do Awave aguardando confirmação ---
+
+describe('proximaAcao: linha 14 (Awave aguardando confirmação)', () => {
+  const aguardando = (o: Opcoes = {}): DadosDasEtapas => ({ ...base(o), aguardaConfirmacaoDoAwave: true });
+  const LINHA_14: ProximaAcao = {
+    linha: 14,
+    oQueFalta: 'Confirmar a demanda aberta pelo Awave.',
+    detalhe: 'Até a confirmação, nenhum agente de IA trabalha nela.',
+    quemAge: PESSOA,
+    link: { rotulo: 'Ir para a confirmação', destino: { tipo: 'secao', secao: 'confirmacao' } },
+  };
+
+  it('status nova, sem agente em andamento: linha 14 com os textos da 03 e o link para a seção confirmacao', () => {
+    expect(proximaAcao(aguardando({ status: 'nova' }))).toEqual(LINHA_14);
+  });
+
+  it('com agente pendente ou em andamento: linha 2 (a 14 vem depois)', () => {
+    expect(proximaAcao(aguardando({ status: 'nova', agentes: [{ agente: 'insumo_tecnico', status: 'pendente' }] }))).toMatchObject({ linha: 2 });
+    expect(proximaAcao(aguardando({ status: 'nova', agentes: [{ agente: 'risco', status: 'em_andamento' }] }))).toMatchObject({ linha: 2 });
+  });
+
+  it('em status final: linha 1', () => {
+    expect(proximaAcao(aguardando({ status: 'encerrada' }))).toMatchObject({ linha: 1, oQueFalta: 'Nada. A demanda está em Encerrada.' });
+    expect(proximaAcao(aguardando({ status: 'entregue' }))).toMatchObject({ linha: 1 });
+  });
+
+  it('com aguardando_informacao: linha 14 antes da 3', () => {
+    expect(proximaAcao(aguardando({ status: 'aguardando_informacao', esp: 1, duvidas: ['Qual o prazo? (fictício)'], temSecaoDeDuvidas: true }))).toEqual(LINHA_14);
+  });
+
+  it('vence as linhas 3 a 13 em todo status que não é final, com qualquer cenário de versões', () => {
+    const cenarios: Opcoes[] = [
+      {},
+      { esp: 1 },
+      { esp: 1, rsk: 1 },
+      { esp: 1, rsk: 1, pacotes: [pacote(1, 'pendente', { desatualizado: true })] },
+      { esp: 1, rsk: 1, pacotes: [pacote(1)] },
+      { esp: 1, rsk: 1, pacotes: [pacote(1, 'aprovada')], dec: { decisao: decidida('A') } },
+    ];
+    const naoFinais = (Object.keys(ROTULO_STATUS) as Demanda['status'][]).filter((s) => s !== 'entregue' && s !== 'encerrada');
+    expect(naoFinais).toHaveLength(7);
+    for (const status of naoFinais) for (const o of cenarios) expect(proximaAcao(aguardando({ ...o, status }))).toEqual(LINHA_14);
+  });
+
+  it('sem a marca (ausente ou false): as linhas de hoje, sem mudança', () => {
+    expect(proximaAcao(base({ status: 'nova' })).linha).toBe(4);
+    expect(proximaAcao({ ...base({ status: 'nova' }), aguardaConfirmacaoDoAwave: false }).linha).toBe(4);
+    expect(proximaAcao({ ...base({ status: 'aguardando_informacao' }), aguardaConfirmacaoDoAwave: false }).linha).toBe(3);
+  });
+
+  it('a linha 14 também confere a coerência do dado (ESP ou DEC incoerente lança)', () => {
+    expect(() => proximaAcao({ ...aguardando({ esp: 1 }), espMaisNova: null })).toThrow();
+  });
+
+  it('a barra de etapas não muda com a marca (03, Decisões)', () => {
+    for (const o of [{ status: 'nova' }, { esp: 1, rsk: 1 }, { status: 'encerrada' }] as Opcoes[]) {
+      expect(etapasDaDemanda(aguardando(o))).toEqual(etapasDaDemanda(base(o)));
+    }
+  });
+
+  it('CV-09: a saída da linha 14 tem só as chaves da interface', () => {
+    expect(Object.keys(proximaAcao(aguardando())).sort()).toEqual(['detalhe', 'linha', 'link', 'oQueFalta', 'quemAge']);
+  });
+});

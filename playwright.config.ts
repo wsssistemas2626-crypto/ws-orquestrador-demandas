@@ -7,10 +7,21 @@
 //   - a API, pela sessão da página (e2e/apoio.ts, api): as demandas e as versões que os testes criam.
 // As demandas do seed acumulam versões e decisões entre execuções contra o mesmo banco (homologação reaproveitada). O
 // teste que precisa de banco recém-semeado diz isso ao ser pulado ("exige banco recém-semeado: ...").
+//
+// T20 do DEC-DEM-20261111-0016-v1 (D-10): sem BASE_URL, E2E_ARQUIVO_TOKENS aponta para `tokens.json` numa pasta nova de
+// `mkdtemp`, fora do repositório. Só o processo principal cria a pasta (o `??=`): os workers e o `webServer` herdam a
+// variável. O e2e/servidor.ts grava ali os tokens `awave` e `construir` do banco descartável e apaga o arquivo e a pasta ao
+// encerrar. Com BASE_URL, nada muda: nenhuma pasta, nenhum token (e2e/integracoes.ts).
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
+import { PREFIXO_DA_PASTA } from './e2e/integracoes';
 
 const BASE_URL = process.env.BASE_URL;
 const LOCAL = 'http://127.0.0.1:3101';
+
+if (!BASE_URL) process.env.E2E_ARQUIVO_TOKENS ??= join(mkdtempSync(join(tmpdir(), PREFIXO_DA_PASTA)), 'tokens.json');
 
 export default defineConfig({
   testDir: './e2e',

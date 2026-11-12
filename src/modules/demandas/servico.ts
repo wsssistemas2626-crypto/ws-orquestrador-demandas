@@ -4,18 +4,19 @@
 import { isDeepStrictEqual } from 'node:util';
 import { eq } from 'drizzle-orm';
 import { demanda } from '../../db/schema';
+import type { AutorDemanda } from '../../db/schema/demandas';
 import { comTransacao, type Transacao } from '../../db/transacao';
 import type { Deps } from '../../lib/deps';
 import { ErroDominio } from '../../lib/erros';
-import type { Ator, AtorPessoa } from '../acesso/ator';
+import { NOME_DA_INTEGRACAO, atorDesconhecido, type Ator, type AtorPessoa } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
-import { MENSAGENS_ACESSO } from '../acesso/mensagens';
 import { dispararSeLigado } from '../agentes/gatilhos';
 import { mudancaDeCampo, registrarEvento } from '../historico/registrar';
+import { executarComOrcamento } from '../integracoes/tempo-limite';
 import { conferirLimite } from '../limites';
 import { temPacoteAprovadoAtualizado } from '../pacotes-decisao/desatualizado';
 import { travarDemanda } from '../versoes';
-import { obterDemanda, type DemandaVista } from './consultas';
+import { obterDemanda, semPermissao, type DemandaVista } from './consultas';
 import { proximoIdDemanda } from './gerar-id';
 import type { AlterarDemanda, CriarDemanda } from './schemas';
 import { conferirTransicaoManual } from './transicoes';
@@ -46,16 +47,135 @@ const CAMPOS_EDITAVEIS = [
 
 type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number];
 
-// Exportada para os serviços de ESP, RSK e DEC (T18 a T20): a mesma autoria gravada em todo artefato (C-11).
+// Exportada para os serviços de ESP, RSK e DEC (T18 a T20): a mesma autoria gravada em todo artefato (C-11). As versões
+// continuam só com pessoa e agente (ADR-24): integração e sistema lançam. autorizar já os negou; isto só protege contra
+// uso sem autorizar.
 export function autoriaDo(ator: Ator): { autorTipo: 'pessoa' | 'agente'; autorId: string } {
-  if (ator.tipo === 'agente') return { autorTipo: 'agente', autorId: ator.agente };
-  if (ator.tipo === 'pessoa') return { autorTipo: 'pessoa', autorId: ator.usuarioId };
-  // autorizar já negou o sistema; isto só protege contra uso sem autorizar.
-  throw new ErroDominio('sem_permissao', MENSAGENS_ACESSO.sem_permissao);
+  switch (ator.tipo) {
+    case 'agente':
+      return { autorTipo: 'agente', autorId: ator.agente };
+    case 'pessoa':
+      return { autorTipo: 'pessoa', autorId: ator.usuarioId };
+    case 'integracao':
+    case 'sistema':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
+// ADR-24 e G8 #6: a autoria da demanda. Pessoa e agente como nas versões; da integração, só o awave cria demanda (RF-03 e
+// CHECK demanda_autor_integracao_check). autorizar já negou o construir e o sistema; isto só protege contra uso sem
+// autorizar.
+export function autoriaDaDemanda(ator: Ator): { autorTipo: AutorDemanda; autorId: string } {
+  switch (ator.tipo) {
+    case 'pessoa':
+    case 'agente':
+      return autoriaDo(ator);
+    case 'integracao':
+      if (ator.integracao === 'awave') return { autorTipo: 'integracao', autorId: 'awave' };
+      throw semPermissao();
+    case 'sistema':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
+type CamposDaDemanda = Pick<
+  typeof demanda.$inferInsert,
+  | 'titulo'
+  | 'tipo'
+  | 'solicitanteNome'
+  | 'solicitantePapel'
+  | 'linhaServicoProvavel'
+  | 'urgencia'
+  | 'justificativaUrgencia'
+  | 'contexto'
+  | 'descricaoProblema'
+  | 'impactoPercebido'
+  | 'anexos'
+  | 'duvidasEntrada'
+>;
+
+// IN-05 e G8 #7: campo a campo, e não `...entrada`, para todo ator: nada que o chamador tenha a mais chega ao banco
+// (C-11). Da integração, só cinco campos do corpo (lista de permissão); o resto é fixo, seja o que for enviado, sem 400
+// (o contrato do Awave não muda) e sem nome de pessoa no solicitante.
+function camposDaEntrada(ator: Ator, e: CriarDemanda, extras: { duvidasEntrada?: string[] }): CamposDaDemanda {
+  switch (ator.tipo) {
+    case 'integracao':
+      return {
+        titulo: e.titulo,
+        tipo: e.tipo,
+        solicitanteNome: NOME_DA_INTEGRACAO[ator.integracao],
+        solicitantePapel: e.solicitantePapel ?? null,
+        linhaServicoProvavel: null,
+        urgencia: null,
+        justificativaUrgencia: null,
+        contexto: e.contexto ?? null,
+        descricaoProblema: e.descricaoProblema ?? null,
+        impactoPercebido: null,
+        anexos: [],
+        duvidasEntrada: [],
+      };
+    case 'pessoa':
+    case 'agente':
+      return {
+        titulo: e.titulo,
+        tipo: e.tipo,
+        solicitanteNome: e.solicitanteNome,
+        solicitantePapel: e.solicitantePapel ?? null,
+        linhaServicoProvavel: e.linhaServicoProvavel ?? null,
+        urgencia: e.urgencia ?? null,
+        justificativaUrgencia: e.justificativaUrgencia ?? null,
+        contexto: e.contexto ?? null,
+        descricaoProblema: e.descricaoProblema ?? null,
+        impactoPercebido: e.impactoPercebido ?? null,
+        anexos: e.anexos,
+        duvidasEntrada: extras.duvidasEntrada ?? [],
+      };
+    case 'sistema':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
+}
+
+// IN-06 e D1: só pessoa e agente disparam o insumo técnico ao criar (lista de permissão, não "todos menos integração").
+// A demanda do Awave espera a confirmação por pessoa, que dispara (T08).
+async function dispararAoCriar(tr: Transacao, deps: DepsComFila, ator: Ator, id: string): Promise<void> {
+  switch (ator.tipo) {
+    case 'pessoa':
+    case 'agente':
+      // T28: com o insumo técnico ligado e sem suspensão, a execução e o job entram nesta transação (ADR-06).
+      await dispararSeLigado(tr, deps, 'insumo_tecnico', `demanda:${id}`, id);
+      return;
+    case 'integracao':
+      return;
+    case 'sistema':
+      throw semPermissao();
+    default:
+      return atorDesconhecido(ator);
+  }
 }
 
 const executar = <T>(deps: DepsDemanda, t: Transacao | undefined, corpo: (t: Transacao) => Promise<T>): Promise<T> =>
   t ? corpo(t) : comTransacao(deps.pool, corpo);
+
+// ADR-28 e IN-14: a integração cria sob o orçamento de tempo dela (lock_timeout e statement_timeout, 503 fixo). Pessoa,
+// agente e sistema seguem com a transação de hoje, sem tradução nova de erro (RNF-09).
+function naTransacaoDaCriacao<T>(deps: DepsDemanda, ator: Ator, t: Transacao | undefined, corpo: (t: Transacao) => Promise<T>): Promise<T> {
+  switch (ator.tipo) {
+    case 'integracao':
+      return executarComOrcamento(deps.pool, ator, 'padrao', t, corpo);
+    case 'pessoa':
+    case 'agente':
+    case 'sistema':
+      return executar(deps, t, corpo);
+    default:
+      return atorDesconhecido(ator);
+  }
+}
 
 export async function criarDemanda(
   deps: DepsComFila,
@@ -65,42 +185,45 @@ export async function criarDemanda(
   extras: { duvidasEntrada?: string[] } = {},
 ): Promise<DemandaVista> {
   autorizar(ator, 'criar_demanda');
-  const autoria = autoriaDo(ator);
-  const id = await executar(deps, t, async (tr) => {
+  const autoria = autoriaDaDemanda(ator);
+  const campos = camposDaEntrada(ator, entrada, extras);
+  const id = await naTransacaoDaCriacao(deps, ator, t, async (tr) => {
     const { tx } = tr;
-    // C-36: limite antes do id. O nextval só roda aqui, depois do Zod (na entrada) e do limite, dentro da transação.
+    // C-36 e IN-09: limite antes do id. O nextval só roda aqui, depois do Zod (na entrada) e do limite, dentro da
+    // transação.
     await conferirLimite(tx, ator, 'demanda', deps.relogio);
     const novoId = await proximoIdDemanda(tx, deps.relogio);
     const agora = deps.relogio.agora();
-    // Campo a campo, e não `...entrada`: nada que o chamador tenha a mais chega ao banco (C-11).
     await tx.insert(demanda).values({
       id: novoId,
-      titulo: entrada.titulo,
-      tipo: entrada.tipo,
+      titulo: campos.titulo,
+      tipo: campos.tipo,
       status: 'nova',
-      solicitanteNome: entrada.solicitanteNome,
-      solicitantePapel: entrada.solicitantePapel ?? null,
-      linhaServicoProvavel: entrada.linhaServicoProvavel ?? null,
-      urgencia: entrada.urgencia ?? null,
-      justificativaUrgencia: entrada.justificativaUrgencia ?? null,
-      contexto: entrada.contexto ?? null,
-      descricaoProblema: entrada.descricaoProblema ?? null,
-      impactoPercebido: entrada.impactoPercebido ?? null,
-      anexos: entrada.anexos,
-      duvidasEntrada: extras.duvidasEntrada ?? [],
-      ...autoria,
-      rascunhoAgente: autoria.autorTipo === 'agente',
+      solicitanteNome: campos.solicitanteNome,
+      solicitantePapel: campos.solicitantePapel,
+      linhaServicoProvavel: campos.linhaServicoProvavel,
+      urgencia: campos.urgencia,
+      justificativaUrgencia: campos.justificativaUrgencia,
+      contexto: campos.contexto,
+      descricaoProblema: campos.descricaoProblema,
+      impactoPercebido: campos.impactoPercebido,
+      anexos: campos.anexos,
+      duvidasEntrada: campos.duvidasEntrada,
+      autorTipo: autoria.autorTipo,
+      autorId: autoria.autorId,
+      // ADR-24: só a pessoa cria fora de rascunho; agente e integração sempre em rascunho.
+      rascunhoAgente: autoria.autorTipo !== 'pessoa',
       criadaEm: agora,
       atualizadaEm: agora,
     });
-    // C-30: só enumerações no evento; nada do solicitante nem de texto livre.
+    // C-30 e IN-12: só enumerações no evento; nada do solicitante nem de texto livre. O ator leva o prefixo do token. O
+    // tipo vem do que foi gravado (`campos`, a lista de permissão), não da entrada (parecer 2 da 06-T06-revisao).
     await registrarEvento(
       tx,
-      { ator, demandaId: novoId, entidade: 'demanda', entidadeId: novoId, acao: 'demanda_criada', depois: { status: 'nova', tipo: entrada.tipo } },
+      { ator, demandaId: novoId, entidade: 'demanda', entidadeId: novoId, acao: 'demanda_criada', depois: { status: 'nova', tipo: campos.tipo } },
       deps.relogio,
     );
-    // T28: com o insumo técnico ligado e sem suspensão, a execução e o job entram nesta transação (ADR-06).
-    await dispararSeLigado(tr, deps, 'insumo_tecnico', `demanda:${novoId}`, novoId);
+    await dispararAoCriar(tr, deps, ator, novoId);
     return novoId;
   });
   return obterDemanda(t?.tx ?? deps.db, id);

@@ -12,7 +12,10 @@
 //   - conta "administradora": 0 demandas e até 3 versões (ESP, RSK e DEC do caso da T11).
 // O POST de outra origem do caso C-15 leva corpo vazio: se o Origin passasse, a validação recusaria com 400 e nada seria
 // gravado.
-import { type Page } from '@playwright/test';
+// 0.3.0 (T18 do DEC-DEM-20261111-0016-v1, IN-07): a Server Action de confirmar, com o Origin trocado por outro site, na
+// `awaveAguardando` do seed. A conta "cto" não grava nada: o Next recusa a chamada antes da ação, e a demanda continua
+// aguardando (se o controle falhasse, ela seria confirmada, e este teste reprovaria).
+import { type Page, type Request } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
 import { api, demandaDoSeed, entrarComo, expect, test } from './apoio';
 
@@ -240,4 +243,54 @@ test('C-15: OPTIONS não devolve Access-Control-Allow-Origin; POST com sessão e
   const r = await page.request.post('/api/demandas', { headers: { origin: 'https://atacante.test', 'content-type': 'application/json' }, data: '{}' });
   expect(r.status()).toBe(403);
   expect(r.headers()['access-control-allow-origin']).toBeUndefined();
+});
+
+// IN-07 (C-15 na Server Action da T18): o navegador manda a chamada, e o teste a reenvia igual, só com o Origin de outro
+// site. A recusa é do Next (allowedOrigins só com a origem do BETTER_AUTH_URL, next.config.ts): a tela mostra o erro com
+// foco, nada é gravado, e a demanda continua aguardando.
+const ehServerAction = (r: Request) => r.method() === 'POST' && r.headers()['next-action'] !== undefined;
+
+test('IN-07: "Confirmar demanda" com Origin de outro site é recusada; nenhum demanda_confirmada, e a demanda continua aguardando', async ({ page }) => {
+  await entrarComo(page, 'cto');
+  const id = await demandaDoSeed(page, TITULOS_DO_E2E.awaveAguardando);
+  // Controle do reenvio: a mesma chamada, com o Origin do painel, mas para uma demanda de pessoa, chega à ação e recebe a
+  // recusa dela (409 da regra, nada gravado). Assim, a recusa com o Origin de fora é do Origin, e não do reenvio.
+  const dePessoa = await demandaDoSeed(page, TITULOS_DO_E2E.etapasSemVersoes);
+  const confirmacoes = async (demanda: string) =>
+    (await api<{ itens: { acao: string }[] }>(page, 'GET', `/api/demandas/${demanda}/historico`)).itens.filter((e) => e.acao === 'demanda_confirmada').length;
+  expect(await confirmacoes(id)).toBe(0);
+  await page.goto(`/demandas/${id}`);
+  let modo: 'controle' | 'ataque' = 'controle';
+  const status: number[] = [];
+  await page.route('**/*', async (rota) => {
+    const r = rota.request();
+    if (!ehServerAction(r)) return rota.continue();
+    const cabecalhos = await r.allHeaders();
+    const resposta =
+      modo === 'controle'
+        ? await rota.fetch({ headers: cabecalhos, postData: (r.postData() ?? '').replaceAll(id, dePessoa) })
+        : await rota.fetch({ headers: { ...cabecalhos, origin: 'https://atacante.test' } });
+    status.push(resposta.status());
+    await rota.fulfill({ response: resposta });
+  });
+  const botao = page.getByRole('button', { name: 'Confirmar demanda' });
+  const alerta = page.getByRole('region', { name: 'Confirmação do Awave' }).getByRole('alert');
+
+  await botao.click();
+  await expect(alerta).toHaveText('Não foi possível concluir: Só demanda aberta pelo Awave precisa de confirmação.');
+  expect(status).toEqual([200]);
+
+  modo = 'ataque';
+  await botao.click();
+  await expect.poll(() => status.length).toBe(2);
+  expect(status[1]).not.toBe(200);
+  await expect(alerta).toBeVisible();
+  await expect(alerta).not.toContainText('Só demanda aberta pelo Awave');
+  await expect(alerta.locator('xpath=..')).toBeFocused();
+  await page.unroute('**/*');
+  expect(await confirmacoes(id)).toBe(0);
+  expect(await confirmacoes(dePessoa)).toBe(0);
+  await page.reload();
+  await expect(page.getByText('Aguardando confirmação', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Confirmar demanda' })).toBeVisible();
 });

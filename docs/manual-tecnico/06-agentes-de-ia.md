@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 04/11/2026 (0.1.12: `trocarNomes` e `temNome`, a mesma regra do nome usada pelo Pedido de Construção, no RF-20); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, nome grudado em número, `_` ou CamelCase, aviso e dica com os limites da troca, no RF-20); 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
+| Atualizado em | 12/11/2026 (0.3.0: demanda do Awave só dispara agente depois da confirmação por pessoa; passo de `sem_confirmacao` no worker, no RF-16; integrações fora da tela de agentes, do teto e do uso de IA); 04/11/2026 (0.1.12: `trocarNomes` e `temNome`, a mesma regra do nome usada pelo Pedido de Construção, no RF-20); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, nome grudado em número, `_` ou CamelCase, aviso e dica com os limites da troca, no RF-20); 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
-| Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
+| Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/modules/demandas/confirmacao.ts` (desde a 0.3.0), `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
 | Situação na 0.1.0 | **os quatro agentes estão desligados**, com teto 0 e sem `ANTHROPIC_API_KEY`. Nenhuma chamada ao provedor acontece |
 
 ## Os quatro agentes
@@ -13,13 +13,21 @@
 | Agente | Disparado quando | Grava | Prompt (`src/agents/`) | Origem do prompt |
 |---|---|---|---|---|
 | `orquestrador` | entrada no modo `agente` ([cap. 03](03-demandas.md#rf-05-entrada-colando-o-texto)) | a demanda (e as dúvidas da entrada) | `orquestrador.ts`, até 2.000 tokens de saída | Orquestrador Central |
-| `insumo_tecnico` | demanda criada | ESP | `insumo-tecnico.ts`, até 6.000 | `operacional-desenvolvimento-sistemas` |
+| `insumo_tecnico` | demanda criada por pessoa ou agente; demanda do Awave confirmada por pessoa (desde a 0.3.0) | ESP | `insumo-tecnico.ts`, até 6.000 | `operacional-desenvolvimento-sistemas` |
 | `risco` | ESP gravada sem dúvida | RSK | `risco.ts`, até 3.000 | `gestao-riscos`, com apoio de `juridico-contratos` |
 | `consolidacao` | RSK gravado numa demanda com ESP | DEC (sempre `cto_e_administradora`) | `consolidacao.ts`, até 4.000 | Orquestrador Central |
 
 O disparo (`dispararSeLigado`) só cria a execução e o job quando o agente está ligado e o teto não foi atingido, na
 mesma transação do artefato que o disparou (ADR-06). Desligado ou suspenso, nada é criado e a pessoa preenche pelo
 painel, com os mesmos schemas.
+
+Desde a 0.3.0, o disparo confere antes de tudo, para os quatro agentes, se a demanda é do Awave e ainda não foi
+confirmada por uma pessoa (`aguardaConfirmacao`). Se for, nada é criado: nenhum agente de IA trabalha numa demanda do
+Awave antes da confirmação, nem quando uma pessoa grava à mão uma ESP ou um RSK nela (D1 e IN-06 do pedido 0016;
+[cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)).
+
+As integrações `awave` e `construir` (0.3.0) não são agentes de IA: não aparecem na tela "Agentes e teto", não têm
+interruptor nem modelo, não contam no teto e não gravam `uso_ia` ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)).
 
 Tudo que um agente grava é **rascunho de agente**: a pessoa revisa, e a decisão sobre um DEC que cita rascunho exige
 `revisouRascunhosDeAgente: true` ([cap. 04](04-versoes-e-decisao.md#rf-13-decisão)). Agente nunca decide nem envia
@@ -38,6 +46,9 @@ do job leva só o id da execução (C-22). A execução (`executar.ts`) segue es
 4. demanda da execução em status final (`entregue` ou `encerrada`) → `ignorada`, com evento `agente_ignorado` e motivo
    `demanda_final`, sem chamar o provedor (passo "3b" no comentário de `executar.ts`; M-02, desde a 0.1.5). Lê só o
    status da demanda. O orquestrador, que ainda não tem demanda, não passa por aqui;
+   - desde a 0.3.0 (passo "3c", D-07 do pedido 0016): demanda do Awave ainda não confirmada por pessoa → `ignorada`,
+     com evento `agente_ignorado` e motivo `sem_confirmacao`, sem chamar o provedor nem gravar uso. É a segunda
+     barreira, depois do disparo. Lê só as tabelas `demanda` e `evento`;
 5. monta a entrada pela lista de permissão de campos do agente, minimizada (RF-20), com o texto do cliente dentro de um
    bloco `<dados>` e a instrução de que nada ali é ordem. A montagem devolve também `citados`: o id da ESP e do RSK que
    entraram no bloco. Os ids não vão para o conteúdo enviado (C-23);
@@ -50,10 +61,11 @@ do job leva só o id da execução (C-22). A execução (`executar.ts`) segue es
    chamada.
 
 Motivos do evento `agente_ignorado` (`MotivoIgnorada` em `executar.ts`; enumeração fechada, sem texto da entrada nem da
-saída): `desligado`, `sem_preco`, `sem_provedor` e `demanda_final`. O `suspensao_por_teto` leva o motivo `teto`. No
-histórico do painel, cada motivo tem rótulo em `MOTIVO_IGNORADO` (`src/components/rotulos.ts`): "agente desligado",
-"modelo sem preço vigente", "provedor de IA não configurado" e, desde a 0.1.9 (B-5 do 0006), "demanda já entregue ou
-encerrada". O evento aparece como "Agente de consolidação não rodou: demanda já entregue ou encerrada". Motivo sem
+saída): `desligado`, `sem_preco`, `sem_provedor`, `demanda_final` e, desde a 0.3.0, `sem_confirmacao`. O
+`suspensao_por_teto` leva o motivo `teto`. No histórico do painel, cada motivo tem rótulo em `MOTIVO_IGNORADO`
+(`src/components/rotulos.ts`): "agente desligado", "modelo sem preço vigente", "provedor de IA não configurado", desde
+a 0.1.9 (B-5 do 0006) "demanda já entregue ou encerrada" e, desde a 0.3.0, "demanda aberta pelo Awave ainda não
+confirmada". O evento aparece como "Agente de consolidação não rodou: demanda já entregue ou encerrada". Motivo sem
 rótulo aparece só como "Agente … não rodou".
 
 Novas tentativas (P1-e, `espera.ts`): **3 no total**, com espera de 30 s antes da 2ª e de 2 min antes da 3ª. Na 3ª

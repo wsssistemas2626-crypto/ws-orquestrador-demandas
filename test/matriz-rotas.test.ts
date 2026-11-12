@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { definirDepsParaTeste, type Deps } from '../src/lib/deps';
 import { substituirDestinoDoLog } from '../src/lib/log';
 import { paramId, rota, type HandlerRota } from '../src/lib/rota';
-import { AGENTES, PAPEIS } from '../src/modules/acesso/ator';
+import { AGENTES, INTEGRACOES, PAPEIS, atorDesconhecido } from '../src/modules/acesso/ator';
 import { ACOES, MATRIZ, atoresProibidos, type Acao } from '../src/modules/acesso/matriz';
 import { novoBanco, type BancoDeTeste } from './banco';
 import { criarDepsDeTeste } from './deps';
@@ -54,13 +54,25 @@ afterAll(async () => {
   await b.fechar();
 });
 
-const rotulo = (a: AtorDeTeste) => (a.tipo === 'agente' ? `agente ${a.agente}` : `pessoa ${a.papel}${a.sem2fa ? ' sem 2FA' : ''}`);
+function rotulo(a: AtorDeTeste): string {
+  switch (a.tipo) {
+    case 'agente':
+      return `agente ${a.agente}`;
+    case 'integracao':
+      return `integração ${a.integracao}`;
+    case 'pessoa':
+      return `pessoa ${a.papel}${a.sem2fa ? ' sem 2FA' : ''}`;
+    default:
+      return atorDesconhecido(a);
+  }
+}
 
 function atoresPermitidos(acao: Acao): AtorDeTeste[] {
   const proibidos = atoresProibidos(acao).map((a) => JSON.stringify(a));
   const todos: AtorDeTeste[] = [
     ...AGENTES.map((agente) => ({ tipo: 'agente' as const, agente })),
     ...PAPEIS.map((papel) => ({ tipo: 'pessoa' as const, papel })),
+    ...INTEGRACOES.map((integracao) => ({ tipo: 'integracao' as const, integracao })),
   ];
   return todos.filter((a) => !proibidos.includes(JSON.stringify(a)));
 }
@@ -99,6 +111,15 @@ describe('matriz de acesso × todas as rotas', () => {
       });
     }
   }
+});
+
+describe('integrações recusadas não gravam nada (CA-03.1, CA-03.2)', () => {
+  it('nenhum evento de integração e nenhuma demanda depois de todas as rotas', async () => {
+    const { rows } = await b.poolMigrator.query(
+      `select (select count(*) from evento where ator_tipo = 'integracao')::int as eventos, (select count(*) from demanda)::int as demandas`,
+    );
+    expect(rows[0]).toEqual({ eventos: 0, demandas: 0 });
+  });
 });
 
 describe('verificador: as conferências acima pegam o que dizem pegar', () => {

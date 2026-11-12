@@ -7,7 +7,7 @@
 import Link from 'next/link';
 import { idadeDaDemanda } from '../../../components/dados-da-fila';
 import { MarcasDeEtapa } from '../../../components/MarcasDeEtapa';
-import { COR_STATUS, ROTULO_LINHA, ROTULO_STATUS, ROTULO_TIPO, ROTULO_URGENCIA, SELO_RASCUNHO } from '../../../components/rotulos';
+import { COR_STATUS, ROTULO_LINHA, ROTULO_ORIGEM, ROTULO_STATUS, ROTULO_TIPO, ROTULO_URGENCIA, SELO_RASCUNHO } from '../../../components/rotulos';
 import { Selo } from '../../../components/Selo';
 import type { DemandaResumo } from '../../../modules/demandas/consultas';
 import type { EtapasNaFila } from '../../../modules/demandas/resumo-da-fila';
@@ -20,7 +20,8 @@ export const ID_RESULTADO = 'resultado-da-fila';
 // Também o `TEXTOS_FILA.naoInformada` da tabela (fila.tsx), para as duas formas não divergirem.
 export const NAO_INFORMADA = 'Não informada';
 
-export const ROTULOS_DO_CARTAO = { tipo: 'Tipo', urgencia: 'Urgência', linha: 'Linha de serviço', etapas: 'Etapas', idade: 'Idade' } as const;
+// 0.3.0 (03, 4.1 item 7, e seção 9): entra "Origem", depois de Urgência e antes de Linha de serviço.
+export const ROTULOS_DO_CARTAO = { tipo: 'Tipo', urgencia: 'Urgência', origem: 'Origem', linha: 'Linha de serviço', etapas: 'Etapas', idade: 'Idade' } as const;
 
 // Sem a entrada no mapa (a demanda sumiu entre as duas leituras), as marcas ficam "por fazer": a tela nunca diz que uma
 // etapa está feita sem a leitura dizer.
@@ -89,6 +90,10 @@ function CartaoDeDemanda({ d, etapas, agora }: { d: DemandaResumo; etapas: Etapa
           <dd>
             <UrgenciaDaDemanda urgencia={d.urgencia} />
           </dd>
+        </div>
+        <div className="col-span-2">
+          <dt className={ETIQUETA}>{ROTULOS_DO_CARTAO.origem}</dt>
+          <dd>{ROTULO_ORIGEM[d.origem]}</dd>
         </div>
         <div className="col-span-2">
           <dt className={ETIQUETA}>{ROTULOS_DO_CARTAO.linha}</dt>

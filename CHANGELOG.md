@@ -3,6 +3,189 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.3.0 — 2026-11-12
+
+Melhoria do pedido `DEC-DEM-20261111-0016-v1` (cadeia completa, risco médio): **duas integrações internas com acesso
+próprio e mínimo à API**, o Awave e o `/construir`. A opção aprovada por Fabiano, como CTO, em 11/11 foi a A: um tipo de
+ator novo, `integracao`, fora dos agentes de IA. Base: a `main` da 0.2.0 (`a9fd9b8`, merge do PR #16). Spec:
+`docs/superpowers/specs/2026-11-11-ws-orquestrador-demandas-integracoes-design.md`; plano, com 20 tarefas:
+`docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md`.
+
+Nenhum controle existente foi afrouxado. Pessoa e agentes de IA continuam com as mesmas permissões, os mesmos limites e
+o mesmo comportamento. Os contratos que o Awave (`awave-agents`, commit 0ab8ced) e o `/construir`
+(`buscar-pedidos.mjs`, commit dfedf16) já usam não mudaram. Não há processo, fila, job, pacote nem variável de
+ambiente nova. **Há uma migration, a `0007`, só aditiva**: a primeira desde que o sistema entrou no ar.
+
+Ainda não foi publicada. O merge, a publicação e os tokens de produção são de Fabiano. A publicação segue o
+`docs/operacao/deploy.md`, seção 5, "Publicação da 0.3.0": backup antes, migration num passo separado, Deploy do
+`worker` e depois do `app`. A volta para a 0.2.0 **exige restaurar esse backup** (seção 6).
+
+### O que muda para quem usa
+
+- **O Awave abre demanda pela API.** Quando o dono aprova em `/aprovacoes` do Awave, a demanda nasce no Orquestrador:
+  - como rascunho, com status Nova, solicitante "Awave" e origem "Awave", seja qual for o solicitante enviado;
+  - **sem nenhum agente de IA trabalhando nela**, mesmo com o agente de insumo técnico ligado. O texto vem de fora e só
+    vai a um modelo de IA depois que uma pessoa confirma;
+  - no máximo 10 por hora. A 11ª recebe "Limite de 10 demandas por hora do Awave atingido. Tente de novo mais tarde.".
+    Pessoa e agentes seguem com 30;
+  - o Awave lê de volta só as demandas que ele criou, e só seis campos: id, título, tipo, status, criação e
+    atualização. Ele não lista a fila e não lê ESP, RSK, DEC, histórico, texto recebido, configuração nem teto.
+- **Confirmação da demanda do Awave (T05).** A demanda do Awave mostra o selo "Aguardando confirmação" e a seção
+  "Confirmação do Awave", com o botão **"Confirmar demanda"**:
+  - qualquer pessoa com 2FA confirma, sem diálogo. A consequência está escrita acima do botão;
+  - ao confirmar, a demanda segue o fluxo de qualquer outra: com o agente de insumo técnico ligado, ele começa a
+    especificação;
+  - depois, a seção diz "Confirmada por <pessoa> em <data e hora>.";
+  - para não seguir com a demanda, não confirme: use "Mudar status" e escolha Encerrada;
+  - o cartão "Próxima ação" ganhou a linha "Confirmar a demanda aberta pelo Awave.", com o link "Ir para a
+    confirmação".
+- **Origem da demanda na fila (T03) e no detalhe (T05).** Cada demanda mostra a origem, Pessoa, Agente de IA ou Awave,
+  na segunda linha do título (tabela), num item do cartão (celular) e nos Dados do detalhe. O filtro novo "Origem" fica
+  entre Tipo e Linha de serviço, e os contadores respeitam esse filtro. As demandas de antes aparecem com origem
+  "Pessoa" ou "Agente de IA".
+- **O `/construir` busca o pedido sozinho (CA-F-01).** Com a busca automática ligada, o `/construir` pega o Pedido de
+  Construção gerado no painel na busca seguinte (a cada 5 minutos), com os mesmos bytes da geração, e confirma o
+  recebimento. A T11 passa a mostrar **"Recebido pelo /construir em <data e hora>."** no cabeçalho. Com a busca
+  desligada, vale a cópia manual de antes. Nenhum dos dois muda o status da demanda.
+- **Histórico.** Os atos das integrações aparecem com o nome e o prefixo do token, como "Awave (prefixo …)" ou
+  "/construir (prefixo …)", e há textos novos: "Confirmou a demanda aberta pelo Awave", "Buscou o Pedido de Construção
+  de <DEC-id>" e "Confirmou o recebimento do Pedido de Construção de <DEC-id>". Nenhum mostra token, hash nem SHA-256.
+- **A tela "Agentes e teto" não muda.** O Awave e o `/construir` não são agentes de IA: não têm interruptor, não contam
+  no teto e não gravam uso de IA.
+
+A regra completa está no manual: [cap. 02](docs/manual-tecnico/02-acesso-e-seguranca.md#atores-de-integração-030),
+[cap. 03](docs/manual-tecnico/03-demandas.md#demanda-aberta-pelo-awave-030),
+[cap. 05](docs/manual-tecnico/05-pedido-de-construcao.md#entrega-ao-construir-030) e
+[cap. 08](docs/manual-tecnico/08-painel.md).
+
+### O que mudou na API
+
+- `POST /api/demandas` e `GET /api/demandas/:id` aceitam o token da integração `awave`. O contrato do Awave não mudou:
+  Bearer, sem `Origin`, 201 com um id `DEM-AAAAMMDD-NNNN`. Do corpo, o servidor aproveita só título, tipo, papel do
+  solicitante, descrição e contexto; o resto é descartado, sem 400.
+- `GET /api/demandas` ganhou o filtro `origem` (`pessoa`, `agente`, `awave`) e a chave `origem` em cada item.
+- Três rotas novas, só para a integração `construir`:
+  - `GET /api/pedidos-construcao/pendentes` → `{ itens: [{ decId }] }`;
+  - `POST /api/pedidos-construcao/:decId/entrega` → o JSON do pedido, igual byte a byte ao da geração;
+  - `POST /api/pedidos-construcao/:decId/recebimento` com `{ sha256 }` → 204, ou 409 se o hash não confere.
+- Pedido com `Authorization: Bearer` e sem `Origin` continua aceito, também pela rede interna do Easypanel.
+- Código de erro reaproveitado: 503 `indisponivel` quando a transação de uma integração passa do tempo limite, com
+  "O Orquestrador não concluiu o pedido a tempo e nada foi gravado. Tente de novo em alguns minutos.".
+
+Referência completa no [manual, cap. 09](docs/manual-tecnico/09-referencia-api.md).
+
+### O que mudou no código
+
+- **Ator e token** (ADR-20, ADR-21): `Ator` ganhou o tipo `integracao`, com a lista fechada `INTEGRACOES = ['awave',
+  'construir']` em `src/db/schema/acesso.ts`. O token de integração fica na mesma tabela `token_servico`, com o mesmo
+  formato e o mesmo hash do token de agente; a linha tem um dono só, agente ou integração.
+- **Matriz** (ADR-22): cada linha ganhou a lista `integracoes`, vazia por padrão. Abrem só cinco pares: `awave` em
+  `criar_demanda` e `ler_demanda`, e `construir` nas três ações novas. Entraram também `confirmar_demanda` (pessoa) e
+  as três do `/construir`: são 23 ações. Todo ponto que decide pelo tipo de ator virou `switch` exaustivo.
+- **Demanda do Awave** (ADR-23 a ADR-25): `criarDemanda` com lista de permissão de campos e sem disparo; leitura por
+  consulta própria, com a autoria no `WHERE` (`obterDemandaDaIntegracao`); confirmação em `confirmar.ts`, pela Server
+  Action `confirmarDemandaNoPainel`. O gatilho dos agentes e o worker (passo novo, motivo `sem_confirmacao`) conferem a
+  confirmação antes de qualquer chamada ao provedor.
+- **Entrega ao `/construir`** (ADR-26, ADR-27): a conferência e a montagem do pedido saíram de `gerar.ts` para
+  `conferir.ts`, que a geração e a entrega chamam. O estado (pendente, entregue, recebido) sai dos eventos
+  `pedido_gerado`, `pedido_entregue` e `pedido_recebido`, sem coluna nova.
+- **Tempo limite** (ADR-28, `src/modules/integracoes/tempo-limite.ts`): só nas transações de integração, abaixo do
+  corte do cliente.
+- **Migration `0007`** (`drizzle/0007_greedy_wendigo.sql`), gerada e só aditiva: `token_servico.agente` passa a
+  anulável, coluna nova `token_servico.integracao`, CHECK de autoria e de ator de integração em `demanda` e `evento`, e
+  o índice `evento_acao_entidade_idx`. Nenhuma linha muda (`alteram_dado: false`), nenhum `GRANT` novo.
+- **Scripts:** `criar-token-servico.ts` aceita `--integracao awave|construir`, exclusivo com `--agente`. O
+  `revogar-token-servico.ts` revoga os dois tipos pelo prefixo, sem mudança de uso.
+- **Seed fictício:** cinco demandas novas, 28 no total: três do Awave e duas com Pedido de Construção gerado, uma a
+  buscar e uma já recebida. O seed não cria token.
+- **Testes:** pares exatos da matriz, matriz × todas as rotas com os dois tokens, piso de asserções ampliado aos testes
+  de segurança, sentinelas no histórico, no log e no Sentry das integrações, 404 idêntico, concorrência do limite e da
+  confirmação, bytes da entrega iguais aos da geração, e2e das integrações contra o build de produção (com tokens
+  emitidos num banco descartável, fora do repositório) e axe sem violação nas telas tocadas, nas duas larguras.
+- **Versão:** o `package.json` passou de 0.2.0 para 0.3.0.
+- **Documentação:** estas notas, o `README.md`, o manual técnico (índice, glossário e cap. 01, 02, 03, 05, 06, 08, 09 e
+  10) e o `docs/operacao/tokens-de-integracao.md`, novo, com emissão, guarda, troca e revogação dos dois tokens. As
+  seções 4, 5, 6 e 10 do `docs/operacao/deploy.md` vieram da `09-devops-sre.md`.
+
+### Limitação conhecida
+
+**Não emita os tokens de produção do Awave e do `/construir` na 0.3.0.** A revisão de código e de segurança
+(`08-maestro.md`) não achou nada crítico nem alto, mas recomenda corrigir cinco achados médios numa 0.3.1 curta antes
+de emitir esses tokens. Sem token emitido, nenhuma integração alcança as rotas novas (401), então publicar a 0.3.0 não
+expõe nada. Os detalhes ficam na entrega da revisão.
+
+### O que ficou fora desta versão
+
+Pela spec (seção 6), não entraram:
+
+- o Awave alterar, cancelar, comentar ou listar demandas, e aviso de volta ao Awave;
+- o andamento visível para o cliente final (E01);
+- ligar os agentes de IA do Orquestrador;
+- o `/construir` ler demanda, ESP, RSK ou DEC, ou gerar pedido;
+- mudar o status da demanda na entrega ou no recebimento;
+- tela para emitir ou revogar token;
+- corte por data na lista de pendentes e limite de taxa nas três rotas do `/construir`;
+- "Aguardando confirmação" na fila e aviso à pessoa quando chega demanda do Awave;
+- rede própria do Easypanel para o Orquestrador e o Awave.
+
+### Verificações desta versão
+
+- `pnpm test`: 6.381 de 6.381, em 293 arquivos (`06-T20-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos.
+- `pnpm test:e2e`, contra o build de produção e com `retries: 0`: verde em três execuções seguidas, com 273 passando e
+  as 9 capturas puladas (`06-T20-engenheiro-frontend.md`); 276 passaram na conferência da `qa-automacao`. Na
+  homologação, 271 passaram (`09-devops-sre.md`); ali os testes de API das integrações pulam, por falta de token.
+- Revisão de código e de segurança (`08-maestro.md`): nenhum achado crítico nem alto; cinco médios e sete baixos.
+  `pnpm audit --prod`: as mesmas 5 moderadas transitivas de antes, nenhuma alta nem crítica.
+- Imagem construída na homologação: 1,77 GB em disco e 440 MB de conteúdo.
+- Ensaio de rollback (`construir.mjs ensaiar-rollback`): `alteram_dado: false` e **`volta_sem_restaurar: false`**. A
+  0.2.0 só volta com o backup restaurado.
+- O CI do PR fica para a Parada 3.
+
+### Pendências abertas
+
+Para Fabiano:
+
+- **Publicação** (`deploy.md`, seção 5): antes do merge, conferir que o "Auto Deploy" está desligado no `app` e no
+  `worker` (com a origem GitHub, o merge publicaria a 0.3.0 sem a migration), rotular as imagens em uso como `:v0.2.0`
+  e conferir que o host lê a imagem privada do GHCR. Snapshot no hPanel: hoje ele congela a VPS e exige reboot manual,
+  então decida antes se tira ou fica só com o backup.
+- **0.3.1 antes dos tokens** (limitação conhecida, acima). Depois dela: emitir os tokens `awave` e `construir`,
+  guardá-los ([tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md)), ligar a busca em
+  `pedidos/config/orquestrador.json` e rodar o teste ponta a ponta pela rede interna.
+- **UAT:** o roteiro de 16 passos da `07-qa-funcional.md`, seção 7, em produção, logo depois do deploy e antes do uso
+  normal das integrações, só com dado fictício e sem a palavra "Awave" no título.
+- **QF-0016-01 (baixa):** a palavra "Awave" vira "[nome removido]" no título e no contexto que o Awave lê de volta e
+  que os agentes recebem, porque o solicitante gravado é "Awave" e a minimização troca o nome do solicitante. O painel
+  mostra o original. Aceitar assim, ou abrir pedido próprio para tirar os nomes das integrações da minimização?
+- **P-04:** o aceite dos riscos residuais (duplicata quando o 201 se perde; token do Awave sem TLS na rede interna;
+  token do `/construir` legível pelo usuário `deploy`; o pedido entra na fila do `/construir` sem a cópia manual) foi
+  dado em 11/11. Falta o registro com a `gestao-riscos`.
+- **V-01 e V-02** (`buscar-pedidos.mjs` contra a homologação, com um pedido fictício) e as medidas de tempo dos RNF-01
+  e RNF-02 não rodaram na 09: pedem subir a homologação e emitir token dentro dela. O e2e local cobre o contrato; o
+  maestro decide se rodam antes do PR.
+
+Para outras áreas:
+
+- `juridico-contratos`: confirmar que o texto escrito pelo Awave fica com a retenção da demanda (status final + 5
+  anos), sem o expurgo de 90 dias do texto colado.
+- `seguranca-informacao`: pela rede interna do Easypanel, outro contêiner chega ao app sem o Traefik; avaliar rede
+  própria para o Orquestrador e o Awave.
+- `desenvolvimento-produto`: o título de demanda do Awave não deve levar nome de pessoa (registrado no manual, cap.
+  03); e a sugestão de marcar "Aguardando confirmação" na fila.
+- Quem cuida do `padrao-tecnico.md` da estruturaAutonoma: atualizar as versões da stack para as do ADR-29.
+
+Dívida registrada:
+
+- sete achados baixos da revisão (`08-maestro.md`, B-1 a B-7): limpeza de testes e de scripts, duplicação de código e
+  consultas a mais. Nenhum muda o comportamento para quem usa;
+- QF-0016-02: o resumo do DEC "pedido já recebido" no seed fala em "duas aprovações" num DEC só do CTO (só
+  homologação);
+- QF-0016-03: o teste de tempo `src/modules/dados-pessoais/minimizar.test.ts:642` é instável na suíte inteira; vai para
+  `qualidade` e `tech-lead`;
+- as capturas do cap. 08 continuam as da 0.2.0 e não mostram a origem, a confirmação nem o recebimento;
+- herdadas: tirar o `--prod` do `pnpm audit` no CI e as 5 moderadas transitivas.
+
 ## 0.2.0 — 2026-11-11
 
 Melhoria do pedido `DEC-DEM-20261110-0015-v1` (cadeia completa, risco médio): **o novo visual do painel**. A base de

@@ -14,6 +14,13 @@
 // tipo e, numa delas, ESP, RSK e DEC gravados como rascunho de agente (para a T43), com os exemplos de saída dos prompts;
 // e as demandas próprias dos testes do e2e (TITULOS_DO_E2E), duas delas com versões de estado fixo (criarVersoesDoE2E).
 //
+// 0.3.0 (DEC-DEM-20261111-0016-v1, T15): também o que as integrações precisam no e2e e na homologação (V-01), por
+// criarDadosDasIntegracoes: três demandas do Awave (duas em Nova, uma encerrada pela "cto", nenhuma confirmada) e dois
+// Pedidos de Construção gerados pela "cto", um ainda a buscar e um já entregue e recebido pelo /construir. Os atos do
+// Awave e do /construir usam o ator de integração com o prefixo fictício `ficticio` (D-09): nenhum token de serviço
+// nasce num banco semeado. O seed grava com a hora do sistema, então o Awave fica com 3 das 10 demandas por hora (D2) na
+// primeira hora depois da subida.
+//
 // As senhas e os segredos TOTP abaixo são fictícios e públicos, escritos aqui de propósito: só servem a um banco
 // semeado por este script, e nenhum deles tem o formato do token de serviço.
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -26,9 +33,9 @@ import { comTransacao, type Transacao } from '../src/db/transacao';
 import type { Deps } from '../src/lib/deps';
 import { ehLoopback } from '../src/lib/env';
 import { log } from '../src/lib/log';
-import type { AtorAgente, AtorPessoa, Papel } from '../src/modules/acesso/ator';
-import { criarDemandaSchema, type CriarDemanda } from '../src/modules/demandas/schemas';
-import { criarDemanda } from '../src/modules/demandas/servico';
+import type { AtorAgente, AtorIntegracao, AtorPessoa, Papel } from '../src/modules/acesso/ator';
+import { alterarDemandaSchema, criarDemandaSchema, type CriarDemanda } from '../src/modules/demandas/schemas';
+import { alterarDemanda, criarDemanda } from '../src/modules/demandas/servico';
 import { criarEspecificacaoSchema } from '../src/modules/especificacoes/schemas';
 import { criarEspecificacao } from '../src/modules/especificacoes/servico';
 import { registrarEvento } from '../src/modules/historico/registrar';
@@ -38,6 +45,10 @@ import { registrarDecisao } from '../src/modules/pacotes-decisao/decidir';
 import { criarPacoteDecisaoSchema, registrarDecisaoSchema } from '../src/modules/pacotes-decisao/schemas';
 import { criarParecerRiscoSchema } from '../src/modules/pareceres-risco/schemas';
 import { criarParecerRisco } from '../src/modules/pareceres-risco/servico';
+import { entregarPedido } from '../src/modules/pedido-construcao/entregar';
+import { gerarPedido } from '../src/modules/pedido-construcao/gerar';
+import { receberPedido } from '../src/modules/pedido-construcao/receber';
+import { confirmacaoDoPedidoSchema } from '../src/modules/pedido-construcao/schemas';
 import { gravarConta } from './criar-usuario';
 import { definirPrecoModelo } from './definir-preco-modelo';
 import { lerArgumentos } from './lib/argumentos';
@@ -170,6 +181,13 @@ export const TITULOS_DO_E2E = {
   decisaoCelularCto: 'Decisão no celular, só o CTO (fictício)',
   decisaoCelularDupla: 'Decisão no celular, dupla aprovação (fictício)',
   decisaoRecomendaB: 'Recomendação do agente cita a opção B (fictício)',
+  // 0.3.0 (DEC-DEM-20261111-0016-v1, T15): as das integrações (criarDadosDasIntegracoes), todas de tipo melhoria, como
+  // o demandaDoSeed procura. As três do Awave nascem pelo ator de integração; as duas dos pedidos, pela `sem2fa`.
+  awaveAguardando: 'Relatório do Awave aguardando confirmação (fictício)',
+  awaveConfirmar: 'Relatório do Awave para confirmar no e2e (fictício)',
+  awaveEncerrada: 'Relatório do Awave encerrado sem confirmação (fictício)',
+  pedidoParaBuscar: 'Pedido para o /construir buscar (fictício)',
+  pedidoRecebido: 'Pedido já recebido pelo /construir (fictício)',
 } as const;
 
 // A recomendação do DEC de agente da `decisaoRecomendaB`, que o e2e procura na T11 (P-01: em texto, sem opção marcada).
@@ -288,11 +306,46 @@ const DEC_DO_E2E: z.input<typeof criarPacoteDecisaoSchema> = {
   nivelAprovacaoRequerido: 'cto_e_administradora',
 };
 
-// Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e.
-export const TOTAL_DEMANDAS_DO_SEED = DEMANDAS.length + DEMANDAS_DO_E2E.length;
+// 0.3.0 (T15): o corpo que a tool do Awave manda (contrato do awave-agents 0ab8ced), com texto só inventado e sem nome
+// de pessoa no título (spec 7.2). O servidor grava "Awave" como solicitante e descarta o que não está na lista do IN-05.
+const DO_AWAVE = {
+  tipo: 'melhoria',
+  solicitanteNome: 'Awave',
+  solicitantePapel: 'outro',
+  descricaoProblema: 'O relatório semanal é montado à mão a partir de três planilhas (fictício).',
+  contexto: 'Demanda aberta por um agente do Awave, com a aprovação do dono em /aprovacoes (fictício).',
+} as const;
+const DEMANDAS_DO_AWAVE: ReadonlyArray<z.input<typeof criarDemandaSchema>> = [
+  TITULOS_DO_E2E.awaveAguardando,
+  TITULOS_DO_E2E.awaveConfirmar,
+  TITULOS_DO_E2E.awaveEncerrada,
+].map((titulo) => ({ titulo, ...DO_AWAVE }));
+
+// 0.3.0 (T15): as demandas dos dois pedidos, como as do e2e da 0.2.0 (melhoria, sob_medida, "Pessoa Ficticia …" e
+// contexto preenchido, porque a descrição do Pedido sai dele).
+const DEMANDAS_DOS_PEDIDOS: ReadonlyArray<z.input<typeof criarDemandaSchema>> = (
+  [
+    [TITULOS_DO_E2E.pedidoParaBuscar, 'A equipe quer que o /construir busque o pedido gerado no painel, sem cópia à mão.'],
+    [TITULOS_DO_E2E.pedidoRecebido, 'O /construir já buscou este pedido e confirmou o recebimento.'],
+  ] as const
+).map(([titulo, contexto]) => ({
+  titulo,
+  tipo: 'melhoria' as const,
+  solicitanteNome: 'Pessoa Ficticia Produto',
+  solicitantePapel: 'produto' as const,
+  linhaServicoProvavel: 'sob_medida' as const,
+  contexto,
+}));
+
+// Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e e as das integrações (0.3.0).
+export const TOTAL_DEMANDAS_DO_SEED = DEMANDAS.length + DEMANDAS_DO_E2E.length + DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length;
 
 const SISTEMA = { tipo: 'sistema' } as const;
 const agente = (a: AtorAgente['agente']): AtorAgente => ({ tipo: 'agente', agente: a, prefixoToken: null });
+// D-09: as integrações do seed, com o prefixo fictício de 8 caracteres, fora do formato de token (G3.3). Nenhuma linha de
+// token_servico corresponde a elas.
+const AWAVE_DO_SEED: AtorIntegracao = { tipo: 'integracao', integracao: 'awave', prefixoToken: 'ficticio' };
+const CONSTRUIR_DO_SEED: AtorIntegracao = { tipo: 'integracao', integracao: 'construir', prefixoToken: 'ficticio' };
 
 export type DepsDoSeed = DepsDoScript & Partial<Pick<Deps, 'fila'>>;
 // recusado: sem SEED_FICTICIO=1 ou banco com dados. recusado_producao: a configuração não aponta para o loopback (M-07).
@@ -374,7 +427,35 @@ async function criarDemandas(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: Pe
   const idDoE2E = new Map<string, string>();
   for (const d of DEMANDAS_DO_E2E) idDoE2E.set(d.titulo, (await criarDemanda(deps, sem2fa, criarDemandaSchema.parse(d), t)).id);
   await criarVersoesDoE2E(t, deps, { cto, sem2fa }, idDoE2E);
-  return entradas.length + DEMANDAS_DO_E2E.length;
+  const dasIntegracoes = await criarDadosDasIntegracoes(t, deps, { cto, sem2fa });
+  return entradas.length + DEMANDAS_DO_E2E.length + dasIntegracoes;
+}
+
+// 0.3.0 (DEC-DEM-20261111-0016-v1, T15): os dados das integrações, pelos mesmos serviços da API, na transação do seed.
+// Com `t`, os serviços não aplicam o tempo limite das integrações (T04): quem abriu a transação decide o tempo dela.
+//   - Awave: três demandas pelo ator de integração (rascunho, solicitante "Awave", sem disparo do insumo técnico, IN-06);
+//     a `awaveEncerrada` vai de Nova a Encerrada pela "cto", sem confirmação. Nenhuma recebe `demanda_confirmada`.
+//   - /construir: duas demandas da `sem2fa` com ESP, RSK e DEC dela (o limite C-36 da "cto" fica para as specs), DEC de
+//     nível cto aprovado pela "cto" na opção A e Pedido gerado pela "cto". A `pedidoRecebido` é, depois, entregue e
+//     recebida pelo /construir com o hash da entrega; a `pedidoParaBuscar` fica na lista de pendentes (V-01).
+async function criarDadosDasIntegracoes(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: PessoasDoSeed): Promise<number> {
+  for (const d of DEMANDAS_DO_AWAVE) {
+    const dem = await criarDemanda(deps, AWAVE_DO_SEED, criarDemandaSchema.parse(d), t);
+    if (dem.titulo === TITULOS_DO_E2E.awaveEncerrada) await alterarDemanda(deps, cto, dem.id, alterarDemandaSchema.parse({ status: 'encerrada' }), t);
+  }
+  for (const d of DEMANDAS_DOS_PEDIDOS) {
+    const dem = await criarDemanda(deps, sem2fa, criarDemandaSchema.parse(d), t);
+    await criarEspecificacao(deps, sem2fa, dem.id, criarEspecificacaoSchema.parse(ESP_DO_E2E), t);
+    await criarParecerRisco(deps, sem2fa, dem.id, criarParecerRiscoSchema.parse(RSK_DO_E2E), t);
+    const dec = await criarPacoteDecisao(deps, sem2fa, dem.id, criarPacoteDecisaoSchema.parse({ ...DEC_DO_E2E, nivelAprovacaoRequerido: 'cto' }), t);
+    await registrarDecisao(deps, cto, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }), t);
+    await gerarPedido(deps, cto, dec.id, confirmacaoDoPedidoSchema.parse({ confirmaSemDadoPessoal: true }), t);
+    if (dem.titulo === TITULOS_DO_E2E.pedidoRecebido) {
+      const { sha256 } = await entregarPedido(deps, CONSTRUIR_DO_SEED, dec.id, t);
+      await receberPedido(deps, CONSTRUIR_DO_SEED, dec.id, sha256, t);
+    }
+  }
+  return DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length;
 }
 
 // 0.2.0 (T06): as versões das duas demandas do e2e que precisam de estado fixo, pelos mesmos serviços da API e do

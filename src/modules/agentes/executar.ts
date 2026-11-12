@@ -3,6 +3,7 @@
 // 2. agente desligado, sem modelo com preço vigente ou sem provedor (sem chave) → `ignorada` + `agente_ignorado` (CA-19.4);
 // 3. gasto do mês ≥ teto → `ignorada` + `suspensao_por_teto` (CA-18.1, CA-18.3, C-26);
 // 3b. demanda em status final → `ignorada` + `agente_ignorado`, sem chamar o provedor (M-02);
+// 3c. demanda do Awave ainda não confirmada por pessoa → `ignorada` + `agente_ignorado` `sem_confirmacao` (IN-06, D-07);
 // 4. monta a entrada pela lista de permissão, minimizada (T24), com o prompt do agente (T26);
 // 5. chama o provedor fora de qualquer transação;
 // 6. JSON + schema da rota (ADR-09). Válido: numa transação, o serviço da API grava o artefato com o ator agente (passa
@@ -23,6 +24,7 @@ import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import { log } from '../../lib/log';
 import { capturarErro } from '../../lib/sentry';
 import type { Agente, AtorAgente, AtorSistema } from '../acesso/ator';
+import { aguardaConfirmacao } from '../demandas/confirmacao';
 import { marcarPendenteComoFalha } from '../demandas/entradas-pendentes';
 import { ehStatusFinal } from '../demandas/transicoes';
 import { criarEspecificacaoSchema } from '../especificacoes/schemas';
@@ -64,7 +66,7 @@ type MotivoFalha =
   | 'entrada_nao_encontrada'
   | 'sem_destino'
   | 'tentativas_esgotadas';
-type MotivoIgnorada = 'desligado' | 'sem_preco' | 'sem_provedor' | 'teto' | 'demanda_final';
+type MotivoIgnorada = 'desligado' | 'sem_preco' | 'sem_provedor' | 'teto' | 'demanda_final' | 'sem_confirmacao';
 
 const SISTEMA: AtorSistema = { tipo: 'sistema' };
 const atorDo = (agente: Agente): AtorAgente => ({ tipo: 'agente', agente, prefixoToken: null });
@@ -232,6 +234,9 @@ async function executarReivindicada(c: Contexto): Promise<ResultadoExecucao> {
   // M-02: a execução que estava na fila quando a demanda chegou a status final não chama o provedor. A demanda fechada
   // durante a chamada é recusada pelo serviço, sob a trava (409 → recusada_pelo_servico, sem nova tentativa).
   if (exec.demandaId !== null && (await demandaEmStatusFinal(deps.db, exec.demandaId))) return ignorar(c, 'agente_ignorado', 'demanda_final');
+  // 3c (0.3.0, IN-06, D-07): defesa em profundidade do gatilho. A execução de uma demanda do Awave que nenhuma pessoa
+  // confirmou não chama o provedor nem grava uso, venha de onde vier.
+  if (exec.demandaId !== null && (await aguardaConfirmacao(deps.db, exec.demandaId))) return ignorar(c, 'agente_ignorado', 'sem_confirmacao');
 
   let entrada: EntradaDoAgente;
   try {
