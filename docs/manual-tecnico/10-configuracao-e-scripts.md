@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.0: `--integracao` nos scripts de token, seed com as demandas do Awave e os pedidos do `/construir`, `E2E_ARQUIVO_TOKENS`; nenhuma variável nova do app ou do worker); 03/11/2026 (0.1.6: guarda do seed pelo `BETTER_AUTH_URL` no loopback) |
+| Atualizado em | 12/11/2026 (0.3.1: `criar-token-servico.ts` sem caminho de sucesso sem emissão; nenhuma variável nova); 12/11/2026 (0.3.0: `--integracao` nos scripts de token, seed com as demandas do Awave e os pedidos do `/construir`, `E2E_ARQUIVO_TOKENS`; nenhuma variável nova do app ou do worker); 03/11/2026 (0.1.6: guarda do seed pelo `BETTER_AUTH_URL` no loopback) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RNF-13, RNF-14 |
 | Fontes no código | `src/lib/env.ts`, `src/lib/env-worker.ts`, `.env.example`, `scripts/` |
@@ -45,7 +45,7 @@ serviço `app` no Easypanel). Aceitam só `--nome valor` ou `--nome=valor`; argu
 |---|---|---|
 | `criar-usuario.ts` | `--email <e-mail> --nome <nome> --papel cto\|administradora` | cria a conta sem 2FA e escreve uma vez a senha inicial (24 caracteres aleatórios). No primeiro acesso, a pessoa configura o 2FA |
 | `desativar-conta.ts` | `--email <e-mail>` | marca a conta como desativada, desliga o 2FA e apaga sessões, segredo TOTP, códigos de recuperação e a senha. A linha da conta fica, porque o histórico aponta para ela. Rodar de novo não muda nada |
-| `criar-token-servico.ts` | `--agente orquestrador\|insumo_tecnico\|risco\|consolidacao` ou, desde a 0.3.0, `--integracao awave\|construir` (exatamente um dos dois) | cria um token `wsod_` e escreve uma vez o token e o prefixo. O banco guarda só o hash. O evento `token_criado` leva só o dono (agente ou integração) e o prefixo |
+| `criar-token-servico.ts` | `--agente orquestrador\|insumo_tecnico\|risco\|consolidacao` ou, desde a 0.3.0, `--integracao awave\|construir` (exatamente um dos dois) | cria um token `wsod_` e escreve uma vez o token e o prefixo. O banco guarda só o hash. O evento `token_criado` leva só o dono (agente ou integração) e o prefixo. Sem nenhum dos dois, ou com os dois, recusa com "Informe exatamente um entre --agente e --integracao." e não emite nada; desde a 0.3.1 (B-2), a decisão do dono também lança nesse caso (`donoDosArgumentos`, `switch` com `never`), e não há caminho que saia com sucesso sem emitir |
 | `revogar-token-servico.ts` | `--prefixo <8 caracteres depois de wsod_>` | revoga o token de agente ou de integração; código de saída 1 se não havia token ativo com o prefixo. Os outros tokens seguem valendo |
 | `definir-preco-modelo.ts` | `--modelo <id> --entradaPorMilhao <US$> --saidaPorMilhao <US$>` | grava uma vigência nova de preço (até 6 casas). A anterior fica, porque o custo já registrado saiu dela. É o único jeito de gravar preço |
 | `seed-ficticio.ts` | `SEED_FICTICIO=1` no ambiente | cria as quatro contas de `CONTAS_FICTICIAS`, o preço do modelo fictício e 28 demandas fictícias (`TOTAL_DEMANDAS_DO_SEED`): uma de cada tipo, 18 próprias do e2e (`TITULOS_DO_E2E`), para o e2e não gastar o limite de demandas por hora e, desde a 0.3.0, três do Awave (nenhuma confirmada, uma encerrada) e duas com Pedido de Construção gerado, uma a buscar e uma já entregue e recebida pelo `/construir`. Os atos do Awave e do `/construir` usam o prefixo fictício `ficticio`: o seed não cria token. Recusa banco que já tem demanda ou conta, e recusa `BETTER_AUTH_URL` fora do loopback (abaixo) |

@@ -10,3 +10,4 @@
 {"pedido":"DEC-DEM-20261112-0019-v1","etapa":"04-correcao","de":"engenheiro-backend","para":"seguranca-aplicacao","status":"pronto","volta":2,"inicio":"2026-11-12T19:50:52.000Z","fim":"2026-11-12T19:51:17.352Z","minutos":0,"motivo":null}
 {"pedido":"DEC-DEM-20261112-0019-v1","etapa":"04-reteste","de":"seguranca-aplicacao","para":"devops-sre","status":"pronto","volta":0,"inicio":"2026-11-12T19:51:17.000Z","fim":"2026-11-12T19:55:08.965Z","minutos":4,"motivo":null}
 {"pedido":"DEC-DEM-20261112-0019-v1","etapa":"05-entrega","de":"devops-sre","para":"documentacao-tecnica","status":"pronto","volta":0,"inicio":"2026-11-12T19:55:09.000Z","fim":"2026-11-12T20:19:54.557Z","minutos":25,"motivo":null}
+{"pedido":"DEC-DEM-20261112-0019-v1","etapa":"06-documentacao","de":"documentacao-tecnica","para":"maestro","status":"pronto","volta":0,"inicio":"2026-11-12T20:19:54.000Z","fim":"2026-11-12T20:30:11.239Z","minutos":10,"motivo":null}

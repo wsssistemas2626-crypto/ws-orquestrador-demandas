@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.3.0 (`package.json`) |
-| Atualizado em | 12/11/2026 (0.3.0: integrações `awave` e `construir`) |
+| Versão | 0.3.1 (`package.json`) |
+| Atualizado em | 12/11/2026 (0.3.1: correções da revisão da 0.3.0 antes dos tokens de produção; 0.3.0: integrações `awave` e `construir`) |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
 | Repositório | `wsssistemas2626-crypto/ws-orquestrador-demandas` (privado) |
@@ -42,6 +42,16 @@ A fila mostra a origem de cada demanda (Pessoa, Agente de IA ou Awave), com filt
 pelos scripts, e o procedimento de produção está em
 [docs/operacao/tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md).
 
+A 0.3.1 fecha os achados médios da revisão da 0.3.0 antes de emitir os tokens de produção
+([CHANGELOG](CHANGELOG.md)):
+
+- antes da confirmação por pessoa, um agente de IA não lê nem grava nada na demanda do Awave. Para ele, a demanda
+  responde o 404 da inexistente e não aparece nas listas;
+- o insumo técnico que chegou cedo roda uma vez depois da confirmação;
+- o `/construir` só confirma o recebimento da última entrega;
+- cada transação das integrações tem prazo total, de 8 s, ou 12 s na entrega do pedido, contando a espera por conexão.
+  Passou do prazo: 503 e nada gravado.
+
 ## Onde está cada coisa
 
 | Assunto | Documento |
@@ -53,7 +63,7 @@ pelos scripts, e o procedimento de produção está em
 | Spec aprovada na Parada 1 | [docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md](docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md) |
 | Plano de implementação (47 tarefas) | [docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md](docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md) |
 | Spec e plano do novo visual (0.2.0, 17 tarefas) | [spec](docs/superpowers/specs/2026-11-10-ws-orquestrador-demandas-novo-visual-design.md) e [plano](docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md) |
-| Spec e plano das integrações (0.3.0, 20 tarefas) | [spec](docs/superpowers/specs/2026-11-11-ws-orquestrador-demandas-integracoes-design.md) e [plano](docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md) |
+| Spec e plano das integrações (0.3.0, 20 tarefas; a 0.3.1 mudou o que o manual e o CHANGELOG descrevem) | [spec](docs/superpowers/specs/2026-11-11-ws-orquestrador-demandas-integracoes-design.md) e [plano](docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md) |
 
 ## Requisitos da máquina
 

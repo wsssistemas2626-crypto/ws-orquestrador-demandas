@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.0: criação pelo Awave e limite de 10 por hora, no RF-03; origem da demanda e filtro `origem`, no RF-06; seção "Demanda aberta pelo Awave", com a confirmação por pessoa; eventos novos e ator de integração, no RF-21); 11/11/2026 (0.2.0: leituras da fila do painel, no RF-06); 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 12/11/2026 (0.3.1: demanda do Awave não confirmada invisível para agente e `sistema`, no RF-06 e na seção do Awave; confirmação só de pessoa; execução do agente que espera a confirmação; 201 do Awave dentro da transação com prazo total); 12/11/2026 (0.3.0: criação pelo Awave e limite de 10 por hora, no RF-03; origem da demanda e filtro `origem`, no RF-06; seção "Demanda aberta pelo Awave", com a confirmação por pessoa; eventos novos e ator de integração, no RF-21); 11/11/2026 (0.2.0: leituras da fila do painel, no RF-06); 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09; RF-04 a RF-08 e RF-10 do pedido 0016 (0.3.0) |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`, `resumo-da-fila.ts`, `confirmar.ts`, `confirmacao.ts`), `src/modules/historico/`, `src/modules/limites.ts`, `src/app/(painel)/demandas/[id]/acoes.ts` (`confirmarDemandaNoPainel`) |
@@ -59,7 +59,10 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
 ## RF-06. Consultar e alterar
 
 - `GET /api/demandas`: filtros `status`, `tipo`, `linhaServicoProvavel` e, desde a 0.3.0, `origem`; `limit` de 1 a 100
-  (padrão 20) e `offset`. A resposta traz `total`. Chave repetida na query é recusada.
+  (padrão 20) e `offset`. A resposta traz `total`. Chave repetida na query é recusada. Desde a 0.3.1, para agente e
+  `sistema`, a demanda do Awave que nenhuma pessoa confirmou fica fora dos itens e do `total`, com qualquer filtro e
+  paginação (`soVisiveisAoAgente` em `paginaDeDemandas`, com `condicaoVisivelAoAgente`; ver
+  [Demanda aberta pelo Awave](#demanda-aberta-pelo-awave-030)).
 - **Origem da demanda** (desde a 0.3.0, RF-10 do pedido 0016): `pessoa`, `agente` ou `awave` (`ORIGENS_DA_DEMANDA`,
   `schemas.ts`). Sai da autoria gravada (`origemDaAutoria`, `consultas.ts`), **nunca** do `solicitanteNome`: uma pessoa
   que escreve "Awave" no solicitante continua com origem `pessoa`. Cada item da listagem traz a chave `origem`, para
@@ -68,7 +71,8 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
 - `GET /api/demandas/:id`: a demanda, as listas de versões de ESP, RSK e DEC (com `statusDecisao` e `desatualizado`
   em cada DEC), as dúvidas da entrada e `agentesEmAndamento` (execuções `pendente` ou `em_andamento`). A autoria
   aparece como `responsavel` (nome da conta ou nome do agente), nunca pelo id interno. Isso é o que a pessoa recebe; o
-  agente recebe a vista mínima (abaixo).
+  agente recebe a vista mínima (abaixo). Desde a 0.3.1, a demanda do Awave não confirmada responde ao agente e ao
+  `sistema` o mesmo 404 da demanda inexistente.
 - Nenhuma leitura de demanda traz o texto bruto.
 - **Leituras da fila do painel** (desde a 0.2.0, `src/modules/demandas/resumo-da-fila.ts`, ADR-16 do pedido 0015).
   São duas consultas só de leitura, que a API não usa:
@@ -144,7 +148,14 @@ não mudou: `POST /api/demandas` com `Authorization: Bearer`, sem `Origin`, e o 
   modelo de IA depois que uma pessoa confirma;
 - conta no limite de 10 demandas por hora do Awave ([RF-03](#rf-03-criar-demanda));
 - responde 201 com a vista do Awave: exatamente `id` (`DEM-AAAAMMDD-NNNN`), `titulo`, `tipo`, `status`, `criadaEm` e
-  `atualizadaEm`. Erros no corpo `{ erro, mensagem }`: 400, 401, 403, 429 e 503 (tempo limite, nada gravado). Nunca 3xx.
+  `atualizadaEm`. Erros no corpo `{ erro, mensagem }`: 400, 401, 403, 429 e 503 (tempo limite ou prazo total, nada
+  gravado). Nunca 3xx.
+
+Desde a 0.3.1 (M-2), a vista do 201 é lida por `obterDemandaDaIntegracao` **dentro** da transação da criação, sob o
+prazo total de 8 s ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)). `criarDemanda` tem uma sobrecarga
+por tipo de ator, e nada é lido depois do COMMIT. Se a leitura falhar ou o prazo passar, a transação inteira é
+desfeita e a resposta é 503. Assim, o Awave não recebe erro com a demanda já gravada, e a nova tentativa dele não
+duplica a demanda. Um número de id gasto na transação desfeita não volta ([RF-04](#rf-04-ids)).
 
 O texto do Awave não passa por `entrada_bruta`. Ele fica nos campos da demanda, com a retenção da demanda (status
 final + 5 anos), e não tem o expurgo de 90 dias do texto colado (D5 ampliado da `04-seguranca-aplicacao.md` do pedido;
@@ -170,21 +181,45 @@ sob a trava da demanda, nesta ordem:
 2. já confirmada → sucesso, sem gravar nada (a repetição é idempotente, mesmo com a demanda já fechada);
 3. demanda em status final → 409 "A demanda está em um status final e não pode mais ser confirmada.";
 4. grava `demanda_confirmada`, com a pessoa como ator e `{ confirmada: true }` no `depois`;
-5. na mesma transação, chama o disparo do `insumo_tecnico`, como na criação por pessoa (chave `demanda:<id>`). Com o
-   agente desligado ou suspenso pelo teto, nada é criado, como sempre.
+5. na mesma transação, chama o disparo do `insumo_tecnico`, como na criação por pessoa (chave `demanda:<id>`). Desde a
+   0.3.1 (M-5), o disparo é `dispararOuReenfileirar` (`gatilhos.ts`): se já existe uma execução dessa chave que o
+   worker devolveu a `pendente` à espera da confirmação, ela é reenfileirada, e não criada de novo. Com o agente
+   desligado ou suspenso pelo teto, nada é criado nem enfileirado, como sempre.
 
 A confirmação não muda autoria, rascunho nem status: "confirmada" é a existência do evento (`jaConfirmada`,
-`confirmacao.ts`). Duas confirmações ao mesmo tempo gravam um evento só. Para encerrar uma demanda do Awave sem
-confirmar, use "Mudar status" e escolha Encerrada.
+`confirmacao.ts`). Desde a 0.3.1 (B-3), só conta o evento com ator `pessoa`. Um `demanda_confirmada` de agente,
+`sistema` ou integração não confirma nada, nem no servidor nem na tela ([cap. 08](08-painel.md#demanda-t05-rf-08-a-rf-10)).
+Duas confirmações ao mesmo tempo gravam um evento só. Para encerrar uma demanda do Awave sem confirmar, use "Mudar
+status" e escolha Encerrada.
 
 **Nenhum agente de IA antes da confirmação** (IN-06). `aguardaConfirmacao` (`confirmacao.ts`) é `true` para demanda do
-Awave sem `demanda_confirmada`. Ela é conferida em dois lugares:
+Awave sem `demanda_confirmada` de pessoa e para autoria fora da lista conhecida (falha fechada). Ela é conferida em três
+lugares:
 
+- **na API, para agente e `sistema`** (desde a 0.3.1, M-1 do pedido 0019; substitui o CA-10.6 do pedido 0016, que dava
+  a vista mínima ao agente antes da confirmação). O helper `exigirVisivelPara` lança o mesmo `nao_encontrado` da
+  demanda inexistente, com o mesmo corpo `{ erro, mensagem }`:
+  - em `GET /api/demandas/:id` (`lerDemandaPara`);
+  - nas listas `GET /api/demandas/:id/especificacoes`, `/pareceres-risco` e `/pacotes-decisao`;
+  - nas leituras `GET /api/especificacoes/:espId`, `/api/pareceres-risco/:rskId` e `/api/pacotes-decisao/:decId`,
+    inclusive da ESP ou do RSK que uma pessoa gravou à mão;
+  - na criação de ESP, RSK e DEC (`criarEspecificacao`, `criarParecerRisco`, `criarPacoteDecisao`), logo depois da
+    trava da demanda e **antes** da recusa em status final e do limite por ator. A demanda não confirmada e já
+    encerrada também dá 404, e não o 409 do status final, e o limite não é consumido.
+
+  Nas listas `GET /api/demandas` e `GET /api/pacotes-decisao`, a mesma regra em SQL (`condicaoVisivelAoAgente`,
+  `demandaVisivelAoAgente`) tira a demanda e os DEC dela dos itens e do `total`. A regra SQL também fecha para autoria
+  fora da lista (M-c), e um teste a confere contra a de TypeScript. Depois da confirmação por pessoa, o agente lê e grava como na 0.3.0. A pessoa nunca passa por essa
+  regra;
 - no `dispararSeLigado` (`gatilhos.ts`), antes de tudo e para os quatro agentes. Uma ESP ou um RSK escritos à mão por
   uma pessoa numa demanda do Awave não confirmada não disparam o agente seguinte;
-- no worker, no passo "3c" de `executar.ts`: uma execução que chegue à fila assim mesmo termina `ignorada`, com o
-  evento `agente_ignorado` e o motivo `sem_confirmacao`, sem chamar o provedor nem gravar uso de IA
+- no worker, no passo "3c" de `executar.ts`. Desde a 0.3.1 (M-5), uma execução que chegue à fila assim mesmo volta a
+  `pendente`, sem job, com o evento `agente_ignorado` e o motivo `sem_confirmacao`. O provedor não é chamado e nada vai
+  para `uso_ia`. A confirmação a reenfileira, e ela roda uma vez. Na 0.3.0, ela terminava `ignorada` e gastava a chave
   ([cap. 06](06-agentes-de-ia.md#rf-16-execução-dos-agentes)).
+
+Risco residual (BR-3, para Fabiano e a `gestao-riscos`): os ids são sequenciais. Um agente pode perceber uma lacuna na
+numeração e deduzir que existe uma demanda escondida, sem ver o conteúdo dela.
 
 ## RF-07. Status e transições
 

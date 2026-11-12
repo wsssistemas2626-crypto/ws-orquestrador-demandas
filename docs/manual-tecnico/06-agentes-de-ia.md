@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.0: demanda do Awave só dispara agente depois da confirmação por pessoa; passo de `sem_confirmacao` no worker, no RF-16; integrações fora da tela de agentes, do teto e do uso de IA); 04/11/2026 (0.1.12: `trocarNomes` e `temNome`, a mesma regra do nome usada pelo Pedido de Construção, no RF-20); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, nome grudado em número, `_` ou CamelCase, aviso e dica com os limites da troca, no RF-20); 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
+| Atualizado em | 12/11/2026 (0.3.1: passo "3a" da demanda da entrada; o passo "3c" devolve a execução a `pendente` sem gastar a chave, e a confirmação a reenfileira; batimento sem reenfileirar a execução que espera, no RF-16); 12/11/2026 (0.3.0: demanda do Awave só dispara agente depois da confirmação por pessoa; passo de `sem_confirmacao` no worker, no RF-16; integrações fora da tela de agentes, do teto e do uso de IA); 04/11/2026 (0.1.12: `trocarNomes` e `temNome`, a mesma regra do nome usada pelo Pedido de Construção, no RF-20); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, nome grudado em número, `_` ou CamelCase, aviso e dica com os limites da troca, no RF-20); 04/11/2026 (0.1.10: cada parte do nome do solicitante vira marcador, sem diferença de acento, e a dica e o aviso da tela, no RF-20); 04/11/2026 (0.1.9: rótulo de `demanda_final` no histórico, no RF-16); 03/11/2026 (0.1.8: texto livre de DEC, ESP e RSK minimizado na API, no RF-20; 0.1.7: texto livre da demanda minimizado na API e `minimizarValor` único, no RF-20; 0.1.6: alcance da minimização na leitura pela API) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-16 a RF-20; RNF-06, RNF-07, RNF-14 |
 | Fontes no código | `src/modules/agentes/` (`executar.ts`, `execucoes.ts`, `espera.ts`, `gatilhos.ts`, `configuracao.ts`, `teto.ts`, `preco.ts`, `uso.ts`, `provedor.ts`, `entrada-agente.ts`, `schemas.ts`), `src/agents/`, `src/modules/dados-pessoais/minimizar.ts`, `src/modules/demandas/confirmacao.ts` (desde a 0.3.0), `src/jobs/agente-executar.ts`, `src/jobs/batimento.ts` |
@@ -24,7 +24,8 @@ painel, com os mesmos schemas.
 Desde a 0.3.0, o disparo confere antes de tudo, para os quatro agentes, se a demanda é do Awave e ainda não foi
 confirmada por uma pessoa (`aguardaConfirmacao`). Se for, nada é criado: nenhum agente de IA trabalha numa demanda do
 Awave antes da confirmação, nem quando uma pessoa grava à mão uma ESP ou um RSK nela (D1 e IN-06 do pedido 0016;
-[cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)).
+[cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)). Desde a 0.3.1, o token de agente também não lê nem grava
+nessa demanda pela API: recebe o 404 da demanda inexistente.
 
 As integrações `awave` e `construir` (0.3.0) não são agentes de IA: não aparecem na tela "Agentes e teto", não têm
 interruptor nem modelo, não contam no teto e não gravam `uso_ia` ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)).
@@ -43,12 +44,23 @@ do job leva só o id da execução (C-22). A execução (`executar.ts`) segue es
 2. agente desligado, sem modelo com preço vigente ou sem provedor (sem chave) → `ignorada`, com evento
    `agente_ignorado`;
 3. gasto do mês maior ou igual ao teto → `ignorada`, com evento `suspensao_por_teto`;
+   - desde a 0.3.1 (passo "3a", M-5 do pedido 0019): acha a demanda que a entrada vai ler, pela chave da execução
+     (`demandaDaChave`, `entrada-agente.ts`, só ids): `demanda:<id>` dá a própria demanda; `esp:<id>`, a demanda da ESP;
+     `rsk:<id>`, a do RSK. Chave que não acha → `falhou`, com o motivo `entrada_nao_encontrada`. Fora o orquestrador,
+     execução sem demanda, ou com `demanda_id` diferente da demanda da chave → o mesmo `falhou` (falha fechada). Nos
+     dois casos, o provedor não é chamado. Os passos "3b" e "3c" olham essa demanda;
 4. demanda da execução em status final (`entregue` ou `encerrada`) → `ignorada`, com evento `agente_ignorado` e motivo
    `demanda_final`, sem chamar o provedor (passo "3b" no comentário de `executar.ts`; M-02, desde a 0.1.5). Lê só o
    status da demanda. O orquestrador, que ainda não tem demanda, não passa por aqui;
-   - desde a 0.3.0 (passo "3c", D-07 do pedido 0016): demanda do Awave ainda não confirmada por pessoa → `ignorada`,
-     com evento `agente_ignorado` e motivo `sem_confirmacao`, sem chamar o provedor nem gravar uso. É a segunda
-     barreira, depois do disparo. Lê só as tabelas `demanda` e `evento`;
+   - desde a 0.3.0 (passo "3c", D-07 do pedido 0016): demanda do Awave ainda não confirmada por pessoa. É a segunda
+     barreira, depois do disparo. Lê só as tabelas `demanda` e `evento`. Desde a 0.3.1 (M-5), a execução **não** é
+     encerrada. `adiarAteConfirmacao` confere de novo sob a trava da demanda, a mesma que a confirmação usa. Se a
+     confirmação já entrou, a execução segue para o passo 5. Senão, `devolverAPendenteSemJob` (`execucoes.ts`) devolve
+     a execução a `pendente`, sem job e sem contar a tentativa. Ela grava o evento `agente_ignorado` com o motivo
+     `sem_confirmacao`, como antes, e devolve o resultado `aguardando_confirmacao`. O provedor não é chamado e nada vai
+     para `uso_ia`. Quando a pessoa confirma, `dispararOuReenfileirar` (`gatilhos.ts`) reenfileira essa execução
+     (`reenfileirarPendente`, que grava `atualizada_em`), e ela roda uma vez. Na 0.3.0, ela terminava `ignorada`, e a
+     chave única (agente, chave da entrada) impedia o insumo de rodar depois da confirmação;
 5. monta a entrada pela lista de permissão de campos do agente, minimizada (RF-20), com o texto do cliente dentro de um
    bloco `<dados>` e a instrução de que nada ali é ordem. A montagem devolve também `citados`: o id da ESP e do RSK que
    entraram no bloco. Os ids não vão para o conteúdo enviado (C-23);
@@ -82,6 +94,17 @@ falso (RNF-14).
 
 Rede de segurança (`src/jobs/batimento.ts`): a cada minuto, o worker reenfileira a execução `pendente` cuja hora venceu
 há mais de 1 min e a `em_andamento` com a trava vencida (150 s). A reivindicação condicional impede que duas rodem.
+Desde a 0.3.1, duas pendentes ficam de fora:
+
+- a pendente cuja demanda aguarda confirmação (`semEsperaDeConfirmacao`, a mesma regra SQL da API). Ela espera a
+  confirmação, que a reenfileira; sem isso, voltaria ao worker a cada minuto;
+- a execução adiada até a confirmação (`adiadaAteConfirmacao`, pelo evento `agente_ignorado`/`sem_confirmacao` dela)
+  cujo agente está desligado ou suspenso pelo teto (A-3). Quando o agente volta, o batimento seguinte a reenfileira e
+  ela roda uma vez. Sem isso, o worker a encerraria como `ignorada` e gastaria a chave.
+
+A pendente comum de agente desligado continua sendo reenfileirada e encerrada como `ignorada`, como na 0.3.0. Um job
+que já estava na fila quando o agente foi desligado também termina `ignorada`/`desligado`, inclusive o da execução
+adiada já reenfileirada (O-2 do reteste do pedido 0019, registrado no [CHANGELOG](../../CHANGELOG.md)).
 
 Citação da consolidação (M-01, corrigido na 0.1.5): a entrada da consolidação lê o RSK da chave da execução
 (`rsk:<RSK-id>`) e a ESP de maior versão no momento da leitura. O DEC cita **essas duas**, pelos ids de `citados`, e não
