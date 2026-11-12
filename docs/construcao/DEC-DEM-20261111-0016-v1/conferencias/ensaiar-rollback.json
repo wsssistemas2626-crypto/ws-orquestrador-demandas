@@ -17,32 +17,32 @@
     {
       "nome": "anterior",
       "ok": true,
-      "detalhe": "versão da main: http://127.0.0.1:3200/api/saude respondeu 200 em 126 s"
+      "detalhe": "versão da main: http://127.0.0.1:3200/api/saude respondeu 200 em 72 s"
     },
     {
       "nome": "backup",
       "ok": true,
-      "detalhe": "117 KB, impressão e1a4d9c0ca2a431f"
+      "detalhe": "117 KB, impressão dc699d8026ff1274"
     },
     {
       "nome": "nova",
       "ok": true,
-      "detalhe": "versão do ramo sobre o banco da main: http://127.0.0.1:3200/api/saude respondeu 200 em 121 s"
+      "detalhe": "versão do ramo sobre o banco da main: http://127.0.0.1:3200/api/saude respondeu 200 em 49 s"
     },
     {
       "nome": "restauracao",
       "ok": true,
-      "detalhe": "banco igual ao backup (impressão e1a4d9c0ca2a431f)"
+      "detalhe": "banco igual ao backup (impressão dc699d8026ff1274)"
     },
     {
       "nome": "volta",
       "ok": true,
-      "detalhe": "a versão da main só volta com o backup restaurado (o dado gravado depois da publicação se perde): http://127.0.0.1:3200/api/saude respondeu 200 em 11 s"
+      "detalhe": "a versão da main só volta com o backup restaurado (o dado gravado depois da publicação se perde): http://127.0.0.1:3200/api/saude respondeu 200 em 12 s"
     },
     {
       "nome": "ida_de_novo",
       "ok": true,
-      "detalhe": "versão do ramo depois da volta: http://127.0.0.1:3200/api/saude respondeu 200 em 44 s"
+      "detalhe": "versão do ramo depois da volta: http://127.0.0.1:3200/api/saude respondeu 200 em 50 s"
     },
     {
       "nome": "derrubar",
@@ -50,6 +50,6 @@
       "detalhe": "projeto e volumes removidos"
     }
   ],
-  "sha": "227237a595657417085f328c519cba04bc9f2854",
-  "em": "2026-11-12T16:39:04.633Z"
+  "sha": "4534b9ac2ea56f78fda135f1af80cbfaabe2dd0d",
+  "em": "2026-11-12T17:27:35.709Z"
 }
