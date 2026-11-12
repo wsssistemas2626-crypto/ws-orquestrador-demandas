@@ -14,6 +14,11 @@
 // Próxima ação e o Histórico vão para a coluna lateral só pela grade, sem mudar a ordem do DOM. Para a barra e o
 // cartão, a página lê também o DEC mais novo da própria demanda (d.pacotesDecisao[0], nunca um id da URL), com
 // `ler_pacote_decisao` autorizado antes (CV-09); as duas regras de exibição recebem só o que a página já leu.
+//
+// 0.3.0 (T18 do DEC-DEM-20261111-0016-v1; 03, 5.1 a 5.5): "Origem" nos Dados, da autoria (CA-10.4); e, só na demanda do
+// Awave, o selo "Aguardando confirmação", a seção "Confirmação do Awave" depois de Dados (também em "Nesta página") e a
+// linha 14 da Próxima ação. Os três saem de um único estadoDaConfirmacao, lido do histórico que a página já carrega (D-06):
+// selo e linha 14 só em "aguardando", a seção em todo estado que não é "nao_se_aplica".
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -21,6 +26,7 @@ import type { ReactNode } from 'react';
 import { Alerta } from '../../../../components/Alerta';
 import { classeDoBotao } from '../../../../components/Botao';
 import { Cartao } from '../../../../components/Cartao';
+import { estadoDaConfirmacao, type EstadoDaConfirmacao } from '../../../../components/dados-da-confirmacao';
 import { AVISO_DEMANDA, TEXTOS_DEMANDA } from '../../../../components/dados-da-demanda';
 import { etapasDaDemanda, proximaAcao, type DadosDasEtapas } from '../../../../components/dados-das-etapas';
 import { chegadaDaEspecificacao } from '../../../../components/dados-da-especificacao';
@@ -30,11 +36,13 @@ import {
   COR_STATUS,
   ROTULO_DECISAO,
   ROTULO_LINHA,
+  ROTULO_ORIGEM,
   ROTULO_PAPEL_SOLICITANTE,
   ROTULO_STATUS,
   ROTULO_TIPO,
   ROTULO_TIPO_ANEXO,
   ROTULO_URGENCIA,
+  SELO_AGUARDANDO_CONFIRMACAO,
   SELO_DESATUALIZADO,
   SELO_RASCUNHO,
   SELO_SUBSTITUIDO,
@@ -45,8 +53,14 @@ import { obterDeps } from '../../../../lib/deps';
 import { formatarDataHora } from '../../../../lib/fuso';
 import { exigirPessoaNaPagina } from '../../../../modules/acesso/exigir-pessoa';
 import { autorizar } from '../../../../modules/acesso/matriz';
-import type { DemandaVista, PacoteResumo, VersaoResumo } from '../../../../modules/demandas/consultas';
+import {
+  origemDoResponsavel,
+  type DemandaVista,
+  type PacoteResumo,
+  type VersaoResumo,
+} from '../../../../modules/demandas/consultas';
 import { RE_ID_DEMANDA } from '../../../../modules/demandas/gerar-id';
+import type { OrigemDaDemanda } from '../../../../modules/demandas/schemas';
 import { obterTextoRecebido } from '../../../../modules/demandas/texto-recebido';
 import { transicoesManuaisDe } from '../../../../modules/demandas/transicoes';
 import { obterEspecificacao } from '../../../../modules/especificacoes/consultas';
@@ -55,6 +69,7 @@ import { obterPacoteDecisao } from '../../../../modules/pacotes-decisao/consulta
 import { CLASSE_DA_ETIQUETA, COR_DA_URGENCIA } from '../CartoesDaFila';
 import { BarraDeEtapas } from './BarraDeEtapas';
 import { CartaoProximaAcao } from './CartaoProximaAcao';
+import { ConfirmarDemanda, type SecaoDaConfirmacao } from './ConfirmarDemanda';
 import { lerDemandaDaPagina, metadadosDaDemanda } from './demanda-da-pagina';
 import {
   alertasDoTopo,
@@ -94,8 +109,9 @@ const ETIQUETA = CLASSE_DA_ETIQUETA;
 // Grade da A2 a partir de 1200 px (03, 5.2): coluna principal (2/3) e lateral (1/3). A Próxima ação fica na primeira
 // linha da lateral; o Histórico, da segunda até a última, que é flexível e absorve a altura dele. Abaixo de 1200 px,
 // uma coluna na ordem do DOM. `grid-cols-1` (minmax(0, 1fr)): sem ele, a coluna implícita é `auto` e cresce com a largura
-// das tabelas das versões, que têm rolagem própria, e a página rolaria de lado no celular.
-const GRADE = 'grid grid-cols-1 gap-5 xl:grid-cols-3 xl:grid-rows-[repeat(5,auto)_1fr] xl:items-start';
+// das tabelas das versões, que têm rolagem própria, e a página rolaria de lado no celular. 0.3.0 (03, 5.1 item 6): até
+// seis seções na coluna principal (Dados, Confirmação, Dúvidas, Versões, Status, Texto recebido) antes da linha flexível.
+const GRADE = 'grid grid-cols-1 gap-5 xl:grid-cols-3 xl:grid-rows-[repeat(6,auto)_1fr] xl:items-start';
 const PRINCIPAL = 'xl:col-span-2 xl:col-start-1';
 
 // "Ver" e "Abrir decisão" nas tabelas de versões: link solto, com 44 px abaixo de 768 px (03, 2.4; RNF-03) e o alvo de
@@ -175,8 +191,9 @@ function AlertaDeTopo({ a }: { a: AlertaDoTopo }) {
 const naoInformado = (v: string | null | undefined): string => (v ? v : TEXTOS_DETALHE.naoInformado);
 
 // 0.2.0 (T11; 03, 5.2): lista de descrição em grade de 2 colunas a partir de 768 px, com o termo como etiqueta; os
-// campos longos ocupam a linha toda. Os 12 itens e os textos são os de hoje.
-function Dados({ d }: { d: DemandaVista }) {
+// campos longos ocupam a linha toda. Os 12 itens e os textos são os de hoje. 0.3.0 (03, 5.1 item 1): "Origem" antes de
+// "Criada por", com o rótulo da autoria, nunca do solicitanteNome (CA-10.4).
+function Dados({ d, origem }: { d: DemandaVista; origem: OrigemDaDemanda }) {
   const t = TEXTOS_DETALHE.dados;
   const largos: ReadonlySet<string> = new Set([t.justificativa, t.contexto, t.descricao, t.impacto, t.anexos]);
   const itens: ReadonlyArray<[string, ReactNode]> = [
@@ -207,6 +224,7 @@ function Dados({ d }: { d: DemandaVista }) {
         {formatarDataHora(d.criadaEm)}
       </time>,
     ],
+    [t.origem, ROTULO_ORIGEM[origem]],
     [t.criadaPor, rotuloResponsavel(d.responsavel)],
   ];
   return (
@@ -219,6 +237,26 @@ function Dados({ d }: { d: DemandaVista }) {
       ))}
     </dl>
   );
+}
+
+// O estado da seção "Confirmação do Awave" em texto, para o componente do navegador: a data no fuso do sistema
+// (formatarDataHora) e o ISO do <time>, e o status pelo rótulo (03, 5.4). Sem seção, null.
+function secaoDaConfirmacao(e: EstadoDaConfirmacao): SecaoDaConfirmacao | null {
+  switch (e.tipo) {
+    case 'nao_se_aplica':
+      return null;
+    case 'aguardando':
+      return { tipo: 'aguardando' };
+    case 'confirmada':
+      return { tipo: 'confirmada', ator: e.ator, data: formatarDataHora(e.em), iso: e.em.toISOString() };
+    case 'final_sem_confirmacao':
+      return { tipo: 'final_sem_confirmacao', status: ROTULO_STATUS[e.status] };
+    default: {
+      const nunca: never = e;
+      void nunca;
+      return null;
+    }
+  }
 }
 
 const versaoNaCelula = (id: string) => <span className="font-mono">{id}</span>;
@@ -369,13 +407,26 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
   const alertas = alertasDoTopo(d, historico, duvidas !== null);
   const chegada = alertaDeChegada(await searchParams, d, esp);
   const transicoes = transicoesManuaisDe(d.status);
+  // 0.3.0 (T18): a origem da autoria e o estado da confirmação, de onde saem selo, seção e linha 14 (D-06).
+  const origem = origemDoResponsavel(d.responsavel);
+  const estado = estadoDaConfirmacao({ origem, status: d.status, historico });
+  const aguardando = estado.tipo === 'aguardando';
+  const confirmacao = secaoDaConfirmacao(estado);
   // RF-08 e RF-09: só o que a página já leu; dado incoerente vira erro e a tela de erro de hoje (T10).
-  const dadosDasEtapas: DadosDasEtapas = { demanda: d, espMaisNova: esp, decMaisNovo, historico, temSecaoDeDuvidas: duvidas !== null };
+  const dadosDasEtapas: DadosDasEtapas = {
+    demanda: d,
+    espMaisNova: esp,
+    decMaisNovo,
+    historico,
+    temSecaoDeDuvidas: duvidas !== null,
+    aguardaConfirmacaoDoAwave: aguardando,
+  };
   const etapas = etapasDaDemanda(dadosDasEtapas);
   const acao = proximaAcao(dadosDasEtapas);
   const s = TEXTOS_DETALHE.secoes;
   const secoes = [
     [ID_SECAO.dados, s.dados],
+    ...(confirmacao ? [[ID_SECAO.confirmacao, s.confirmacao] as const] : []),
     ...(duvidas ? [[ID_SECAO.duvidas, s.duvidas] as const] : []),
     [ID_SECAO.versoes, s.versoes],
     [ID_SECAO.status, s.status],
@@ -395,6 +446,11 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
               {d.rascunhoAgente ? (
                 <Selo cor={SELO_RASCUNHO.cor} tracejado={SELO_RASCUNHO.tracejado}>
                   {SELO_RASCUNHO.texto}
+                </Selo>
+              ) : null}
+              {aguardando ? (
+                <Selo cor={SELO_AGUARDANDO_CONFIRMACAO.cor} tracejado={SELO_AGUARDANDO_CONFIRMACAO.tracejado}>
+                  {SELO_AGUARDANDO_CONFIRMACAO.texto}
                 </Selo>
               ) : null}
               <UrgenciaNoCabecalho urgencia={d.urgencia} />
@@ -440,8 +496,14 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
         <CartaoProximaAcao acao={acao} className="xl:col-start-3 xl:row-start-1" />
 
         <Secao id={ID_SECAO.dados} titulo={s.dados} className={`${PRINCIPAL} xl:row-start-1`}>
-          <Dados d={d} />
+          <Dados d={d} origem={origem} />
         </Secao>
+
+        {confirmacao ? (
+          <Secao id={ID_SECAO.confirmacao} titulo={s.confirmacao}>
+            <ConfirmarDemanda id={d.id} estado={confirmacao} />
+          </Secao>
+        ) : null}
 
         {duvidas ? (
           <Secao id={ID_SECAO.duvidas} titulo={s.duvidas} className={`${PRINCIPAL} border-l-4 border-l-atencao`}>

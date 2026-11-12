@@ -635,6 +635,7 @@ describe('page.tsx: acesso, leituras e seções', () => {
       'Impacto percebido',
       'Anexos',
       'Criada em',
+      'Origem',
       'Criada por',
     ]);
     expect(p).toMatch(/<dt[^>]*>Linha de serviço provável<\/dt><dd[^>]*>Não informado<\/dd>/);
