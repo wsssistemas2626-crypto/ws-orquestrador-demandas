@@ -197,12 +197,13 @@ export const ARTEFATO_DO_AGENTE: Readonly<Record<Agente, string>> = {
 };
 
 // Motivo de `agente_ignorado` (T27), que a 03 não descreve. B-5 do 0006: `demanda_final` (executar.ts) vale para os
-// dois status finais, entregue e encerrada.
+// dois status finais, entregue e encerrada. 0.3.0 (D-18): `sem_confirmacao`, o passo 3c do worker (IN-06).
 const MOTIVO_IGNORADO: Readonly<Record<string, string>> = {
   desligado: 'agente desligado',
   sem_preco: 'modelo sem preço vigente',
   sem_provedor: 'provedor de IA não configurado',
   demanda_final: 'demanda já entregue ou encerrada',
+  sem_confirmacao: 'demanda aberta pelo Awave ainda não confirmada',
 };
 
 const ROTULO_DECISAO_NO_HISTORICO: Readonly<Record<string, string>> = {

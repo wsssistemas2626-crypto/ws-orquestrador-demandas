@@ -216,10 +216,11 @@ export async function criarDemanda(
       criadaEm: agora,
       atualizadaEm: agora,
     });
-    // C-30 e IN-12: só enumerações no evento; nada do solicitante nem de texto livre. O ator leva o prefixo do token.
+    // C-30 e IN-12: só enumerações no evento; nada do solicitante nem de texto livre. O ator leva o prefixo do token. O
+    // tipo vem do que foi gravado (`campos`, a lista de permissão), não da entrada (parecer 2 da 06-T06-revisao).
     await registrarEvento(
       tx,
-      { ator, demandaId: novoId, entidade: 'demanda', entidadeId: novoId, acao: 'demanda_criada', depois: { status: 'nova', tipo: entrada.tipo } },
+      { ator, demandaId: novoId, entidade: 'demanda', entidadeId: novoId, acao: 'demanda_criada', depois: { status: 'nova', tipo: campos.tipo } },
       deps.relogio,
     );
     await dispararAoCriar(tr, deps, ator, novoId);
