@@ -4,9 +4,10 @@
 // Toda mudança de estado depois da reivindicação é guardada por (id, em_andamento, tentativas): se a trava venceu e outro
 // worker reivindicou de novo, quem ficou para trás não grava nada e recebe ExecucaoPerdida, que desfaz a transação dele.
 // O payload do job leva só o id da execução (C-22); a singletonKey é por tentativa, `<agente>:<chave>:t<n>` (ADR-07).
-import { and, eq, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, lt, lte, or, sql, type SQL } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Db } from '../../db';
-import { execucaoAgente } from '../../db/schema';
+import { evento, execucaoAgente } from '../../db/schema';
 import type { Transacao } from '../../db/transacao';
 import type { Deps } from '../../lib/deps';
 import { FILAS } from '../../lib/fila';
@@ -133,16 +134,17 @@ export async function devolverAPendenteSemJob(tx: Db, exec: ExecucaoAgente, relo
 // M-5 da 0019: a execução pendente sem hora marcada da mesma entrada (a que ficou esperando a confirmação) ganha o job
 // da próxima tentativa, pelo executor da transação de quem chama. Devolve o id, ou null quando não há. Se o job dessa
 // tentativa ainda está na fila, a política `stately` descarta o envio repetido; a reivindicação condicional é a segunda
-// barreira.
+// barreira. M-b da 04-revisao: o UPDATE (que trava a linha) marca `atualizada_em` com a hora do reenvio; sem isso, o
+// batimento a acharia "órfã" pela hora do adiamento e mandaria o job de novo.
 export async function reenfileirarPendente(
   t: Transacao,
-  deps: Pick<Deps, 'fila'>,
+  deps: Pick<Deps, 'fila' | 'relogio'>,
   agente: Agente,
   chaveEntrada: string,
 ): Promise<string | null> {
   const [e] = await t.tx
-    .select({ id: execucaoAgente.id, tentativas: execucaoAgente.tentativas })
-    .from(execucaoAgente)
+    .update(execucaoAgente)
+    .set({ atualizadaEm: deps.relogio.agora() })
     .where(
       and(
         eq(execucaoAgente.agente, agente),
@@ -151,8 +153,20 @@ export async function reenfileirarPendente(
         isNull(execucaoAgente.proximaTentativaEm),
       ),
     )
-    .for('update');
+    .returning({ id: execucaoAgente.id, tentativas: execucaoAgente.tentativas });
   if (!e) return null;
   await deps.fila.enviar(t.executor, FILAS.agenteExecutar, { execucaoId: e.id }, { singletonKey: chaveDoJob(agente, chaveEntrada, e.tentativas + 1) });
   return e.id;
+}
+
+// A-3 da 04-revisao: a execução já foi adiada até a confirmação (o worker gravou o `agente_ignorado` com `sem_confirmacao`
+// dela). Sem coluna nova: a marca é o próprio evento, que o app só insere. Valores fixos; o id vai como texto, o tipo de
+// `evento.entidade_id`.
+export function adiadaAteConfirmacao(execucaoId: AnyPgColumn): SQL {
+  return sql`exists (select 1 from ${evento} where ${and(
+    eq(evento.acao, 'agente_ignorado'),
+    eq(evento.entidade, 'execucao_agente'),
+    eq(evento.entidadeId, sql`${execucaoId}::text`),
+    sql`${evento.depois}->>'motivo' = 'sem_confirmacao'`,
+  )})`;
 }

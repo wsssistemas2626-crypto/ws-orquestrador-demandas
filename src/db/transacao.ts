@@ -19,8 +19,10 @@ export class PrazoDaTransacaoEsgotado extends Error {
 // O piso: os tempos-limite que quem abre a transação já pôs nela (o SET LOCAL de limitarTempo). O prazo só os baixa.
 export type PisoDeTempo = { statementMs: number; lockMs: number };
 // `prazoMs` (M-3 da 0019): só a integração usa (executarComOrcamento). Sem ele, nada muda. `agora` é o relógio
-// monotônico, injetável para o teste.
-export type OpcoesDaTransacao = { prazoMs?: number; piso?: PisoDeTempo; agora?: () => number };
+// monotônico, injetável para o teste. `abertura` (A-2 da 04-revisao): as instruções que põem o piso (o SET LOCAL de
+// limitarTempo), rodadas direto na conexão logo depois do BEGIN; com prazo, o restante é aplicado depois delas, para o
+// piso nunca passar por cima dele.
+export type OpcoesDaTransacao = { prazoMs?: number; piso?: PisoDeTempo; agora?: () => number; abertura?: (tx: Db) => Promise<void> };
 
 type Prazo = { fim: number; agora: () => number; aplicado: PisoDeTempo; encurtado: boolean };
 
@@ -69,21 +71,26 @@ async function conectarNoPrazo(pool: pg.Pool, p: Prazo): Promise<pg.PoolClient> 
   }
 }
 
-// Antes de cada instrução: prazo vencido lança; restante abaixo do piso em vigor baixa statement_timeout e lock_timeout
-// para ele, só nesta transação (set_config local), com os valores por parâmetro (G3.6).
+// Prazo vencido lança; restante abaixo do que está em vigor baixa statement_timeout e lock_timeout para ele, só nesta
+// transação (set_config local), com os valores por parâmetro (G3.6). Direto na conexão, fora do Proxy.
+async function baixarAteORestante(cliente: pg.PoolClient, p: Prazo): Promise<void> {
+  const ms = Math.floor(restante(p));
+  if (ms <= 0) throw new PrazoDaTransacaoEsgotado();
+  if (ms < p.aplicado.statementMs || ms < p.aplicado.lockMs) {
+    const novo = { statementMs: Math.min(ms, p.aplicado.statementMs), lockMs: Math.min(ms, p.aplicado.lockMs) };
+    await cliente.query("select set_config('statement_timeout', $1, true), set_config('lock_timeout', $2, true)", [
+      String(novo.statementMs),
+      String(novo.lockMs),
+    ]);
+    p.aplicado = novo;
+    p.encurtado = true;
+  }
+}
+
+// Antes de cada instrução de quem chama: baixarAteORestante, e só então a instrução.
 function comPrazo(cliente: pg.PoolClient, p: Prazo): pg.PoolClient {
   const consultar = async (...args: unknown[]): Promise<unknown> => {
-    const ms = Math.floor(restante(p));
-    if (ms <= 0) throw new PrazoDaTransacaoEsgotado();
-    if (ms < p.aplicado.statementMs || ms < p.aplicado.lockMs) {
-      const novo = { statementMs: Math.min(ms, p.aplicado.statementMs), lockMs: Math.min(ms, p.aplicado.lockMs) };
-      await cliente.query("select set_config('statement_timeout', $1, true), set_config('lock_timeout', $2, true)", [
-        String(novo.statementMs),
-        String(novo.lockMs),
-      ]);
-      p.aplicado = novo;
-      p.encurtado = true;
-    }
+    await baixarAteORestante(cliente, p);
     return (cliente.query as (...a: unknown[]) => Promise<unknown>).apply(cliente, args);
   };
   return new Proxy(cliente, {
@@ -96,7 +103,7 @@ function comPrazo(cliente: pg.PoolClient, p: Prazo): pg.PoolClient {
 }
 
 export async function comTransacao<T>(pool: pg.Pool, fn: (t: Transacao) => Promise<T>, op: OpcoesDaTransacao = {}): Promise<T> {
-  if (op.prazoMs === undefined) return naConexao(await pool.connect(), fn, null);
+  if (op.prazoMs === undefined) return naConexao(await pool.connect(), fn, null, op.abertura);
   const agora = op.agora ?? (() => performance.now());
   const p: Prazo = {
     fim: agora() + op.prazoMs,
@@ -104,10 +111,10 @@ export async function comTransacao<T>(pool: pg.Pool, fn: (t: Transacao) => Promi
     aplicado: op.piso ?? { statementMs: Number.POSITIVE_INFINITY, lockMs: Number.POSITIVE_INFINITY },
     encurtado: false,
   };
-  return naConexao(await conectarNoPrazo(pool, p), fn, p);
+  return naConexao(await conectarNoPrazo(pool, p), fn, p, op.abertura);
 }
 
-async function naConexao<T>(cliente: pg.PoolClient, fn: (t: Transacao) => Promise<T>, p: Prazo | null): Promise<T> {
+async function naConexao<T>(cliente: pg.PoolClient, fn: (t: Transacao) => Promise<T>, p: Prazo | null, abertura?: (tx: Db) => Promise<void>): Promise<T> {
   // Emprestada, a conexão fica sem o ouvinte de erro do pool. Se o banco a derrubar no meio da transação, o 'error'
   // do cliente sem ouvinte derrubaria o processo; aqui ele só marca a conexão para descarte.
   let conexaoPerdida: Error | undefined;
@@ -120,6 +127,10 @@ async function naConexao<T>(cliente: pg.PoolClient, fn: (t: Transacao) => Promis
   const daTransacao = p ? comPrazo(cliente, p) : cliente;
   try {
     await cliente.query('begin');
+    // A-2 da 04-revisao: o piso entra primeiro, direto na conexão; com prazo, o restante vem logo depois, por cima dele
+    // (a espera pela conexão já pode ter gasto quase tudo). Assim nenhum SET do piso passa pelo Proxy depois do prazo.
+    if (abertura) await abertura(criarDb(cliente));
+    if (p) await baixarAteORestante(cliente, p);
     const r = await fn({
       tx: criarDb(daTransacao),
       executor: { executeSql: (texto, valores) => daTransacao.query(texto, valores) },

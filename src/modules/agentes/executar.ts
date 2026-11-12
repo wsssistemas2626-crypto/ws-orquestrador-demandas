@@ -8,7 +8,7 @@
 // 3b. demanda em status final → `ignorada` + `agente_ignorado`, sem chamar o provedor (M-02);
 // 3c. demanda do Awave ainda não confirmada por pessoa → volta a `pendente`, sem job, com `agente_ignorado`
 //     `sem_confirmacao` (IN-06, D-07) e o resultado `aguardando_confirmacao`; a chave não é gasta, e a confirmação a
-//     reenfileira (M-5 da 0019);
+//     reenfileira (M-5 da 0019); a decisão é conferida de novo sob a trava da demanda (M-a da 04-revisao da 0019);
 // 4. monta a entrada pela lista de permissão, minimizada (T24), com o prompt do agente (T26);
 // 5. chama o provedor fora de qualquer transação;
 // 6. JSON + schema da rota (ADR-09). Válido: numa transação, o serviço da API grava o artefato com o ator agente (passa
@@ -38,6 +38,7 @@ import { registrarEvento, type AcaoEvento } from '../historico/registrar';
 import { criarPacoteDecisao, NIVEL_DO_DEC_DE_AGENTE } from '../pacotes-decisao/criar';
 import { criarParecerRiscoSchema } from '../pareceres-risco/schemas';
 import { criarParecerRisco } from '../pareceres-risco/servico';
+import { travarDemanda } from '../versoes';
 import { obterConfiguracaoAgente } from './configuracao';
 import { demandaDaChave, montarEntrada, type CitadosNaEntrada, type EntradaDoAgente } from './entrada-agente';
 import { TENTATIVAS_MAXIMAS } from './espera';
@@ -199,18 +200,26 @@ async function ignorar(c: Contexto, acao: Extract<AcaoEvento, 'agente_ignorado' 
 
 // M-5 da 0019 (P2): a demanda aguarda a confirmação de uma pessoa. A execução volta a pendente, sem job, com a
 // tentativa devolvida, e a confirmação a reenfileira (dispararOuReenfileirar). O evento é o mesmo de antes
-// (`agente_ignorado` com `sem_confirmacao`): o texto fixo do histórico (D-18) não muda.
-async function adiarAteConfirmacao(c: Contexto): Promise<ResultadoExecucao> {
+// (`agente_ignorado` com `sem_confirmacao`): o texto fixo do histórico (D-18) não muda. M-a da 04-revisao: a decisão é
+// refeita sob a trava da demanda, a mesma que confirmarDemanda pega antes de gravar a confirmação e reenfileirar. Se a
+// confirmação entrou depois da primeira olhada, nada é adiado (devolve null) e a execução segue; senão, a confirmação
+// que vier depois acha a execução já pendente e a reenfileira. A ordem das travas (demanda, depois execução) é a mesma
+// nos dois lados.
+async function adiarAteConfirmacao(c: Contexto, demandaId: string): Promise<ResultadoExecucao | null> {
   const { deps, exec } = c;
   const motivo: MotivoIgnorada = 'sem_confirmacao';
-  await comTransacao(deps.pool, async ({ tx }) => {
+  const adiada = await comTransacao(deps.pool, async ({ tx }) => {
+    await travarDemanda(tx, demandaId);
+    if (!(await aguardaConfirmacao(tx, demandaId))) return false;
     await devolverAPendenteSemJob(tx, exec, deps.relogio);
     await registrarEvento(
       tx,
       { ator: SISTEMA, demandaId: exec.demandaId, entidade: 'execucao_agente', entidadeId: exec.id, acao: 'agente_ignorado', depois: { agente: exec.agente, motivo } },
       deps.relogio,
     );
+    return true;
   });
+  if (!adiada) return null;
   log.info({ evento: 'agente_ignorado', codigoErro: motivo, status: 'aguardando_confirmacao', ...camposDeLog(c) });
   return 'aguardando_confirmacao';
 }
@@ -268,8 +277,12 @@ async function executarReivindicada(c: Contexto): Promise<ResultadoExecucao> {
   // durante a chamada é recusada pelo serviço, sob a trava (409 → recusada_pelo_servico, sem nova tentativa).
   if (demandaDaEntrada !== null && (await demandaEmStatusFinal(deps.db, demandaDaEntrada))) return ignorar(c, 'agente_ignorado', 'demanda_final');
   // 3c (0.3.0, IN-06, D-07): defesa em profundidade do gatilho. A execução de uma demanda do Awave que nenhuma pessoa
-  // confirmou não chama o provedor nem grava uso, venha de onde vier. M-5 da 0019: sem gastar a chave.
-  if (demandaDaEntrada !== null && (await aguardaConfirmacao(deps.db, demandaDaEntrada))) return adiarAteConfirmacao(c);
+  // confirmou não chama o provedor nem grava uso, venha de onde vier. M-5 da 0019: sem gastar a chave. M-a da
+  // 04-revisao: a primeira olhada é sem trava (o caso comum não trava nada); o adiamento confere de novo sob a trava.
+  if (demandaDaEntrada !== null && (await aguardaConfirmacao(deps.db, demandaDaEntrada))) {
+    const adiada = await adiarAteConfirmacao(c, demandaDaEntrada);
+    if (adiada !== null) return adiada;
+  }
 
   let entrada: EntradaDoAgente;
   try {

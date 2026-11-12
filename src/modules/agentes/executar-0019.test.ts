@@ -242,10 +242,16 @@ describe('M-5: o batimento e a execução que espera a confirmação', () => {
     await batimento(base, 'instancia-ficticia-0019');
     expect(await jobsNaFila(id)).toEqual([]);
 
-    // Confirmada com o insumo desligado (nada enfileirado na hora), a execução volta a ser vista pelo batimento.
+    // Confirmada com o insumo desligado (nada enfileirado na hora). A-3 da 04-revisao: enquanto o agente estiver
+    // desligado, o batimento também não a reenfileira (o worker a encerraria como `ignorada` e gastaria a chave);
+    // religado, ela volta a ser vista pelo batimento.
     await desligar('insumo_tecnico');
     await confirmarDemanda(base, cto, d.id);
     expect(await jobsNaFila(id)).toEqual([]);
+    relogio.avancar(5 * 60_000);
+    await batimento(base, 'instancia-ficticia-0019');
+    expect(await jobsNaFila(id)).toEqual([]);
+    await ligar('insumo_tecnico');
     relogio.avancar(5 * 60_000);
     await batimento(base, 'instancia-ficticia-0019');
     expect((await jobsNaFila(id)).length).toBe(1);

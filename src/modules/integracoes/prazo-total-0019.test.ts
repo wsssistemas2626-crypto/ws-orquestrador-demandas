@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../test/banco';
 import { atorDeIntegracao } from '../../../test/integracoes';
-import type { Db } from '../../db';
+import { criarPool, type Db } from '../../db';
 import { PrazoDaTransacaoEsgotado } from '../../db/transacao';
 import { ErroDominio, mapearErro } from '../../lib/erros';
 import { relogioFixo } from '../../lib/relogio';
@@ -33,6 +33,18 @@ const sistema: Ator = { tipo: 'sistema' };
 const contarEventos = async (entidadeId: string) =>
   Number((await b.poolMigrator.query('select count(*) as n from evento where entidade_id = $1', [entidadeId])).rows[0].n);
 const evento = (ator: Ator, entidadeId: string) => ({ ator, entidade: 'demanda', entidadeId, acao: 'demanda_criada' as const });
+
+// O statement_timeout e o lock_timeout em vigor, em milissegundos (o Postgres mostra '1s', '993ms', '0'...).
+const UNIDADES: Readonly<Record<string, number>> = { ms: 1, s: 1_000, min: 60_000 };
+function emMs(v: string): number {
+  const m = /^(\d+)(ms|s|min)?$/.exec(v);
+  if (!m) throw new Error('tempo-limite em formato inesperado');
+  return Number(m[1]) * (m[2] ? UNIDADES[m[2]]! : 1);
+}
+const ajustesEmMs = async (tx: Db) => {
+  const r = (await tx.execute<{ stmt: string; lock: string }>(sql`select current_setting('statement_timeout') as stmt, current_setting('lock_timeout') as lock`)).rows[0]!;
+  return { stmt: emMs(r.stmt), lock: emMs(r.lock) };
+};
 
 // Adianta o relógio monotônico da transação a partir do momento em que `adiantar` é chamado.
 function relogioMonotonico() {
@@ -104,6 +116,36 @@ describe('M-3: executarComOrcamento com o prazo total', () => {
     });
     expect(r).toBe('passou');
     expect(await contarEventos(id)).toBe(1);
+  });
+
+  // A-2 da 04-revisao: o piso (o SET LOCAL de hoje) não pode passar por cima do prazo restante. Com 7 s gastos na espera
+  // pela conexão, sobra ~1 s, e é ele que vale na primeira instrução de quem chama, não os 5 s e 2 s do piso.
+  it.each([
+    ['awave', 'padrao', 8_000],
+    ['construir', 'entrega', 12_000],
+  ] as const)('%s (%s): espera longa pela conexão; o tempo-limite em vigor é o restante, não o piso', async (integracao, orcamento, prazo) => {
+    const pool = criarPool(b.urlApp, { max: 1 });
+    const segura = await pool.connect();
+    try {
+      // Relógio parado: nada de tempo corre entre as instruções, e o resultado não depende da velocidade da máquina.
+      let agora = 0;
+      vi.spyOn(performance, 'now').mockImplementation(() => agora);
+      const pendente = executarComOrcamento(pool, atorDeIntegracao(integracao), orcamento, undefined, async ({ tx }) => ajustesEmMs(tx));
+      agora = prazo - 1_000;
+      segura.release();
+      expect(await pendente).toEqual({ stmt: 1_000, lock: 1_000 });
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it('sem espera, o piso continua valendo do começo ao fim (sem a instrução do SET LOCAL a mais)', async () => {
+    const r = await executarComOrcamento(b.poolApp, atorDeIntegracao('awave'), 'padrao', undefined, async ({ tx }) => {
+      const primeira = await ajustesEmMs(tx);
+      await tx.execute(sql`select 1`);
+      return { primeira, segunda: await ajustesEmMs(tx) };
+    });
+    expect(r).toEqual({ primeira: { stmt: 5_000, lock: 2_000 }, segunda: { stmt: 5_000, lock: 2_000 } });
   });
 
   it('pessoa, agente e sistema com a mesma carga lenta: sem 503, grava', async () => {

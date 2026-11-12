@@ -68,5 +68,5 @@ export async function dispararOuReenfileirar(
   const fila = await filaSeDisponivel(t, deps, agente, demandaId);
   if (!fila) return false;
   if ((await criarExecucao(t, { fila, relogio: deps.relogio }, { agente, chaveEntrada, demandaId })) !== null) return true;
-  return (await reenfileirarPendente(t, { fila }, agente, chaveEntrada)) !== null;
+  return (await reenfileirarPendente(t, { fila, relogio: deps.relogio }, agente, chaveEntrada)) !== null;
 }

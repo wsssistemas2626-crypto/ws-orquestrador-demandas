@@ -81,15 +81,11 @@ export async function executarComOrcamento<T>(
 ): Promise<T> {
   if (t) return corpo(t);
   const prazoMs = prazoTotalDe(ator, orcamento);
+  // A-2 da 04-revisao: o SET LOCAL (o piso) roda na abertura da transação, antes do prazo restante, e não no corpo: lá ele
+  // passaria por cima do restante quando a espera pela conexão já gastou quase todo o prazo.
+  const abertura = (tx: Db) => limitarTempo(tx, ator, orcamento);
   try {
-    return await comTransacao(
-      pool,
-      async (tr) => {
-        await limitarTempo(tr.tx, ator, orcamento);
-        return corpo(tr);
-      },
-      prazoMs === null ? {} : { prazoMs, piso: PISO_MS[orcamento] },
-    );
+    return await comTransacao(pool, corpo, prazoMs === null ? { abertura } : { prazoMs, piso: PISO_MS[orcamento], abertura });
   } catch (e) {
     throw traduzirTempoEsgotado(e);
   }
