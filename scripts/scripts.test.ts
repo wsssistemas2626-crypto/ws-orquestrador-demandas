@@ -364,9 +364,10 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
     expect(await contar(b, 'select count(*)::int as n from configuracao_agente where ligado')).toBe(0);
 
     // Uma demanda de cada tipo, mais as dezoito próprias do e2e (08-correcao, DEC-DEM-20261102-0002-v1, na 0.1.13 a da
-    // substituição do pacote e, na 0.2.0, as oito da T06 do DEC-DEM-20261110-0015-v1); uma das cinco com ESP, RSK e DEC
-    // gravados como rascunho de agente (para a T43). Os DECs das demandas do e2e (T06) ficam no teste delas.
-    expect(TOTAL_DEMANDAS_DO_SEED).toBe(23);
+    // substituição do pacote e, na 0.2.0, as oito da T06 do DEC-DEM-20261110-0015-v1) e, na 0.3.0, as cinco das
+    // integrações (T15 do DEC-DEM-20261111-0016-v1, conferidas em seed-integracoes.test.ts); uma das cinco primeiras com
+    // ESP, RSK e DEC gravados como rascunho de agente (para a T43). Os DECs das demandas do e2e (T06) ficam no teste delas.
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(28);
     const tipos = (await b.poolMigrator.query('select distinct tipo from demanda order by tipo')).rows.map((r) => r.tipo);
     expect(tipos).toEqual(['bug', 'estudo', 'melhoria', 'novo_projeto', 'produto_proprio']);
     expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
@@ -406,10 +407,16 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
   // vêm daqui pelo mesmo limite.
   // 0.2.0 (T06 do DEC-DEM-20261110-0015-v1): `etapasDupla` e `decisaoRecomendaB` nascem com ESP, RSK e DEC (teste
   // abaixo); as outras dezesseis seguem sem versão nenhuma e em Nova.
+  // 0.3.0 (T15 do DEC-DEM-20261111-0016-v1): as cinco das integrações têm autoria (Awave) e estado (pedido gerado,
+  // entregue, recebido) próprios, e o teste delas é seed-integracoes.test.ts. Este confere as dezoito de antes, como antes.
+  const DA_T15 = ['awaveAguardando', 'awaveConfirmar', 'awaveEncerrada', 'pedidoParaBuscar', 'pedidoRecebido'] as const;
+
   it('as demandas próprias do e2e: uma por título, de títulos diferentes, sem versão nenhuma, em Nova e pela conta sem2fa', async () => {
-    const titulos = Object.values(TITULOS_DO_E2E);
+    const todos = Object.values(TITULOS_DO_E2E);
+    const daT15: readonly string[] = DA_T15.map((chave) => TITULOS_DO_E2E[chave]);
+    const titulos = todos.filter((t) => !daT15.includes(t));
     const comVersoes: readonly string[] = [TITULOS_DO_E2E.etapasDupla, TITULOS_DO_E2E.decisaoRecomendaB];
-    expect(new Set(titulos).size).toBe(titulos.length);
+    expect(new Set(todos).size).toBe(todos.length);
     const linhas = (
       await b.poolMigrator.query(
         `select d.titulo, d.tipo, d.status, d.autor_tipo, u.email, d.contexto,
@@ -454,6 +461,7 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
       { solicitante_nome: 'Carla Santos Ficticia', solicitante_papel: 'operacoes', linha_servico_provavel: 'sob_medida', contexto: 'A filial de Santos calcula o frete à mão.' },
     ]);
     expect(titulos).toHaveLength(18);
+    expect(todos).toHaveLength(23);
     // A conta cto fica com as cinco de antes (uma de cada tipo), e a administradora com nenhuma, como antes da 08-correcao.
     const doSeedPor = (email: string) => contar(b, `select count(*)::int as n from demanda d join "user" u on u.id = d.autor_id where u.email = $1`, [email]);
     expect(await doSeedPor(CONTAS_FICTICIAS.cto.email)).toBe(5);
@@ -555,7 +563,8 @@ describe('seed fictício (padrão técnico seção 9, C-37)', () => {
   it('T06: rodar o seed de novo não duplica demanda, versão, aprovação nem aviso', async () => {
     const tabelas = ['demanda', 'especificacao_tecnica', 'parecer_risco', 'pacote_decisao', 'aprovacao', 'decisao', 'aviso_email', '"user"'];
     const antes = await Promise.all(tabelas.map((t) => contar(b, `select count(*)::int as n from ${t}`)));
-    expect(antes.slice(0, 5)).toEqual([TOTAL_DEMANDAS_DO_SEED, 3, 3, 3, 1]);
+    // 0.3.0 (T15): mais a ESP, o RSK, o DEC e a aprovação de cada um dos dois pedidos das integrações.
+    expect(antes.slice(0, 5)).toEqual([TOTAL_DEMANDAS_DO_SEED, 5, 5, 5, 3]);
     expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('recusado');
     expect(await Promise.all(tabelas.map((t) => contar(b, `select count(*)::int as n from ${t}`)))).toEqual(antes);
   });
@@ -837,11 +846,12 @@ describe('qa-automacao T33: borda, falha e concorrência', () => {
       expect(await contar(b, "select count(*)::int as n from evento where acao = 'conta_criada'")).toBe(4);
 
       // O DEC de agente deixa o aviso pendente e o job aviso.dec-pronto com payload só { decId } (C-22, para a T43). Desde
-      // a 0.2.0 (T06 do DEC-DEM-20261110-0015-v1), também os dois DECs das demandas do e2e: um aviso e um job por DEC.
+      // a 0.2.0 (T06 do DEC-DEM-20261110-0015-v1), também os dois DECs das demandas do e2e e, desde a 0.3.0 (T15 do
+      // DEC-DEM-20261111-0016-v1), os dois dos pedidos das integrações: um aviso e um job por DEC.
       const decId = (await b.poolMigrator.query('select id from pacote_decisao where demanda_titulo <> all($1)', [Object.values(TITULOS_DO_E2E)])).rows[0]
         .id as string;
       const decIds = (await b.poolMigrator.query('select id from pacote_decisao order by id')).rows.map((r) => r.id as string);
-      expect(decIds).toHaveLength(3);
+      expect(decIds).toHaveLength(5);
       expect(decIds).toContain(decId);
       const avisos = (await b.poolMigrator.query('select pacote_decisao_id, status from aviso_email order by pacote_decisao_id')).rows;
       expect(avisos).toEqual(decIds.map((id) => ({ pacote_decisao_id: id, status: 'pendente' })));
@@ -1039,7 +1049,9 @@ describe('qa-automacao T06: estado das demandas do e2e da 0.2.0', () => {
     try {
       await expect(seedFicticio({ ...deps, fila: filaQueFalha }, { SEED_FICTICIO: '1' })).rejects.toThrow(FALHA);
       expect(new Set(avisos).size).toBe(3);
-      expect(naTransacao).toEqual({ demandas: TOTAL_DEMANDAS_DO_SEED, decs: 3, aprovacoes: 1 });
+      // 0.3.0 (T15 do DEC-DEM-20261111-0016-v1): as cinco demandas das integrações vêm depois das versões do e2e, e
+      // ainda não existem quando o terceiro aviso falha.
+      expect(naTransacao).toEqual({ demandas: TOTAL_DEMANDAS_DO_SEED - 5, decs: 3, aprovacoes: 1 });
       for (const tabela of [
         '"user"',
         'account',
@@ -1061,8 +1073,9 @@ describe('qa-automacao T06: estado das demandas do e2e da 0.2.0', () => {
       // Nada ficou para trás que faça o seed recusar o banco: a subida seguinte semeia por inteiro.
       expect(await seedFicticio(deps, { SEED_FICTICIO: '1' })).toBe('semeado');
       expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
-      expect(await contar(b, 'select count(*)::int as n from pacote_decisao')).toBe(3);
-      expect(await contar(b, 'select count(*)::int as n from aprovacao')).toBe(1);
+      // Mais o DEC e a aprovação de cada um dos dois pedidos das integrações (T15).
+      expect(await contar(b, 'select count(*)::int as n from pacote_decisao')).toBe(5);
+      expect(await contar(b, 'select count(*)::int as n from aprovacao')).toBe(3);
     } finally {
       await deps.fila.parar();
       await b.fechar();
