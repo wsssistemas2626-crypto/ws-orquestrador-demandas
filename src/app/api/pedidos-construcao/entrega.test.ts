@@ -194,7 +194,12 @@ describe('as duas rotas do /construir', () => {
 
   it('sha256DoPedido é o SHA-256 em hexadecimal minúsculo dos bytes UTF-8 do texto', () => {
     expect(sha256DoPedido('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-    expect(sha256DoPedido('ação')).toBe(sha('ação'));
+    // Vetor fixo do FIPS 180-2 e um oráculo dos bytes UTF-8 escritos à mão (61 c3 a7 c3 a3 6f), que não passa pela
+    // codificação de texto da função testada (Minor 1 da 06-T11-revisao).
+    expect(sha256DoPedido('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    const bytesUtf8 = createHash('sha256').update(Buffer.from([0x61, 0xc3, 0xa7, 0xc3, 0xa3, 0x6f])).digest('hex');
+    expect(sha256DoPedido('ação')).toBe(bytesUtf8);
+    expect(sha256DoPedido('ação')).not.toBe(createHash('sha256').update('ação', 'latin1').digest('hex'));
     expect(RE_SHA256.test(sha256DoPedido('{"pedido":"x"}'))).toBe(true);
   });
 });
@@ -280,7 +285,7 @@ describe('POST /api/pedidos-construcao/:decId/entrega (RF-13)', () => {
     expect((await entreguesDo(decId)).map((e) => e.depois)).toEqual([{ sha256: '0'.repeat(64) }, { sha256: sha(json!) }]);
   });
 
-  it('IN-11 na entrega: três entregas ao mesmo tempo dão os mesmos bytes e um só pedido_entregue (a trava da demanda)', async () => {
+  it('P-02 sob concorrência: três entregas ao mesmo tempo dão os mesmos bytes e um só pedido_entregue (a trava da demanda)', async () => {
     const { decId, json } = await prepararDec();
     const respostas = await Promise.all([entregar(decId), entregar(decId), entregar(decId)]);
     expect(respostas.map((r) => r.status)).toEqual([200, 200, 200]);
