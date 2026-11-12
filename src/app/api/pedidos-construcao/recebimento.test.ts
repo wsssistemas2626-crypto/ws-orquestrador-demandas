@@ -363,16 +363,30 @@ describe('POST /api/pedidos-construcao/:decId/recebimento (RF-14)', () => {
          values ($1, 'integracao', 'construir', 'ficticio', $2, 'pacote_decisao', $3, 'pedido_recebido', $4::jsonb)`,
         [deps.relogio.agora().toISOString(), demandaId, decId, JSON.stringify({ sha256 })],
       );
-      resposta = receber(decId, { sha256 });
-      // Espera o pedido chegar à fila da trava (sem ela, nunca chega e o laço sai pelo limite de tentativas).
-      for (let i = 0; i < 50; i++) {
+      let terminou = false;
+      resposta = receber(decId, { sha256 }).finally(() => {
+        terminou = true;
+      });
+      // Espera o pedido chegar à fila da trava (sem ela, nunca chega e o laço sai pelo limite de tentativas). Só conta a
+      // espera na chave deste DEC: a chave bigint aparece em pg_locks com a metade alta em classid, a baixa em objid e
+      // objsubid 1, então outra trava consultiva do banco (a do pg-boss, por exemplo) não passa por esta.
+      let viuEspera = false;
+      for (let i = 0; i < 250 && !viuEspera; i++) {
         const { rows } = await b.poolMigrator.query<{ n: number }>(
           `select count(*)::int as n from pg_locks
-            where locktype = 'advisory' and not granted and database = (select oid from pg_database where datname = current_database())`,
+            where locktype = 'advisory' and not granted and objsubid = 1
+              and database = (select oid from pg_database where datname = current_database())
+              and classid::bigint = ((hashtextextended($1, 0) >> 32) & 4294967295)
+              and objid::bigint = (hashtextextended($1, 0) & 4294967295)`,
+          [`pedido:${decId}`],
         );
-        if (rows[0]!.n > 0) break;
-        await new Promise((r) => setTimeout(r, 20));
+        viuEspera = rows[0]!.n > 0;
+        if (!viuEspera) await new Promise((r) => setTimeout(r, 20));
       }
+      // Minor 3 da 06-T12-revisao: sem a espera vista, o teste não prova a trava, e falha em vez de passar calado. Com a
+      // trava presa aqui, o pedido também não pode ter respondido.
+      expect(viuEspera).toBe(true);
+      expect(terminou).toBe(false);
       await outra.query('commit');
     } catch (e) {
       await outra.query('rollback');
