@@ -93,3 +93,4 @@
 {"pedido":"DEC-DEM-20261111-0016-v1","etapa":"07-qa-funcional","de":"qa-funcional","para":"maestro","status":"pronto","volta":0,"inicio":"2026-11-12T15:53:36.000Z","fim":"2026-11-12T16:03:21.215Z","minutos":10,"motivo":null}
 {"pedido":"DEC-DEM-20261111-0016-v1","etapa":"08-revisao","de":"maestro","para":"devops-sre","status":"pronto","volta":0,"inicio":"2026-11-12T16:03:21.000Z","fim":"2026-11-12T16:08:53.084Z","minutos":6,"motivo":null}
 {"pedido":"DEC-DEM-20261111-0016-v1","etapa":"09-entrega","de":"devops-sre","para":"documentacao-tecnica","status":"pronto","volta":0,"inicio":"2026-11-12T16:08:53.000Z","fim":"2026-11-12T16:40:39.098Z","minutos":32,"motivo":null}
+{"pedido":"DEC-DEM-20261111-0016-v1","etapa":"10-documentacao","de":"documentacao-tecnica","para":"maestro","status":"pronto","volta":0,"inicio":"2026-11-12T16:40:39.000Z","fim":"2026-11-12T16:55:17.656Z","minutos":15,"motivo":null}
