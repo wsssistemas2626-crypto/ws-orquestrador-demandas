@@ -61,3 +61,4 @@
 {"pedido":"DEC-DEM-20261111-0016-v1","etapa":"06-T12-revisao","de":"tech-lead","para":"qa-automacao","status":"pronto","volta":0,"inicio":"2026-11-12T02:00:39.000Z","fim":"2026-11-12T02:07:47.149Z","minutos":7,"motivo":null}
 {"pedido":"DEC-DEM-20261111-0016-v1","etapa":"06-T12-testes","de":"qa-automacao","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-11-12T02:07:47.000Z","fim":"2026-11-12T02:17:18.103Z","minutos":10,"motivo":null}
 {"pedido":"DEC-DEM-20261111-0016-v1","etapa":"06-T13-construcao","de":"engenheiro-backend","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-11-12T02:17:18.000Z","fim":"2026-11-12T02:39:22.187Z","minutos":22,"motivo":null}
+{"pedido":"DEC-DEM-20261111-0016-v1","etapa":"06-T13-revisao","de":"tech-lead","para":"qa-automacao","status":"pronto","volta":0,"inicio":"2026-11-12T02:39:22.000Z","fim":"2026-11-12T02:46:15.226Z","minutos":7,"motivo":null}
