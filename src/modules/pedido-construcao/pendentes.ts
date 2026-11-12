@@ -13,7 +13,8 @@ import { expressaoDesatualizado } from '../pacotes-decisao/desatualizado';
 import { expressaoSubstituidoPor } from '../pacotes-decisao/substituido';
 
 const ENTIDADE = 'pacote_decisao';
-const RE_SHA256 = /^[0-9a-f]{64}$/;
+// O formato do hash do pedido, numa fonte só: entregar.ts reexporta (Minor 1 da 06-T10-revisao).
+export const RE_SHA256 = /^[0-9a-f]{64}$/;
 
 // Nome próprio para o NOT EXISTS correlacionado: a subconsulta `g` também lê `evento`.
 const recebido = alias(evento, 'recebido');
