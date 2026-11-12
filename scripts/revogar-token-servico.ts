@@ -5,6 +5,10 @@
 // O prefixo identifica o token sem revelá-lo: é o que o script de criação mostra e o que o histórico guarda. Numa
 // transação: `revogado_em` = agora em todo token ativo com o prefixo e o evento `token_revogado` do sistema, com o
 // prefixo. Rodar de novo, ou com prefixo sem token ativo, não muda nada nem grava evento.
+//
+// Vale para token de agente e de integração (`awave`, `construir`; 0.3.0, RF-02 do DEC-DEM-20261111-0016-v1), sem
+// mudar de forma. Troca (a cada 12 meses, P-04, ou já, em suspeita de vazamento): emitir o novo por
+// criar-token-servico.ts, trocar no cliente e só então revogar o antigo por aqui. Revogar um token não toca nos outros.
 import { z } from 'zod';
 import { comTransacao } from '../src/db/transacao';
 import type { Deps } from '../src/lib/deps';
