@@ -11,6 +11,7 @@ import { AGENTES, atorDesconhecido, ehIntegracao, type Agente, type Ator, type A
 import { MENSAGENS_ACESSO } from '../acesso/mensagens';
 import { minimizarValor } from '../dados-pessoais/minimizar';
 import { executarComOrcamento } from '../integracoes/tempo-limite';
+import { condicaoVisivelAoAgente, exigirVisivelPara } from './confirmacao';
 import { expressaoDesatualizado } from '../pacotes-decisao/desatualizado';
 import { expressaoSubstituidoPor } from '../pacotes-decisao/substituido';
 import type { FiltroDemandas, OrigemDaDemanda, Status, Tipo } from './schemas';
@@ -373,7 +374,8 @@ export async function obterDemandaDaIntegracao(db: Db, ator: AtorIntegracao, id:
 }
 
 // O GET por id decide pelo tipo do ator antes de qualquer leitura: integração nunca passa por obterDemanda (D-16) e lê
-// na transação com o orçamento de tempo dela (ADR-28, IN-14). Pessoa, agente e sistema seguem como hoje.
+// na transação com o orçamento de tempo dela (ADR-28, IN-14). Pessoa segue como hoje. Agente e sistema (M-1 da 0019):
+// a demanda que aguarda a confirmação de uma pessoa dá o mesmo 404 do id inexistente.
 export async function lerDemandaPara(
   deps: { db: Db; pool: pg.Pool },
   ator: Ator,
@@ -383,8 +385,10 @@ export async function lerDemandaPara(
     case 'integracao':
       return executarComOrcamento(deps.pool, ator, 'padrao', undefined, ({ tx }) => obterDemandaDaIntegracao(tx, ator, id));
     case 'pessoa':
+      return vistaDaDemandaPara(ator, await obterDemanda(deps.db, id));
     case 'agente':
     case 'sistema':
+      await exigirVisivelPara(deps.db, ator, id);
       return vistaDaDemandaPara(ator, await obterDemanda(deps.db, id));
     default:
       return atorDesconhecido(ator);
@@ -426,13 +430,15 @@ function vistaMinimaDaDemanda(d: DemandaVista): DemandaVistaMinima {
 type PaginaDeDemandas = { itens: DemandaResumo[]; total: number; limit: number; offset: number };
 
 // Uma consulta só para o painel e para a API. O `solicitanteNome` é lido só para a troca do M-1 e nunca sai no item; a
-// autoria é lida só para a origem (RF-10 do 0016), e o `autorId` também nunca sai.
-async function paginaDeDemandas(db: Db, filtro: FiltroDemandas) {
+// autoria é lida só para a origem (RF-10 do 0016), e o `autorId` também nunca sai. `soVisiveisAoAgente` (M-1 da 0019):
+// o mesmo `onde` dos itens e do total deixa de fora a demanda que aguarda confirmação.
+async function paginaDeDemandas(db: Db, filtro: FiltroDemandas, op: { soVisiveisAoAgente: boolean } = { soVisiveisAoAgente: false }) {
   const onde = and(
     filtro.status ? eq(demanda.status, filtro.status) : undefined,
     filtro.tipo ? eq(demanda.tipo, filtro.tipo) : undefined,
     filtro.linhaServicoProvavel ? eq(demanda.linhaServicoProvavel, filtro.linhaServicoProvavel) : undefined,
     filtro.origem ? condicaoDaOrigem(filtro.origem) : undefined,
+    op.soVisiveisAoAgente ? condicaoVisivelAoAgente() : undefined,
   );
   const linhas = await db
     .select({
@@ -479,19 +485,24 @@ export async function listarDemandas(db: Db, filtro: FiltroDemandas): Promise<Pa
 
 // M-1 do 0008: a listagem da API. Lista de permissão: só pessoa vê o título original; qualquer outro ator recebe o
 // título minimizado com o nome do solicitante do próprio item. Integração (IN-02): recusada antes de qualquer leitura (a
-// matriz nega listar_demandas a toda integração; isto protege contra uso sem autorizar).
+// matriz nega listar_demandas a toda integração; isto protege contra uso sem autorizar). M-1 da 0019: agente e sistema
+// não veem a demanda que aguarda confirmação, nem nos itens nem no total.
 export async function listarDemandasPara(db: Db, filtro: FiltroDemandas, ator: Ator): Promise<PaginaDeDemandas> {
+  let soVisiveisAoAgente: boolean;
   switch (ator.tipo) {
     case 'pessoa':
+      soVisiveisAoAgente = false;
+      break;
     case 'agente':
     case 'sistema':
+      soVisiveisAoAgente = true;
       break;
     case 'integracao':
       throw semPermissao();
     default:
       return atorDesconhecido(ator);
   }
-  const { linhas, ...resto } = await paginaDeDemandas(db, filtro);
+  const { linhas, ...resto } = await paginaDeDemandas(db, filtro, { soVisiveisAoAgente });
   const ehPessoa = ator.tipo === 'pessoa';
   return { itens: linhas.map((l) => resumoDe(l, ehPessoa ? l.titulo : textoMinimo(l.titulo, nomesDoSolicitante(l.solicitanteNome)))), ...resto };
 }

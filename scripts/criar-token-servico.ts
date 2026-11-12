@@ -14,7 +14,7 @@
 import { z } from 'zod';
 import { comTransacao, type Transacao } from '../src/db/transacao';
 import type { Deps } from '../src/lib/deps';
-import { deZod } from '../src/lib/erros';
+import { deZod, ErroDominio } from '../src/lib/erros';
 import { log, type CamposLog } from '../src/lib/log';
 import type { Relogio } from '../src/lib/relogio';
 import { AGENTES, INTEGRACOES, type Agente, type Integracao } from '../src/modules/acesso/ator';
@@ -107,12 +107,31 @@ export async function criarTokenDeIntegracaoPorScript(
   return emitir(deps, { tipo: 'integracao', integracao }, saida);
 }
 
-// O `main` do script, exportado para teste: lê os argumentos, cria e sai com 0.
+// B-2 da 0019: a decisão do alvo, pura e com a falha fechada no fim. Exatamente um entre agente e integração; nenhum dos
+// dois, ou os dois, lança a mesma mensagem fixa do schema, sem valor de argumento (o schema já recusa; isto vale se ele
+// regredir).
+export function donoDosArgumentos(a: { agente?: Agente; integracao?: Integracao }): Dono {
+  if (a.agente !== undefined && a.integracao === undefined) return { tipo: 'agente', agente: a.agente };
+  if (a.integracao !== undefined && a.agente === undefined) return { tipo: 'integracao', integracao: a.integracao };
+  throw new ErroDominio('entrada_invalida', MENSAGEM_UM_DOS_DOIS);
+}
+
+// O `main` do script, exportado para teste: lê os argumentos, cria e sai com 0. Não há caminho de sucesso sem emissão.
 export async function executarCriarToken(deps: Pick<Deps, 'pool' | 'relogio'>, argv: readonly string[], saida: Saida): Promise<number> {
-  const { agente, integracao } = lerArgumentos(argumentosCriarToken, argv);
-  if (agente !== undefined) await criarTokenPorScript(deps, agente, saida);
-  else if (integracao !== undefined) await criarTokenDeIntegracaoPorScript(deps, integracao, saida);
-  return 0;
+  const dono = donoDosArgumentos(lerArgumentos(argumentosCriarToken, argv));
+  switch (dono.tipo) {
+    case 'agente':
+      await criarTokenPorScript(deps, dono.agente, saida);
+      return 0;
+    case 'integracao':
+      await criarTokenDeIntegracaoPorScript(deps, dono.integracao, saida);
+      return 0;
+    default: {
+      const nunca: never = dono;
+      void nunca;
+      throw new Error('dono de token desconhecido');
+    }
+  }
 }
 
 if (ehExecucaoDireta(process.argv[1], import.meta.url, process.cwd())) {

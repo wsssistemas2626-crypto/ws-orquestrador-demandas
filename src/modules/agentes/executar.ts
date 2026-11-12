@@ -2,8 +2,13 @@
 // 1. reivindica a execução (UPDATE condicional): nada voltou → `ja_tratada`, sem chamar o provedor (CA-16.4);
 // 2. agente desligado, sem modelo com preço vigente ou sem provedor (sem chave) → `ignorada` + `agente_ignorado` (CA-19.4);
 // 3. gasto do mês ≥ teto → `ignorada` + `suspensao_por_teto` (CA-18.1, CA-18.3, C-26);
+// 3a. M-5 da 0019: a demanda da entrada (a da chave, que montarEntrada lê). Chave que não acha → `falhou`
+//     `entrada_nao_encontrada`; agente fora o orquestrador sem demanda, ou com demanda diferente da execução → o mesmo
+//     `falhou` (falha fechada), sem chamar o provedor. 3b e 3c olham esta demanda;
 // 3b. demanda em status final → `ignorada` + `agente_ignorado`, sem chamar o provedor (M-02);
-// 3c. demanda do Awave ainda não confirmada por pessoa → `ignorada` + `agente_ignorado` `sem_confirmacao` (IN-06, D-07);
+// 3c. demanda do Awave ainda não confirmada por pessoa → volta a `pendente`, sem job, com `agente_ignorado`
+//     `sem_confirmacao` (IN-06, D-07) e o resultado `aguardando_confirmacao`; a chave não é gasta, e a confirmação a
+//     reenfileira (M-5 da 0019);
 // 4. monta a entrada pela lista de permissão, minimizada (T24), com o prompt do agente (T26);
 // 5. chama o provedor fora de qualquer transação;
 // 6. JSON + schema da rota (ADR-09). Válido: numa transação, o serviço da API grava o artefato com o ator agente (passa
@@ -34,9 +39,9 @@ import { criarPacoteDecisao, NIVEL_DO_DEC_DE_AGENTE } from '../pacotes-decisao/c
 import { criarParecerRiscoSchema } from '../pareceres-risco/schemas';
 import { criarParecerRisco } from '../pareceres-risco/servico';
 import { obterConfiguracaoAgente } from './configuracao';
-import { montarEntrada, type CitadosNaEntrada, type EntradaDoAgente } from './entrada-agente';
+import { demandaDaChave, montarEntrada, type CitadosNaEntrada, type EntradaDoAgente } from './entrada-agente';
 import { TENTATIVAS_MAXIMAS } from './espera';
-import { confirmarPosse, encerrar, ExecucaoPerdida, reagendar, reivindicar, type ExecucaoAgente } from './execucoes';
+import { confirmarPosse, devolverAPendenteSemJob, encerrar, ExecucaoPerdida, reagendar, reivindicar, type ExecucaoAgente } from './execucoes';
 import { calcularCusto, precoVigente, type PrecoPorMilhao } from './preco';
 import { ErroProvedor, type ProvedorIA, type RespostaDoProvedor } from './provedor';
 import { gravarSaidaOrquestrador } from './saida-orquestrador';
@@ -46,7 +51,7 @@ import { registrarUso } from './uso';
 
 // O que a execução usa das dependências: o worker monta estas, sem Better Auth (os serviços usam db, pool e relógio).
 export type DepsAgente = Pick<Deps, 'db' | 'pool' | 'relogio' | 'fila'> & { provedor: ProvedorIA | null };
-export type ResultadoExecucao = 'concluida' | 'reagendada' | 'falhou' | 'ignorada' | 'ja_tratada';
+export type ResultadoExecucao = 'concluida' | 'reagendada' | 'falhou' | 'ignorada' | 'ja_tratada' | 'aguardando_confirmacao';
 
 export type DestinoDoAgente = {
   schema: z.ZodType;
@@ -192,6 +197,24 @@ async function ignorar(c: Contexto, acao: Extract<AcaoEvento, 'agente_ignorado' 
   return 'ignorada';
 }
 
+// M-5 da 0019 (P2): a demanda aguarda a confirmação de uma pessoa. A execução volta a pendente, sem job, com a
+// tentativa devolvida, e a confirmação a reenfileira (dispararOuReenfileirar). O evento é o mesmo de antes
+// (`agente_ignorado` com `sem_confirmacao`): o texto fixo do histórico (D-18) não muda.
+async function adiarAteConfirmacao(c: Contexto): Promise<ResultadoExecucao> {
+  const { deps, exec } = c;
+  const motivo: MotivoIgnorada = 'sem_confirmacao';
+  await comTransacao(deps.pool, async ({ tx }) => {
+    await devolverAPendenteSemJob(tx, exec, deps.relogio);
+    await registrarEvento(
+      tx,
+      { ator: SISTEMA, demandaId: exec.demandaId, entidade: 'execucao_agente', entidadeId: exec.id, acao: 'agente_ignorado', depois: { agente: exec.agente, motivo } },
+      deps.relogio,
+    );
+  });
+  log.info({ evento: 'agente_ignorado', codigoErro: motivo, status: 'aguardando_confirmacao', ...camposDeLog(c) });
+  return 'aguardando_confirmacao';
+}
+
 // Ainda há tentativa: volta a pendente com o job da próxima; senão, falha com o motivo.
 async function tentarDeNovoOuFalhar(c: Contexto, motivo: MotivoFalha): Promise<ResultadoExecucao> {
   if (c.exec.tentativas >= TENTATIVAS_MAXIMAS) return falhar(c, motivo);
@@ -231,12 +254,22 @@ async function executarReivindicada(c: Contexto): Promise<ResultadoExecucao> {
   if (config.modelo === null || preco === null) return ignorar(c, 'agente_ignorado', 'sem_preco');
   if (!deps.provedor) return ignorar(c, 'agente_ignorado', 'sem_provedor');
   if ((await situacaoDoTeto(deps.db, deps.relogio)).suspenso) return ignorar(c, 'suspensao_por_teto', 'teto');
+  // 3a (M-5 da 0019): as guardas olham a demanda que a entrada vai ler, achada pela chave. Sem ela (fora o orquestrador)
+  // ou diferente da execução, falha fechada: não há uso legítimo, e os DESTINOS gravam na demanda da execução.
+  let demandaDaEntrada: string | null;
+  try {
+    demandaDaEntrada = await demandaDaChave(deps.db, exec.agente, exec.chaveEntrada);
+  } catch (e) {
+    if (e instanceof ErroDominio && e.codigo === 'nao_encontrado') return falhar(c, 'entrada_nao_encontrada');
+    throw e;
+  }
+  if (exec.agente !== 'orquestrador' && (demandaDaEntrada === null || demandaDaEntrada !== exec.demandaId)) return falhar(c, 'entrada_nao_encontrada');
   // M-02: a execução que estava na fila quando a demanda chegou a status final não chama o provedor. A demanda fechada
   // durante a chamada é recusada pelo serviço, sob a trava (409 → recusada_pelo_servico, sem nova tentativa).
-  if (exec.demandaId !== null && (await demandaEmStatusFinal(deps.db, exec.demandaId))) return ignorar(c, 'agente_ignorado', 'demanda_final');
+  if (demandaDaEntrada !== null && (await demandaEmStatusFinal(deps.db, demandaDaEntrada))) return ignorar(c, 'agente_ignorado', 'demanda_final');
   // 3c (0.3.0, IN-06, D-07): defesa em profundidade do gatilho. A execução de uma demanda do Awave que nenhuma pessoa
-  // confirmou não chama o provedor nem grava uso, venha de onde vier.
-  if (exec.demandaId !== null && (await aguardaConfirmacao(deps.db, exec.demandaId))) return ignorar(c, 'agente_ignorado', 'sem_confirmacao');
+  // confirmou não chama o provedor nem grava uso, venha de onde vier. M-5 da 0019: sem gastar a chave.
+  if (demandaDaEntrada !== null && (await aguardaConfirmacao(deps.db, demandaDaEntrada))) return adiarAteConfirmacao(c);
 
   let entrada: EntradaDoAgente;
   try {

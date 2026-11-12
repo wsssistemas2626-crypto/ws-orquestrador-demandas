@@ -12,6 +12,7 @@ import type { Deps } from '../lib/deps';
 import { FILAS } from '../lib/fila';
 import { log } from '../lib/log';
 import { chaveDoJob } from '../modules/agentes/execucoes';
+import { semEsperaDeConfirmacao } from '../modules/demandas/confirmacao';
 
 // Folga antes de reenfileirar a pendente: o job dela pode só estar esperando a vez na fila.
 export const FOLGA_PENDENTE_MS = 60_000;
@@ -37,14 +38,20 @@ export async function batimento(deps: DepsBatimento, instancia: string): Promise
     .delete(workerBatimento)
     .where(and(lt(workerBatimento.vistoEm, new Date(agora.getTime() - GUARDA_BATIMENTO_MS)), ne(workerBatimento.instancia, instancia)));
 
-  // A pendente da 1ª tentativa não tem proxima_tentativa_em: conta a hora em que ela foi criada ou mudou por último.
+  // A pendente da 1ª tentativa não tem proxima_tentativa_em: conta a hora em que ela foi criada ou mudou por último. M-5
+  // da 0019: a pendente cuja demanda aguarda a confirmação de uma pessoa não é órfã (o worker a devolveu de propósito, e
+  // a confirmação a reenfileira); sem este filtro, ela voltaria ao worker a cada minuto.
   const limitePendente = new Date(agora.getTime() - FOLGA_PENDENTE_MS);
   const orfas = await deps.db
     .select({ id: execucaoAgente.id, agente: execucaoAgente.agente, chaveEntrada: execucaoAgente.chaveEntrada, tentativas: execucaoAgente.tentativas })
     .from(execucaoAgente)
     .where(
       or(
-        and(eq(execucaoAgente.status, 'pendente'), lt(sql`coalesce(${execucaoAgente.proximaTentativaEm}, ${execucaoAgente.atualizadaEm})`, limitePendente)),
+        and(
+          eq(execucaoAgente.status, 'pendente'),
+          lt(sql`coalesce(${execucaoAgente.proximaTentativaEm}, ${execucaoAgente.atualizadaEm})`, limitePendente),
+          semEsperaDeConfirmacao(execucaoAgente.demandaId),
+        ),
         and(eq(execucaoAgente.status, 'em_andamento'), lt(execucaoAgente.bloqueadaAte, agora)),
       ),
     )

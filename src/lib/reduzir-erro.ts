@@ -23,6 +23,7 @@ export const CLASSES_DO_PROJETO: ReadonlySet<string> = new Set([
   'AvisoNaoEnviado', // src/modules/avisos/aviso-dec.ts
   'ExecucaoPerdida', // src/modules/agentes/execucoes.ts
   'TempoEsgotado', // src/app/api/saude/route.ts
+  'PrazoDaTransacaoEsgotado', // src/db/transacao.ts (M-3 da 0019)
 ]);
 
 // B-1 do 0009: a classe que pode sair no log e no Sentry. 'desconhecido' (o valor que não é Error), um identificador

@@ -16,6 +16,7 @@ import { AGENTES, type Ator } from '../../../modules/acesso/ator';
 import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenDeIntegracao, criarTokenServico, revogarTokenServico, validarTokenServico } from '../../../modules/acesso/tokens-servico';
 import { situacaoDoTeto } from '../../../modules/agentes/teto';
+import { confirmarDemanda } from '../../../modules/demandas/confirmar';
 import { autoriaDaDemanda } from '../../../modules/demandas/servico';
 import { MENSAGEM_INDISPONIVEL } from '../../../modules/integracoes/tempo-limite';
 import { MENSAGEM_LIMITE, MENSAGEM_LIMITE_AWAVE } from '../../../modules/limites';
@@ -256,9 +257,21 @@ describe('IN-05 e IN-12: o que o POST do Awave grava', () => {
     expect((await porSessao(cookie)).status).toBe(201);
   });
 
-  it('CA-10.6: um agente lê a demanda do Awave com a vista mínima, e o responsável é a integração', async () => {
+  // Mudança aprovada (M-1 da 0019, substitui o CA-10.6), por Fabiano em 12/11 (P5 da 02-triagem, IN-16): antes da
+  // confirmação, o agente recebe o mesmo 404 da demanda inexistente; depois de uma pessoa confirmar, valem as asserções
+  // do CA-10.6, sem mudança.
+  it('CA-10.6, mudança aprovada (M-1 da 0019, substitui o CA-10.6): antes da confirmação, 404 igual ao inexistente; depois, a vista mínima, e o responsável é a integração', async () => {
     const id = await idDo(await porToken(a.token));
     const deAgente = (await comTransacao(a.deps.pool, (t) => criarTokenServico(t, 'risco', a.relogio))).token;
+    const inexistente = 'DEM-20261112-9999';
+    const r404 = await chamarRota(rotaDemanda.GET, { caminho: `/api/demandas/${inexistente}`, params: { id: inexistente }, bearer: deAgente, semOrigin: true });
+    const antes = await chamarRota(rotaDemanda.GET, { caminho: `/api/demandas/${id}`, params: { id }, bearer: deAgente, semOrigin: true });
+    expect(r404.status).toBe(404);
+    expect(antes.status).toBe(404);
+    expect(await antes.text()).toBe(await r404.text());
+    const confirmadora = await criarPessoa(a.deps, { papel: 'cto' });
+    await confirmarDemanda(a.deps, { tipo: 'pessoa', usuarioId: confirmadora.usuarioId, nome: 'Pessoa Ficticia', papel: 'cto' }, id);
+
     const r = await chamarRota(rotaDemanda.GET, { caminho: `/api/demandas/${id}`, params: { id }, bearer: deAgente, semOrigin: true });
     expect(r.status).toBe(200);
     const corpo = (await r.json()) as Record<string, unknown>;

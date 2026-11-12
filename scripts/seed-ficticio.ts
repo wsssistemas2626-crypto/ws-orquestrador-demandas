@@ -441,7 +441,9 @@ async function criarDemandas(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: Pe
 async function criarDadosDasIntegracoes(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: PessoasDoSeed): Promise<number> {
   for (const d of DEMANDAS_DO_AWAVE) {
     const dem = await criarDemanda(deps, AWAVE_DO_SEED, criarDemandaSchema.parse(d), t);
-    if (dem.titulo === TITULOS_DO_E2E.awaveEncerrada) await alterarDemanda(deps, cto, dem.id, alterarDemandaSchema.parse({ status: 'encerrada' }), t);
+    // M-2 da 0019: para a integração, criarDemanda devolve a vista de seis chaves, com o título minimizado ("Awave" vira o
+    // marcador). O título conferido é o da entrada.
+    if (d.titulo === TITULOS_DO_E2E.awaveEncerrada) await alterarDemanda(deps, cto, dem.id, alterarDemandaSchema.parse({ status: 'encerrada' }), t);
   }
   for (const d of DEMANDAS_DOS_PEDIDOS) {
     const dem = await criarDemanda(deps, sem2fa, criarDemandaSchema.parse(d), t);

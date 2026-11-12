@@ -227,23 +227,28 @@ describe('POST /recebimento: o hash é por DEC e por entrega (IN-12)', () => {
     expect(await pendentesEntre([a.decId, outro.decId]).then((ids) => [...ids].sort())).toEqual([a.decId, outro.decId].sort());
   });
 
-  it('um pedido_recebido por hash entregue: cada hash confirma uma vez, e repetir qualquer um não grava de novo', async () => {
+  // Mudança aprovada (M-4 da 0019, P1 aprovada por Fabiano em 12/11): o recebimento aceita só o hash da última entrega.
+  // Antes, cada hash entregue confirmava uma vez; agora o hash substituído é recusado com o 409 shaDiferente, sem gravar.
+  // Ficam: repetir o hash certo não grava de novo, e o hash que nenhuma entrega gravou continua 409.
+  it('mudança aprovada (M-4 da 0019): só o hash da última entrega confirma, uma vez; o substituído e o desconhecido dão 409 sem gravar', async () => {
     const { demandaId, decId, recebido } = await prepararDec();
     const anterior = '0'.repeat(62) + 'b2';
-    // Uma segunda entrega com outro hash, gravada pelo migrator (prefixo fictício).
+    // Uma segunda entrega com outro hash, gravada pelo migrator (prefixo fictício). Ela é a última.
     await b.poolMigrator.query(
       `insert into evento (ocorrido_em, ator_tipo, ator_id, ator_token_prefixo, demanda_id, entidade, entidade_id, acao, depois)
        values ($1, 'integracao', 'construir', 'ficticio', $2, 'pacote_decisao', $3, 'pedido_entregue', $4::jsonb)`,
       [deps.relogio.agora().toISOString(), demandaId, decId, JSON.stringify({ sha256: anterior })],
     );
-    expect((await receber(decId, { sha256: sha(recebido) })).status).toBe(204);
+    const substituido = await receber(decId, { sha256: sha(recebido) });
+    expect(substituido.status).toBe(409);
+    expect(await substituido.json()).toEqual(SHA_DIFERENTE);
     expect((await receber(decId, { sha256: anterior })).status).toBe(204);
-    expect((await receber(decId, { sha256: sha(recebido) })).status).toBe(204);
+    expect((await receber(decId, { sha256: sha(recebido) })).status).toBe(409);
     expect((await receber(decId, { sha256: anterior })).status).toBe(204);
-    expect((await recebidosDo(decId)).map((e) => e.depois)).toEqual([{ sha256: sha(recebido) }, { sha256: anterior }]);
+    expect((await recebidosDo(decId)).map((e) => e.depois)).toEqual([{ sha256: anterior }]);
     const errado = await receber(decId, { sha256: OUTRO_SHA });
     expect(errado.status).toBe(409);
     expect(await errado.json()).toEqual(SHA_DIFERENTE);
-    expect(await recebidosDo(decId)).toHaveLength(2);
+    expect(await recebidosDo(decId)).toHaveLength(1);
   });
 });

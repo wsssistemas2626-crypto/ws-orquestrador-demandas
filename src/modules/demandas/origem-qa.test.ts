@@ -172,7 +172,19 @@ describe('GET /api/demandas com origem, por ator', () => {
 
   const listar = (qs: string, cred: Pick<OpRequisicao, 'cookie' | 'bearer' | 'semOrigin'>) => chamarRota(GET_LISTA, { caminho: `/api/demandas${qs}`, ...cred });
 
-  it('agente (Bearer, sem Origin), ?origem=awave: 200 só com as do Awave, origem awave e o título minimizado pelo solicitante atual', async () => {
+  // Mudança aprovada (M-1 da 0019, substitui o CA-10.6 do 0016): o agente só vê a demanda do Awave depois da confirmação
+  // de uma pessoa. Antes dela, nem nos itens nem no total; depois (o evento de pessoa entra pelo migrator, como a
+  // confirmação gravaria), as asserções de hoje, sem mudança.
+  it('agente (Bearer, sem Origin), ?origem=awave (mudança aprovada, M-1 da 0019): sem confirmação, nenhuma; confirmadas, 200 só com as do Awave, origem awave e o título minimizado pelo solicitante atual', async () => {
+    const semConfirmacao = await listar('?origem=awave', { bearer: tokenRisco, semOrigin: true });
+    expect(semConfirmacao.status).toBe(200);
+    expect(await semConfirmacao.json()).toMatchObject({ itens: [], total: 0 });
+    for (const id of [ID.awave1, ID.awave2, ID.awave3])
+      await b.poolMigrator.query(
+        `insert into evento (ocorrido_em, ator_tipo, ator_id, demanda_id, entidade, entidade_id, acao, depois)
+         values ($1, 'pessoa', 'u-qa-origem-1', $2, 'demanda', $2, 'demanda_confirmada', '{"confirmada":true}'::jsonb)`,
+        [hora(16), id],
+      );
     const r = await listar('?origem=awave', { bearer: tokenRisco, semOrigin: true });
     expect(r.status).toBe(200);
     const texto = await r.text();

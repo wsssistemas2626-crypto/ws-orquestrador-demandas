@@ -17,6 +17,7 @@ import { definirDepsParaTeste, type Deps } from '../../lib/deps';
 import { substituirDestinoDoLog } from '../../lib/log';
 import type { AtorAgente, AtorPessoa } from '../acesso/ator';
 import { condicaoDaOrigem, listarDemandas, listarDemandasPara, obterDemanda, origemDaAutoria, origemDoResponsavel, type Responsavel } from './consultas';
+import { confirmarDemanda } from './confirmar';
 import { contarDemandasPorStatus } from './resumo-da-fila';
 import { criarDemandaSchema, filtroDemandasSchema, ORIGENS_DA_DEMANDA, STATUS, type Status } from './schemas';
 import { alterarDemanda, criarDemanda } from './servico';
@@ -166,7 +167,12 @@ describe('RF-10: origem na listagem, na contagem, na leitura e no filtro (uma de
     for (const o of ORIGENS_DA_DEMANDA) expect(sqlDe(o).sql, o).not.toMatch(/'|pessoa|agente|awave|integracao/);
   });
 
-  it('listagem da API para agente: a origem sai igual, e o título continua minimizado como hoje', async () => {
+  // Mudança aprovada (M-1 da 0019, substitui o CA-10.6 do 0016): a demanda do Awave só aparece para o agente depois da
+  // confirmação de uma pessoa. Antes dela, nem nos itens nem no total; depois, as asserções de hoje, sem mudança.
+  it('listagem da API para agente (mudança aprovada, M-1 da 0019): sem confirmação, fora; confirmada, a origem sai igual, e o título continua minimizado como hoje', async () => {
+    const antes = await listarDemandasPara(e.b.db, filtro({ origem: 'awave' }), risco);
+    expect(antes).toMatchObject({ itens: [], total: 0 });
+    await confirmarDemanda(e.deps, pessoa, ids.awave);
     const r = await listarDemandasPara(e.b.db, filtro({ origem: 'awave' }), risco);
     expect(r.itens.map((i) => [i.id, i.origem])).toEqual([[ids.awave, 'awave']]);
     expect(r.total).toBe(1);

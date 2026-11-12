@@ -14,7 +14,7 @@ import type { Relogio } from '../../lib/relogio';
 import type { Agente } from '../acesso/ator';
 import { aguardaConfirmacao } from '../demandas/confirmacao';
 import { obterConfiguracaoAgente } from './configuracao';
-import { criarExecucao } from './execucoes';
+import { criarExecucao, reenfileirarPendente } from './execucoes';
 import { situacaoDoTeto } from './teto';
 
 export type EstadoDoAgente = 'desligado' | 'suspenso' | 'disponivel';
@@ -37,17 +37,36 @@ export const ERRO_SEM_FILA = 'dispararSeLigado: agente disponível e dependênci
 // Cria a execução (e o job) só com o agente disponível. Devolve true quando criou; false quando o agente está desligado
 // ou suspenso, quando a demanda do Awave ainda não foi confirmada por uma pessoa (IN-06, 0.3.0), ou quando a mesma
 // entrada já tinha execução (idempotente). A fila só é exigida quando há o que enviar.
-export async function dispararSeLigado(
+type DepsDoGatilho = Pick<Deps, 'relogio'> & Partial<Pick<Deps, 'fila'>>;
+
+// As guardas comuns aos dois gatilhos. Devolve a fila quando há o que enviar; null quando nada deve ser criado.
+async function filaSeDisponivel(t: Transacao, deps: DepsDoGatilho, agente: Agente, demandaId: string | null): Promise<Deps['fila'] | null> {
+  // IN-06 e G8 #25: antes de tudo, para os quatro agentes. Texto vindo de fora só vai a um modelo de IA depois da
+  // confirmação; a confirmação grava o evento antes de chamar aqui, na mesma transação.
+  if (demandaId !== null && (await aguardaConfirmacao(t.tx, demandaId))) return null;
+  if ((await estadoDoAgente(t.tx, agente, deps.relogio)) !== 'disponivel') return null;
+  if (!deps.fila) throw new Error(ERRO_SEM_FILA);
+  return deps.fila;
+}
+
+export async function dispararSeLigado(t: Transacao, deps: DepsDoGatilho, agente: Agente, chaveEntrada: string, demandaId: string | null): Promise<boolean> {
+  const fila = await filaSeDisponivel(t, deps, agente, demandaId);
+  if (!fila) return false;
+  return (await criarExecucao(t, { fila, relogio: deps.relogio }, { agente, chaveEntrada, demandaId })) !== null;
+}
+
+// M-5 da 0019 (P2): o gatilho da confirmação. Com as mesmas guardas de dispararSeLigado, cria a execução; se a entrada já
+// tem uma que ficou pendente esperando a confirmação (o worker a devolveu sem gastar a chave), reenfileira essa. Devolve
+// true quando criou ou reenfileirou.
+export async function dispararOuReenfileirar(
   t: Transacao,
-  deps: Pick<Deps, 'relogio'> & Partial<Pick<Deps, 'fila'>>,
+  deps: DepsDoGatilho,
   agente: Agente,
   chaveEntrada: string,
   demandaId: string | null,
 ): Promise<boolean> {
-  // IN-06 e G8 #25: antes de tudo, para os quatro agentes. Texto vindo de fora só vai a um modelo de IA depois da
-  // confirmação; a confirmação grava o evento antes de chamar aqui, na mesma transação.
-  if (demandaId !== null && (await aguardaConfirmacao(t.tx, demandaId))) return false;
-  if ((await estadoDoAgente(t.tx, agente, deps.relogio)) !== 'disponivel') return false;
-  if (!deps.fila) throw new Error(ERRO_SEM_FILA);
-  return (await criarExecucao(t, { fila: deps.fila, relogio: deps.relogio }, { agente, chaveEntrada, demandaId })) !== null;
+  const fila = await filaSeDisponivel(t, deps, agente, demandaId);
+  if (!fila) return false;
+  if ((await criarExecucao(t, { fila, relogio: deps.relogio }, { agente, chaveEntrada, demandaId })) !== null) return true;
+  return (await reenfileirarPendente(t, { fila }, agente, chaveEntrada)) !== null;
 }

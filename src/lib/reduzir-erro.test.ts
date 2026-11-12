@@ -73,9 +73,21 @@ describe('B-1 do 0009: a classe é desconhecido, termina em Error ou Exception, 
     expect(erroJaReduzido({ classe: nome })).toEqual({ classe: nome });
   });
 
+  // 0.3.1 (M-3 da 0019): entra PrazoDaTransacaoEsgotado (src/db/transacao.ts), pelo procedimento da lista fechada; a
+  // classe não tem texto livre, e as outras ficam iguais.
   it('as classes do projeto estão na lista e são aceitas', () => {
     expect([...CLASSES_DO_PROJETO].sort()).toEqual(
-      ['AvisoNaoEnviado', 'ErroConfiguracao', 'ErroDominio', 'ErroEnvioEmail', 'ErroLeituraSessao', 'ErroProvedor', 'ExecucaoPerdida', 'TempoEsgotado'].sort(),
+      [
+        'AvisoNaoEnviado',
+        'ErroConfiguracao',
+        'ErroDominio',
+        'ErroEnvioEmail',
+        'ErroLeituraSessao',
+        'ErroProvedor',
+        'ExecucaoPerdida',
+        'PrazoDaTransacaoEsgotado',
+        'TempoEsgotado',
+      ].sort(),
     );
     for (const nome of CLASSES_DO_PROJETO) {
       expect(classeAceita(nome), nome).toBe(true);
