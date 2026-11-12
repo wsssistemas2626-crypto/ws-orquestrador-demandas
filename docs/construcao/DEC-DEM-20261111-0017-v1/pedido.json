@@ -1,0 +1,44 @@
+{
+  "pedido": "DEC-DEM-20261111-0017-v1",
+  "demanda": {
+    "id": "DEM-20261111-0017",
+    "tipo": "melhoria",
+    "titulo": "Orquestrador 0.4.0: andamento do Pedido de Construção registrado pelo /construir",
+    "descricao": "O andamento real de um pedido só existe no /construir (passagens e plano). No Orquestrador, em_construcao é marcado à mão e não há dado de progresso; quem olha a fila não sabe em que fase o pedido está, e o Awave não tem o que responder ao cliente. O /construir já tem o envio pronto e desligado (ferramentas/construir/enviar-andamento.mjs, commit aa01e2d), que define o contrato. Insumo: estruturaAutonoma/pedidos/insumos/2026-11-11_orquestrador-andamento-0.4.0.md (E01, parte 1)."
+  },
+  "especificacao": {
+    "id": "ESP-DEM-20261111-0017-v1",
+    "conteudo": "Base: main depois do merge do pedido 0016 (0.3.0); sai como 0.4.0. (1) Ação nova registrar_andamento na matriz, só para o ator integracao construir; nenhum outro ator a tem e o construir não ganha nenhuma outra ação. (2) POST /api/pedidos-construcao/<DEC-id>/andamento com exatamente {fase, tarefasProntas, tarefasTotal, status}: fase em entendendo_o_pedido, planejando, construindo, testando, revisando_e_entregando, documentando; status em em_construcao, construido, cancelado; inteiros com 0 <= prontas <= total. DEC sem pedido gerado (evento da geração, como nas leituras da T10 da 0.3.0) responde 404 sem revelar se o DEC existe; corpo fora do formato 422. (3) Guardar na demanda do DEC o último andamento (fase, tarefasProntas, tarefasTotal, statusConstrucao, atualizadoEm) em coluna jsonb validada pelo Zod ou tabela própria, a critério do arquiteto; migration aditiva. (4) Transições automáticas pelo ator construir só em: em_construcao com a demanda em aprovada -> em_construcao; cancelado com a demanda em em_construcao -> devolvida. construido não muda status: a demanda fica em_construcao e a Próxima ação diz 'Construção concluída: confira e marque como entregue'. entregue continua só de pessoa (decisão A1). Status final (entregue, encerrada) com status pedido que o contradiz: 409. (5) Idempotente: mesmo estado não grava nem cria evento. (6) Evento andamento_registrado no histórico só quando muda fase ou status, com ator construir, prefixo do token e os números; só tarefasProntas muda o dado sem evento (decisão A2). (7) Painel: fila com selo de fase nas demandas em construção (ex.: 'Construindo · 9/17'); detalhe com fase, barra de tarefas e quando foi atualizado; mudança manual de status como está. (8) A visão do awave (seis campos da 0.3.0) ganha andamento {fase, tarefasProntas, tarefasTotal, atualizadoEm}, só das demandas que ele criou, sem statusConstrucao. (9) Limite por integração da 0.3.0, com folga para um envio a cada 2 minutos por pedido. (10) CHANGELOG, package.json 0.4.0, manual técnico cap. 05 e docs/operacao. Fora: consultar_demanda no Awave, prazo ou previsão de qualquer tipo, texto livre no corpo, o /construir marcar entregue ou encerrada. Pedido escrito direto (sem demanda gerada no painel) recebe 404 e fica sem andamento (decisão A3)."
+  },
+  "risco": {
+    "id": "RSK-DEM-20261111-0017-v1",
+    "nivel": "medio",
+    "conteudo": "Dá ao token construir uma ação de escrita num sistema no ar. Vazado: altera fase e números ou põe a demanda em em_construcao ou devolvida, só em DEC com pedido gerado; nunca entregue; revogação pelo prefixo. Transição automática errada: só duas, com origem fixa; a pessoa corrige pela mudança manual. Número de tarefas que volta quando o tech-lead replaneja: o Awave só mostra x de y na fase construindo, sem promessa. Histórico grande: evento só na mudança de fase ou status. Texto livre entrando pela rota: corpo fechado em enumerações e números, teste de sentinelas da 0.3.0 cobrindo a rota. Migration em produção: aditiva, backup antes e volta pelo caminho B (sem snapshot, decisão D5). Nenhum controle existente é afrouxado."
+  },
+  "decisao": {
+    "id": "DEC-DEM-20261111-0017-v1",
+    "opcaoEscolhida": "Andamento registrado pelo /construir pelo token construir da 0.3.0; entregue sempre de pessoa (A1); evento só na mudança de fase ou status (A2); pedido escrito direto fica sem andamento (A3)",
+    "aprovadoPor": "cto",
+    "aprovadoEm": "2026-11-11"
+  },
+  "sistema_alvo": "ws-orquestrador-demandas",
+  "repositorio_destino": "wsssistemas2626-crypto/ws-orquestrador-demandas",
+  "criterios_aceite_preliminares": [
+    "Token construir com POST andamento válido para DEC com pedido gerado responde 204 e a fila e o detalhe mostram fase e x de y",
+    "Demanda em aprovada com status em_construcao vai para em_construcao, com evento de status pelo ator construir",
+    "status construido não muda o status e a Próxima ação pede a uma pessoa que marque entregue",
+    "status cancelado com a demanda em em_construcao leva a devolvida",
+    "O mesmo corpo enviado duas vezes não cria evento nem altera atualizadoEm",
+    "DEC sem pedido gerado ou inexistente responde 404 igual; campo a mais, fase fora da lista ou prontas > total responde 422 sem gravar",
+    "Tokens awave, agente e pessoa recebem 403 em registrar_andamento; o teste transversal da matriz cobre a ação nova",
+    "Token awave lê o andamento só da própria demanda; de outro autor continua 404",
+    "O enviar-andamento.mjs do /construir passa contra a homologação da 0.4.0 com um pedido fictício"
+  ],
+  "definicao_de_pronto": [
+    "pnpm test, pnpm lint e pnpm typecheck verdes",
+    "pnpm test:e2e verde três vezes seguidas",
+    "Migration aditiva com ensaio de rollback aprovado",
+    "Manual técnico (cap. 05) e docs/operacao atualizados",
+    "CHANGELOG e package.json na 0.4.0"
+  ]
+}
