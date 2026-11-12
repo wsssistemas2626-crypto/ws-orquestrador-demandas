@@ -1,3 +1,4 @@
 {"pedido":"DEC-DEM-20261112-0019-v1","etapa":"01-reproducao","de":"qa-funcional","para":"tech-lead","status":"pronto","volta":0,"inicio":"2026-11-12T17:49:23.000Z","fim":"2026-11-12T17:54:31.402Z","minutos":5,"motivo":null}
 {"pedido":"DEC-DEM-20261112-0019-v1","etapa":"02-triagem","de":"tech-lead","para":"engenheiro-backend","status":"pronto","volta":0,"inicio":"2026-11-12T17:54:31.000Z","fim":"2026-11-12T18:00:34.537Z","minutos":6,"motivo":null}
 {"pedido":"DEC-DEM-20261112-0019-v1","etapa":"03-correcao","de":"engenheiro-backend","para":"qa-automacao","status":"pronto","volta":0,"inicio":"2026-11-12T18:00:34.000Z","fim":"2026-11-12T18:35:10.290Z","minutos":35,"motivo":null}
+{"pedido":"DEC-DEM-20261112-0019-v1","etapa":"04-regressao","de":"qa-automacao","para":"maestro","status":"bloqueado","volta":0,"inicio":"2026-11-12T18:35:10.000Z","fim":"2026-11-12T19:03:43.814Z","minutos":29,"motivo":"comando fora da lista Pode: git diff -G com | no argumento (só leitura)"}

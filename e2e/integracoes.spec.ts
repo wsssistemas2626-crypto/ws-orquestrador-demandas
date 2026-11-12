@@ -8,6 +8,10 @@
 // C-36 e D2 (G3.9 do plano): nenhuma demanda de pessoa nem versão criada pela API.
 //   - token `awave`: 1 demanda. O seed já gastou 3 das 10 da hora (T15), e o Awave fica com 4;
 //   - conta "cto": só leitura (acha a demanda do seed e o DEC dela).
+//
+// B-1 da 0019 (IN-04): o trace fica desligado neste arquivo, como no irmão e2e/integracoes-qa.spec.ts. O
+// `retain-on-failure` do playwright.config.ts gravaria o cabeçalho `authorization` dos contextos de API num teste que
+// falha. O test/estatico/trace-e2e.test.ts exige isso de toda spec com credencial no cabeçalho.
 import { createHash } from 'node:crypto';
 import { request as novoContexto } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
@@ -15,6 +19,8 @@ import { api, demandaDoSeed, entrarComo, expect, test } from './apoio';
 import { HOMOLOGACAO, MOTIVO_SEM_TOKENS, tokensDoE2e, type TokensDoE2e } from './integracoes';
 
 const tokens = tokensDoE2e();
+
+test.use({ trace: 'off' });
 
 function exigirTokens(): TokensDoE2e {
   test.skip(HOMOLOGACAO, MOTIVO_SEM_TOKENS);
