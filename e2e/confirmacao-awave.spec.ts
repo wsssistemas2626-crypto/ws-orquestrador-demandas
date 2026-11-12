@@ -45,7 +45,9 @@ test('aguardando: selo, Próxima ação, origem, histórico e axe', async ({ pag
   const noCelular = await botao.boundingBox();
   const cartao = await secao(page).boundingBox();
   expect(noCelular?.height ?? 0).toBeGreaterThanOrEqual(44);
-  expect(Math.round(noCelular?.width ?? 0)).toBeGreaterThanOrEqual(Math.round((cartao?.width ?? 0) - 2 * 24));
+  // Abaixo de 768 px o Cartao tem `p-4` (16 px) e borda de 1 px: o conteúdo é a largura do cartão menos 34 px. Folga de
+  // 1 px só para o arredondamento (06-T18-testes; Minor 2 da 06-T18-revisao: antes descontava 2 * 24, o de 768 px).
+  expect(noCelular?.width ?? 0).toBeGreaterThanOrEqual((cartao?.width ?? 0) - 2 * 16 - 2 - 1);
   await page.setViewportSize({ width: 1280, height: 720 });
   await semViolacoesNasDuasLarguras(page, 'T05 Awave aguardando');
 });
