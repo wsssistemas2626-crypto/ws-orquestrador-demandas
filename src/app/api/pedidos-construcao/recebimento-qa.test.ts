@@ -12,35 +12,21 @@
 // Postgres real (Testcontainers), relógio fixo de criarDepsDeTeste, cada caso com DEC e autora próprios; as contagens de
 // evento são relativas e as listas são filtradas pelos DEC do caso, então nada depende de ordem. Tokens só gerados em
 // tempo de teste, nunca em mensagem de expect. Dados só fictícios.
-import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../../test/banco';
 import { criarDepsDeTeste } from '../../../../test/deps';
-import { chamarRota, URL_BASE } from '../../../../test/requisicao';
+import { chamadasDoConstruir, preparadorDePedidos, sha256DoTexto, totalDeEventos as totalDeEventosDo, type OpChamada } from '../../../../test/pedidos-construcao';
+import { URL_BASE } from '../../../../test/requisicao';
 import { novoIp } from '../../../../test/sessao';
 import { comTransacao } from '../../../db/transacao';
 import { definirDepsParaTeste, type Deps } from '../../../lib/deps';
 import { MENSAGEM_NAO_ENCONTRADO } from '../../../lib/erros';
 import { substituirDestinoDoLog } from '../../../lib/log';
-import type { AtorPessoa } from '../../../modules/acesso/ator';
 import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenDeIntegracao, revogarTokenServico } from '../../../modules/acesso/tokens-servico';
-import { criarDemandaSchema } from '../../../modules/demandas/schemas';
-import { criarDemanda } from '../../../modules/demandas/servico';
-import { criarEspecificacaoSchema } from '../../../modules/especificacoes/schemas';
-import { criarEspecificacao } from '../../../modules/especificacoes/servico';
-import { criarPacoteDecisao } from '../../../modules/pacotes-decisao/criar';
-import { registrarDecisao } from '../../../modules/pacotes-decisao/decidir';
-import { criarPacoteDecisaoSchema, registrarDecisaoSchema } from '../../../modules/pacotes-decisao/schemas';
-import { criarParecerRiscoSchema } from '../../../modules/pareceres-risco/schemas';
-import { criarParecerRisco } from '../../../modules/pareceres-risco/servico';
-import { gerarPedido } from '../../../modules/pedido-construcao/gerar';
 import { MENSAGENS_RECEBIMENTO } from '../../../modules/pedido-construcao/receber';
-import * as rotaEntrega from './[decId]/entrega/route';
 import * as rotaRecebimento from './[decId]/recebimento/route';
-import * as rotaPendentes from './pendentes/route';
 
-const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
 const NAO_ENCONTRADO = { erro: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO };
 const TOKEN_INVALIDO = { erro: 'nao_autenticado', mensagem: MENSAGENS_ACESSO.token_invalido };
 const SEM_PERMISSAO = { erro: 'sem_permissao', mensagem: MENSAGENS_ACESSO.sem_permissao };
@@ -48,51 +34,21 @@ const SO_JSON = { erro: 'tipo_nao_suportado', mensagem: 'O conteúdo enviado pre
 const SHA_DIFERENTE = { erro: 'conflito', mensagem: MENSAGENS_RECEBIMENTO.shaDiferente };
 const INEXISTENTE = 'DEC-DEM-20261022-9999-v1';
 const OUTRO_SHA = 'e'.repeat(64);
-const ESP = {
-  descricaoObjetiva: 'Corrigir pedidos duplicados',
-  escopoInclui: ['Importação de pedidos'],
-  sistemaAlvo: 'sistema-ficticio',
-  repositorioDestino: 'wsssistemas2626-crypto/sistema-ficticio',
-  criteriosAceitePreliminares: ['Pedido importado uma vez só'],
-  definicaoDePronto: ['pnpm test verde'],
-};
-const RSK = { riscoTecnicoNivel: 'medio', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' };
 
 let b: BancoDeTeste;
 let deps: Deps;
 let tokenConstruir: string;
-let autoras = 0;
 
-const geradora: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-geradora-recebimento-qa', nome: 'Pessoa Ficticia Geradora', papel: 'cto' };
-const novaAutora = (): AtorPessoa => ({ tipo: 'pessoa', usuarioId: `u-autora-recebimento-qa-${++autoras}`, nome: 'Pessoa Ficticia Autora', papel: 'cto' });
-
-// Oráculo independente do servidor: o SHA-256 dos bytes UTF-8 recebidos, como o buscar-pedidos.mjs calcula.
-const sha = (texto: string) => createHash('sha256').update(texto, 'utf8').digest('hex');
-
-const listar = () =>
-  chamarRota(rotaPendentes.GET, { caminho: '/api/pedidos-construcao/pendentes', bearer: tokenConstruir, semOrigin: true, cabecalhos: { accept: 'application/json' } });
-const entregar = (decId: string) =>
-  chamarRota(rotaEntrega.POST, {
-    metodo: 'POST',
-    caminho: `/api/pedidos-construcao/${encodeURIComponent(decId)}/entrega`,
-    params: { decId },
-    bearer: tokenConstruir,
-    semOrigin: true,
-    cabecalhos: { accept: 'application/json' },
-  });
+// Oráculo independente do servidor (o SHA-256 dos bytes UTF-8 recebidos, como o buscar-pedidos.mjs calcula), o preparo e
+// as chamadas vêm de test/pedidos-construcao.ts (T13, Minor 1 da 06-T12-revisao).
+const sha = sha256DoTexto;
+const construir = chamadasDoConstruir(() => tokenConstruir);
+const listar = () => construir.listar();
+const entregar = (decId: string) => construir.entregar(decId);
 // `bearer: null` manda a requisição sem credencial. Com corpo, `chamarRota` põe `content-type: application/json`.
-const receber = (decId: string, corpo: unknown, op: { bearer?: string | null; cabecalhos?: Record<string, string>; semOrigin?: boolean } = {}) =>
-  chamarRota(rotaRecebimento.POST, {
-    metodo: 'POST',
-    caminho: `/api/pedidos-construcao/${encodeURIComponent(decId)}/recebimento`,
-    params: { decId },
-    bearer: op.bearer === null ? undefined : (op.bearer ?? tokenConstruir),
-    semOrigin: op.semOrigin ?? true,
-    corpo,
-    cabecalhos: { accept: 'application/json', ...op.cabecalhos },
-  });
+const receber = (decId: string, corpo: unknown, op: Omit<OpChamada, 'corpo'> = {}) => construir.receber(decId, corpo, op);
 
-const totalDeEventos = async () => Number((await b.poolMigrator.query<{ n: string }>(`select count(*)::text as n from evento`)).rows[0]!.n);
+const totalDeEventos = () => totalDeEventosDo(b);
 const recebidosDo = async (decId: string) =>
   (
     await b.poolMigrator.query<{ ator_id: string; depois: unknown }>(
@@ -108,38 +64,12 @@ const pendentesEntre = async (ids: string[]): Promise<string[]> => {
 
 type Cenario = { demandaId: string; decId: string; recebido: string };
 
-// DEC aprovado, pedido gerado por pessoa (gerarPedido) e entregue pela rota; `recebido` é o texto que o /construir recebeu.
+// DEC aprovado, pedido gerado por pessoa (gerarPedido) e entregue pela rota (200); `recebido` é o texto que o /construir
+// recebeu.
+const preparador = preparadorDePedidos({ deps: () => deps, rotulo: 'recebimento-qa', entregar });
 async function prepararDec(): Promise<Cenario> {
-  const autora = novaAutora();
-  const d = await criarDemanda(
-    deps,
-    autora,
-    criarDemandaSchema.parse({
-      titulo: 'Pedidos duplicados (fictício)',
-      tipo: 'bug',
-      solicitanteNome: 'Carlos Exemplar',
-      contexto: 'Importação diária do ERP',
-      descricaoProblema: 'Pedidos aparecem duas vezes',
-    }),
-  );
-  await criarEspecificacao(deps, autora, d.id, criarEspecificacaoSchema.parse(ESP));
-  await criarParecerRisco(deps, autora, d.id, criarParecerRiscoSchema.parse(RSK));
-  const dec = await criarPacoteDecisao(
-    deps,
-    autora,
-    d.id,
-    criarPacoteDecisaoSchema.parse({
-      resumoExecutivo: 'Corrigir a importação de pedidos',
-      opcaoA: { descricao: 'Corrigir no importador' },
-      opcaoB: { descricao: 'Refazer a integração' },
-      nivelAprovacaoRequerido: 'cto',
-    }),
-  );
-  await registrarDecisao(deps, geradora, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }));
-  await gerarPedido(deps, geradora, dec.id, CONFIRMADO);
-  const r = await entregar(dec.id);
-  expect(r.status).toBe(200);
-  return { demandaId: d.id, decId: dec.id, recebido: await r.text() };
+  const c = await preparador.prepararDec({ entregar: true });
+  return { demandaId: c.demandaId, decId: c.decId, recebido: c.recebido! };
 }
 
 beforeAll(async () => {

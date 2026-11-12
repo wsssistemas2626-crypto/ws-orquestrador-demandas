@@ -2,6 +2,7 @@
 // T01 do pedido DEC-DEM-20261111-0016-v1. Dados e prefixos só fictícios; nenhum token de verdade.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../test/banco';
+import { INTEGRACOES } from './acesso';
 
 let b: BancoDeTeste;
 beforeAll(async () => {
@@ -78,6 +79,29 @@ describe('demanda (IN-05, ADR-24)', () => {
     );
     expect(rows[0]?.d).toMatch(/pessoa/);
     expect(rows[0]?.d).not.toMatch(/integracao/);
+  });
+});
+
+// T13 (Minor 2 da 06-T01-revisao): o evento aceita as duas integrações, e os literais dos CHECK de evento e de demanda
+// são os da lista do esquema. Se a lista mudar num lugar só, o banco aceitaria uma integração que o código não conhece,
+// ou recusaria a que ele conhece, sem outro teste quebrar.
+describe('CHECK de integração amarrados a INTEGRACOES', () => {
+  it('evento aceita o construir com prefixo, e recusa sem prefixo', async () => {
+    await expect(ev('integracao', 'construir', 'ficticio')).resolves.toBeDefined();
+    await expect(ev('integracao', 'construir', null)).rejects.toEqual(viola('evento_ator_integracao_check'));
+  });
+  it.each([
+    // Toda integração da lista pode ser ator de evento.
+    ['evento_ator_integracao_check', [...INTEGRACOES]],
+    // Só o awave cria demanda (ADR-24); a lista do CHECK é um subconjunto de INTEGRACOES.
+    ['demanda_autor_integracao_check', ['awave']],
+  ] as const)('%s tem só os nomes da lista', async (restricao, esperado) => {
+    const r = await b.poolMigrator.query(`select pg_get_constraintdef(oid) as def from pg_constraint where conname = $1`, [restricao]);
+    expect(r.rows, restricao).toHaveLength(1);
+    // O tipo de ator ('integracao') também é literal no CHECK; os outros são os nomes.
+    const nomes = [...(r.rows[0].def as string).matchAll(/'([^']*)'::text/g)].map((m) => m[1]).filter((v) => v !== 'integracao');
+    expect(nomes.sort()).toEqual([...esperado].sort());
+    for (const n of nomes) expect(INTEGRACOES as readonly string[]).toContain(n);
   });
 });
 

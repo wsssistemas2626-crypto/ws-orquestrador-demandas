@@ -17,119 +17,48 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../../test/banco';
 import { AGORA_TESTE, criarDepsDeTeste } from '../../../../test/deps';
-import { chamarRota, URL_BASE } from '../../../../test/requisicao';
+import { chamadasDoConstruir, CONFIRMADO, inserirEventoDoPedido, preparadorDePedidos, totalDeEventos as totalDeEventosDo, type OpChamada } from '../../../../test/pedidos-construcao';
+import { URL_BASE } from '../../../../test/requisicao';
 import { novoIp } from '../../../../test/sessao';
 import { comTransacao } from '../../../db/transacao';
 import { definirDepsParaTeste, type Deps } from '../../../lib/deps';
 import { MENSAGEM_NAO_ENCONTRADO } from '../../../lib/erros';
 import { substituirDestinoDoLog } from '../../../lib/log';
 import { relogioFixo, type RelogioFixo } from '../../../lib/relogio';
-import type { AtorPessoa } from '../../../modules/acesso/ator';
 import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenDeIntegracao, revogarTokenServico } from '../../../modules/acesso/tokens-servico';
-import { criarDemandaSchema } from '../../../modules/demandas/schemas';
-import { criarDemanda } from '../../../modules/demandas/servico';
-import { criarEspecificacaoSchema } from '../../../modules/especificacoes/schemas';
-import { criarEspecificacao } from '../../../modules/especificacoes/servico';
-import { criarPacoteDecisao } from '../../../modules/pacotes-decisao/criar';
 import { registrarDecisao } from '../../../modules/pacotes-decisao/decidir';
-import { criarPacoteDecisaoSchema, registrarDecisaoSchema } from '../../../modules/pacotes-decisao/schemas';
-import { criarParecerRiscoSchema } from '../../../modules/pareceres-risco/schemas';
-import { criarParecerRisco } from '../../../modules/pareceres-risco/servico';
+import { registrarDecisaoSchema } from '../../../modules/pacotes-decisao/schemas';
 import { MENSAGENS_PEDIDO, gerarPedido } from '../../../modules/pedido-construcao/gerar';
 import * as rotaEntrega from './[decId]/entrega/route';
 import * as rotaPendentes from './pendentes/route';
 
-const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
 const NAO_ENCONTRADO = { erro: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO };
 const TOKEN_INVALIDO = { erro: 'nao_autenticado', mensagem: MENSAGENS_ACESSO.token_invalido };
-const ESP = {
-  descricaoObjetiva: 'Corrigir pedidos duplicados',
-  escopoInclui: ['Importação de pedidos'],
-  sistemaAlvo: 'sistema-ficticio',
-  repositorioDestino: 'wsssistemas2626-crypto/sistema-ficticio',
-  criteriosAceitePreliminares: ['Pedido importado uma vez só'],
-  definicaoDePronto: ['pnpm test verde'],
-};
-const RSK = { riscoTecnicoNivel: 'medio', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' };
 
 let b: BancoDeTeste;
 let deps: Deps;
 let relogio: RelogioFixo;
 let tokenConstruir: string;
-let autoras = 0;
 
-const geradora: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-geradora-entrega-qa', nome: 'Pessoa Ficticia Geradora', papel: 'cto' };
-const novaAutora = (): AtorPessoa => ({ tipo: 'pessoa', usuarioId: `u-autora-entrega-qa-${++autoras}`, nome: 'Pessoa Ficticia Autora', papel: 'cto' });
-
-const listar = (bearer = tokenConstruir, extra: Record<string, string> = {}) =>
-  chamarRota(rotaPendentes.GET, {
-    caminho: '/api/pedidos-construcao/pendentes',
-    bearer,
-    semOrigin: true,
-    cabecalhos: { accept: 'application/json', ...extra },
-  });
-// `bearer: null` manda a requisição sem credencial.
-const entregar = (decId: string, op: { bearer?: string | null; corpo?: unknown; cabecalhos?: Record<string, string>; semOrigin?: boolean } = {}) =>
-  chamarRota(rotaEntrega.POST, {
-    metodo: 'POST',
-    caminho: `/api/pedidos-construcao/${encodeURIComponent(decId)}/entrega`,
-    params: { decId },
-    bearer: op.bearer === null ? undefined : (op.bearer ?? tokenConstruir),
-    semOrigin: op.semOrigin ?? true,
-    corpo: op.corpo,
-    cabecalhos: { accept: 'application/json', ...op.cabecalhos },
-  });
+// O preparo e as chamadas como o buscar-pedidos.mjs faz vêm de test/pedidos-construcao.ts (T13, Minor 1 da
+// 06-T12-revisao). `bearer: null` manda a requisição sem credencial.
+const construir = chamadasDoConstruir(() => tokenConstruir);
+const listar = (bearer = tokenConstruir, extra: Record<string, string> = {}) => construir.listar({ bearer, cabecalhos: extra });
+const entregar = (decId: string, op: OpChamada = {}) => construir.entregar(decId, op);
 
 const pendentesEntre = async (ids: string[]): Promise<string[]> => {
   const r = await listar();
   expect(r.status).toBe(200);
   return ((await r.json()) as { itens: Array<{ decId: string }> }).itens.map((i) => i.decId).filter((id) => ids.includes(id));
 };
-const totalDeEventos = async () => Number((await b.poolMigrator.query<{ n: string }>(`select count(*)::text as n from evento`)).rows[0]!.n);
-
-const novoDec = async (autora: AtorPessoa, demandaId: string) =>
-  (
-    await criarPacoteDecisao(
-      deps,
-      autora,
-      demandaId,
-      criarPacoteDecisaoSchema.parse({
-        resumoExecutivo: 'Corrigir a importação de pedidos',
-        opcaoA: { descricao: 'Corrigir no importador' },
-        opcaoB: { descricao: 'Refazer a integração' },
-        nivelAprovacaoRequerido: 'cto',
-      }),
-    )
-  ).id;
-
-type Cenario = { autora: AtorPessoa; demandaId: string; decId: string; json: string | null };
+const totalDeEventos = () => totalDeEventosDo(b);
 
 // DEC aprovado; por padrão com o pedido gerado por pessoa pelo caminho real (gerarPedido).
-async function prepararDec(op: { demanda?: Record<string, unknown>; gerar?: boolean } = {}): Promise<Cenario> {
-  const autora = novaAutora();
-  const d = await criarDemanda(
-    deps,
-    autora,
-    criarDemandaSchema.parse({
-      titulo: 'Pedidos duplicados (fictício)',
-      tipo: 'bug',
-      solicitanteNome: 'Carlos Exemplar',
-      contexto: 'Importação diária do ERP',
-      descricaoProblema: 'Pedidos aparecem duas vezes',
-      ...op.demanda,
-    }),
-  );
-  await criarEspecificacao(deps, autora, d.id, criarEspecificacaoSchema.parse(ESP));
-  await criarParecerRisco(deps, autora, d.id, criarParecerRiscoSchema.parse(RSK));
-  const decId = await novoDec(autora, d.id);
-  await registrarDecisao(deps, geradora, decId, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }));
-  const json = op.gerar === false ? null : (await gerarPedido(deps, geradora, decId, CONFIRMADO)).json;
-  return { autora, demandaId: d.id, decId, json };
-}
+const { geradora, novoDec, prepararDec } = preparadorDePedidos({ deps: () => deps, rotulo: 'entrega-qa', entregar: (decId) => entregar(decId) });
 
 // Pelo migrator: o evento fica com o ator e a entidade que o caso quer, inclusive os que o app não gravaria por si.
-async function inserirEvento(e: {
+const inserirEvento = (e: {
   acao: 'pedido_gerado' | 'pedido_recebido';
   decId: string;
   demandaId: string;
@@ -137,23 +66,7 @@ async function inserirEvento(e: {
   atorId: string;
   entidade?: 'pacote_decisao' | 'demanda';
   depois?: unknown;
-}): Promise<void> {
-  await b.poolMigrator.query(
-    `insert into evento (ocorrido_em, ator_tipo, ator_id, ator_token_prefixo, demanda_id, entidade, entidade_id, acao, depois)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
-    [
-      relogio.agora().toISOString(),
-      e.atorTipo,
-      e.atorId,
-      e.atorTipo === 'integracao' ? 'ficticio' : null,
-      e.demandaId,
-      e.entidade ?? 'pacote_decisao',
-      e.decId,
-      e.acao,
-      e.depois === undefined ? null : JSON.stringify(e.depois),
-    ],
-  );
-}
+}): Promise<void> => inserirEventoDoPedido(b, deps, { ...e, prefixo: e.atorTipo === 'integracao' ? 'ficticio' : null });
 
 beforeAll(async () => {
   substituirDestinoDoLog({ write: () => undefined });

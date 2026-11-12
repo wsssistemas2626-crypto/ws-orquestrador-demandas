@@ -9,122 +9,52 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { novoBanco, type BancoDeTeste } from '../../../../test/banco';
 import { criarDepsDeTeste } from '../../../../test/deps';
 import { atorDeIntegracao, tokenDeIntegracao } from '../../../../test/integracoes';
-import { chamarRota } from '../../../../test/requisicao';
+import {
+  chamadasDoConstruir,
+  ESP_DO_PEDIDO as ESP_COMPLETA,
+  inserirEventoDoPedido,
+  preparadorDePedidos,
+  sha256DoTexto as sha,
+  totalDeEventos as totalDeEventosDo,
+  type LinhaEvento,
+} from '../../../../test/pedidos-construcao';
 import { comTransacao } from '../../../db/transacao';
 import { definirDepsParaTeste, type Deps } from '../../../lib/deps';
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../../lib/erros';
 import { substituirDestinoDoLog } from '../../../lib/log';
 import { validarPedido } from '../../../vendor/construir/pedido.mjs';
-import type { AtorPessoa } from '../../../modules/acesso/ator';
 import { MENSAGENS_ACESSO } from '../../../modules/acesso/mensagens';
 import { criarTokenDeIntegracao } from '../../../modules/acesso/tokens-servico';
-import { alterarDemandaSchema, criarDemandaSchema } from '../../../modules/demandas/schemas';
-import { alterarDemanda, criarDemanda } from '../../../modules/demandas/servico';
+import { alterarDemandaSchema } from '../../../modules/demandas/schemas';
+import { alterarDemanda } from '../../../modules/demandas/servico';
 import { criarEspecificacaoSchema } from '../../../modules/especificacoes/schemas';
 import { criarEspecificacao } from '../../../modules/especificacoes/servico';
 import { MENSAGEM_INDISPONIVEL } from '../../../modules/integracoes/tempo-limite';
-import { criarPacoteDecisao } from '../../../modules/pacotes-decisao/criar';
-import { registrarDecisao } from '../../../modules/pacotes-decisao/decidir';
-import { criarPacoteDecisaoSchema, registrarDecisaoSchema } from '../../../modules/pacotes-decisao/schemas';
-import { criarParecerRiscoSchema } from '../../../modules/pareceres-risco/schemas';
-import { criarParecerRisco } from '../../../modules/pareceres-risco/servico';
 import { entregarPedido, pendentesPara, RE_SHA256, sha256DoPedido } from '../../../modules/pedido-construcao/entregar';
-import { MENSAGENS_PEDIDO, gerarPedido } from '../../../modules/pedido-construcao/gerar';
+import { MENSAGENS_PEDIDO } from '../../../modules/pedido-construcao/gerar';
 import { RE_SHA256 as RE_SHA256_DAS_LEITURAS } from '../../../modules/pedido-construcao/pendentes';
 import * as rotaEntrega from './[decId]/entrega/route';
 import * as rotaPendentes from './pendentes/route';
 
-const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
 const SEM_PERMISSAO = { erro: 'sem_permissao', mensagem: MENSAGENS_ACESSO.sem_permissao };
 const NAO_ENCONTRADO = { erro: 'nao_encontrado', mensagem: MENSAGEM_NAO_ENCONTRADO };
 const INEXISTENTE = 'DEC-DEM-20261022-9999-v1';
-
-const ESP_COMPLETA = {
-  descricaoObjetiva: 'Corrigir pedidos duplicados',
-  escopoInclui: ['Importação de pedidos'],
-  sistemaAlvo: 'sistema-ficticio',
-  repositorioDestino: 'wsssistemas2626-crypto/sistema-ficticio',
-  criteriosAceitePreliminares: ['Pedido importado uma vez só'],
-  definicaoDePronto: ['pnpm test verde'],
-};
-const RSK_PADRAO = { riscoTecnicoNivel: 'medio', riscoOperacionalNivel: 'baixo', riscoJuridicoNivel: 'baixo' };
 
 let b: BancoDeTeste;
 let deps: Deps;
 let tokenConstruir: string;
 let prefixoConstruir: string;
 let tokenAwave: string;
-let autoras = 0;
 
-const geradora: AtorPessoa = { tipo: 'pessoa', usuarioId: 'u-geradora-entrega', nome: 'Pessoa Ficticia Geradora', papel: 'cto' };
-const novaAutora = (): AtorPessoa => ({ tipo: 'pessoa', usuarioId: `u-autora-entrega-${++autoras}`, nome: 'Pessoa Ficticia Autora', papel: 'cto' });
-
-const sha = (texto: string) => createHash('sha256').update(texto, 'utf8').digest('hex');
-
-// Como o buscar-pedidos.mjs chama.
-const listar = (bearer = tokenConstruir) =>
-  chamarRota(rotaPendentes.GET, { caminho: '/api/pedidos-construcao/pendentes', bearer, semOrigin: true, cabecalhos: { accept: 'application/json' } });
-const entregar = (decId: string, bearer = tokenConstruir) =>
-  chamarRota(rotaEntrega.POST, {
-    metodo: 'POST',
-    caminho: `/api/pedidos-construcao/${encodeURIComponent(decId)}/entrega`,
-    params: { decId },
-    bearer,
-    semOrigin: true,
-    cabecalhos: { accept: 'application/json' },
-  });
-
-type Preparo = { demanda?: Record<string, unknown>; gerar?: boolean };
-type Cenario = { autora: AtorPessoa; demandaId: string; decId: string; json: string | null };
-
-async function novoDec(autora: AtorPessoa, demandaId: string): Promise<string> {
-  const dec = await criarPacoteDecisao(
-    deps,
-    autora,
-    demandaId,
-    criarPacoteDecisaoSchema.parse({
-      resumoExecutivo: 'Corrigir a importação de pedidos',
-      opcaoA: { descricao: 'Corrigir no importador' },
-      opcaoB: { descricao: 'Refazer a integração' },
-      nivelAprovacaoRequerido: 'cto',
-    }),
-  );
-  return dec.id;
-}
-const aprovar = (decId: string) => registrarDecisao(deps, geradora, decId, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }));
+// O preparo, as chamadas como o buscar-pedidos.mjs faz e o oráculo do SHA-256 vêm de test/pedidos-construcao.ts (T13,
+// Minor 1 da 06-T12-revisao).
+const construir = chamadasDoConstruir(() => tokenConstruir);
+const listar = (bearer = tokenConstruir) => construir.listar({ bearer });
+const entregar = (decId: string, bearer = tokenConstruir) => construir.entregar(decId, { bearer });
 
 // DEC aprovado e, por padrão, com o pedido gerado por pessoa pelo caminho real (gerarPedido).
-async function prepararDec(op: Preparo = {}): Promise<Cenario> {
-  const autora = novaAutora();
-  const d = await criarDemanda(
-    deps,
-    autora,
-    criarDemandaSchema.parse({
-      titulo: 'Pedidos duplicados (fictício)',
-      tipo: 'bug',
-      solicitanteNome: 'Carlos Exemplar',
-      contexto: 'Importação diária do ERP',
-      descricaoProblema: 'Pedidos aparecem duas vezes',
-      ...op.demanda,
-    }),
-  );
-  await criarEspecificacao(deps, autora, d.id, criarEspecificacaoSchema.parse(ESP_COMPLETA));
-  await criarParecerRisco(deps, autora, d.id, criarParecerRiscoSchema.parse(RSK_PADRAO));
-  const decId = await novoDec(autora, d.id);
-  await aprovar(decId);
-  const json = op.gerar === false ? null : (await gerarPedido(deps, geradora, decId, CONFIRMADO)).json;
-  return { autora, demandaId: d.id, decId, json };
-}
+const { novoDec, aprovar, prepararDec } = preparadorDePedidos({ deps: () => deps, rotulo: 'entrega', entregar: (decId) => entregar(decId) });
 
-type LinhaEvento = {
-  ator_tipo: string;
-  ator_id: string;
-  ator_token_prefixo: string | null;
-  demanda_id: string | null;
-  entidade: string;
-  antes: unknown;
-  depois: unknown;
-};
 const entreguesDo = async (decId: string) =>
   (
     await b.poolMigrator.query<LinhaEvento>(
@@ -133,16 +63,11 @@ const entreguesDo = async (decId: string) =>
       [decId],
     )
   ).rows;
-const totalDeEventos = async () => Number((await b.poolMigrator.query<{ n: string }>(`select count(*)::text as n from evento`)).rows[0]!.n);
+const totalDeEventos = () => totalDeEventosDo(b);
 
 // Pelo migrator: um evento que nenhum caminho do app grava com aquele ator (prefixo fictício, G3.3).
-async function inserirEvento(e: { acao: string; decId: string; demandaId: string; atorTipo: string; atorId: string; depois?: unknown }) {
-  await b.poolMigrator.query(
-    `insert into evento (ocorrido_em, ator_tipo, ator_id, ator_token_prefixo, demanda_id, entidade, entidade_id, acao, depois)
-     values ($1, $2, $3, 'ficticio', $4, 'pacote_decisao', $5, $6, $7::jsonb)`,
-    [deps.relogio.agora().toISOString(), e.atorTipo, e.atorId, e.demandaId, e.decId, e.acao, e.depois === undefined ? null : JSON.stringify(e.depois)],
-  );
-}
+const inserirEvento = (e: { acao: string; decId: string; demandaId: string; atorTipo: string; atorId: string; depois?: unknown }) =>
+  inserirEventoDoPedido(b, deps, e);
 
 const decIdsPendentes = async (): Promise<string[]> => {
   const r = await listar();
