@@ -183,7 +183,8 @@ describe('RF-10: o Awave lê o andamento da demanda que ele criou, em quatro cha
     expect(texto).not.toContain(decId);
     expect(texto).not.toContain('statusConstrucao');
     expect(texto).not.toContain('ficticio');
-    expect(texto).not.toContain(tokenConstruir.slice('wsod_'.length, 'wsod_'.length + 8));
+    // G3.3: o prefixo não vai à mensagem do expect, nem se a asserção falhar.
+    expect(texto.includes(tokenConstruir.slice('wsod_'.length, 'wsod_'.length + 8))).toBe(false);
   });
 
   it('CA-10.2: sem andamento, `andamento: null` (com e sem pedido gerado)', async () => {

@@ -74,6 +74,9 @@ const PISO: Readonly<Record<string, number>> = {
   // T09 do DEC-DEM-20261111-0017-v1 (AN-09, AN-06 c, CA-04.6 na leitura): contado no fim da tarefa.
   'src/app/api/demandas/leitura-awave-andamento.test.ts': 58,
   'test/transversal/visibilidade-andamento.test.ts': 11,
+  // 06-T09-testes do DEC-DEM-20261111-0017-v1 (qa-automacao; AN-09 por ator, andamento de cada demanda, CA-04.6 campo a campo).
+  'src/app/api/demandas/leitura-andamento-qa.test.ts': 32,
+  'src/app/api/demandas/leitura-andamento-fora-do-esquema-qa.test.ts': 14,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
