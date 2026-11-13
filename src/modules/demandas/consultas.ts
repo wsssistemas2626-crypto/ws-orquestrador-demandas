@@ -9,6 +9,9 @@ import type { Anexo, LinhaServico, PapelSolicitante, Urgencia } from '../../db/s
 import { ErroDominio, MENSAGEM_NAO_ENCONTRADO } from '../../lib/erros';
 import { AGENTES, atorDesconhecido, ehIntegracao, type Agente, type Ator, type AtorIntegracao, type Integracao } from '../acesso/ator';
 import { MENSAGENS_ACESSO } from '../acesso/mensagens';
+import { subconsultaDoUltimoAndamento, ultimoAndamento } from '../andamento/consultas';
+import { lerAndamento } from '../andamento/regras';
+import { paraIntegracao, type AndamentoDaIntegracao, type AndamentoVista } from '../andamento/schemas';
 import { minimizarValor } from '../dados-pessoais/minimizar';
 import { executarComOrcamento } from '../integracoes/tempo-limite';
 import { condicaoVisivelAoAgente, exigirVisivelPara } from './confirmacao';
@@ -50,6 +53,9 @@ export type DemandaVista = {
   pareceresRisco: VersaoResumo[];
   pacotesDecisao: PacoteResumo[];
   agentesEmAndamento: AgenteEmAndamento[];
+  // 0.4.0 (RF-09, RF-11): o último andamento informado pelo /construir, só na vista de pessoa (seis campos). Linha fora
+  // do esquema é "sem andamento" (lerAndamento, CA-04.6).
+  andamento: AndamentoVista | null;
 };
 
 // `origem` (RF-10 do 0016): enumeração sem dado pessoal, a mesma para pessoa e agente (04, C06). O id do autor nunca sai.
@@ -222,6 +228,7 @@ export async function obterDemanda(db: Db, id: string): Promise<DemandaVista> {
   const pareceresRisco = await versoesDe(db, parecerRisco, id);
   const pacotesDecisao = await pacotesDe(db, id);
   const agentesEmAndamento = await agentesEmAndamentoDe(db, id);
+  const andamento = lerAndamento(await ultimoAndamento(db, id));
   return {
     id: d.id,
     titulo: d.titulo,
@@ -245,6 +252,7 @@ export async function obterDemanda(db: Db, id: string): Promise<DemandaVista> {
     pareceresRisco,
     pacotesDecisao,
     agentesEmAndamento,
+    andamento,
   };
 }
 
@@ -254,7 +262,8 @@ export async function obterDemanda(db: Db, id: string): Promise<DemandaVista> {
 export type ResponsavelMinimo = { tipo: 'pessoa' } | { tipo: 'agente'; agente: Agente } | { tipo: 'integracao'; integracao: Integracao };
 export type VersaoResumoMinima = Omit<VersaoResumo, 'autor'> & { autor: ResponsavelMinimo };
 export type PacoteResumoMinimo = Omit<PacoteResumo, 'autor'> & { autor: ResponsavelMinimo };
-export type DemandaVistaMinima = Omit<DemandaVista, 'solicitanteNome' | 'anexos' | 'responsavel' | 'especificacoes' | 'pareceresRisco' | 'pacotesDecisao'> & {
+// AN-09: o andamento nunca entra na vista mínima (agente e sistema).
+export type DemandaVistaMinima = Omit<DemandaVista, 'solicitanteNome' | 'anexos' | 'responsavel' | 'especificacoes' | 'pareceresRisco' | 'pacotesDecisao' | 'andamento'> & {
   responsavel: ResponsavelMinimo;
   especificacoes: VersaoResumoMinima[];
   pareceresRisco: VersaoResumoMinima[];
@@ -337,14 +346,23 @@ export function vistaDaDemandaPara(ator: Ator, d: DemandaVista): DemandaVista | 
   }
 }
 
-// IN-08 e ADR-23: o que a integração vê da demanda que ela criou. Seis chaves, sem texto livre, solicitante, autoria,
-// versões nem execuções.
-export type DemandaVistaDaIntegracao = { id: string; titulo: string; tipo: Tipo; status: Status; criadaEm: Date; atualizadaEm: Date };
+// IN-08 e ADR-23: o que a integração vê da demanda que ela criou. Sete chaves (0.4.0, RF-10: o andamento em quatro), sem
+// texto livre, solicitante, autoria, versões nem execuções.
+export type DemandaVistaDaIntegracao = {
+  id: string;
+  titulo: string;
+  tipo: Tipo;
+  status: Status;
+  criadaEm: Date;
+  atualizadaEm: Date;
+  andamento: AndamentoDaIntegracao | null;
+};
 
 // Lista de permissão, chave a chave: campo novo da demanda não sai para a integração sem entrar aqui (IN-08). O título
-// passa pelo M-1, com o nome do solicitante atual.
+// passa pelo M-1, com o nome do solicitante atual. O andamento sai em quatro chaves, montadas uma a uma (paraIntegracao,
+// AN-09): nunca o DEC, a situação da construção nem o prefixo.
 export const vistaDaIntegracao = (
-  d: Pick<DemandaVista, 'id' | 'titulo' | 'tipo' | 'status' | 'solicitanteNome' | 'criadaEm' | 'atualizadaEm'>,
+  d: Pick<DemandaVista, 'id' | 'titulo' | 'tipo' | 'status' | 'solicitanteNome' | 'criadaEm' | 'atualizadaEm' | 'andamento'>,
 ): DemandaVistaDaIntegracao => ({
   id: d.id,
   titulo: textoMinimo(d.titulo, nomesDoSolicitante(d.solicitanteNome)),
@@ -352,11 +370,14 @@ export const vistaDaIntegracao = (
   status: d.status,
   criadaEm: d.criadaEm,
   atualizadaEm: d.atualizadaEm,
+  andamento: paraIntegracao(d.andamento),
 });
 
-// ADR-23 e D-16: a autoria entra no mesmo WHERE do id. Demanda de outro autor e id que não existe dão o mesmo
-// "não encontrado", da mesma consulta, sem nenhuma leitura a mais num caso que no outro (sem oráculo de existência).
+// ADR-23, ADR-35 e D-09: a autoria entra no mesmo WHERE do id, e o último andamento vem juntado na mesma consulta.
+// Demanda de outro autor e id que não existe dão o mesmo "não encontrado", da mesma consulta, sem nenhuma leitura a mais
+// num caso que no outro (sem oráculo de existência). A linha do andamento passa por lerAndamento (AN-12, CA-04.6).
 export async function obterDemandaDaIntegracao(db: Db, ator: AtorIntegracao, id: string): Promise<DemandaVistaDaIntegracao> {
+  const ua = subconsultaDoUltimoAndamento(db, id);
   const [l] = await db
     .select({
       id: demanda.id,
@@ -366,11 +387,20 @@ export async function obterDemandaDaIntegracao(db: Db, ator: AtorIntegracao, id:
       solicitanteNome: demanda.solicitanteNome,
       criadaEm: demanda.criadaEm,
       atualizadaEm: demanda.atualizadaEm,
+      andamento: {
+        decId: ua.decId,
+        fase: ua.fase,
+        tarefasProntas: ua.tarefasProntas,
+        tarefasTotal: ua.tarefasTotal,
+        statusConstrucao: ua.statusConstrucao,
+        gravadoEm: ua.gravadoEm,
+      },
     })
     .from(demanda)
+    .leftJoin(ua, eq(ua.demandaId, demanda.id))
     .where(and(eq(demanda.id, id), eq(demanda.autorTipo, 'integracao'), eq(demanda.autorId, ator.integracao)));
   if (!l) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
-  return vistaDaIntegracao(l);
+  return vistaDaIntegracao({ ...l, andamento: lerAndamento(l.andamento) });
 }
 
 // O GET por id decide pelo tipo do ator antes de qualquer leitura: integração nunca passa por obterDemanda (D-16) e lê

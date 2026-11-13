@@ -43,7 +43,7 @@ describe('contrato do Awave', () => {
     const corpo = (await r.json()) as Record<string, unknown>;
     expect(corpo.id).toMatch(/^DEM-\d{8}-\d{4}$/);
     expect(corpo.status).toBe('nova');
-    expect(Object.keys(corpo).sort()).toEqual(['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
+    expect(Object.keys(corpo).sort()).toEqual(['andamento', 'atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
     expect(corpo).toMatchObject({ titulo: CORPO_DO_AWAVE.titulo, tipo: 'melhoria' });
   });
 

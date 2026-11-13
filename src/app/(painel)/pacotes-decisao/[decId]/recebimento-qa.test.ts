@@ -77,6 +77,7 @@ function demanda(extra: Partial<DemandaVista> = {}): DemandaVista {
     pareceresRisco: [resumo(RSK)],
     pacotesDecisao: [],
     agentesEmAndamento: [],
+    andamento: null,
     ...extra,
   };
 }

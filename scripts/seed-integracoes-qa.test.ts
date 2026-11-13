@@ -262,7 +262,7 @@ describe('Awave sobre o banco semeado: leitura das próprias e o limite que come
       const r = await ler(id);
       expect(r.status, titulo).toBe(200);
       const corpo = (await r.json()) as Record<string, unknown>;
-      expect(Object.keys(corpo).sort(), titulo).toEqual(['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
+      expect(Object.keys(corpo).sort(), titulo).toEqual(['andamento', 'atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
       expect(corpo, titulo).toMatchObject({ id, tipo: 'melhoria', status: titulo === TITULOS_DO_E2E.awaveEncerrada ? 'encerrada' : 'nova' });
     }
     const daPessoa = await ler(await idDaDemanda(b, TITULOS_DO_E2E.pedidoParaBuscar));

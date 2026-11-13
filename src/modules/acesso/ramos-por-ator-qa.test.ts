@@ -140,6 +140,7 @@ const demanda: DemandaVista = {
     },
   ],
   agentesEmAndamento: [{ agente: 'insumo_tecnico', status: 'pendente' }],
+  andamento: null,
 };
 
 const especificacao: EspecificacaoVista = {

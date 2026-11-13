@@ -132,6 +132,7 @@ const demanda = (extra: Partial<DemandaVista> = {}): DemandaVista => ({
   pareceresRisco: [],
   pacotesDecisao: [],
   agentesEmAndamento: [],
+  andamento: null,
   ...extra,
 });
 

@@ -85,6 +85,7 @@ const demanda = (extra: Partial<DemandaVista> = {}): DemandaVista => ({
   pareceresRisco: [],
   pacotesDecisao: [],
   agentesEmAndamento: [],
+  andamento: null,
   ...extra,
 });
 const evento = (id: number, acao: EventoVisivel['acao'], extra: Partial<EventoVisivel> = {}): EventoVisivel => ({

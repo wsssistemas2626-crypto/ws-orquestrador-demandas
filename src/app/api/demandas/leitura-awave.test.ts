@@ -23,7 +23,8 @@ let deps: Deps;
 let token: string;
 let tokenConstruir: string;
 const pessoa = { tipo: 'pessoa', usuarioId: 'p1', nome: 'Pessoa Ficticia', papel: 'cto' } as const;
-const SEIS = ['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo'];
+// 0.4.0 (T09 do DEC-DEM-20261111-0017-v1, G5): sete chaves, com `andamento` (RF-10).
+const SETE = ['andamento', 'atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo'];
 const INEXISTENTE = 'DEM-20261022-9999';
 let idPessoa: string;
 let idAgente: string;
@@ -85,7 +86,7 @@ describe('RF-07 e IN-08: o Awave lê a própria demanda', () => {
     expect(r.status).toBe(200);
     const texto = await r.text();
     const corpo = JSON.parse(texto) as Record<string, unknown>;
-    expect(Object.keys(corpo).sort()).toEqual(SEIS);
+    expect(Object.keys(corpo).sort()).toEqual(SETE);
     expect(corpo).toEqual({
       id,
       titulo: 'Relatório semanal fictício',
@@ -93,6 +94,7 @@ describe('RF-07 e IN-08: o Awave lê a própria demanda', () => {
       status: 'nova',
       criadaEm: deps.relogio.agora().toISOString(),
       atualizadaEm: deps.relogio.agora().toISOString(),
+      andamento: null,
     });
     // Nada do texto livre, do solicitante, da autoria nem do rascunho.
     expect(texto).not.toMatch(/SENTINELA|Awave|integracao|rascunho|outro/);
@@ -141,7 +143,7 @@ describe('RF-07 e IN-08: o Awave lê a própria demanda', () => {
     const r = await ler(id);
     expect(r.status).toBe(200);
     const texto = await r.text();
-    expect(Object.keys(JSON.parse(texto) as object).sort()).toEqual(SEIS);
+    expect(Object.keys(JSON.parse(texto) as object).sort()).toEqual(SETE);
     expect(texto).not.toMatch(/SENTINELA/);
     expect(texto.includes(criada.id)).toBe(false);
   });

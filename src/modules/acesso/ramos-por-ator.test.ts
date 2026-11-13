@@ -15,7 +15,7 @@ import { autorizar } from './matriz';
 const awave: AtorIntegracao = { tipo: 'integracao', integracao: 'awave', prefixoToken: 'ficticio' };
 const construir: AtorIntegracao = { tipo: 'integracao', integracao: 'construir', prefixoToken: 'ficticio' };
 const SEM_PERMISSAO = expect.objectContaining({ codigo: 'sem_permissao' });
-const demanda = { id: 'DEM-20261111-0001', titulo: 'T (fictício)', solicitanteNome: 'Awave' } as DemandaVista;
+const demanda = { id: 'DEM-20261111-0001', titulo: 'T (fictício)', solicitanteNome: 'Awave', andamento: null } as DemandaVista;
 
 describe('IN-02', () => {
   it('integração passa pelo ramo próprio de permitido, e não pelo do agente', () => {
@@ -47,7 +47,7 @@ describe('IN-02', () => {
   // G5 (T06): a recusa do D-01 virou a vista de seis chaves, e só para a integração autora da demanda.
   it('T06: a vista da demanda para integração tem as seis chaves, só para a integração que a criou', () => {
     const doAwave = { ...demanda, responsavel: { tipo: 'integracao', integracao: 'awave' } } as DemandaVista;
-    expect(Object.keys(vistaDaDemandaPara(awave, doAwave)).sort()).toEqual(['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
+    expect(Object.keys(vistaDaDemandaPara(awave, doAwave)).sort()).toEqual(['andamento', 'atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
     expect(() => vistaDaDemandaPara(construir, doAwave)).toThrow(SEM_PERMISSAO);
     expect(() => vistaDaDemandaPara(awave, { ...doAwave, responsavel: { tipo: 'pessoa', nome: null } })).toThrow(SEM_PERMISSAO);
     expect(() => vistaDaDemandaPara(awave, { ...doAwave, responsavel: { tipo: 'agente', agente: 'orquestrador' } })).toThrow(SEM_PERMISSAO);

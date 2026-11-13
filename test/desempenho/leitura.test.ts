@@ -241,7 +241,9 @@ describe('plano de execução das consultas da fila e do detalhe, com volume (EX
   it('detalhe de demanda com ESP, RSK, DEC e decisão: nenhuma consulta varre por completo as tabelas que crescem', async () => {
     const id = idDe(4206); // 4206 % 12 = 6: ESP v1, RSK v1 e DEC v1 aprovado
     const consultas = await consultasGeradas((db) => obterDemanda(db, id));
-    expect(consultas).toHaveLength(5);
+    // 0.4.0 (T09 do DEC-DEM-20261111-0017-v1): a sexta é o último andamento (ultimoAndamento), pelo índice
+    // andamento_construcao_demanda_id_idx; o plano dela passa pela mesma conferência abaixo.
+    expect(consultas).toHaveLength(6);
     for (const c of consultas) {
       const plano = await planoDe(c);
       relatar(`EXPLAIN detalhe: ${resumoDoPlano(plano)}`);
