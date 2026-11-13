@@ -30,11 +30,13 @@ export const ACOES = [
   'listar_pedidos_pendentes',
   'entregar_pedido',
   'confirmar_recebimento_pedido',
+  // 0.4.0 (RF-01, AN-01): o andamento do Pedido de Construção, só pelo /construir.
+  'registrar_andamento',
 ] as const;
 export type Acao = (typeof ACOES)[number];
 
-// `integracoes` (0.3.0, IN-01): lista de permissão fechada por integração; vazia por padrão. Só cinco pares abrem
-// (RF-03): awave em criar_demanda e ler_demanda; construir nas três ações dele.
+// `integracoes` (0.3.0, IN-01): lista de permissão fechada por integração; vazia por padrão. Só seis pares abrem
+// (RF-03 da 0.3.0 e RF-01 da 0.4.0): awave em criar_demanda e ler_demanda; construir nas quatro ações dele.
 type Linha = { readonly pessoa: 'qualquer' | 'cto' | null; readonly agentes: readonly Agente[]; readonly integracoes: readonly Integracao[] };
 
 const linha = (pessoa: Linha['pessoa'], agentes: readonly Agente[], integracoes: readonly Integracao[] = []): Linha =>
@@ -69,6 +71,7 @@ export const MATRIZ: Readonly<Record<Acao, Linha>> = Object.freeze({
   listar_pedidos_pendentes: SO_CONSTRUIR,
   entregar_pedido: SO_CONSTRUIR,
   confirmar_recebimento_pedido: SO_CONSTRUIR,
+  registrar_andamento: SO_CONSTRUIR,
 });
 
 // Mensagem da 03, seção 2.8. Não cita o ator nem a ação.
