@@ -40,6 +40,56 @@ const PISO: Readonly<Record<string, number>> = {
   'test/estatico/sem-controle-bidi.test.ts': 7,
   'test/estatico/sem-recurso-externo.test.ts': 15,
   'test/estatico/leituras-da-fila.test.ts': 34,
+  // T01 do DEC-DEM-20261111-0017-v1 (AN-10, AN-13): contado no fim da tarefa.
+  'src/db/schema/andamento.test.ts': 17,
+  // 06-T01-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-10): contado ao fim da etapa.
+  'src/db/schema/andamento-qa.test.ts': 16,
+  // T02 do DEC-DEM-20261111-0017-v1 (AN-01, AN-13): contado no fim da tarefa.
+  'src/modules/acesso/matriz-andamento.test.ts': 13,
+  // T07 do DEC-DEM-20261111-0017-v1 (AN-06 estático): sobe de 8 para a contagem no fim da tarefa.
+  'test/estatico/andamento.test.ts': 43,
+  // 06-T02-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-01): contado ao fim da etapa.
+  'src/modules/acesso/matriz-andamento-qa.test.ts': 31,
+  'test/estatico/andamento-qa.test.ts': 13,
+  // T03 do DEC-DEM-20261111-0017-v1 (AN-07, AN-08 c): contado no fim da tarefa.
+  'src/modules/limites-andamento.test.ts': 12,
+  // 06-T03-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-07, AN-08 c): contado ao fim da etapa.
+  'src/modules/limites-andamento-qa.test.ts': 58,
+  // 06-T04-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-02, ADR-33, AN-13): contado ao fim da etapa.
+  'src/lib/rota-corpo-invalido-qa.test.ts': 67,
+  'src/modules/andamento/schemas-qa.test.ts': 29,
+  // 06-T05-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-04, AN-06, AN-11, AN-12): contado ao fim da etapa.
+  'src/modules/andamento/regras-qa.test.ts': 52,
+  'src/modules/demandas/transicoes-construir-qa.test.ts': 25,
+  // T07 do DEC-DEM-20261111-0017-v1 (AN-01, AN-03 a AN-06, AN-08, AN-11): contado no fim da tarefa.
+  'src/modules/andamento/registrar.test.ts': 56,
+  'src/modules/andamento/registrar-concorrencia.test.ts': 36,
+  'src/modules/andamento/registrar-prazo.test.ts': 6,
+  // T08 do DEC-DEM-20261111-0017-v1 (AN-01 c e d, AN-02, AN-03, AN-07 e AN-11 pela rota): contado no fim da tarefa.
+  'src/app/api/pedidos-construcao/andamento.test.ts': 95,
+  'src/app/api/pedidos-construcao/andamento-422.test.ts': 11,
+  'test/transversal/sentinelas-andamento.test.ts': 20,
+  // 06-T08-testes do DEC-DEM-20261111-0017-v1 (qa-automacao; credencial, ordem das recusas e CA-02.7 pela rota).
+  'src/app/api/pedidos-construcao/andamento-qa.test.ts': 37,
+  // T09 do DEC-DEM-20261111-0017-v1 (AN-09, AN-06 c, CA-04.6 na leitura): contado no fim da tarefa.
+  'src/app/api/demandas/leitura-awave-andamento.test.ts': 58,
+  'test/transversal/visibilidade-andamento.test.ts': 11,
+  // 06-T09-testes do DEC-DEM-20261111-0017-v1 (qa-automacao; AN-09 por ator, andamento de cada demanda, CA-04.6 campo a campo).
+  'src/app/api/demandas/leitura-andamento-qa.test.ts': 32,
+  'src/app/api/demandas/leitura-andamento-fora-do-esquema-qa.test.ts': 14,
+  // 06-T11-testes do DEC-DEM-20261111-0017-v1 (qa-automacao; AN-12 na tela, CA-06.5, CA-08.4, CV-09): os dois da T11,
+  // que a construção não contou, e os três da etapa, contados ao fim da etapa.
+  'src/components/rotulos-andamento.test.ts': 14,
+  // 06-T13-testes: sobe de 51 para 58 com os quatro testes do M1 da 06-T11-tech-lead movidos de
+  // dados-das-etapas-andamento.test.ts (M2 da 06-T13-tech-lead), sem mudar asserção.
+  'src/components/dados-do-andamento.test.ts': 58,
+  'src/components/rotulos-andamento-qa.test.ts': 27,
+  'src/components/dados-do-andamento-qa.test.ts': 50,
+  'test/estatico/dados-do-andamento.test.ts': 22,
+  // 06-T13-testes do DEC-DEM-20261111-0017-v1 (qa-automacao; CV-02, CV-19 e C-18 na seção do detalhe, CA-04.6 no
+  // detalhe): contado ao fim da etapa.
+  'src/app/(painel)/demandas/[id]/andamento-detalhe-qa.test.ts': 69,
+  'test/estatico/andamento-detalhe-qa.test.ts': 10,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 

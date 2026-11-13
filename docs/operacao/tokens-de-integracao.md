@@ -2,12 +2,12 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.3.1 |
-| Atualizado em | 12/11/2026 (`documentacao-tecnica`, pedido 0019: a limitação da 0.3.0 saiu; os tokens de produção se emitem com a 0.3.1 no ar); 12/11/2026 (`documentacao-tecnica`, pedido 0016: primeira versão) |
+| Versão | 0.4.0 |
+| Atualizado em | 13/11/2026 (`documentacao-tecnica`, pedido 0017: o token `construir` passou a escrever o andamento, com a ação `registrar_andamento`, sem mudar a emissão; onde o envio do andamento lê o token; suspeita de vazamento pede revogação imediata; como achar o que um prefixo gravou); 12/11/2026 (`documentacao-tecnica`, pedido 0019: a limitação da 0.3.0 saiu; os tokens de produção se emitem com a 0.3.1 no ar); 12/11/2026 (`documentacao-tecnica`, pedido 0016: primeira versão) |
 | Dono | `documentacao-tecnica` (operação: `devops-sre`; sistema: Fabiano) |
 | Quem executa | Fabiano. Emitir, trocar e revogar token de produção é ação dele, no console do serviço `app` do Easypanel |
 | Situação | vigente, ainda não executado em produção. A primeira execução é a UAT da 0.3.0 (UAT-03, UAT-09, UAT-10 e UAT-12 de `docs/construcao/DEC-DEM-20261111-0016-v1/07-qa-funcional.md`, seção 7), que também testa este texto |
-| Fontes no código | `scripts/criar-token-servico.ts`, `scripts/revogar-token-servico.ts`, `src/modules/acesso/tokens-servico.ts`, `src/db/schema/acesso.ts`; do lado do `/construir`, `ferramentas/construir/buscar-pedidos.mjs` da estruturaAutonoma |
+| Fontes no código | `scripts/criar-token-servico.ts`, `scripts/revogar-token-servico.ts`, `src/modules/acesso/tokens-servico.ts`, `src/modules/acesso/matriz.ts`, `src/db/schema/acesso.ts`, `src/db/schema/andamento.ts`; do lado do `/construir`, `ferramentas/construir/buscar-pedidos.mjs` e, desde a 0.4.0, `ferramentas/construir/enviar-andamento.mjs` da estruturaAutonoma |
 
 Desde a 0.3.0, duas integrações internas entram na API com um token próprio, fora dos agentes de IA
 ([manual, cap. 02](../manual-tecnico/02-acesso-e-seguranca.md#atores-de-integração-030)):
@@ -15,7 +15,7 @@ Desde a 0.3.0, duas integrações internas entram na API com um token próprio, 
 | Integração | Quem usa | O que o token permite | Onde o token mora |
 |---|---|---|---|
 | `awave` | o Awave (serviço `empresa-ia`), quando o dono aprova a criação de uma demanda em `/aprovacoes` | criar demanda (no máximo 10 por hora) e ler só as demandas que ele criou | no Awave, pelo card "Token do Orquestrador" em `/config`, ou nas variáveis do serviço `empresa-ia` no Easypanel. Nunca no repositório do Awave nem neste |
-| `construir` | a busca automática do `/construir` (crontab do usuário `deploy`) | listar os Pedidos de Construção pendentes, buscar um pedido e confirmar o recebimento | no arquivo `~/.config/ws-construir/token-orquestrador` do usuário `deploy`, com permissão 600. O `buscar-pedidos.mjs` recusa o arquivo com outra permissão. O caminho está em `pedidos/config/orquestrador.json` (`token_arquivo`) da estruturaAutonoma |
+| `construir` | a busca automática do `/construir` (crontab do usuário `deploy`) e, desde a 0.4.0, o envio do andamento (crontab) | listar os Pedidos de Construção pendentes, buscar um pedido e confirmar o recebimento; desde a 0.4.0, **registrar o andamento** da construção, o que muda o status da demanda em dois casos | no arquivo `~/.config/ws-construir/token-orquestrador` do usuário `deploy`, com permissão 600. O `buscar-pedidos.mjs` recusa o arquivo com outra permissão. O caminho está em `pedidos/config/orquestrador.json` (`token_arquivo`) da estruturaAutonoma |
 
 Regras que valem para os dois:
 
@@ -28,6 +28,35 @@ Regras que valem para os dois:
   0.3.0. A 0.3.0 não vai ao ar sozinha: entra junto com a 0.3.1, pela "Publicação conjunta 0.2.0 → 0.3.1"
   ([deploy.md, seção 5](deploy.md)). Se a produção voltar para a 0.3.0 com os tokens emitidos, desligue antes a busca
   em `pedidos/config/orquestrador.json` e revogue o token `awave` (deploy.md, seção 6, "Volta da 0.3.1").
+
+## O token `construir` escreve desde a 0.4.0
+
+Até a 0.3.1, o token `construir` só lia o pedido e confirmava o recebimento. Desde a 0.4.0, ele tem também a ação
+`registrar_andamento` ([manual, cap. 05](../manual-tecnico/05-pedido-de-construcao.md#andamento-da-construção-040)):
+
+- ele grava a fase e as tarefas prontas de cada Pedido de Construção gerado no painel;
+- ele muda o status da demanda em dois casos: de `aprovada` para `em_construcao` e de `em_construcao` para
+  `devolvida`. Nunca põe `entregue` nem `encerrada`, e só age em DEC com pedido gerado por uma pessoa.
+
+**A emissão não mudou.** É o mesmo token, com o mesmo script e o mesmo arquivo. A ação veio pela matriz do código, e
+não pede token novo. Se o token `construir` de produção já existe e não foi revogado, o envio do andamento usa esse
+mesmo. O envio (`ferramentas/construir/enviar-andamento.mjs`) lê o token do arquivo apontado em `token_arquivo`, no
+mesmo `pedidos/config/orquestrador.json` da busca. Ele nasce desligado: só liga com `"andamento_ligado": true`, no fim
+da publicação da 0.4.0 ([deploy.md, seção 5](deploy.md)).
+
+Como o token agora escreve, um vazamento pesa mais:
+
+- quem tem o token pode alterar a fase e os números e pôr em `em_construcao` ou `devolvida` uma demanda com pedido
+  gerado. Também pode gastar as 600 gravações por hora e parar o andamento de todos os pedidos por até 1 hora;
+- **na suspeita de vazamento, revogue na hora** pelo prefixo (seção 5), antes de emitir o novo. O andamento e a busca
+  ficam parados até o token novo ser guardado. Cada envio leva o estado inteiro do pedido, e não um acréscimo, então o
+  primeiro envio aceito depois do token novo põe o painel em dia;
+- o status que mudou sem motivo se corrige pela mudança manual de status, no painel.
+
+O arquivo do token é legível pelo usuário `deploy`, que também roda os agentes com Bash. Com a escrita, esse risco subiu
+(P-04 do pedido 0017). A recomendação é o envio do andamento rodar com um usuário do sistema que os agentes não usem,
+dono do arquivo do token. Isso se decide com Fabiano e a `gestao-riscos` **antes** de ligar o envio (deploy.md, seção
+5, passo 8).
 
 ## 1. Emitir
 
@@ -111,7 +140,7 @@ Use uma destas três formas. Nenhuma mostra o token nem o hash.
 - **Na emissão:** a primeira linha da saída do script traz o prefixo (seção 1, passo 3).
 - **No histórico do painel:** todo ato de integração aparece com o nome e o prefixo do token, como
   "Awave (prefixo <prefixo>)" ou "/construir (prefixo <prefixo>)". Abra uma demanda criada pelo Awave, ou a demanda de
-  um DEC que o `/construir` buscou, e leia a coluna de quem fez.
+  um DEC que o `/construir` buscou ou cujo andamento ele registrou, e leia a coluna de quem fez.
 - **No banco** (só leitura; produção é de Fabiano): no contêiner do `db`,
 
   ```bash
@@ -119,6 +148,19 @@ Use uma destas três formas. Nenhuma mostra o token nem o hash.
   ```
 
   A consulta lê só a integração, o prefixo e a data. Não leia a coluna `hash`.
+
+### O que um prefixo gravou no andamento (desde a 0.4.0)
+
+O evento `andamento_registrado` só existe quando muda a fase ou a situação (A2). Para ver também as gravações sem evento,
+como uma tarefa pronta a mais, use a coluna `ator_token_prefixo` da tabela `andamento_construcao`, que guarda o prefixo
+em cada linha. Só leitura, no contêiner do `db`, como acima:
+
+```bash
+docker exec -it <contêiner do db> psql -U <usuário migrator> -d <banco> -c "select demanda_id, dec_id, fase, tarefas_prontas, tarefas_total, status_construcao, gravado_em from andamento_construcao where ator_token_prefixo = '<prefixo>' order by id"
+```
+
+A consulta não lê token nem hash: só o que foi gravado e quando. As mudanças de status feitas por esse token estão no
+histórico de cada demanda, como "Mudou o status" por "/construir (prefixo <prefixo>)".
 
 ## 4. Trocar
 
@@ -131,6 +173,8 @@ interrompe a integração, porque os dois tokens valem ao mesmo tempo até a rev
    - `awave`: peça ao Awave uma demanda de teste com título terminado em "(fictício)" e confira no histórico dela o
      prefixo novo. Depois, encerre a demanda;
    - `construir`: espere a busca seguinte (até 5 minutos) e confira que a linha da busca no status report saiu `ok`.
+     Com o envio do andamento ligado (desde a 0.4.0), confira também que o `andamento.log` do usuário do crontab não
+     ganhou linha `atencao` nem `erro` (deploy.md, seção 8, item 5).
 4. Revogue o antigo pelo prefixo (seção 5).
 
 Na suspeita de vazamento, revogue o antigo antes de tudo (seção 5) e depois emita e guarde o novo: a integração fica
@@ -150,13 +194,18 @@ parada nesse intervalo, mas o token vazado deixa de valer na hora.
 
 O token revogado recebe 401 "Token de serviço inválido ou revogado." em toda rota, na próxima chamada. A linha do token
 continua no banco, com a data da revogação, e o evento `token_revogado` guarda o prefixo. O Awave mostra a mensagem ao
-dono; o `/construir` acusa erro na busca e no e-mail.
+dono; o `/construir` acusa erro na busca e no e-mail e, desde a 0.4.0, para a volta inteira do envio do andamento, com
+a linha de erro no `andamento.log`. O andamento já gravado continua no painel.
 
 ## 6. Se a integração der problema
 
 - **Token vazado ou uso estranho:** revogue pelo prefixo (seção 5). Os outros tokens seguem valendo.
 - **Busca do `/construir` com erro repetido:** troque `"ligado"` para `false` em `pedidos/config/orquestrador.json`.
   A cópia manual do pedido, pela T11, continua valendo.
+- **Envio do andamento com erro repetido ou em excesso** (desde a 0.4.0): troque `"andamento_ligado"` para `false` no
+  mesmo arquivo. O Orquestrador não muda, e o status se corrige à mão no painel.
+- **Volta da 0.4.0 para a 0.3.1:** pelo `deploy.md`, seção 6 ("Volta da 0.4.0"), com `"andamento_ligado": false` antes.
+  O token `construir` continua valendo na 0.3.1, que não tem a rota do andamento.
 - **Volta da 0.3.0 para a 0.2.0:** pelo `deploy.md`, seção 6 ("Volta da 0.3.0 para a 0.2.0"). Os tokens emitidos depois
   do backup somem com a restauração; o Awave e o `/construir` passam a receber 401 até a 0.3.0 voltar e os tokens serem
   emitidos de novo.

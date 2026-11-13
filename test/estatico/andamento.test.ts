@@ -1,0 +1,246 @@
+// test/estatico/andamento.test.ts — guardas estáticas do módulo de andamento (D-04).
+// AN-01 (f): a ação `registrar_andamento` só aparece na matriz, na rota nova e no serviço (fora de teste); nenhum
+// arquivo 'use server' nem job a cita. As tarefas seguintes acrescentam aqui o AN-06 (T07) e a cadeia de quem importa
+// andamento/consultas.ts (T06, T12). Cada regra tem um caso plantado que a reprova.
+import { globSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
+import { describe, expect, it } from 'vitest';
+import { importacoesDe } from './importacoes';
+
+const raiz = fileURLToPath(new URL('../../', import.meta.url));
+const ler = (a: string) => readFileSync(`${raiz}${a}`, 'utf8');
+export const codigoQueRoda = globSync('{src,scripts}/**/*.{ts,tsx}', { cwd: raiz })
+  .filter((a) => !/\.test\.tsx?$/.test(a))
+  .sort();
+
+export const CITAM_A_ACAO: readonly string[] = [
+  'src/modules/acesso/matriz.ts',
+  'src/app/api/pedidos-construcao/[decId]/andamento/route.ts',
+  'src/modules/andamento/registrar.ts',
+];
+
+export function quemCita(arquivos: ReadonlyArray<readonly [string, string]>): string[] {
+  return arquivos.filter(([, f]) => f.includes('registrar_andamento')).map(([a]) => a);
+}
+const ehServerAction = (f: string) => /^\s*['"]use server['"]/m.test(f);
+
+describe('AN-01 (f): onde a ação registrar_andamento aparece', () => {
+  it('a varredura enxerga o código que roda (falha se o glob quebrar)', () => {
+    expect(codigoQueRoda).toEqual(expect.arrayContaining(['src/modules/acesso/matriz.ts', 'src/lib/rota.ts']));
+  });
+  it('fora de teste, só a matriz, a rota nova e o serviço citam a ação', () => {
+    const citam = quemCita(codigoQueRoda.map((a) => [a, ler(a)] as const));
+    expect(citam.filter((a) => !CITAM_A_ACAO.includes(a))).toEqual([]);
+    expect(citam).toContain('src/modules/acesso/matriz.ts');
+  });
+  it("nenhum arquivo 'use server', job ou worker cita a ação", () => {
+    for (const a of codigoQueRoda) {
+      const f = ler(a);
+      if (!f.includes('registrar_andamento')) continue;
+      expect(ehServerAction(f), a).toBe(false);
+      expect(/^src\/(jobs|worker)\//.test(a), a).toBe(false);
+    }
+  });
+  it('as regras pegam o caso plantado', () => {
+    expect(quemCita([['src/app/x/acoes.ts', "'use server';\nautorizar(p, 'registrar_andamento');"]])).toEqual(['src/app/x/acoes.ts']);
+    expect(ehServerAction("'use server';\nexport async function f() {}")).toBe(true);
+    expect(ehServerAction("export const x = 'use server';")).toBe(false);
+  });
+});
+
+// T06 (D-04): andamento/consultas.ts só lê (o mesmo critério de resumo-da-fila.ts: select, sem insert/update/delete/
+// execute/transaction/raw, nem o `sql` do drizzle-orm por nome, apelido ou namespace), e só estes o importam por valor
+// no código que roda. `import type` não conta.
+const CONSULTAS = 'src/modules/andamento/consultas.ts';
+export const IMPORTAM_CONSULTAS: readonly string[] = [
+  'src/modules/andamento/registrar.ts', // T07
+  'src/modules/demandas/consultas.ts', // T09
+  'src/app/(painel)/demandas/leituras-da-fila.ts', // T12
+];
+
+const ESCRITAS_NAS_CONSULTAS: ReadonlyArray<[string, RegExp]> = [
+  ['insert(', /\binsert\s*\(/],
+  ['update(', /\bupdate\s*\(/],
+  ['delete(', /\bdelete\s*\(/],
+  ['execute(', /\bexecute\s*\(/],
+  ['transaction(', /\btransaction\s*\(/],
+  ['.raw(', /\.raw\s*\(/],
+];
+
+// O que reprova em consultas.ts; lista vazia = só leitura.
+export function achadosNasConsultas(fonte: string): string[] {
+  const achados = ESCRITAS_NAS_CONSULTAS.flatMap(([nome, re]) => (re.test(fonte) ? [nome] : []));
+  if (!/\.select(DistinctOn)?\s*\(/.test(fonte)) achados.push('sem select(');
+  for (const i of importacoesDe(CONSULTAS, fonte)) {
+    if (i.origem !== 'drizzle-orm' && !i.origem.startsWith('drizzle-orm/')) continue;
+    if (i.namespace) achados.push(`namespace de ${i.origem}`);
+    if (i.nomes.includes('sql')) achados.push(`sql de ${i.origem}`);
+  }
+  return achados;
+}
+
+const apontaParaConsultas = (origem: string): boolean => /(^|\/)andamento\/consultas(\.[cm]?[jt]sx?)?$/.test(origem);
+
+// Arquivos que importam andamento/consultas por valor (relativa, pelo apelido @/ ou com extensão).
+export function importadoresDasConsultas(arquivos: ReadonlyArray<readonly [string, string]>): string[] {
+  return arquivos
+    .filter(([a, f]) => a !== CONSULTAS && importacoesDe(a, f).some((i) => !i.soTipo && apontaParaConsultas(i.origem)))
+    .map(([a]) => a);
+}
+
+describe('andamento/consultas.ts (T06)', () => {
+  it('existe, é código que roda e só lê', () => {
+    expect(codigoQueRoda).toContain(CONSULTAS);
+    expect(achadosNasConsultas(ler(CONSULTAS))).toEqual([]);
+  });
+  it('só os importadores da lista o importam por valor', () => {
+    const importam = importadoresDasConsultas(codigoQueRoda.map((a) => [a, ler(a)] as const));
+    expect(importam.filter((a) => !IMPORTAM_CONSULTAS.includes(a))).toEqual([]);
+  });
+  it('a regra de só leitura reprova cada escrita plantada e aceita o que só lê', () => {
+    const base = "import { desc, eq } from 'drizzle-orm';\nexport const f = (db) => db.select().from(t);\n";
+    expect(achadosNasConsultas(base)).toEqual([]);
+    expect(achadosNasConsultas("import { eq } from 'drizzle-orm';\nexport const f = (db) => db.selectDistinctOn([t.a]).from(t);\n")).toEqual([]);
+    expect(achadosNasConsultas(`${base}db.insert(andamentoConstrucao).values({});`)).toEqual(['insert(']);
+    expect(achadosNasConsultas(`${base}db.update(andamentoConstrucao).set({});`)).toEqual(['update(']);
+    expect(achadosNasConsultas(`${base}db.delete(andamentoConstrucao);`)).toEqual(['delete(']);
+    expect(achadosNasConsultas(`${base}db.execute(consulta);`)).toEqual(['execute(']);
+    expect(achadosNasConsultas(`${base}db.transaction(async (tx) => tx);`)).toEqual(['transaction(']);
+    expect(achadosNasConsultas(`${base}const x = sql.raw(texto);`)).toEqual(['.raw(']);
+    expect(achadosNasConsultas("import { eq } from 'drizzle-orm';\nexport const n = 1;\n")).toEqual(['sem select(']);
+    const select = '\nexport const f = (db) => db.select().from(t);\n';
+    expect(achadosNasConsultas(`import { eq, sql as s } from 'drizzle-orm';${select}`)).toEqual(['sql de drizzle-orm']);
+    expect(achadosNasConsultas(`import * as d from 'drizzle-orm';${select}`)).toEqual(['namespace de drizzle-orm']);
+  });
+  it('a busca de importadores acha cada forma plantada e não conta tipo nem nome parecido', () => {
+    const plantados = [
+      ['src/app/x.ts', "import { ultimoAndamento } from '@/modules/andamento/consultas';"],
+      ['src/app/y.ts', "import {\n  andamentosDasDemandas,\n} from '../../modules/andamento/consultas.ts';"],
+      ['src/app/z.ts', "export * from '../modules/andamento/consultas';"],
+      ['src/app/w.ts', "const c = await import('../modules/andamento/consultas');"],
+      ['src/app/tipo.ts', "import type { LinhaDeAndamento } from '../modules/andamento/consultas';"],
+      ['src/app/outro.ts', "import { x } from '../modules/demandas/consultas';\nimport { y } from './andamento/consultas-antigas';"],
+      [CONSULTAS, "export * from './consultas';"],
+    ] as const;
+    expect(importadoresDasConsultas(plantados)).toEqual(['src/app/x.ts', 'src/app/y.ts', 'src/app/z.ts', 'src/app/w.ts']);
+    expect(importadoresDasConsultas(plantados).filter((a) => !IMPORTAM_CONSULTAS.includes(a))).toEqual(['src/app/x.ts', 'src/app/y.ts', 'src/app/z.ts', 'src/app/w.ts']);
+  });
+});
+
+// T07 (AN-06, lição da 0019): nenhum SET, transação própria, orçamento aninhado nem Promise.all no corpo do registro;
+// executarComOrcamento uma vez só, com `undefined` no lugar da transação, e o serviço sem parâmetro de transação; e o
+// mesmo nas duas funções que ele chama em outros arquivos. E as travas na ordem pedido → demanda → limite (ADR-32), com a
+// trava do pedido sendo a mesma da entrega e do recebimento.
+const REGISTRAR = 'src/modules/andamento/registrar.ts';
+export const PROIBIDOS_NO_PRAZO: readonly RegExp[] = [/set\s+local/i, /set_config/, /\bcomTransacao\s*\(/, /\bPromise\.all\s*\(/];
+
+// O corpo (e os parâmetros) da função declarada no nível do arquivo; vazio se não existir.
+export function funcaoDeclarada(arquivo: string, fonte: string, nome: string): { corpo: string; parametros: string[] } {
+  const sf = ts.createSourceFile(arquivo, fonte, ts.ScriptTarget.Latest, true);
+  let achada = { corpo: '', parametros: [] as string[] };
+  ts.forEachChild(sf, (n) => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === nome && n.body)
+      achada = { corpo: n.body.getText(sf), parametros: n.parameters.map((p) => p.name.getText(sf)) };
+  });
+  return achada;
+}
+
+// Posição da primeira chamada de cada função, na ordem pedida; -1 se faltar.
+export function posicoesDasChamadas(corpo: string, nomes: readonly string[]): number[] {
+  return nomes.map((n) => corpo.search(new RegExp(`\\b${n}\\s*\\(`)));
+}
+
+describe('AN-06: prazo total do registro, sem piso por cima (T07)', () => {
+  it('src/modules/andamento/**: nenhum SET, comTransacao nem Promise.all no código que roda', () => {
+    const doModulo = codigoQueRoda.filter((x) => x.startsWith('src/modules/andamento/'));
+    expect(doModulo).toContain(REGISTRAR);
+    for (const a of doModulo) for (const re of PROIBIDOS_NO_PRAZO) expect(ler(a), `${a} ${String(re)}`).not.toMatch(re);
+  });
+  it('registrar.ts: executarComOrcamento uma vez, com undefined; o serviço sem parâmetro de transação', () => {
+    const f = ler(REGISTRAR);
+    expect(f.match(/executarComOrcamento\(/g)).toHaveLength(1);
+    expect(f).toMatch(/executarComOrcamento\(deps\.pool, ator, 'padrao', undefined,/);
+    expect(f).not.toMatch(/\bt\?:\s*Transacao/);
+    expect(funcaoDeclarada(REGISTRAR, f, 'registrarAndamento').parametros).toEqual(['deps', 'ator', 'decId', 'corpo']);
+  });
+  it.each([
+    ['src/modules/demandas/transicoes.ts', 'mudarStatusPeloConstruir'],
+    ['src/modules/limites.ts', 'conferirLimiteDeAndamento'],
+  ])('%s: %s sem SET, transação própria, orçamento aninhado nem Promise.all', (arquivo, nome) => {
+    const { corpo } = funcaoDeclarada(arquivo, ler(arquivo), nome);
+    expect(corpo.length).toBeGreaterThan(0);
+    for (const re of [...PROIBIDOS_NO_PRAZO, /executarComOrcamento\s*\(/]) expect(corpo, String(re)).not.toMatch(re);
+  });
+  it('as travas: pedido → demanda → limite no registro; a do pedido é a mesma da entrega e do recebimento', () => {
+    const { corpo } = funcaoDeclarada(REGISTRAR, ler(REGISTRAR), 'registrarAndamento');
+    const [pedido, demanda, limite] = posicoesDasChamadas(corpo, ['travarPedido', 'travarDemanda', 'conferirLimiteDeAndamento']);
+    expect(pedido).toBeGreaterThanOrEqual(0);
+    expect(demanda).toBeGreaterThan(pedido!);
+    expect(limite).toBeGreaterThan(demanda!);
+    const daPendentes = (a: string) => importacoesDe(a, ler(a)).some((i) => i.nomes.includes('travarPedido') && /pedido-construcao\/pendentes$|^\.\/pendentes$/.test(i.origem));
+    for (const a of [REGISTRAR, 'src/modules/pedido-construcao/entregar.ts', 'src/modules/pedido-construcao/receber.ts']) expect(daPendentes(a), a).toBe(true);
+  });
+  it('as regras pegam o caso plantado', () => {
+    expect("await tx.execute(sql`set local lock_timeout = '9s'`)").toMatch(PROIBIDOS_NO_PRAZO[0]!);
+    expect("await c.query(\"select set_config('lock_timeout', $1, true)\")").toMatch(PROIBIDOS_NO_PRAZO[1]!);
+    expect('await comTransacao(deps.pool, async (t) => x)').toMatch(PROIBIDOS_NO_PRAZO[2]!);
+    expect('await Promise.all([a(), b()])').toMatch(PROIBIDOS_NO_PRAZO[3]!);
+    const plantada = 'export async function f(deps, ator, t) {\n  await travarDemanda(tx, d);\n  await travarPedido(tx, x);\n}\n';
+    expect(funcaoDeclarada('x.ts', plantada, 'f').parametros).toEqual(['deps', 'ator', 't']);
+    expect(funcaoDeclarada('x.ts', plantada, 'g')).toEqual({ corpo: '', parametros: [] });
+    const [p, d] = posicoesDasChamadas(funcaoDeclarada('x.ts', plantada, 'f').corpo, ['travarPedido', 'travarDemanda']);
+    expect(d).toBeLessThan(p!);
+  });
+});
+
+// T12 (C-04, D-12; 03, 4.4): a página da fila lê o andamento só dentro de ListaDaFila, o componente que PaginaDemandas
+// devolve depois da guarda (exigirPessoaNaPagina e autorizar 'listar_demandas', conferida em leituras-da-fila.test.ts), e
+// fora do `try` da lista: a falha da leitura do andamento não é o erro da lista.
+const PAGINA_DA_FILA = 'src/app/(painel)/demandas/page.tsx';
+
+// O que reprova na leitura do andamento pela página; lista vazia = certo.
+export function achadosDoAndamentoNaPagina(fonte: string): string[] {
+  const sf = ts.createSourceFile(PAGINA_DA_FILA, fonte, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let lista: ts.FunctionDeclaration | undefined;
+  ts.forEachChild(sf, (n) => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === 'ListaDaFila' && n.body) lista = n;
+  });
+  if (!lista) return ['sem ListaDaFila'];
+  const chamadas: { naLista: boolean; noTry: boolean }[] = [];
+  const visitar = (n: ts.Node, naLista: boolean, noTry: boolean): void => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'andamentosDaPagina') chamadas.push({ naLista, noTry });
+    const dentro = naLista || n === lista;
+    if (ts.isTryStatement(n)) {
+      visitar(n.tryBlock, dentro, true);
+      if (n.catchClause) visitar(n.catchClause, dentro, noTry);
+      if (n.finallyBlock) visitar(n.finallyBlock, dentro, noTry);
+      return;
+    }
+    ts.forEachChild(n, (f) => visitar(f, dentro, noTry));
+  };
+  visitar(sf, false, false);
+  const achados: string[] = [];
+  if (!chamadas.some((c) => c.naLista)) achados.push('sem andamentosDaPagina( em ListaDaFila');
+  if (chamadas.some((c) => !c.naLista)) achados.push('andamentosDaPagina( fora de ListaDaFila');
+  if (chamadas.some((c) => c.noTry)) achados.push('andamentosDaPagina( dentro de um try');
+  return achados;
+}
+
+describe('T12: a fila lê o andamento por página, em ListaDaFila', () => {
+  it('page.tsx chama andamentosDaPagina( dentro de ListaDaFila, fora do try da lista', () => {
+    expect(codigoQueRoda).toContain(PAGINA_DA_FILA);
+    expect(achadosDoAndamentoNaPagina(ler(PAGINA_DA_FILA))).toEqual([]);
+  });
+  it('a regra pega o caso plantado', () => {
+    const lista = (corpo: string) => `async function ListaDaFila() {\n${corpo}\n}\nexport default async function PaginaDemandas() { return <ListaDaFila />; }`;
+    const certo = 'try { x = await listarDemandas(db); } catch { return <ErroDaFila />; }\nconst andamentos = await andamentosDaPagina(db, ids);\nreturn <R />;';
+    expect(achadosDoAndamentoNaPagina(lista(certo))).toEqual([]);
+    expect(achadosDoAndamentoNaPagina(lista('try { x = await listarDemandas(db); } catch { return null; }\nreturn <R />;'))).toEqual(['sem andamentosDaPagina( em ListaDaFila']);
+    expect(achadosDoAndamentoNaPagina(lista('try { x = await listarDemandas(db); a = await andamentosDaPagina(db, ids); } catch { return null; }\nreturn <R />;'))).toEqual([
+      'andamentosDaPagina( dentro de um try',
+    ]);
+    expect(achadosDoAndamentoNaPagina(`${lista(certo)}\nasync function Outra() { await andamentosDaPagina(db, ids); }`)).toEqual(['andamentosDaPagina( fora de ListaDaFila']);
+    expect(achadosDoAndamentoNaPagina('export default async function PaginaDemandas() { await andamentosDaPagina(db, ids); }')).toEqual(['sem ListaDaFila']);
+  });
+});

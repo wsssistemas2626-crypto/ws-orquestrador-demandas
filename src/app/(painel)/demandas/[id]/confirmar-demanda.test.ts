@@ -140,6 +140,7 @@ describe('page.tsx: a demanda do Awave na T05 (03, 5.1 a 5.5)', () => {
     pareceresRisco: [],
     pacotesDecisao: [],
     agentesEmAndamento: [],
+    andamento: null,
     ...extra,
   });
   let n = 1;

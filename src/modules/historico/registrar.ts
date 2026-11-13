@@ -37,7 +37,10 @@ export type AcaoEvento =
   // 0.3.0 (RF-15): a pessoa confirmou a demanda do Awave; o /construir buscou o pedido e confirmou o recebimento.
   | 'demanda_confirmada'
   | 'pedido_entregue'
-  | 'pedido_recebido';
+  | 'pedido_recebido'
+  // 0.4.0 (RF-06): o /construir informou uma mudança de fase, de situação ou de pedido; depois só com fase, números e
+  // situação (AN-11).
+  | 'andamento_registrado';
 
 export type NovoEvento = {
   ator: Ator;

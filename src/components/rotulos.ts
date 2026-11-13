@@ -1,6 +1,7 @@
 // Rótulos de enumeração e de selo do painel (03, seções 2.2 e 2.6) e os textos do histórico (03, T05): a única fonte do
 // texto que cada valor gravado mostra na tela (G3.11). Só tipos são importados dos módulos: este arquivo também vai ao
 // navegador, nos componentes de cliente.
+import type { FaseAndamento, StatusConstrucao } from '../db/schema/andamento';
 import type { NivelAprovacao } from '../db/schema/decisao';
 import type { Anexo, LinhaServico, Origem, PapelSolicitante, StatusDemanda, TipoDemanda, Urgencia } from '../db/schema/demandas';
 import type { NivelRisco } from '../db/schema/versoes';
@@ -128,6 +129,32 @@ export const NOME_INTEGRACAO: Readonly<Record<Integracao, string>> = Object.free
 
 export const ROTULO_PAPEL: Readonly<Record<Papel, string>> = { cto: 'CTO', administradora: 'Administradora' };
 
+// 0.4.0 (03, seção 8): as fases e a situação da construção. A situação não usa os rótulos de status da demanda.
+export const ROTULO_FASE: Readonly<Record<FaseAndamento, string>> = Object.freeze({
+  entendendo_o_pedido: 'Entendendo o pedido',
+  planejando: 'Planejando',
+  construindo: 'Construindo',
+  testando: 'Testando',
+  revisando_e_entregando: 'Revisando e entregando',
+  documentando: 'Documentando',
+});
+export const ROTULO_SITUACAO_CONSTRUCAO: Readonly<Record<StatusConstrucao, string>> = Object.freeze({
+  em_construcao: 'Em andamento',
+  construido: 'Concluída',
+  cancelado: 'Cancelada',
+});
+
+// AN-12: só valor da lista vira texto (Object.hasOwn, para chave herdada do protótipo não passar), e só inteiro de 0 a
+// 999 vira número. Fora disso, null, e a tela usa a frase genérica ou não mostra nada. O 999 é cópia de
+// MAXIMO_DE_TAREFAS (db/schema/andamento.ts), que aqui só entra por tipo; o teste confere que os dois não se afastam.
+export const MAXIMO_DE_TAREFAS_NA_TELA = 999;
+export const faseNaTela = (v: unknown): string | null => (typeof v === 'string' && Object.hasOwn(ROTULO_FASE, v) ? ROTULO_FASE[v as FaseAndamento] : null);
+export const situacaoNaTela = (v: unknown): StatusConstrucao | null =>
+  typeof v === 'string' && Object.hasOwn(ROTULO_SITUACAO_CONSTRUCAO, v) ? (v as StatusConstrucao) : null;
+export const tarefaNaTela = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= MAXIMO_DE_TAREFAS_NA_TELA ? v : null);
+// "9 de 17 tarefas"; total 1, "0 de 1 tarefa" (03, seção 8).
+export const tarefasEmTexto = (p: number, t: number): string => `${p} de ${t} ${t === 1 ? 'tarefa' : 'tarefas'}`;
+
 // Rótulos dos campos da demanda, os de 03 T04, para "Alterou "<rótulo do campo>"" no histórico.
 export const ROTULO_CAMPO_DEMANDA: Readonly<Record<string, string>> = {
   titulo: 'Título',
@@ -228,6 +255,25 @@ function dataCivil(v: unknown): string {
 
 const texto = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 
+// 0.4.0 (03, 5.7): o começo da frase do andamento_registrado, pela situação da construção gravada no evento.
+const INICIO_DO_ANDAMENTO: Readonly<Record<StatusConstrucao, string>> = Object.freeze({
+  em_construcao: 'Registrou o andamento de',
+  construido: 'Registrou o fim da construção de',
+  cancelado: 'Registrou o cancelamento da construção de',
+});
+
+// "<início> <DEC>: <Fase>[, p de t tarefas]"; com qualquer valor fora da lista ou número fora do formato, só a frase
+// genérica (nada gravado de fora chega à tela; AN-12).
+function textoDoAndamento(entidadeId: string, d: Record<string, unknown>): string {
+  const dec = doPacote(entidadeId);
+  const fase = faseNaTela(d.fase);
+  const sc = situacaoNaTela(d.statusConstrucao);
+  const p = tarefaNaTela(d.tarefasProntas);
+  const t = tarefaNaTela(d.tarefasTotal);
+  if (fase === null || sc === null || p === null || t === null || p > t) return `Registrou o andamento de ${dec}`;
+  return `${INICIO_DO_ANDAMENTO[sc]} ${dec}: ${fase}${t > 0 ? `, ${tarefasEmTexto(p, t)}` : ''}`;
+}
+
 export function textoDoEvento(e: EventoVisivel, op: { retencaoDias?: number } = {}): string {
   const d = e.depois ?? {};
   const agente = ehAgente(d.agente) ? d.agente : null;
@@ -321,5 +367,8 @@ export function textoDoEvento(e: EventoVisivel, op: { retencaoDias?: number } = 
       return `Buscou o Pedido de Construção de ${doPacote(e.entidadeId)}`;
     case 'pedido_recebido':
       return `Confirmou o recebimento do Pedido de Construção de ${doPacote(e.entidadeId)}`;
+    // 0.4.0 (03, 5.7): fase, situação e tarefas, cada valor conferido; sem "Antes/Depois" (valoresDoEvento não muda).
+    case 'andamento_registrado':
+      return textoDoAndamento(e.entidadeId, d);
   }
 }

@@ -27,9 +27,10 @@ describe('package.json', () => {
   // 0.2.0: DEC-DEM-20261110-0015-v1 (novo visual do painel; T17, CA-17.1).
   // 0.3.0: DEC-DEM-20261111-0016-v1 (atores de integração awave e construir; T20, RF-16, G5 do plano).
   // 0.3.1: DEC-DEM-20261112-0019-v1 (correções M-1 a M-5 e B-2, B-3 da revisão da 0.3.0).
-  it('versão 0.3.1, privado, ESM, Node 24 e pnpm 12.6.0 fixo (C-39)', () => {
+  // 0.4.0: DEC-DEM-20261111-0017-v1 (andamento do Pedido de Construção registrado pelo /construir; T14, RF-13, G5 do plano).
+  it('versão 0.4.0, privado, ESM, Node 24 e pnpm 12.6.0 fixo (C-39)', () => {
     expect(pkg.name).toBe('ws-orquestrador-demandas');
-    expect(pkg.version).toBe('0.3.1');
+    expect(pkg.version).toBe('0.4.0');
     expect(pkg.private).toBe(true);
     expect(pkg.type).toBe('module');
     expect(pkg.packageManager).toBe('pnpm@12.6.0');

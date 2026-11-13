@@ -4,6 +4,7 @@
 // entram tipos, e nada de acesso, banco, deps ou Server Action (CV-09). A saída não leva nome de quem aprovou, documento
 // assinado nem comentário da decisão: o detalhe da linha 8 cita só o papel (04, D8). Link só de constante de rota com id
 // que casa a regex de hoje; id fora do formato não gera link (CV-19).
+import type { AndamentoVista } from '../modules/andamento/schemas';
 import type { DemandaVista, PacoteResumo } from '../modules/demandas/consultas';
 import type { EventoVisivel } from '../modules/historico/consultas';
 import type { Aprovador, PacoteDecisaoVista } from '../modules/pacotes-decisao/consultas';
@@ -27,6 +28,9 @@ export type DadosDasEtapas = {
   // 0.3.0 (T17; 03, 5.5; D-06): demanda do Awave sem `demanda_confirmada` e fora de status final, que a página tira de
   // estadoDaConfirmacao (dados-da-confirmacao.ts). Opcional: ausente vale como false, e a 0.2.0 não muda.
   aguardaConfirmacaoDoAwave?: boolean;
+  // 0.4.0 (T13 do DEC-DEM-20261111-0017-v1; 03, 5.6; RF-07): o último andamento da demanda (d.andamento, já conferido por
+  // lerAndamento), para a linha 15. Opcional: ausente vale como sem andamento, e as linhas de hoje não mudam.
+  andamento?: Pick<AndamentoVista, 'decId' | 'statusConstrucao'> | null;
 };
 export type EstadoDaEtapa =
   | 'Registrada'
@@ -164,8 +168,8 @@ function linhaDaDecisao(dec: DecMaisNovo): ProximaAcao {
     : acao(8, DECIDIR, ROTULO_PAPEL.cto, link, `A administradora já aprovou a opção ${unica.opcao}. Falta a aprovação do CTO.`);
 }
 
-// Linhas 9 a 13, pelo status (as linhas 9 e 10 apontam o aprovado vigente).
-function linhaDoStatus(status: Status, vigente: PacoteResumo | null): ProximaAcao {
+// Linhas 9 a 13, pelo status (as linhas 9 e 10 apontam o aprovado vigente). 0.4.0: a linha 15, dentro de Em construção.
+function linhaDoStatus(status: Status, vigente: PacoteResumo | null, andamento: DadosDasEtapas['andamento']): ProximaAcao {
   switch (status) {
     case 'pronta_para_decisao':
       if (vigente) return acao(9, 'Mudar o status para Aprovada e gerar o Pedido de Construção.', UMA_PESSOA, paraDec(vigente.id, ABRIR_APROVADA));
@@ -178,6 +182,9 @@ function linhaDoStatus(status: Status, vigente: PacoteResumo | null): ProximaAca
         vigente ? paraDec(vigente.id, ABRIR_APROVADA) : null,
       );
     case 'em_construcao':
+      // 0.4.0 (RF-07; 03, 5.6): o número 15 é só identificador. Só com o andamento do DEC vigente em `construido`.
+      if (andamento?.statusConstrucao === 'construido' && vigente !== null && andamento.decId === vigente.id)
+        return acao(15, 'Construção concluída: confira e marque como Entregue.', UMA_PESSOA, secao(MUDAR_O_STATUS, 'status'), 'O /construir não marca Entregue: quem confere a entrega é uma pessoa.');
       return acao(11, 'Acompanhar a construção. Quando terminar, mudar o status para Entregue ou Devolvida pela construção.', UMA_PESSOA, secao(MUDAR_O_STATUS, 'status'));
     case 'devolvida':
       return acao(12, 'Ler o motivo da devolução no histórico e voltar a demanda para Em construção ou Em análise.', UMA_PESSOA, secao(MUDAR_O_STATUS, 'status'));
@@ -227,5 +234,5 @@ export function proximaAcao(x: DadosDasEtapas): ProximaAcao {
   if (dec.statusDecisao === 'pendente' && dec.desatualizado)
     return acao(7, 'Montar um pacote novo. O pacote atual está desatualizado.', UMA_PESSOA, paraDemanda(d.id, 'pacotes-decisao/novo', 'Montar um pacote novo'));
   if (dec.statusDecisao === 'pendente') return linhaDaDecisao(dec);
-  return linhaDoStatus(d.status, vigenteDe(d));
+  return linhaDoStatus(d.status, vigenteDe(d), x.andamento ?? null);
 }

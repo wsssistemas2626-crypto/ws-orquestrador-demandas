@@ -19,6 +19,11 @@
 // Awave, o selo "Aguardando confirmação", a seção "Confirmação do Awave" depois de Dados (também em "Nesta página") e a
 // linha 14 da Próxima ação. Os três saem de um único estadoDaConfirmacao, lido do histórico que a página já carrega (D-06):
 // selo e linha 14 só em "aguardando", a seção em todo estado que não é "nao_se_aplica".
+//
+// 0.4.0 (T13 do DEC-DEM-20261111-0017-v1; 03, 5.1 a 5.8): a seção "Andamento da construção", do d.andamento que a vista
+// da demanda já traz (T09), em qualquer status, só quando o andamento é válido (secaoDoAndamento confere de novo; sem
+// ele, nem seção nem item em "Nesta página"); no DOM logo depois da Próxima ação, e a partir de 1200 px embaixo dela, na
+// coluna lateral, com o Histórico descendo uma linha. A Próxima ação recebe o andamento para a linha 15.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -29,6 +34,7 @@ import { Cartao } from '../../../../components/Cartao';
 import { estadoDaConfirmacao, type EstadoDaConfirmacao } from '../../../../components/dados-da-confirmacao';
 import { AVISO_DEMANDA, TEXTOS_DEMANDA } from '../../../../components/dados-da-demanda';
 import { etapasDaDemanda, proximaAcao, type DadosDasEtapas } from '../../../../components/dados-das-etapas';
+import { secaoDoAndamento } from '../../../../components/dados-do-andamento';
 import { chegadaDaEspecificacao } from '../../../../components/dados-da-especificacao';
 import { chegadaDoParecer } from '../../../../components/dados-do-parecer';
 import {
@@ -86,6 +92,7 @@ import {
 import { Historico } from './Historico';
 import { LinkNestaPagina } from './LinkNestaPagina';
 import { MudarStatus } from './MudarStatus';
+import { SecaoAndamento } from './SecaoAndamento';
 import { TextoRecebido } from './TextoRecebido';
 
 type Parametros = Record<string, string | string[] | undefined>;
@@ -420,11 +427,16 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
     historico,
     temSecaoDeDuvidas: duvidas !== null,
     aguardaConfirmacaoDoAwave: aguardando,
+    andamento: d.andamento,
   };
   const etapas = etapasDaDemanda(dadosDasEtapas);
   const acao = proximaAcao(dadosDasEtapas);
+  // 0.4.0 (T13): null sem andamento ou com valor fora do esquema (CA-09.4, CA-04.6): a seção não existe.
+  const andamento = secaoDoAndamento(d.andamento, d.pacotesDecisao, formatarDataHora);
   const s = TEXTOS_DETALHE.secoes;
   const secoes = [
+    // 03, 5.1 item 3: o primeiro item, quando a seção existe (é a primeira do DOM depois da Próxima ação).
+    ...(andamento ? [[ID_SECAO.andamento, s.andamento] as const] : []),
     [ID_SECAO.dados, s.dados],
     ...(confirmacao ? [[ID_SECAO.confirmacao, s.confirmacao] as const] : []),
     ...(duvidas ? [[ID_SECAO.duvidas, s.duvidas] as const] : []),
@@ -495,6 +507,12 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
       <div className={GRADE}>
         <CartaoProximaAcao acao={acao} className="xl:col-start-3 xl:row-start-1" />
 
+        {andamento ? (
+          <Secao id={ID_SECAO.andamento} titulo={s.andamento} className="xl:col-start-3 xl:row-start-2">
+            <SecaoAndamento secao={andamento} classeDoLink={CLASSE_ACAO_DA_VERSAO} />
+          </Secao>
+        ) : null}
+
         <Secao id={ID_SECAO.dados} titulo={s.dados} className={`${PRINCIPAL} xl:row-start-1`}>
           <Dados d={d} origem={origem} />
         </Secao>
@@ -535,7 +553,8 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
           <TextoRecebido texto={texto} retencaoDias={retencaoDias} />
         </Secao>
 
-        <Secao id={ID_SECAO.historico} titulo={s.historico} className="xl:col-start-3 xl:row-[2/-1]">
+        {/* 03, 5.1 item 2: com a seção do andamento na segunda linha da lateral, o Histórico começa na terceira. */}
+        <Secao id={ID_SECAO.historico} titulo={s.historico} className={andamento ? 'xl:col-start-3 xl:row-[3/-1]' : 'xl:col-start-3 xl:row-[2/-1]'}>
           <Historico eventos={historico} retencaoDias={retencaoDias} />
         </Secao>
       </div>

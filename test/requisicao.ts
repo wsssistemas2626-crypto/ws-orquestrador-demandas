@@ -89,7 +89,8 @@ export function padraoDaRota(arquivo: string): string {
   return `/${segmentos.join('/')}`;
 }
 
-const caminhoCom = (padrao: string, params: Record<string, string>) =>
+// Exportado na T09 do DEC-DEM-20261111-0017-v1 para a varredura do AN-09 (test/transversal/visibilidade-andamento.test.ts).
+export const caminhoCom = (padrao: string, params: Record<string, string>) =>
   padrao.replace(/\[(?:\.\.\.)?([A-Za-z]+)\]/g, (_, nome: string) => encodeURIComponent(params[nome] ?? 'x'));
 
 // Requisição montada como o painel ou o agente mandaria: parâmetros de `meta.exemplo` (passam na regex), corpo `{}` em

@@ -27,8 +27,8 @@ const SO_PESSOA = [
   'ler_teto',
 ] as const;
 const SO_CTO = ['alterar_agente', 'alterar_teto'] as const;
-// 0.3.0 (RF-03, IN-01): as três ações do /construir, sem pessoa nem agente.
-const SO_CONSTRUIR = ['listar_pedidos_pendentes', 'entregar_pedido', 'confirmar_recebimento_pedido'] as const;
+// 0.3.0 (RF-03, IN-01): as três ações do /construir, sem pessoa nem agente; 0.4.0 (RF-01, AN-01): e o andamento.
+const SO_CONSTRUIR = ['listar_pedidos_pendentes', 'entregar_pedido', 'confirmar_recebimento_pedido', 'registrar_andamento'] as const;
 type LinhaEsperada = { pessoa: 'qualquer' | 'cto' | null; agentes: Agente[]; integracoes: Integracao[] };
 const linhas = <A extends Acao>(acoes: readonly A[], l: LinhaEsperada) =>
   Object.fromEntries(acoes.map((a) => [a, l])) as Record<A, LinhaEsperada>;
@@ -81,8 +81,8 @@ describe('autorizar', () => {
 });
 
 describe('matriz como dado (C-10, C-12)', () => {
-  it('as ações são as 23 do plano, sem repetição, e a matriz não tem linha a mais', () => {
-    expect(new Set(ACOES).size).toBe(23);
+  it('as ações são as 24 do plano, sem repetição, e a matriz não tem linha a mais', () => {
+    expect(new Set(ACOES).size).toBe(24);
     expect(Object.keys(MATRIZ).sort()).toEqual([...ACOES].sort());
     expect(Object.keys(ESPERADA).sort()).toEqual([...ACOES].sort());
   });

@@ -41,6 +41,8 @@ const ACOES = {
   demanda_confirmada: true,
   pedido_entregue: true,
   pedido_recebido: true,
+  // 0.4.0 (DEC-DEM-20261111-0017-v1, T05): o andamento informado pelo /construir.
+  andamento_registrado: true,
 } as const satisfies Record<AcaoEvento, true>;
 const TODAS = Object.keys(ACOES) as AcaoEvento[];
 
@@ -68,9 +70,9 @@ const ev = (acao: AcaoEvento, parcial: Partial<EventoVisivel> = {}): EventoVisiv
 
 const LIXO = /undefined|null|NaN|\[object|function/;
 
-describe('textoDoEvento: os 27 eventos (03, T05 "Histórico"; 0.3.0, 03, 5.6)', () => {
-  it('a lista de ações tem 27 itens', () => {
-    expect(TODAS).toHaveLength(27);
+describe('textoDoEvento: os 28 eventos (03, T05 "Histórico"; 0.3.0, 03, 5.6; 0.4.0, 03, 5.7)', () => {
+  it('a lista de ações tem 28 itens', () => {
+    expect(TODAS).toHaveLength(28);
   });
 
   it.each(TODAS)('%s: texto não vazio e legível, com qualquer ator e sem antes nem depois', (acao) => {
@@ -173,6 +175,33 @@ describe('textoDoEvento: caminhos de reserva', () => {
       'Apagou uma entrada aguardando o agente orquestrador (retenção de 30 dias)',
     );
     expect(textoDoEvento(ev('entrada_pendente_expurgada'))).toBe('Apagou uma entrada aguardando o agente orquestrador (retenção de 90 dias)');
+  });
+});
+
+// 06-T05-testes do DEC-DEM-20261111-0017-v1 (qa-automacao): o evento novo cita o DEC (CA-06.5) e não ecoa o que não é
+// um DEC. Vale para a frase genérica da T05 e para a completa da T11.
+describe('textoDoEvento: andamento_registrado (0.4.0, RF-06)', () => {
+  const DEC = 'DEC-DEM-20261112-0005-v1';
+  const andamento = (entidadeId: string) =>
+    ev('andamento_registrado', {
+      ator: { tipo: 'integracao', integracao: 'construir', prefixo: 'ficticio' },
+      entidade: 'pacote_decisao',
+      entidadeId,
+      antes: null,
+      depois: { fase: 'construindo', tarefasProntas: 9, tarefasTotal: 17, statusConstrucao: 'em_construcao' },
+    });
+
+  it('cita o DEC do evento', () => {
+    expect(textoDoEvento(andamento(DEC))).toContain(DEC);
+  });
+
+  it('entidadeId fora do formato do DEC não aparece no texto', () => {
+    for (const id of ['SENTINELA-dec', `${DEC}<script>`, 'DEM-20261112-0005']) {
+      const t = textoDoEvento(andamento(id));
+      expect(t).not.toContain(id);
+      expect(t.trim().length).toBeGreaterThan(0);
+      expect(t).not.toMatch(LIXO);
+    }
   });
 });
 

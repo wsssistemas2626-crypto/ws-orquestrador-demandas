@@ -4,6 +4,7 @@
 // Dados só fictícios. O token só nasce em tempo de teste e chega aqui por função: nunca é escrito em arquivo.
 import { createHash } from 'node:crypto';
 import { expect } from 'vitest';
+import * as rotaAndamento from '../src/app/api/pedidos-construcao/[decId]/andamento/route';
 import * as rotaEntrega from '../src/app/api/pedidos-construcao/[decId]/entrega/route';
 import * as rotaRecebimento from '../src/app/api/pedidos-construcao/[decId]/recebimento/route';
 import * as rotaPendentes from '../src/app/api/pedidos-construcao/pendentes/route';
@@ -58,7 +59,7 @@ export const sha256DoTexto = (texto: string) => createHash('sha256').update(text
 // `content-type: application/json`.
 export type OpChamada = { bearer?: string | null; corpo?: unknown; cabecalhos?: Record<string, string>; semOrigin?: boolean };
 
-// As três rotas como o buscar-pedidos.mjs chama: Bearer, `accept: application/json` e sem `Origin`; a entrega é POST sem
+// As rotas como o buscar-pedidos.mjs chama: Bearer, `accept: application/json` e sem `Origin`; a entrega é POST sem
 // corpo e sem `content-type`.
 export function chamadasDoConstruir(token: () => string) {
   const credencial = (op: OpChamada) => (op.bearer === null ? undefined : (op.bearer ?? token()));
@@ -84,6 +85,20 @@ export function chamadasDoConstruir(token: () => string) {
       chamarRota(rotaRecebimento.POST, {
         metodo: 'POST',
         caminho: `/api/pedidos-construcao/${encodeURIComponent(decId)}/recebimento`,
+        params: { decId },
+        bearer: credencial(op),
+        semOrigin: op.semOrigin ?? true,
+        corpo,
+        cabecalhos: { accept: 'application/json', ...op.cabecalhos },
+      }),
+    // T08 do DEC-DEM-20261111-0017-v1: como o enviarAndamento de ferramentas/construir/lib/andamento.mjs (aa01e2d) manda.
+    // POST, Bearer, `accept` e `content-type: application/json`, sem `Origin` e sem cookie; o corpo vai como
+    // JSON.stringify(andamento), com as quatro chaves na ordem fase, tarefasProntas, tarefasTotal, status. Texto vai como
+    // está (corpo malformado ou fora do formato).
+    andamento: (decId: string, corpo: unknown, op: Omit<OpChamada, 'corpo'> = {}) =>
+      chamarRota(rotaAndamento.POST, {
+        metodo: 'POST',
+        caminho: `/api/pedidos-construcao/${encodeURIComponent(decId)}/andamento`,
         params: { decId },
         bearer: credencial(op),
         semOrigin: op.semOrigin ?? true,

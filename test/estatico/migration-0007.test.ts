@@ -7,12 +7,13 @@ import { expect, it } from 'vitest';
 const raiz = fileURLToPath(new URL('../../', import.meta.url));
 const diario = JSON.parse(readFileSync(`${raiz}drizzle/meta/_journal.json`, 'utf8')) as { entries: { idx: number; tag: string }[] };
 
-it('a 0007 é a última e a única nova', () => {
-  expect(diario.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+// T01 do DEC-DEM-20261111-0017-v1 (G5): a 0008 e a 0009 vieram depois; a 0007 é lida pelo índice, não como a última.
+it('a 0007 está no índice 7 do diário', () => {
+  expect(diario.entries.find((e) => e.idx === 7)?.tag).toBe('0007_greedy_wendigo');
 });
 
 it('a 0007 não apaga, renomeia, reescreve nem troca tipo de nada', () => {
-  const tag = diario.entries.at(-1)!.tag;
+  const tag = diario.entries.find((e) => e.idx === 7)!.tag;
   const sql = readFileSync(`${raiz}drizzle/${tag}.sql`, 'utf8');
   for (const proibido of [/\bupdate\s+"/i, /\bdelete\s+from\b/i, /\bdrop\s+column\b/i, /\bdrop\s+table\b/i, /\brename\b/i, /\bset\s+data\s+type\b/i, /\btruncate\b/i, /\bgrant\b/i])
     expect(sql, String(proibido)).not.toMatch(proibido);

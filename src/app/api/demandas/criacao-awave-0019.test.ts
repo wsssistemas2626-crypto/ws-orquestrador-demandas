@@ -88,7 +88,7 @@ describe('M-2: o 201 do Awave sai da transação orçada', () => {
     const r = await porToken();
     expect(r.status).toBe(201);
     const corpo = (await r.json()) as Record<string, unknown>;
-    expect(Object.keys(corpo).sort()).toEqual(['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
+    expect(Object.keys(corpo).sort()).toEqual(['andamento', 'atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
     expect(corpo).toMatchObject({ titulo: CORPO_DO_AWAVE.titulo, tipo: 'melhoria', status: 'nova' });
     expect(vi.mocked(obterDemandaDaIntegracao)).toHaveBeenCalledTimes(1);
   });

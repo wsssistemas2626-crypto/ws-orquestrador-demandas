@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.1: 404 ao agente na demanda do Awave não confirmada e nos artefatos dela, fora das listas; 409 do recebimento para hash que não é o da última entrega; 503 também pelo prazo total); 12/11/2026 (0.3.0: integrações `awave` e `construir` na autenticação e nas rotas, filtro `origem`, as três rotas de `/api/pedidos-construcao`, exemplos das integrações, 429 do Awave, 409 do recebimento e 503 `indisponivel` das integrações); 10/11/2026 (0.1.13: `substituido` e `substituidoPor` nas leituras de DEC, 409 do DEC substituído no `POST .../pedido-construcao` e 409 do S-01 no `PATCH .../decisao`; saiu o 409 da A-02); 04/11/2026 (0.1.12: corpo com a confirmação e recusa com o nome do solicitante no `POST .../pedido-construcao`); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase trocado para o agente; 500 `erro_interno` também para erro que lança ao ser lido); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
+| Atualizado em | 13/11/2026 (0.4.0: rota `POST /api/pedidos-construcao/:decId/andamento`, com exemplo; `andamento` na leitura de pessoa e, como sétima chave, na do Awave; 422, 409 e 429 do andamento na tabela de erros); 12/11/2026 (0.3.1: 404 ao agente na demanda do Awave não confirmada e nos artefatos dela, fora das listas; 409 do recebimento para hash que não é o da última entrega; 503 também pelo prazo total); 12/11/2026 (0.3.0: integrações `awave` e `construir` na autenticação e nas rotas, filtro `origem`, as três rotas de `/api/pedidos-construcao`, exemplos das integrações, 429 do Awave, 409 do recebimento e 503 `indisponivel` das integrações); 10/11/2026 (0.1.13: `substituido` e `substituidoPor` nas leituras de DEC, 409 do DEC substituído no `POST .../pedido-construcao` e 409 do S-01 no `PATCH .../decisao`; saiu o 409 da A-02); 04/11/2026 (0.1.12: corpo com a confirmação e recusa com o nome do solicitante no `POST .../pedido-construcao`); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase trocado para o agente; 500 `erro_interno` também para erro que lança ao ser lido); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Fontes no código | `src/app/api/**/route.ts` (desde a 0.3.0, também `src/app/api/pedidos-construcao/`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts`, `src/modules/integracoes/tempo-limite.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
@@ -28,10 +28,10 @@ Base: a origem do `BETTER_AUTH_URL`. Toda rota abaixo, menos `/api/auth/*` e `/a
 |---|---|---|---|
 | `GET /api/saude` | público | — | 200 `{"status":"ok"}` ou 503 `{"status":"indisponivel"}` |
 | `/api/auth/*` | público | Better Auth (login, 2FA) | — |
-| `POST /api/demandas` | pessoa, `orquestrador`, `awave` (desde a 0.3.0) | `criarDemandaSchema` ([cap. 03](03-demandas.md#rf-03-criar-demanda)) | 201 com a demanda (ao agente, a vista mínima; ao Awave, as seis chaves, [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)) |
+| `POST /api/demandas` | pessoa, `orquestrador`, `awave` (desde a 0.3.0) | `criarDemandaSchema` ([cap. 03](03-demandas.md#rf-03-criar-demanda)) | 201 com a demanda (ao agente, a vista mínima; ao Awave, as seis chaves e, desde a 0.4.0, a sétima, `andamento: null`, [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)) |
 | `GET /api/demandas` | pessoa, os 4 agentes | `status`, `tipo`, `linhaServicoProvavel`, `origem` (`pessoa`, `agente` ou `awave`, desde a 0.3.0), `limit`, `offset` | lista e `total`; cada item com `origem` desde a 0.3.0 |
 | `POST /api/demandas/entrada` | pessoa | `entradaSchema` (`modo: manual` ou `agente`) | 201 `{ demanda }` no modo manual; 202 `{ entradaId }` no modo agente |
-| `GET /api/demandas/:id` | pessoa, os 4 agentes, `awave` (só a que ele criou, desde a 0.3.0) | — | demanda com versões e `agentesEmAndamento`; ao agente, a vista mínima ([cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); ao Awave, as seis chaves, e 404 para demanda de outro autor |
+| `GET /api/demandas/:id` | pessoa, os 4 agentes, `awave` (só a que ele criou, desde a 0.3.0) | — | demanda com versões e `agentesEmAndamento` e, desde a 0.4.0, `andamento` (seis campos ou `null`); ao agente, a vista mínima, sem `andamento` ([cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); ao Awave, as seis chaves e, desde a 0.4.0, `andamento` com quatro campos ou `null`, e 404 para demanda de outro autor |
 | `PATCH /api/demandas/:id` | pessoa | `alterarDemandaSchema` (campos e `status`) | demanda |
 | `GET /api/demandas/:id/historico` | pessoa | — | eventos |
 | `POST /api/demandas/:id/especificacoes` | pessoa, `insumo_tecnico` | `criarEspecificacaoSchema` | 201 com a ESP (ao agente, a vista mínima) |
@@ -53,6 +53,7 @@ Base: a origem do `BETTER_AUTH_URL`. Toda rota abaixo, menos `/api/auth/*` e `/a
 | `GET /api/pedidos-construcao/pendentes` | `construir` (desde a 0.3.0) | — | `{ "itens": [{ "decId": … }] }`, do pedido gerado mais antigo para o mais novo ([cap. 05](05-pedido-de-construcao.md#pendentes-listar_pedidos_pendentes)) |
 | `POST /api/pedidos-construcao/:decId/entrega` | `construir` (desde a 0.3.0) | sem corpo e sem `content-type` | o JSON do Pedido de Construção, os mesmos bytes da geração ([cap. 05](05-pedido-de-construcao.md#entrega-entregar_pedido)) |
 | `POST /api/pedidos-construcao/:decId/recebimento` | `construir` (desde a 0.3.0) | `{ "sha256": "<64 hexadecimais minúsculos>" }` | 204 sem corpo ([cap. 05](05-pedido-de-construcao.md#recebimento-confirmar_recebimento_pedido)) |
+| `POST /api/pedidos-construcao/:decId/andamento` | `construir` (desde a 0.4.0) | exatamente `{ "fase", "tarefasProntas", "tarefasTotal", "status" }` (`corpoAndamentoSchema`) | 204 sem corpo; 404, 409, 422, 429 e 503 ([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)) |
 
 Desde a 0.3.1, para os quatro agentes, a demanda do Awave que nenhuma pessoa confirmou não existe. Ela e a ESP, o RSK
 e o DEC dela respondem o mesmo 404 da demanda inexistente, nas leituras por id, nas três listas de versões e nos três
@@ -61,8 +62,8 @@ e o DEC dela respondem o mesmo 404 da demanda inexistente, nas leituras por id, 
 ([cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)).
 
 Sem status na coluna Resposta, a rota responde 200. Fora da coluna Quem, 403: a integração `awave` recebe 403 em toda
-rota que não é `POST /api/demandas` nem `GET /api/demandas/:id`, e pessoa, agentes e `awave` recebem 403 nas três
-rotas de `/api/pedidos-construcao`. Os testes de cada rota ficam ao lado dela
+rota que não é `POST /api/demandas` nem `GET /api/demandas/:id`, e pessoa, agentes e `awave` recebem 403 nas quatro
+rotas de `/api/pedidos-construcao` (três desde a 0.3.0 e a do andamento desde a 0.4.0). Os testes de cada rota ficam ao lado dela
 (`src/app/api/**/*.test.ts`).
 
 ## Exemplo: criar demanda com token de agente
@@ -89,16 +90,22 @@ Content-Type: application/json
 { "titulo": "Relatório semanal montado à mão (fictício)", "tipo": "melhoria", "solicitanteNome": "Awave", "solicitantePapel": "outro", "descricaoProblema": "O relatório é montado à mão a partir de três planilhas.", "contexto": "Demanda aberta por um agente do Awave, com a aprovação do dono." }
 ```
 
-Resposta 201, só com as seis chaves:
+Resposta 201, só com as seis chaves da 0.3.0 e, desde a 0.4.0, a sétima, `andamento`, que no 201 é sempre `null`:
 
 ```json
-{ "id": "DEM-20261112-0042", "titulo": "Relatório semanal montado à mão (fictício)", "tipo": "melhoria", "status": "nova", "criadaEm": "2026-11-12T13:00:00.000Z", "atualizadaEm": "2026-11-12T13:00:00.000Z" }
+{ "id": "DEM-20261112-0042", "titulo": "Relatório semanal montado à mão (fictício)", "tipo": "melhoria", "status": "nova", "criadaEm": "2026-11-12T13:00:00.000Z", "atualizadaEm": "2026-11-12T13:00:00.000Z", "andamento": null }
 ```
 
 - A 11ª demanda em 60 minutos recebe 429
   `{ "erro": "limite_excedido", "mensagem": "Limite de 10 demandas por hora do Awave atingido. Tente de novo mais tarde." }`.
-- `GET /api/demandas/DEM-20261112-0042` com o mesmo token devolve as mesmas seis chaves. Uma demanda de outro autor
+- `GET /api/demandas/DEM-20261112-0042` com o mesmo token devolve as mesmas sete chaves. Uma demanda de outro autor
   devolve o mesmo 404 de uma demanda que não existe.
+- Quando o `/construir` já informou o andamento da construção da demanda, a sétima chave vem com quatro campos, sem a
+  situação da construção nem o DEC:
+
+  ```json
+  { "andamento": { "fase": "construindo", "tarefasProntas": 9, "tarefasTotal": 17, "atualizadoEm": "2026-11-13T10:20:00.000Z" } }
+  ```
 - O título volta minimizado: a palavra "Awave" escrita nele sai "[nome removido]" (QF-0016-01). O exemplo acima não
   a tem.
 
@@ -141,6 +148,33 @@ entrega confirma):
 
 Desde a 0.3.1, cada transação das integrações tem prazo total: 8 s, e 12 s na entrega, contando a espera por conexão.
 Passou do prazo: 503 `indisponivel` e nada gravado ([Erros](#erros)).
+
+## Exemplo: o /construir informa o andamento
+
+Desde a 0.4.0, pelo domínio público em https, sem `Origin`, só com o token da integração `construir`
+([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)):
+
+```http
+POST /api/pedidos-construcao/DEC-DEM-20261112-0007-v1/andamento HTTP/1.1
+Authorization: Bearer wsod_<token da integração construir>
+Content-Type: application/json
+
+{ "fase": "construindo", "tarefasProntas": 9, "tarefasTotal": 17, "status": "em_construcao" }
+```
+
+Resposta 204, sem corpo. O mesmo corpo de novo responde 204 sem gravar nada. Com uma chave a mais, uma fase fora da
+lista ou `tarefasProntas` maior que `tarefasTotal`, a resposta é 422, antes de olhar o DEC:
+
+```json
+{ "erro": "nao_processavel", "mensagem": "Andamento fora do formato. Envie só fase, tarefasProntas, tarefasTotal e status, com fase e status da lista e 0 ≤ tarefasProntas ≤ tarefasTotal ≤ 999." }
+```
+
+- DEC inexistente, ou sem Pedido de Construção gerado por pessoa no painel: o mesmo 404 nos dois casos.
+- DEC substituído por um aprovado mais novo:
+  `{ "erro": "conflito", "mensagem": "O pacote deste pedido foi substituído por um aprovado mais novo. O andamento não foi registrado: envie o do pedido novo." }`.
+- `em_construcao` ou `cancelado` numa demanda já `entregue`, ou `em_construcao` ou `construido` numa demanda já
+  `encerrada`: `{ "erro": "conflito", "mensagem": "A demanda deste pedido já está em um status final e não aceita este andamento. Nada foi registrado." }`.
+- A 61ª gravação do mesmo DEC numa hora, ou a 601ª do `/construir`: 429 `limite_excedido`.
 
 ## Exemplo: decisão recusada
 
@@ -342,13 +376,13 @@ Corpo de erro: `{ "erro": <código>, "mensagem": <texto em pt-BR> }`, mais `camp
 | `nao_autenticado` | 401 | sem sessão nem token; token de agente ou de integração inválido ou revogado |
 | `sem_permissao` | 403 | fora da matriz; `Origin` diferente; papel errado na decisão |
 | `sem_2fa` | 403 | sessão de conta sem 2FA ativo |
-| `nao_encontrado` | 404 | id fora do formato (sem consulta) ou inexistente; desde a 0.3.1, para agente, também a demanda do Awave não confirmada e a ESP, o RSK e o DEC dela, com o mesmo corpo |
+| `nao_encontrado` | 404 | id fora do formato (sem consulta) ou inexistente; desde a 0.3.1, para agente, também a demanda do Awave não confirmada e a ESP, o RSK e o DEC dela, com o mesmo corpo; desde a 0.4.0, o andamento de DEC sem Pedido de Construção gerado por pessoa, igual ao do DEC inexistente |
 | `metodo_nao_permitido` | 405 | método que a rota não tem |
-| `conflito` | 409 | confirmar demanda que não é do Awave ou em status final (painel, desde a 0.3.0); recebimento de pedido nunca entregue ou com SHA-256 que não confere (desde a 0.3.0; desde a 0.3.1, que não é o da última entrega); já decidido; não é o DEC mais novo; DEC só do CTO sobre um aprovado vigente de dupla aprovação (S-01, desde a 0.1.13; até a 0.1.12, qualquer outro DEC aprovado, A-02); desatualizado; Pedido de DEC substituído (desde a 0.1.13); transição de status recusada; agente desligado; ESP, RSK ou DEC numa demanda `entregue` ou `encerrada`; decidir DEC ou gerar Pedido numa demanda `entregue` ou `encerrada` |
+| `conflito` | 409 | confirmar demanda que não é do Awave ou em status final (painel, desde a 0.3.0); recebimento de pedido nunca entregue ou com SHA-256 que não confere (desde a 0.3.0; desde a 0.3.1, que não é o da última entrega); já decidido; não é o DEC mais novo; DEC só do CTO sobre um aprovado vigente de dupla aprovação (S-01, desde a 0.1.13; até a 0.1.12, qualquer outro DEC aprovado, A-02); desatualizado; Pedido de DEC substituído (desde a 0.1.13); transição de status recusada; agente desligado; ESP, RSK ou DEC numa demanda `entregue` ou `encerrada`; decidir DEC ou gerar Pedido numa demanda `entregue` ou `encerrada`; desde a 0.4.0, andamento de DEC substituído e andamento que contradiz o status final da demanda |
 | `capacidade_de_ids_esgotada` | 409 | a sequência de ids de demanda passou de 9.999 |
 | `corpo_grande` | 413 | corpo acima de 512 KB |
 | `tipo_nao_suportado` | 415 | corpo que não é `application/json` |
-| `nao_processavel` | 422 | pedido de `estudo`; pedido sem a confirmação `confirmaSemDadoPessoal: true` (desde a 0.1.12); dado pessoal no pedido, inclusive o nome do solicitante desde a 0.1.12 (`erros`); pedido recusado pelo `validarPedido` (`erros`) |
-| `limite_excedido` | 429 | 30 demandas ou 60 versões por hora por ator; 10 demandas por hora para o Awave (desde a 0.3.0); limite de login |
+| `nao_processavel` | 422 | pedido de `estudo`; pedido sem a confirmação `confirmaSemDadoPessoal: true` (desde a 0.1.12); dado pessoal no pedido, inclusive o nome do solicitante desde a 0.1.12 (`erros`); pedido recusado pelo `validarPedido` (`erros`); desde a 0.4.0, corpo do andamento fora do formato, sem `campos` e sem eco, antes de qualquer consulta |
+| `limite_excedido` | 429 | 30 demandas ou 60 versões por hora por ator; 10 demandas por hora para o Awave (desde a 0.3.0); 60 gravações de andamento por DEC e 600 no total por hora para o `/construir` (desde a 0.4.0); limite de login |
 | `indisponivel` | 503 | serviço indisponível; desde a 0.3.0, também a transação de uma integração que passou do tempo limite (desde a 0.3.1, também do prazo total de 8 s, ou 12 s na entrega, contando a espera por conexão), com "O Orquestrador não concluiu o pedido a tempo e nada foi gravado. Tente de novo em alguns minutos." e nada gravado |
 | `erro_interno` | 500 | qualquer erro que não é de domínio; mensagem genérica, sem detalhe. Desde a 0.1.11, também o erro que lança ao ser lido (getter ou Proxy), com os cabeçalhos da rota, a linha do log e o evento no Sentry ([cap. 02](02-acesso-e-seguranca.md#proteção-das-rotas)) |

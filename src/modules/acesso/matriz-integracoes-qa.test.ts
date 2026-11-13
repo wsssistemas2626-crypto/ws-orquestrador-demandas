@@ -22,7 +22,7 @@ const agenteDoWorker = (agente: Agente): Ator => ({ tipo: 'agente', agente, pref
 const sistema: Ator = { tipo: 'sistema' };
 const SEM_PERMISSAO = expect.objectContaining({ codigo: 'sem_permissao' });
 
-const DO_CONSTRUIR = ['listar_pedidos_pendentes', 'entregar_pedido', 'confirmar_recebimento_pedido'] as const;
+const DO_CONSTRUIR = ['listar_pedidos_pendentes', 'entregar_pedido', 'confirmar_recebimento_pedido', 'registrar_andamento'] as const;
 const DO_AWAVE = ['criar_demanda', 'ler_demanda'] as const;
 const PERMITIDAS: Record<Integracao, readonly Acao[]> = { awave: DO_AWAVE, construir: DO_CONSTRUIR };
 
@@ -63,7 +63,7 @@ describe('CA-03.6: integração fora da lista, em qualquer forma, é negada em t
     ['awave'],
     { toString: () => 'awave' },
   ];
-  it.each(VALORES.map((v, i) => [i, v] as const))('valor %i negado nas 23 ações', (_i, valor) => {
+  it.each(VALORES.map((v, i) => [i, v] as const))('valor %i negado nas 24 ações', (_i, valor) => {
     const ator = { tipo: 'integracao', integracao: valor, prefixoToken: PREFIXO } as unknown as Ator;
     for (const acao of ACOES) expect(() => autorizar(ator, acao), acao).toThrow(SEM_PERMISSAO);
   });
@@ -82,7 +82,7 @@ describe('ator de integração com forma misturada', () => {
     const misturado = { tipo: 'integracao', integracao: 'awave', prefixoToken: PREFIXO, agente: 'orquestrador', papel: 'cto' } as unknown as Ator;
     for (const acao of ACOES) expect(permite(misturado, acao), acao).toBe((DO_AWAVE as readonly string[]).includes(acao));
   });
-  it('construir com campo de agente e papel cto só passa nas três ações dele', () => {
+  it('construir com campo de agente e papel cto só passa nas quatro ações dele', () => {
     const misturado = { tipo: 'integracao', integracao: 'construir', prefixoToken: PREFIXO, agente: 'consolidacao', papel: 'cto' } as unknown as Ator;
     for (const acao of ACOES) expect(permite(misturado, acao), acao).toBe((DO_CONSTRUIR as readonly string[]).includes(acao));
   });
@@ -105,7 +105,7 @@ describe('ator de integração com forma misturada', () => {
   });
 });
 
-describe('CA-03.3 e CA-03.4 no nível da ação: as três do /construir', () => {
+describe('CA-03.3 e CA-03.4 no nível da ação: as quatro do /construir', () => {
   it.each(DO_CONSTRUIR)('%s nega cada agente (com token e do worker), cada papel, o awave e o sistema', (acao) => {
     for (const a of AGENTES) {
       expect(() => autorizar(agenteComToken(a), acao), `${a} com token`).toThrow(SEM_PERMISSAO);
@@ -116,7 +116,7 @@ describe('CA-03.3 e CA-03.4 no nível da ação: as três do /construir', () => 
     expect(() => autorizar(sistema, acao), 'sistema').toThrow(SEM_PERMISSAO);
     expect(() => autorizar(integracao('construir'), acao), 'construir').not.toThrow();
   });
-  it('atoresProibidos das três é exatamente: os quatro agentes, todos os papéis e o awave', () => {
+  it('atoresProibidos das quatro é exatamente: os quatro agentes, todos os papéis e o awave', () => {
     for (const acao of DO_CONSTRUIR)
       expect(atoresProibidos(acao), acao).toEqual([
         ...AGENTES.map((agente) => ({ tipo: 'agente', agente })),
@@ -199,8 +199,8 @@ describe('CA-03.1: o 403 da integração', () => {
           corpos.add(JSON.stringify(mapearErro(e)));
         }
       }
-    // 23 ações × 2 integrações, menos os cinco pares do RF-03.
-    expect(negados).toBe(ACOES.length * INTEGRACOES.length - 5);
+    // 24 ações × 2 integrações, menos os seis pares do RF-03 (0.3.0) e do RF-01 (0.4.0).
+    expect(negados).toBe(ACOES.length * INTEGRACOES.length - 6);
     expect([...corpos]).toEqual([
       JSON.stringify({ status: 403, corpo: { erro: 'sem_permissao', mensagem: MENSAGENS_ACESSO.sem_permissao } }),
     ]);

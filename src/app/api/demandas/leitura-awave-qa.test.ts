@@ -24,7 +24,8 @@ let deps: Deps;
 let token: string;
 let prefixo: string;
 const pessoa = { tipo: 'pessoa', usuarioId: 'p-qa-t05', nome: 'Pessoa Ficticia', papel: 'cto' } as const;
-const SEIS = ['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo'];
+// 0.4.0 (T09 do DEC-DEM-20261111-0017-v1, G5): sete chaves, com `andamento` (RF-10).
+const SETE = ['andamento', 'atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo'];
 const INEXISTENTE = 'DEM-20261022-9998';
 const CRIADA_EM = new Date(AGORA_TESTE).toISOString();
 
@@ -135,7 +136,7 @@ describe('RF-07, CA-07.3 e IN-08: seis chaves com a demanda cheia', () => {
     expect(r.status).toBe(200);
     const texto = await r.text();
     const corpo = JSON.parse(texto) as Record<string, unknown>;
-    expect(Object.keys(corpo).sort()).toEqual(SEIS);
+    expect(Object.keys(corpo).sort()).toEqual(SETE);
     expect(corpo).toEqual({
       id,
       titulo: 'Relatório mensal fictício',
@@ -143,6 +144,7 @@ describe('RF-07, CA-07.3 e IN-08: seis chaves com a demanda cheia', () => {
       status: 'em_analise',
       criadaEm: CRIADA_EM,
       atualizadaEm: '2026-10-22T13:00:00.000Z',
+      andamento: null,
     });
     expect(texto).not.toMatch(/SENTINELA|sentinela-7c4a|sob_medida|operacoes|alta|Awave|integracao/);
   });
@@ -165,10 +167,10 @@ describe('RF-07, CA-07.3 e IN-08: seis chaves com a demanda cheia', () => {
     await encherDemanda(id);
     const inteira = await obterDemanda(deps.db, id);
     // Controle: a vista inteira tem bem mais que seis chaves, com as sentinelas.
-    expect(Object.keys(inteira).length).toBeGreaterThan(SEIS.length);
+    expect(Object.keys(inteira).length).toBeGreaterThan(SETE.length);
     expect(JSON.stringify(inteira)).toMatch(/SENTINELA/);
     const v = vistaDaIntegracao(inteira);
-    expect(Object.keys(v).sort()).toEqual(SEIS);
+    expect(Object.keys(v).sort()).toEqual(SETE);
     expect(JSON.stringify(v)).not.toMatch(/SENTINELA|sentinela-7c4a/);
   });
 });
@@ -202,7 +204,7 @@ describe('D-16 e IN-02: lerDemandaPara falha fechada', () => {
     await inserirDemandaDeIntegracao(b, { id, criadaEm: deps.relogio.agora() });
     // Controle: o awave, pela mesma função, lê as seis chaves.
     const v = await lerDemandaPara(deps, atorDeIntegracao('awave'), id);
-    expect(Object.keys(v).sort()).toEqual(SEIS);
+    expect(Object.keys(v).sort()).toEqual(SETE);
 
     const jarvis = { tipo: 'integracao', integracao: 'jarvis', prefixoToken: 'ficticio' } as unknown as AtorIntegracao;
     for (const ator of [atorDeIntegracao('construir'), jarvis]) {

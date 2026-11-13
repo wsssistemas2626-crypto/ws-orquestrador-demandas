@@ -197,11 +197,12 @@ test('CA-09.2 pelo build: com o Host interno (orquestrador_app), Bearer e sem Or
   const doAwave = await contextoDe(baseURL, awave);
   const doConstruir = await contextoDe(baseURL, construir);
   try {
-    // GET pelo Awave da demanda que ele criou: 200, as seis chaves, igual à leitura pelo endereço de sempre.
+    // GET pelo Awave da demanda que ele criou: 200, as sete chaves (0.4.0: `andamento`), igual à leitura pelo endereço de
+    // sempre.
     const interna = await doAwave.get(`/api/demandas/${doSeedDoAwave}`, { headers: HOST_INTERNO, maxRedirects: 0 });
     expect(interna.status(), 'GET da própria demanda pelo Awave, Host interno').toBe(200);
     const vista = (await interna.json()) as Record<string, unknown>;
-    expect(Object.keys(vista).sort()).toEqual(['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
+    expect(Object.keys(vista).sort()).toEqual(['andamento', 'atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
     expect(vista.id).toBe(doSeedDoAwave);
     const publica = await doAwave.get(`/api/demandas/${doSeedDoAwave}`, { maxRedirects: 0 });
     expect(publica.status(), 'GET da própria demanda pelo Awave, endereço de sempre').toBe(200);

@@ -34,6 +34,8 @@ vi.mock('../../../lib/deps', () => ({ obterDeps: async () => ({ db: { dubleDoBan
 vi.mock('./leituras-da-fila', () => ({
   contagemOuNada: vi.fn(),
   etapasDaPagina: vi.fn(),
+  // T12 do DEC-DEM-20261111-0017-v1: a página também lê o andamento da página; aqui, nenhum andamento (sem selo de fase).
+  andamentosDaPagina: vi.fn(async () => new Map()),
 }));
 vi.mock('../../../modules/acesso/exigir-pessoa', () => ({ exigirPessoaNaPagina: vi.fn() }));
 vi.mock('../../../modules/acesso/matriz', async (original) => {

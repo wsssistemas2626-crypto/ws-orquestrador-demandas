@@ -4,9 +4,11 @@
 // "Não foi possível concluir: ".
 import { eq } from 'drizzle-orm';
 import { demanda } from '../../db/schema';
+import type { StatusConstrucao } from '../../db/schema/andamento';
 import type { Transacao } from '../../db/transacao';
 import type { Deps } from '../../lib/deps';
 import { ErroDominio } from '../../lib/erros';
+import { atorDesconhecido, type Ator } from '../acesso/ator';
 import { mudancaDeCampo, registrarEvento } from '../historico/registrar';
 import { travarDemanda } from '../versoes';
 import type { Status, Tipo } from './schemas';
@@ -93,4 +95,57 @@ export async function mudarStatusPeloSistema(
     { ator: { tipo: 'sistema' }, demandaId, entidade: 'demanda', entidadeId: demandaId, acao: 'status_alterado', ...mudancaDeCampo('status', atual.status, regra.para) },
     deps.relogio,
   );
+}
+
+// 0.4.0 (RF-05, ADR-34, A1): as duas transições do /construir, com origem fixa. `entregue` e `encerrada` nunca são
+// destino. Pelo ator integração construir, com o prefixo do token no status_alterado (nunca "Sistema"). D-08: a única
+// fonte é esta tabela, lida por decidirPorStatus (andamento/regras.ts) e por mudarStatusPeloConstruir.
+export const AUTOMATICAS_DO_CONSTRUIR: Readonly<Partial<Record<StatusConstrucao, Readonly<{ de: Status; para: Status }>>>> = Object.freeze({
+  em_construcao: Object.freeze({ de: 'aprovada', para: 'em_construcao' }),
+  cancelado: Object.freeze({ de: 'em_construcao', para: 'devolvida' }),
+});
+
+// P-02 de Fabiano: entregue aceita construido; encerrada aceita cancelado; o resto é 409.
+export const CONTRADIZ_STATUS_FINAL: Readonly<Record<'entregue' | 'encerrada', readonly StatusConstrucao[]>> = Object.freeze({
+  entregue: Object.freeze(['em_construcao', 'cancelado'] as const),
+  encerrada: Object.freeze(['em_construcao', 'construido'] as const),
+});
+
+// O destino, ou null. A demanda do tipo Estudo não vai para construção (a mesma regra da mudança manual).
+export function transicaoDoConstruir(atual: { status: Status; tipo: Tipo }, sc: StatusConstrucao): Status | null {
+  const regra = Object.hasOwn(AUTOMATICAS_DO_CONSTRUIR, sc) ? AUTOMATICAS_DO_CONSTRUIR[sc] : undefined;
+  if (!regra || regra.de !== atual.status) return null;
+  if (regra.para === 'em_construcao' && atual.tipo === 'estudo') return null;
+  return regra.para;
+}
+
+// Só o construir. `atual` é a linha devolvida pela trava da demanda na transação de quem chama (AN-04): nada é lido de
+// novo aqui. Sem transação própria nem SET (AN-06).
+export async function mudarStatusPeloConstruir(
+  t: Transacao,
+  deps: Pick<Deps, 'relogio'>,
+  ator: Ator,
+  atual: { id: string; status: Status; tipo: Tipo },
+  sc: StatusConstrucao,
+): Promise<Status | null> {
+  switch (ator.tipo) {
+    case 'integracao':
+      if (ator.integracao !== 'construir') throw new Error('transições do /construir: só o construir');
+      break;
+    case 'pessoa':
+    case 'agente':
+    case 'sistema':
+      throw new Error('transições do /construir: só o construir');
+    default:
+      return atorDesconhecido(ator);
+  }
+  const para = transicaoDoConstruir(atual, sc);
+  if (para === null) return null;
+  await t.tx.update(demanda).set({ status: para, atualizadaEm: deps.relogio.agora() }).where(eq(demanda.id, atual.id));
+  await registrarEvento(
+    t.tx,
+    { ator, demandaId: atual.id, entidade: 'demanda', entidadeId: atual.id, acao: 'status_alterado', ...mudancaDeCampo('status', atual.status, para) },
+    deps.relogio,
+  );
+  return para;
 }

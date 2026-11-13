@@ -39,6 +39,10 @@ describe('versões gravadas não mudam (RF-11)', () => {
     ['delete from demanda', []],
     ['update entrada_bruta set recebida_em = now()', []],
     ['truncate especificacao_tecnica', []],
+    // 0.4.0 (AN-10, T01 do DEC-DEM-20261111-0017-v1): o andamento do Pedido de Construção é só de inclusão.
+    ['update andamento_construcao set fase = $1', ['testando']],
+    ['delete from andamento_construcao', []],
+    ['truncate andamento_construcao', []],
   ])('%s é recusado com o papel do app', async (sql, p) => {
     await expect(b.poolApp.query(sql, p)).rejects.toMatchObject({ code: '42501' });
   });

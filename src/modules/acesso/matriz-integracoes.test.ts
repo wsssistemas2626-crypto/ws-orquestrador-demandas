@@ -12,10 +12,10 @@ const permite = (ator: Ator, acao: Acao) => {
     return false;
   }
 };
-const DO_CONSTRUIR = ['listar_pedidos_pendentes', 'entregar_pedido', 'confirmar_recebimento_pedido'] as const;
+const DO_CONSTRUIR = ['listar_pedidos_pendentes', 'entregar_pedido', 'confirmar_recebimento_pedido', 'registrar_andamento'] as const;
 
 describe('IN-01', () => {
-  it('(a) os pares (ação, integração) permitidos são exatamente os cinco do RF-03', () => {
+  it('(a) os pares (ação, integração) permitidos são exatamente os seis do RF-03 e do RF-01 da 0.4.0', () => {
     const pares = ACOES.flatMap((a) => MATRIZ[a].integracoes.map((i) => `${a}:${i}`)).sort();
     expect(pares).toEqual([
       'confirmar_recebimento_pedido:construir',
@@ -23,19 +23,20 @@ describe('IN-01', () => {
       'entregar_pedido:construir',
       'ler_demanda:awave',
       'listar_pedidos_pendentes:construir',
+      'registrar_andamento:construir',
     ]);
   });
   it('autorizar segue os pares, para cada integração em cada ação', () => {
     for (const a of ACOES) for (const i of INTEGRACOES) expect(permite(integracao(i), a), `${i} em ${a}`).toBe(MATRIZ[a].integracoes.includes(i));
   });
-  it('(b) atoresProibidos: awave fora de criar e ler demanda, construir fora das três dele', () => {
+  it('(b) atoresProibidos: awave fora de criar e ler demanda, construir fora das quatro dele', () => {
     for (const a of ACOES) {
       const proibidas = atoresProibidos(a).flatMap((x) => (x.tipo === 'integracao' ? [x.integracao] : []));
       expect(proibidas.includes('awave'), `awave em ${a}`).toBe(a !== 'criar_demanda' && a !== 'ler_demanda');
       expect(proibidas.includes('construir'), `construir em ${a}`).toBe(!(DO_CONSTRUIR as readonly string[]).includes(a));
     }
   });
-  it('as três do /construir não têm pessoa nem agente; confirmar_demanda é só de pessoa', () => {
+  it('as quatro do /construir não têm pessoa nem agente; confirmar_demanda é só de pessoa', () => {
     for (const a of DO_CONSTRUIR) expect(MATRIZ[a]).toMatchObject({ pessoa: null, agentes: [] });
     expect(MATRIZ.confirmar_demanda).toMatchObject({ pessoa: 'qualquer', agentes: [], integracoes: [] });
   });

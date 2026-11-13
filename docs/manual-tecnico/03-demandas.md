@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.1: demanda do Awave não confirmada invisível para agente e `sistema`, no RF-06 e na seção do Awave; confirmação só de pessoa; execução do agente que espera a confirmação; 201 do Awave dentro da transação com prazo total); 12/11/2026 (0.3.0: criação pelo Awave e limite de 10 por hora, no RF-03; origem da demanda e filtro `origem`, no RF-06; seção "Demanda aberta pelo Awave", com a confirmação por pessoa; eventos novos e ator de integração, no RF-21); 11/11/2026 (0.2.0: leituras da fila do painel, no RF-06); 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 13/11/2026 (0.4.0: `andamento` na vista de pessoa e, com quatro campos, na do Awave, no RF-06 e na seção do Awave; as duas transições automáticas do `/construir`, no RF-07; o evento `andamento_registrado` e o `status_alterado` pelo `/construir`, no RF-21); 12/11/2026 (0.3.1: demanda do Awave não confirmada invisível para agente e `sistema`, no RF-06 e na seção do Awave; confirmação só de pessoa; execução do agente que espera a confirmação; 201 do Awave dentro da transação com prazo total); 12/11/2026 (0.3.0: criação pelo Awave e limite de 10 por hora, no RF-03; origem da demanda e filtro `origem`, no RF-06; seção "Demanda aberta pelo Awave", com a confirmação por pessoa; eventos novos e ator de integração, no RF-21); 11/11/2026 (0.2.0: leituras da fila do painel, no RF-06); 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09; RF-04 a RF-08 e RF-10 do pedido 0016 (0.3.0) |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`, `resumo-da-fila.ts`, `confirmar.ts`, `confirmacao.ts`), `src/modules/historico/`, `src/modules/limites.ts`, `src/app/(painel)/demandas/[id]/acoes.ts` (`confirmarDemandaNoPainel`) |
@@ -94,7 +94,10 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
 - **Vista mínima para quem não é pessoa** (`vistaDaDemandaPara` em `consultas.ts`; M-06, desde a 0.1.6). Vale no
   `GET /api/demandas/:id` e na resposta do `POST /api/demandas`. A pessoa recebe a vista inteira. O agente (e o ator
   `sistema`) recebe o objeto montado chave a chave, por lista de permissão. A integração `awave` recebe a vista própria,
-  de seis chaves ([Demanda aberta pelo Awave](#demanda-aberta-pelo-awave-030)):
+  de seis chaves e, desde a 0.4.0, sete ([Demanda aberta pelo Awave](#demanda-aberta-pelo-awave-030)). Desde a 0.4.0,
+  a vista da pessoa tem também `andamento`: o último andamento da construção informado pelo `/construir`, com `decId`,
+  `fase`, `tarefasProntas`, `tarefasTotal`, `statusConstrucao` e `atualizadoEm`, ou `null`
+  ([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)). Na vista mínima do agente:
   - sem as chaves `solicitanteNome` e `anexos` (a chave some, não vem `null`);
   - `responsavel` de pessoa vira `{ "tipo": "pessoa" }`, sem o nome da conta; o mesmo no `autor` de cada item de
     `especificacoes`, `pareceresRisco` e `pacotesDecisao`;
@@ -103,7 +106,7 @@ como chegou, sem `trim`. Dois modos (`entradaSchema`):
     item de `duvidasEntrada` passam por `minimizarValor` (`src/modules/dados-pessoais/minimizar.ts`, a mesma regra da
     entrada do agente, [cap. 06](06-agentes-de-ia.md#rf-20-minimização)), com o nome do solicitante entre os trocados:
     nome, e-mail, CPF, CNPJ e telefone viram marcadores como `[nome removido]`. Campo nulo continua `null`;
-  - campo novo da vista não chega ao agente sem entrar na lista.
+  - campo novo da vista não chega ao agente sem entrar na lista. O `andamento` da 0.4.0 não entrou.
 
   A listagem `GET /api/demandas` não tem esses campos para nenhum ator. Desde a 0.1.7, ela usa `listarDemandasPara`:
   quem não é pessoa recebe o `titulo` de cada item minimizado com o nome do solicitante daquele item, e nenhum ator
@@ -148,8 +151,8 @@ não mudou: `POST /api/demandas` com `Authorization: Bearer`, sem `Origin`, e o 
   modelo de IA depois que uma pessoa confirma;
 - conta no limite de 10 demandas por hora do Awave ([RF-03](#rf-03-criar-demanda));
 - responde 201 com a vista do Awave: exatamente `id` (`DEM-AAAAMMDD-NNNN`), `titulo`, `tipo`, `status`, `criadaEm` e
-  `atualizadaEm`. Erros no corpo `{ erro, mensagem }`: 400, 401, 403, 429 e 503 (tempo limite ou prazo total, nada
-  gravado). Nunca 3xx.
+  `atualizadaEm` e, desde a 0.4.0, `andamento`, que no 201 é sempre `null`. Erros no corpo `{ erro, mensagem }`: 400,
+  401, 403, 429 e 503 (tempo limite ou prazo total, nada gravado). Nunca 3xx.
 
 Desde a 0.3.1 (M-2), a vista do 201 é lida por `obterDemandaDaIntegracao` **dentro** da transação da criação, sob o
 prazo total de 8 s ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)). `criarDemanda` tem uma sobrecarga
@@ -168,9 +171,16 @@ vira "[nome removido]" no que o Awave lê de volta e no que os agentes recebem. 
 original, e a tool do Awave só usa o `id`.
 
 **Leitura** (`lerDemandaPara` e `obterDemandaDaIntegracao`, `consultas.ts`). `GET /api/demandas/:id` com o token do
-Awave devolve a mesma vista de seis chaves, só da demanda que ele criou. A de outro autor responde o mesmo 404 da
+Awave devolve a mesma vista do 201, só da demanda que ele criou. A de outro autor responde o mesmo 404 da
 demanda inexistente, da mesma consulta (ADR-23, IN-08). O Awave não lista demandas e não lê ESP, RSK, DEC, histórico,
 texto bruto, configuração nem teto: tudo isso é 403.
+
+Desde a 0.4.0 (RF-10 do pedido 0017, ADR-35), a sétima chave, `andamento`, traz o último andamento da construção da
+demanda em quatro campos, `{ fase, tarefasProntas, tarefasTotal, atualizadoEm }`, ou `null` quando não há andamento.
+Ela não traz a situação da construção (`statusConstrucao`), o DEC nem o prefixo do token. O último andamento entra na
+mesma consulta da autoria (`subconsultaDoUltimoAndamento`, `src/modules/andamento/consultas.ts`), e a vista é montada
+chave a chave (`paraIntegracao`). A chave é aditiva: o contrato da 0.3.0 continua valendo, e a tool do Awave ainda não
+foi conferida com ela (P-05 do pedido 0017).
 
 **Confirmação por pessoa** (`confirmarDemanda`, `confirmar.ts`; Server Action `confirmarDemandaNoPainel`, ação
 `confirmar_demanda`). Não há rota de API: confirma-se só pelo botão "Confirmar demanda" da T05
@@ -223,7 +233,8 @@ numeração e deduzir que existe uma demanda escondida, sem ver o conteúdo dela
 
 ## RF-07. Status e transições
 
-Nove status. As transições manuais são só de pessoa, pelo `PATCH`; as automáticas são do ator `sistema`.
+Nove status. As transições manuais são só de pessoa, pelo `PATCH`; as automáticas são do ator `sistema` e, desde a
+0.4.0, duas do `/construir`, pelo andamento (abaixo).
 
 | De | Manual para |
 |---|---|
@@ -259,10 +270,24 @@ status final:
 | `decisao_arquivada` | DEC arquivado | `nova`, `em_analise`, `aguardando_informacao`, `pronta_para_decisao` | `encerrada` |
 
 Fora da origem permitida, a automática não faz nada nem grava evento. **A aprovação do DEC não muda o status**
-(P1-d): a tela de decisão lembra de mudar à mão. Os status `aprovada`, `em_construcao`, `entregue` e `devolvida` mudam
-à mão nesta versão, porque o andamento do `/construir` não volta para cá. Desde a 0.3.0, o `/construir` busca o pedido
-e confirma o recebimento, mas nem a entrega nem o recebimento mudam o status da demanda
+(P1-d): a tela de decisão lembra de mudar à mão. Desde a 0.3.0, o `/construir` busca o pedido e confirma o
+recebimento, mas nem a entrega nem o recebimento mudam o status da demanda
 ([cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030)).
+
+Desde a 0.4.0 (pedido 0017, ADR-34), o andamento enviado pelo `/construir` faz duas transições, com origem fixa, pelo
+ator de integração `construir` (`AUTOMATICAS_DO_CONSTRUIR`, `mudarStatusPeloConstruir`, `transicoes.ts`):
+
+| Situação da construção enviada | De | Para |
+|---|---|---|
+| `em_construcao` | `aprovada` (menos o tipo `estudo`, que só grava o andamento) | `em_construcao` |
+| `cancelado` | `em_construcao` | `devolvida` |
+
+`construido` nunca muda o status, e `entregue` e `encerrada` nunca são destino: `entregue` continua só de pessoa (A1).
+Numa demanda já em `entregue` ou `encerrada`, a situação que contradiz o status final recebe 409. A tabela inteira,
+status por situação, está no [cap. 05](05-pedido-de-construcao.md#transições-pelo-andamento). As transições manuais
+(`MANUAIS`) e as do ator `sistema` não mudaram, e a pessoa corrige pela mudança manual uma transição que não deveria
+ter acontecido. Fora dessas duas, os status `aprovada`, `em_construcao`, `entregue` e `devolvida` continuam mudando à
+mão, e o pedido escrito direto, sem geração no painel, não muda nada (A3).
 
 ## RF-15. Dúvida em aberto
 
@@ -282,8 +307,8 @@ e confirma o recebimento, mas nem a entrega nem o recebimento mudam o status da 
   `pacote_decisao_criado`, `aprovacao_registrada`, `decisao_registrada`, `pacote_decisao_substituido` (desde a
   0.1.13), `agente_ligado`, `agente_desligado`, `teto_alterado`, `suspensao_por_teto`, `agente_ignorado`,
   `falha_agente`, `pedido_gerado`, `texto_expurgado`, `entrada_pendente_expurgada`, `2fa_ativado`, `2fa_desativado`,
-  `conta_criada`, `conta_desativada`, `token_criado`, `token_revogado` e, desde a 0.3.0, `demanda_confirmada`,
-  `pedido_entregue` e `pedido_recebido`.
+  `conta_criada`, `conta_desativada`, `token_criado`, `token_revogado`, desde a 0.3.0, `demanda_confirmada`,
+  `pedido_entregue` e `pedido_recebido` e, desde a 0.4.0, `andamento_registrado`.
 - **Eventos da 0.3.0** (C-30 e IN-12: só ids, enumerações, booleanos, prefixo e hash; nenhum texto livre):
 
   | Ação | Ator | `depois` | Texto no histórico |
@@ -297,6 +322,19 @@ e confirma o recebimento, mas nem a entrega nem o recebimento mudam o status da 
 
   Os eventos de token não são de uma demanda e não aparecem no histórico dela. O motivo novo `sem_confirmacao` do
   `agente_ignorado` aparece como "<Agente> não rodou: demanda aberta pelo Awave ainda não confirmada".
+- **Eventos da 0.4.0** (só enumerações, inteiros, ids e prefixo; [cap. 05](05-pedido-de-construcao.md#evento-andamento_registrado)):
+
+  | Ação | Ator | `depois` | Texto no histórico |
+  |---|---|---|---|
+  | `andamento_registrado`, situação `em_construcao` | integração `construir` e prefixo | `{ fase, tarefasProntas, tarefasTotal, statusConstrucao }`; `antes` igual, do andamento anterior, ou `null` | "Registrou o andamento de <DEC-id>: <Fase>, <prontas> de <total> tarefas" |
+  | `andamento_registrado`, situação `construido` | idem | idem | "Registrou o fim da construção de <DEC-id>: <Fase>, <prontas> de <total> tarefas" |
+  | `andamento_registrado`, situação `cancelado` | idem | idem | "Registrou o cancelamento da construção de <DEC-id>: <Fase>, <prontas> de <total> tarefas" |
+  | `status_alterado` pelo andamento | integração `construir` e prefixo | a mudança de `status`, como na manual | o texto e o "Antes/Depois" de sempre, por "/construir (prefixo …)" |
+
+  Com total 0, o texto do `andamento_registrado` sai sem a parte das tarefas; com total 1, "… de 1 tarefa". Valor fora
+  da lista ou número fora do formato no evento dá só "Registrou o andamento de <DEC-id>" (`textoDoEvento`,
+  `src/components/rotulos.ts`). O evento novo não tem "Antes/Depois". Ele é gravado só quando muda a fase, a situação
+  ou o DEC (A2): uma tarefa pronta a mais não cria linha no histórico.
 - **Sem dado de terceiro** (C-30): a mudança de campo guarda o valor só de `tipo`, `status`, `solicitantePapel`,
   `linhaServicoProvavel` e `urgencia`. Qualquer outro campo vira `{ "alterado": true }`. Evento de ESP, RSK, DEC e
   pedido leva só ids, números e enumerações. Desde a 0.1.12 (D3 do 0013), o `pedido_gerado` grava também

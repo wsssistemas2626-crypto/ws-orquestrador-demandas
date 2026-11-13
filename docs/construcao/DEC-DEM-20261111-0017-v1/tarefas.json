@@ -1,0 +1,16 @@
+[
+  { "id": "T01", "titulo": "Tabela andamento_construcao, migrations 0008 e 0009 e privilégio só de inclusão (AN-10)", "engenheiro": "engenheiro-dados-bd", "fase": "Fundação", "risco": "alto" },
+  { "id": "T02", "titulo": "Ação registrar_andamento só do construir na matriz (AN-01)", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
+  { "id": "T03", "titulo": "Limite de gravações de andamento: 60 por DEC e 600 no total por hora (AN-07)", "engenheiro": "engenheiro-backend", "fase": "Fundação", "risco": "alto" },
+  { "id": "T04", "titulo": "Corpo fechado do andamento e 422 pelo rota() com corpoInvalido (AN-02)", "engenheiro": "engenheiro-backend", "fase": "Registro", "risco": "alto" },
+  { "id": "T05", "titulo": "Regras do andamento, transições do construir e evento andamento_registrado (AN-04, AN-11, AN-12)", "engenheiro": "engenheiro-backend", "fase": "Registro", "risco": "alto" },
+  { "id": "T06", "titulo": "Leituras do andamento: o último, por página e a subconsulta do Awave, com plano de execução", "engenheiro": "engenheiro-dados-bd", "fase": "Registro", "risco": "medio" },
+  { "id": "T07", "titulo": "Serviço registrarAndamento: 404 sem oráculo, travas, transições, idempotência e prazo total (AN-03 a AN-06, AN-08)", "engenheiro": "engenheiro-backend", "fase": "Registro", "risco": "alto" },
+  { "id": "T08", "titulo": "Rota POST /api/pedidos-construcao/[decId]/andamento, contrato do /construir, limite e sentinelas", "engenheiro": "engenheiro-backend", "fase": "Registro", "risco": "alto" },
+  { "id": "T09", "titulo": "Andamento nas vistas de pessoa e do Awave e varredura das leituras a partir da matriz (AN-09)", "engenheiro": "engenheiro-backend", "fase": "Leituras", "risco": "alto" },
+  { "id": "T10", "titulo": "Seed fictício com demandas em construção, andamento e os dois DEC da V-02", "engenheiro": "engenheiro-backend", "fase": "Seed", "risco": "baixo" },
+  { "id": "T11", "titulo": "Rótulos, textos e regras puras do andamento na tela (selo, seção, histórico)", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T12", "titulo": "Fila: selo de fase na linha e no cartão, leitura por página e estado de erro", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "medio" },
+  { "id": "T13", "titulo": "Detalhe: seção Andamento da construção, Próxima ação linha 15 e texto de Mudar status", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T14", "titulo": "e2e do envio pelo /construir, chaves do Awave no e2e e versão 0.4.0", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" }
+]

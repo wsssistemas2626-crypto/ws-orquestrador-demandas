@@ -8,16 +8,18 @@
 import Link from 'next/link';
 import { Alerta } from '../../../components/Alerta';
 import { classeDoBotao } from '../../../components/Botao';
+import { TEXTOS_ANDAMENTO } from '../../../components/dados-do-andamento';
 import { Esqueleto } from '../../../components/Esqueleto';
 import { MarcasDeEtapa } from '../../../components/MarcasDeEtapa';
 import { Paginacao } from '../../../components/Paginacao';
 import { COR_STATUS, ROTULO_LINHA, ROTULO_ORIGEM, ROTULO_STATUS, ROTULO_TIPO, SELO_RASCUNHO } from '../../../components/rotulos';
 import { Selo } from '../../../components/Selo';
 import { Tabela } from '../../../components/Tabela';
+import type { AndamentoVista } from '../../../modules/andamento/schemas';
 import type { DemandaResumo } from '../../../modules/demandas/consultas';
 import type { EtapasNaFila } from '../../../modules/demandas/resumo-da-fila';
 import { filtroDemandasSchema, type FiltroDemandas, type OrigemDaDemanda } from '../../../modules/demandas/schemas';
-import { CartoesDaFila, etapasDe, ID_RESULTADO, IdadeDaDemanda, NAO_INFORMADA, UrgenciaDaDemanda } from './CartoesDaFila';
+import { andamentoDe, CartoesDaFila, etapasDe, ID_RESULTADO, IdadeDaDemanda, NAO_INFORMADA, SeloDaFase, UrgenciaDaDemanda } from './CartoesDaFila';
 import { BotaoTentarDeNovo, NavegacaoDaFila, ResultadoAnunciado } from './FiltrosFila';
 
 // O elemento que recebe o foco depois de filtrar ou trocar de página: o título do resultado (h2), ou o texto do estado
@@ -107,8 +109,9 @@ const textoOuNaoInformada = (v: string | undefined): string => v ?? TEXTOS_FILA.
 
 // Uma linha da tabela (03, 4.4). O título é texto de terceiro, isolado por <bdi> ao lado do selo (CV-18). O id em Mono
 // 600 (03, 2.3). 0.3.0 (03, 4.1 item 6): a célula Título ganha a segunda linha "Origem: <rótulo>", em texto de apoio
-// (13 px, tinta-media), como a data sob a Idade; sem coluna nova.
-function linhaDaDemanda(d: DemandaResumo, etapas: EtapasNaFila, agora: Date) {
+// (13 px, tinta-media), como a data sob a Idade; sem coluna nova. 0.4.0 (T12 do DEC-DEM-20261111-0017-v1; 03, 4.1): a
+// célula Status ganha, abaixo do selo de status, o selo de fase (SeloDaFase), só em Em construção com andamento válido.
+function linhaDaDemanda(d: DemandaResumo, etapas: EtapasNaFila, agora: Date, andamento: AndamentoVista | null) {
   return [
     <Link key="id" className="font-mono text-[0.8125rem] font-semibold text-acao-escura underline underline-offset-2" href={`/demandas/${d.id}`}>
       {d.id}
@@ -125,9 +128,10 @@ function linhaDaDemanda(d: DemandaResumo, etapas: EtapasNaFila, agora: Date) {
       <span className="text-[0.8125rem] text-tinta-media">{TEXTOS_FILA.origem(d.origem)}</span>
     </span>,
     ROTULO_TIPO[d.tipo],
-    <Selo key="status" cor={COR_STATUS[d.status]}>
-      {ROTULO_STATUS[d.status]}
-    </Selo>,
+    <span key="status" className="flex flex-col items-start gap-1">
+      <Selo cor={COR_STATUS[d.status]}>{ROTULO_STATUS[d.status]}</Selo>
+      <SeloDaFase status={d.status} andamento={andamento} />
+    </span>,
     <MarcasDeEtapa key="etapas" etapas={etapas} />,
     <UrgenciaDaDemanda key="urgencia" urgencia={d.urgencia} />,
     textoOuNaoInformada(d.linhaServicoProvavel ? ROTULO_LINHA[d.linhaServicoProvavel] : undefined),
@@ -151,9 +155,12 @@ type PropsResultado = {
   // As marcas ESP, RSK e DEC de cada demanda da página (etapasDaPagina) e o "agora" do relógio injetado (coluna Idade).
   etapas: ReadonlyMap<string, EtapasNaFila>;
   agora: Date;
+  // 0.4.0 (T12; 03, 4.4): o último andamento de cada demanda da página (andamentosDaPagina). null: a leitura falhou, a
+  // fila aparece sem selo de fase e com o aviso da 03. Ausente (quem não lê o andamento): sem selo e sem aviso.
+  andamentos?: ReadonlyMap<string, AndamentoVista> | null;
 };
 
-export function ResultadoDaFila({ filtro, itens, total, etapas, agora }: PropsResultado) {
+export function ResultadoDaFila({ filtro, itens, total, etapas, agora, andamentos = new Map<string, AndamentoVista>() }: PropsResultado) {
   const { limit, offset } = filtro;
   const hrefAnterior = offset > 0 ? hrefDaFila(filtro, Math.max(0, offset - limit)) : null;
   const temProxima = itens.length === limit && offset + itens.length < total;
@@ -194,6 +201,7 @@ export function ResultadoDaFila({ filtro, itens, total, etapas, agora }: PropsRe
   return (
     <div className="flex flex-col gap-4">
       <ResultadoAnunciado texto={textoDemandasEncontradas(total)} idFoco={ID_RESULTADO} />
+      {andamentos === null ? <Alerta tipo="atencao">{TEXTOS_ANDAMENTO.erroNaFila}</Alerta> : null}
       <TituloDoResultado filtro={filtro} foco />
       <div className="max-md:hidden">
         <Tabela
@@ -201,11 +209,11 @@ export function ResultadoDaFila({ filtro, itens, total, etapas, agora }: PropsRe
           legendaOculta
           rotuloRegiao={TEXTOS_FILA.rotuloRegiao}
           colunas={COLUNAS}
-          linhas={itens.map((d) => linhaDaDemanda(d, etapasDe(etapas, d.id), agora))}
+          linhas={itens.map((d) => linhaDaDemanda(d, etapasDe(etapas, d.id), agora, andamentoDe(andamentos, d.id)))}
           chaves={itens.map((d) => d.id)}
         />
       </div>
-      <CartoesDaFila itens={itens} etapas={etapas} agora={agora} />
+      <CartoesDaFila itens={itens} etapas={etapas} agora={agora} andamentos={andamentos} />
       <NavegacaoDaFila idFoco={ID_RESULTADO}>{paginacao}</NavegacaoDaFila>
     </div>
   );

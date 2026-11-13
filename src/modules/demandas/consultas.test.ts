@@ -186,6 +186,8 @@ describe('obterDemanda', () => {
       pacotesDecisao: [],
       // T-03 (T28): execuções pendentes ou em andamento da demanda.
       agentesEmAndamento: [],
+      // 0.4.0 (T09 do DEC-DEM-20261111-0017-v1, G5): sem andamento informado.
+      andamento: null,
     });
   });
 

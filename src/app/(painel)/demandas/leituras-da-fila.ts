@@ -3,6 +3,9 @@
 // Só do servidor: lê o banco das dependências.
 import type { Db } from '../../../db';
 import { log } from '../../../lib/log';
+import { andamentosDasDemandas } from '../../../modules/andamento/consultas';
+import { lerAndamento } from '../../../modules/andamento/regras';
+import type { AndamentoVista } from '../../../modules/andamento/schemas';
 import { contarDemandasPorStatus, etapasDasDemandas, type ContagemPorStatus } from '../../../modules/demandas/resumo-da-fila';
 import type { FiltroDemandas } from '../../../modules/demandas/schemas';
 
@@ -21,3 +24,22 @@ export async function contagemOuNada(db: Db, filtro: FiltroDemandas): Promise<Co
 
 // As marcas ESP, RSK e DEC das demandas da página. Sem embrulho: a falha sobe para a lista, que mostra o erro de hoje.
 export const etapasDaPagina = etapasDasDemandas;
+
+// 0.4.0 (T12 do DEC-DEM-20261111-0017-v1; RF-08; 03, 4.4; ADR-35): o último andamento de cada demanda da página, numa
+// consulta, já conferido por lerAndamento (AN-12, D-16): linha fora do esquema fica fora do mapa (sem selo). Leitura
+// separada da lista: a falha vira null, e a fila aparece sem selo e com o aviso da 03. O log não leva ids, SQL nem
+// parâmetro (no formato do painel_contadores_falhou).
+export async function andamentosDaPagina(db: Db, ids: readonly string[]): Promise<Map<string, AndamentoVista> | null> {
+  try {
+    const linhas = await andamentosDasDemandas(db, ids);
+    const mapa = new Map<string, AndamentoVista>();
+    for (const [id, l] of linhas) {
+      const a = lerAndamento(l);
+      if (a) mapa.set(id, a);
+    }
+    return mapa;
+  } catch (e) {
+    log.error({ evento: 'painel_andamento_falhou', rota: '/demandas', erro: e });
+    return null;
+  }
+}

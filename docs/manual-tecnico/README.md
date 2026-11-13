@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.3.1 (correções da revisão da 0.3.0: o agente não lê nem grava na demanda do Awave antes da confirmação por pessoa, e recebe o 404 da inexistente; o insumo que chegou cedo roda depois da confirmação; o recebimento do `/construir` só aceita o hash da última entrega; prazo total nas transações das integrações; ver o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#recebimento-confirmar_recebimento_pedido), o [cap. 06](06-agentes-de-ia.md#rf-16-execução-dos-agentes) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.3.0, entraram os atores de integração: o Awave cria demanda e lê as que criou, e o `/construir` busca o Pedido de Construção que uma pessoa gerou e confirma o recebimento; a demanda do Awave só vai a um agente de IA depois da confirmação por pessoa; origem da demanda na fila; ver o [cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030), o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.2.0, o painel ganhou o novo visual ([cap. 08](08-painel.md)) |
-| Atualizado em | 12/11/2026 |
+| Versão do sistema | 0.4.0 (andamento do Pedido de Construção informado pelo `/construir`: fase e tarefas prontas, duas mudanças de status automáticas, selo de fase na fila, seção no detalhe e leitura reduzida pelo Awave; ver o [cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040), o [cap. 08](08-painel.md#fila-t03-rf-05-a-rf-07) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.3.1, correções da revisão da 0.3.0: o agente não lê nem grava na demanda do Awave antes da confirmação por pessoa, e recebe o 404 da inexistente; o insumo que chegou cedo roda depois da confirmação; o recebimento do `/construir` só aceita o hash da última entrega; prazo total nas transações das integrações; ver o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#recebimento-confirmar_recebimento_pedido), o [cap. 06](06-agentes-de-ia.md#rf-16-execução-dos-agentes) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.3.0, entraram os atores de integração: o Awave cria demanda e lê as que criou, e o `/construir` busca o Pedido de Construção que uma pessoa gerou e confirma o recebimento; a demanda do Awave só vai a um agente de IA depois da confirmação por pessoa; origem da demanda na fila; ver o [cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030), o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.2.0, o painel ganhou o novo visual ([cap. 08](08-painel.md)) |
+| Atualizado em | 13/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
 | Fonte de verdade | o código do ramo (padrão técnico, seção 11). Onde a spec ou o plano dizem outra coisa, vale o código, e a diferença está apontada no capítulo |
@@ -36,15 +36,19 @@ A 0.3.1 (pedido `DEC-DEM-20261112-0019-v1`, sem spec própria) mudou partes dess
 - as transações das integrações têm prazo total. Isso completa o ADR-28
   ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)).
 
+O andamento do Pedido de Construção (0.4.0) tem spec própria,
+`docs/superpowers/specs/2026-11-12-ws-orquestrador-demandas-andamento-design.md`, com RF-01 a RF-13 **do pedido 0017**.
+O mapa deles está em [Requisitos do andamento](#requisitos-do-andamento-040).
+
 ## Capítulos
 
 | Cap. | Assunto | Requisitos |
 |---|---|---|
-| [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco, versões da stack e fontes | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-29 |
+| [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco, versões da stack e fontes | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-35 |
 | [02](02-acesso-e-seguranca.md) | Login com 2FA, tokens de agente e de integração, atores de integração, matriz de acesso, CSRF, log | RF-01, RF-02, RNF-10, RNF-12, RNF-13 |
-| [03](03-demandas.md) | Demanda, entrada colando o texto, id, consulta, origem, demanda aberta pelo Awave e confirmação, status, dúvida em aberto, histórico | RF-03 a RF-07, RF-15, RF-21 |
+| [03](03-demandas.md) | Demanda, entrada colando o texto, id, consulta, origem, demanda aberta pelo Awave e confirmação, status (com as transições do `/construir`), dúvida em aberto, histórico | RF-03 a RF-07, RF-15, RF-21 |
 | [04](04-versoes-e-decisao.md) | ESP, RSK e DEC em versões, desatualizado, decisão, substituição do DEC aprovado e dupla aprovação | RF-08 a RF-14 |
-| [05](05-pedido-de-construcao.md) | Pedido de Construção, entrega ao `/construir` e filtro de pacotes por decisão | RF-22, RF-23 |
+| [05](05-pedido-de-construcao.md) | Pedido de Construção, entrega ao `/construir`, andamento da construção e filtro de pacotes por decisão | RF-22, RF-23 |
 | [06](06-agentes-de-ia.md) | Os quatro agentes, uso, teto, interruptor, minimização e as pré-condições para ligar | RF-16 a RF-20 |
 | [07](07-worker-avisos-retencao.md) | Worker, aviso por e-mail e expurgo do texto bruto | RF-24, RF-25 |
 | [08](08-painel.md) | Telas do painel, identidade visual, casca, fila, demanda, decisão, acessibilidade e capturas | RF-26, RNF-11, RNF-16; RF-01 a RF-17 do pedido 0015 |
@@ -80,7 +84,7 @@ Operação em produção (serviços do Easypanel, deploy, rollback, alertas) fic
 | RF-19 | Interruptor por agente | [06](06-agentes-de-ia.md#rf-19-interruptor-e-modelo) |
 | RF-20 | Minimização do que vai ao provedor | [06](06-agentes-de-ia.md#rf-20-minimização) |
 | RF-21 | Histórico só de inclusão | [03](03-demandas.md#rf-21-histórico) |
-| RF-22 | Pedido de Construção (desde a 0.3.0, também a entrega ao `/construir`) | [05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido) e [05](05-pedido-de-construcao.md#entrega-ao-construir-030) |
+| RF-22 | Pedido de Construção (desde a 0.3.0, também a entrega ao `/construir`; desde a 0.4.0, o andamento da construção) | [05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido), [05](05-pedido-de-construcao.md#entrega-ao-construir-030) e [05](05-pedido-de-construcao.md#andamento-da-construção-040) |
 | RF-23 | `GET /api/pacotes-decisao?statusDecisao=` | [05](05-pedido-de-construcao.md#rf-23-pacotes-por-status-de-decisão) |
 | RF-24 | Expurgo diário do texto bruto | [07](07-worker-avisos-retencao.md#rf-24-expurgo-do-texto-bruto) |
 | RF-25 | E-mail de DEC pronto | [07](07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail) |
@@ -135,6 +139,27 @@ Dado/Quando/Então estão em `docs/construcao/DEC-DEM-20261111-0016-v1/01-analis
 | RF-15 | "Recebido pelo /construir em …" na T11 e rótulos do histórico | [05](05-pedido-de-construcao.md#no-painel), [08](08-painel.md#decisão-t11-rf-11-rf-12) e [03](03-demandas.md#rf-21-histórico) |
 | RF-16 | Versão 0.3.0, CHANGELOG, manual e `docs/operacao` | [CHANGELOG](../../CHANGELOG.md) e [tokens-de-integracao.md](../operacao/tokens-de-integracao.md) |
 
+## Requisitos do andamento (0.4.0)
+
+Os RF abaixo são do pedido `DEC-DEM-20261111-0017-v1` (spec de 12/11/2026), e não os do sistema. Os critérios
+Dado/Quando/Então estão em `docs/construcao/DEC-DEM-20261111-0017-v1/01-analista-requisitos.md`.
+
+| RF do pedido | Resumo | Capítulo |
+|---|---|---|
+| RF-01 | Ação `registrar_andamento`, só do `construir` | [02](02-acesso-e-seguranca.md#matriz-de-acesso) |
+| RF-02 | `POST /api/pedidos-construcao/<DEC-id>/andamento`, corpo fechado, 422 sem eco | [05](05-pedido-de-construcao.md#rota-registrar_andamento) e [09](09-referencia-api.md#exemplo-o-construir-informa-o-andamento) |
+| RF-03 | Só DEC com pedido gerado por pessoa; o mesmo 404 nos outros casos (A3) | [05](05-pedido-de-construcao.md#ordem-das-conferências) |
+| RF-04 | Último andamento guardado; mesmo estado não grava | [05](05-pedido-de-construcao.md#o-que-fica-gravado-andamento_construcao) |
+| RF-05 | Duas transições automáticas e o 409 de status final e de DEC substituído | [05](05-pedido-de-construcao.md#transições-pelo-andamento) e [03](03-demandas.md#rf-07-status-e-transições) |
+| RF-06 | Evento `andamento_registrado` só na mudança de fase ou situação (A2) | [05](05-pedido-de-construcao.md#evento-andamento_registrado) e [03](03-demandas.md#rf-21-histórico) |
+| RF-07 | Linha 15 da Próxima ação: uma pessoa confere e marca Entregue (A1) | [08](08-painel.md#demanda-t05-rf-08-a-rf-10) |
+| RF-08 | Selo de fase na fila | [08](08-painel.md#fila-t03-rf-05-a-rf-07) |
+| RF-09 | Seção "Andamento da construção" no detalhe | [08](08-painel.md#demanda-t05-rf-08-a-rf-10) |
+| RF-10 | Sétima chave, `andamento`, na vista do Awave, com quatro campos | [03](03-demandas.md#demanda-aberta-pelo-awave-030) |
+| RF-11 | `andamento` na vista de pessoa; agente e listagem sem a chave | [03](03-demandas.md#rf-06-consultar-e-alterar) e [09](09-referencia-api.md#rotas) |
+| RF-12 | Limite de 60 gravações por DEC e 600 no total por hora | [05](05-pedido-de-construcao.md#limite-conferirlimitedeandamento) |
+| RF-13 | Versão 0.4.0, CHANGELOG, manual e `docs/operacao` | [CHANGELOG](../../CHANGELOG.md), [deploy.md](../operacao/deploy.md) e [tokens-de-integracao.md](../operacao/tokens-de-integracao.md) |
+
 ## Glossário
 
 Cada termo significa a mesma coisa em todos os capítulos.
@@ -162,7 +187,13 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Prazo total | Tempo máximo da transação inteira de uma integração, contando a espera por conexão: 8 s, e 12 s na entrega do pedido (`PRAZO_TOTAL_MS`). Passou: `ROLLBACK` e 503 `indisponivel`. Pessoa e agente não têm (desde a 0.3.1, [cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)) |
 | Pedido pendente | DEC com Pedido de Construção gerado por pessoa, ainda aprovado vigente, não desatualizado, com a demanda fora de status final e sem recebimento pelo `/construir` (desde a 0.3.0) |
 | Entrega e recebimento | A entrega é o `/construir` buscar o pedido (evento `pedido_entregue`, com o SHA-256 dos bytes); o recebimento é ele confirmar que gravou os mesmos bytes (evento `pedido_recebido`). Nenhum dos dois muda status (desde a 0.3.0). Desde a 0.3.1, o recebimento só aceita o hash da última entrega |
-| Vista mínima | O que a leitura de demanda pela API devolve a agente e a `sistema` (a integração `awave` recebe outra, menor, de seis chaves, desde a 0.3.0; desde a 0.3.1, na demanda do Awave só depois da confirmação por pessoa, e antes dela o 404): sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) e, desde a 0.1.8, com o texto livre minimizado também nelas e no 201 da criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)) |
+| Andamento da construção | O que o `/construir` informa de um Pedido de Construção gerado no painel: a fase, as tarefas prontas e o total de tarefas do plano e a situação da construção. Fica uma linha por gravação em `andamento_construcao`, e vale o último da demanda (desde a 0.4.0, [cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)) |
+| Fase | Etapa da construção no `/construir`: Entendendo o pedido, Planejando, Construindo, Testando, Revisando e entregando ou Documentando (`FASES_ANDAMENTO`, desde a 0.4.0) |
+| Situação da construção | O campo `status` do corpo do andamento (`statusConstrucao` no código): `em_construcao` ("Em andamento"), `construido` ("Concluída") ou `cancelado` ("Cancelada"). Não é o status da demanda (desde a 0.4.0) |
+| Mesmo estado | Andamento com DEC, fase, tarefas prontas, total e situação iguais aos do último gravado na demanda. Responde 204 sem gravar nada (desde a 0.4.0) |
+| Mudança de marco | O primeiro andamento da demanda, ou fase, situação ou DEC diferente do último. Só ela grava o evento `andamento_registrado` (A2, desde a 0.4.0) |
+| Selo de fase | Texto abaixo do status da demanda em Em construção, na fila, com a fase e as tarefas ("Construindo · 9/17"), "Construção concluída" ou "Construção cancelada" (desde a 0.4.0, [cap. 08](08-painel.md#fila-t03-rf-05-a-rf-07)) |
+| Vista mínima | O que a leitura de demanda pela API devolve a agente e a `sistema`, sem o andamento da construção (a integração `awave` recebe outra, menor, de seis chaves, desde a 0.3.0, e de sete, com o andamento em quatro campos, desde a 0.4.0; desde a 0.3.1, na demanda do Awave só depois da confirmação por pessoa, e antes dela o 404): sem `solicitanteNome`, `anexos` e nome de conta e, desde a 0.1.7, com o texto livre minimizado (`vistaDaDemandaPara`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); nas leituras de ESP, RSK e DEC, sem nome de pessoa nem `referenciaDocumento` (`vistaDaEspecificacaoPara`, `vistaDoParecerPara`, `vistaDoPacotePara`) e, desde a 0.1.8, com o texto livre minimizado também nelas e no 201 da criação ([cap. 09](09-referencia-api.md#exemplo-ler-demanda-com-token-de-agente)) |
 | Rascunho de agente | ESP, RSK ou DEC gravado por um agente; a decisão exige confirmar que foi revisado |
 | Parte do nome | Pedaço do nome do solicitante, cortado em espaço, hífen e apóstrofo, com 3 letras ou mais e fora de `PARTICULAS_DO_NOME` (`partesDoNome`, `minimizar.ts`). Desde a 0.1.10, vira `[nome removido]` na entrada do agente e na API de quem não é pessoa quando, no texto, começa por maiúscula. Desde a 0.1.11, também grudada em número, `_` ou CamelCase, pela fronteira de `haFronteira` ([cap. 06](06-agentes-de-ia.md#rf-20-minimização)) |
 | Texto bruto | O texto colado na entrada (e-mail, mensagem). Dado pessoal de terceiro; guardado à parte e expurgado no prazo |
@@ -178,4 +209,4 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Contador de status | Botão da fila com um status e o total de demandas nele, que filtra a fila por esse status (desde a 0.2.0) |
 | Etapas da fila | As marcas ESP, RSK e DEC de cada linha da fila: feita quando a demanda tem ao menos uma versão daquele tipo (desde a 0.2.0). Não é o mesmo que a barra de etapas da T05 |
 | Barra de etapas | As cinco etapas da T05 (Demanda, Especificação, Parecer de risco, Decisão, Pedido de Construção), com o estado de cada uma e a etapa atual (`etapasDaDemanda`, desde a 0.2.0) |
-| Próxima ação | Cartão da T05 que diz o que falta, quem age e onde, pela primeira condição que casar (`proximaAcao`, desde a 0.2.0): 13 linhas na 0.2.0 e, desde a 0.3.0, a linha 14, da confirmação da demanda do Awave. Só informa; não libera nem esconde nada |
+| Próxima ação | Cartão da T05 que diz o que falta, quem age e onde, pela primeira condição que casar (`proximaAcao`, desde a 0.2.0): 13 linhas na 0.2.0, desde a 0.3.0 a linha 14, da confirmação da demanda do Awave, e desde a 0.4.0 a linha 15, da construção concluída. Só informa; não libera nem esconde nada |
