@@ -43,7 +43,20 @@ const SEM_PLANO = 'Nenhuma tarefa contada. O plano de tarefas ainda não foi fei
 const enviar = (ctx: APIRequestContext, decId: string, corpo: unknown) =>
   ctx.post(`/api/pedidos-construcao/${decId}/andamento`, { headers: { 'content-type': 'application/json' }, data: JSON.stringify(corpo), maxRedirects: 0 });
 
-type Evento = { acao: string; entidadeId: string };
+type Evento = {
+  acao: string;
+  entidade: string;
+  entidadeId: string;
+  ator: Record<string, unknown>;
+  antes: Record<string, unknown> | null;
+  depois: Record<string, unknown> | null;
+};
+
+// 06-T14-testes (Minor 1 da 06-T14-tech-lead): o ator do /construir como o histórico o mostra (historico/consultas.ts):
+// a integração e só o prefixo do token, os 8 caracteres depois do prefixo fixo de 5 (tokens-servico.ts). O prefixo não é
+// segredo (aparece no painel); o token inteiro nunca entra em valor esperado nem em rótulo.
+const atorDoConstruir = (token: string) => ({ tipo: 'integracao', integracao: 'construir', prefixo: token.slice(5, 13) });
+const semId = ({ acao, entidade, entidadeId, ator, antes, depois }: Evento) => ({ acao, entidade, entidadeId, ator, antes, depois });
 type AndamentoDaPessoa = { decId: string; fase: string; tarefasProntas: number; tarefasTotal: number; statusConstrucao: string; atualizadoEm: string };
 type DemandaDaPessoa = { status: string; andamento: AndamentoDaPessoa | null; pacotesDecisao: { id: string }[] };
 
@@ -89,9 +102,24 @@ test('CP-1 e CA-05.1: o /construir manda "Entendendo o pedido", a demanda vai a 
   expect(d.status).toBe('em_construcao');
   expect(d.andamento).toMatchObject({ decId, fase: 'entendendo_o_pedido', tarefasProntas: 0, tarefasTotal: 0, statusConstrucao: 'em_construcao' });
   expect(d.andamento!.atualizadoEm).toMatch(/Z$/);
+  // O corpo é sempre o mesmo e a demanda nunca volta a `aprovada`: em qualquer banco, mesmo já usado, há um só evento de
+  // cada, o do primeiro envio. O `status_alterado` é preso à transição do /construir (entidade, antes, depois e ator), e
+  // não a um `status_alterado` que o seed tenha gravado antes de `aprovada` (Minor 1 da 06-T14-tech-lead).
   const eventos = await historico(page, id);
-  expect(eventos.filter((e) => e.acao === 'andamento_registrado' && e.entidadeId === decId).length, 'andamento_registrado do DEC').toBeGreaterThanOrEqual(1);
-  expect(eventos.some((e) => e.acao === 'status_alterado'), 'status_alterado da demanda').toBe(true);
+  const ator = atorDoConstruir(construir);
+  expect(eventos.filter((e) => e.acao === 'andamento_registrado' && e.entidadeId === decId).map(semId), 'andamento_registrado do DEC').toEqual([
+    {
+      acao: 'andamento_registrado',
+      entidade: 'pacote_decisao',
+      entidadeId: decId,
+      ator,
+      antes: null,
+      depois: { fase: 'entendendo_o_pedido', tarefasProntas: 0, tarefasTotal: 0, statusConstrucao: 'em_construcao' },
+    },
+  ]);
+  expect(eventos.filter((e) => e.acao === 'status_alterado' && e.ator.tipo === 'integracao').map(semId), 'status_alterado do /construir').toEqual([
+    { acao: 'status_alterado', entidade: 'demanda', entidadeId: id, ator, antes: { status: 'aprovada' }, depois: { status: 'em_construcao' } },
+  ]);
 
   // A fila de Em construção: o selo "Entendendo o pedido" na célula Status da linha da demanda (CA-08.3).
   await page.goto('/demandas?status=em_construcao&limit=100');
