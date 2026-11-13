@@ -488,10 +488,18 @@ Os tokens emitidos antes do backup continuam valendo. Restaurar é decisão de F
    cada pedido e não manda de novo o que já mandou. Sem apagar, o andamento perdido na restauração só volta quando a fase
    ou as tarefas de cada pedido mudarem.
 
-Ensaio da volta 0.4.0 → 0.3.1 na homologação: fica com o maestro, na Parada 3 do pedido 0017
-(`construir.mjs ensaiar-rollback DEC-DEM-20261111-0017-v1`). O esperado é `ok: true`, `alteram_dado: false` e
-**`volta_sem_restaurar: false`**: a 0.3.1 só volta com o backup restaurado, e isso é o esperado, não falha (02 do pedido
-0017, seção 8). O resultado entra aqui quando o ensaio rodar.
+Ensaio da volta 0.4.0 → 0.3.1 na homologação em 13/11/2026 (`construir.mjs ensaiar-rollback`, etapa 09 do pedido
+0017): `ok: true`, `alteram_dado: false` e **`volta_sem_restaurar: false`**. É o esperado: a 0.3.1 só volta com o
+backup restaurado, e isso não é falha (02 do pedido 0017, seção 8).
+
+- Nenhuma migration da `main` (0.3.1) foi alterada. As novas são 2 (`0008` e `0009`), e nenhuma altera dado existente.
+- A 0.3.1 subiu, com 200 na saúde em 153 s, e o banco ganhou backup (127 KB, impressão `207886b47981538b`).
+- A 0.4.0 migrou por cima e respondeu 200 em 44 s.
+- A 0.3.1 **só voltou com o backup restaurado**, com 200 em 16 s. O banco ficou igual ao backup, com a mesma impressão.
+- Depois, a 0.4.0 subiu de novo, com 200 em 57 s. O projeto e os volumes foram removidos.
+
+Homologação da 0.4.0 no mesmo dia (`construir.mjs homologar`): `ok: true`, saúde 200 em `http://127.0.0.1:3200`, e2e
+com 281 passed. O projeto e os volumes foram removidos.
 
 Depois da publicação da 0.4.0, a "Volta da 0.3.1", abaixo, fica como registro. Ela só vale com o banco de volta ao
 estado da 0.3.1, sem a `0008` e a `0009`.
