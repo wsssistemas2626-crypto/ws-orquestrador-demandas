@@ -2,7 +2,7 @@
 // quatro chaves (AN-02): enumerações das listas da tabela (fonte única, src/db/schema/andamento.ts) e inteiros JSON de
 // 0 a 999 com prontas ≤ total. Sem coerção, passthrough, catch ou default: o que não está no formato é 422, sem eco.
 import { z } from 'zod';
-import { FASES_ANDAMENTO, MAXIMO_DE_TAREFAS, STATUS_CONSTRUCAO } from '../../db/schema/andamento';
+import { FASES_ANDAMENTO, MAXIMO_DE_TAREFAS, STATUS_CONSTRUCAO, type FaseAndamento, type StatusConstrucao } from '../../db/schema/andamento';
 
 export const RE_ID_DEC_ANDAMENTO = /^DEC-DEM-\d{8}-\d{4}-v\d{1,4}$/;
 
@@ -23,3 +23,23 @@ export const corpoAndamentoSchema = z
   .refine((c) => c.tarefasProntas <= c.tarefasTotal);
 
 export type CorpoAndamento = z.infer<typeof corpoAndamentoSchema>;
+
+// A linha lida do banco passa por aqui antes de qualquer tela ou API (AN-12; CA-04.6): fora do esquema, "sem andamento".
+export const andamentoLidoSchema = z
+  .object({
+    decId: z.string().regex(RE_ID_DEC_ANDAMENTO),
+    fase: z.enum(FASES_ANDAMENTO),
+    tarefasProntas: tarefas,
+    tarefasTotal: tarefas,
+    statusConstrucao: z.enum(STATUS_CONSTRUCAO),
+    gravadoEm: z.date(),
+  })
+  .refine((l) => l.tarefasProntas <= l.tarefasTotal);
+
+export type AndamentoVista = { decId: string; fase: FaseAndamento; tarefasProntas: number; tarefasTotal: number; statusConstrucao: StatusConstrucao; atualizadoEm: Date };
+export type AndamentoDaIntegracao = { fase: FaseAndamento; tarefasProntas: number; tarefasTotal: number; atualizadoEm: Date };
+
+// IN-08 e AN-09: o Awave vê quatro chaves, montadas uma a uma; nunca decId, statusConstrucao nem prefixo.
+export function paraIntegracao(a: AndamentoVista | null): AndamentoDaIntegracao | null {
+  return a === null ? null : { fase: a.fase, tarefasProntas: a.tarefasProntas, tarefasTotal: a.tarefasTotal, atualizadoEm: a.atualizadoEm };
+}

@@ -41,6 +41,8 @@ const ACOES = {
   demanda_confirmada: true,
   pedido_entregue: true,
   pedido_recebido: true,
+  // 0.4.0 (DEC-DEM-20261111-0017-v1, T05): o andamento informado pelo /construir.
+  andamento_registrado: true,
 } as const satisfies Record<AcaoEvento, true>;
 const TODAS = Object.keys(ACOES) as AcaoEvento[];
 
@@ -68,9 +70,9 @@ const ev = (acao: AcaoEvento, parcial: Partial<EventoVisivel> = {}): EventoVisiv
 
 const LIXO = /undefined|null|NaN|\[object|function/;
 
-describe('textoDoEvento: os 27 eventos (03, T05 "Histórico"; 0.3.0, 03, 5.6)', () => {
-  it('a lista de ações tem 27 itens', () => {
-    expect(TODAS).toHaveLength(27);
+describe('textoDoEvento: os 28 eventos (03, T05 "Histórico"; 0.3.0, 03, 5.6; 0.4.0, 03, 5.7)', () => {
+  it('a lista de ações tem 28 itens', () => {
+    expect(TODAS).toHaveLength(28);
   });
 
   it.each(TODAS)('%s: texto não vazio e legível, com qualquer ator e sem antes nem depois', (acao) => {

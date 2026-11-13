@@ -321,5 +321,8 @@ export function textoDoEvento(e: EventoVisivel, op: { retencaoDias?: number } = 
       return `Buscou o Pedido de Construção de ${doPacote(e.entidadeId)}`;
     case 'pedido_recebido':
       return `Confirmou o recebimento do Pedido de Construção de ${doPacote(e.entidadeId)}`;
+    // 0.4.0 (03, 5.7): a frase genérica; a T11 acrescenta fase, situação e tarefas.
+    case 'andamento_registrado':
+      return `Registrou o andamento de ${doPacote(e.entidadeId)}`;
   }
 }
