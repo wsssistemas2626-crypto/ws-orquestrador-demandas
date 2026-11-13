@@ -57,6 +57,9 @@ const PISO: Readonly<Record<string, number>> = {
   // 06-T04-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-02, ADR-33, AN-13): contado ao fim da etapa.
   'src/lib/rota-corpo-invalido-qa.test.ts': 67,
   'src/modules/andamento/schemas-qa.test.ts': 29,
+  // 06-T05-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-04, AN-06, AN-11, AN-12): contado ao fim da etapa.
+  'src/modules/andamento/regras-qa.test.ts': 52,
+  'src/modules/demandas/transicoes-construir-qa.test.ts': 25,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 

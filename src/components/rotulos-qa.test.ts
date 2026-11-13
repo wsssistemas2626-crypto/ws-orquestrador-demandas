@@ -178,6 +178,33 @@ describe('textoDoEvento: caminhos de reserva', () => {
   });
 });
 
+// 06-T05-testes do DEC-DEM-20261111-0017-v1 (qa-automacao): o evento novo cita o DEC (CA-06.5) e não ecoa o que não é
+// um DEC. Vale para a frase genérica da T05 e para a completa da T11.
+describe('textoDoEvento: andamento_registrado (0.4.0, RF-06)', () => {
+  const DEC = 'DEC-DEM-20261112-0005-v1';
+  const andamento = (entidadeId: string) =>
+    ev('andamento_registrado', {
+      ator: { tipo: 'integracao', integracao: 'construir', prefixo: 'ficticio' },
+      entidade: 'pacote_decisao',
+      entidadeId,
+      antes: null,
+      depois: { fase: 'construindo', tarefasProntas: 9, tarefasTotal: 17, statusConstrucao: 'em_construcao' },
+    });
+
+  it('cita o DEC do evento', () => {
+    expect(textoDoEvento(andamento(DEC))).toContain(DEC);
+  });
+
+  it('entidadeId fora do formato do DEC não aparece no texto', () => {
+    for (const id of ['SENTINELA-dec', `${DEC}<script>`, 'DEM-20261112-0005']) {
+      const t = textoDoEvento(andamento(id));
+      expect(t).not.toContain(id);
+      expect(t.trim().length).toBeGreaterThan(0);
+      expect(t).not.toMatch(LIXO);
+    }
+  });
+});
+
 describe('formatarDinheiro: valores grandes e frações', () => {
   it('milhão com pontos e arredondamento em centavos', () => {
     expect(formatarDinheiro(1_234_567.891)).toBe('US$ 1.234.567,89');
