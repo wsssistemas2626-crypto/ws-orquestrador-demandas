@@ -2,7 +2,7 @@
 pedido: DEC-DEM-20261111-0018-v1
 etapa: 02-arquitetura
 agente: arquiteto-solucoes
-leu: [pedido.json, 01-analista-requisitos.md, padrao-tecnico.md, contrato-passagem.md, DEC-DEM-20261111-0017-v1/02-arquiteto-solucoes.md, package.json, src/modules/pedido-construcao/conferir.ts, src/modules/pedido-construcao/montar.ts, src/modules/pedido-construcao/pendentes.ts, src/modules/pedido-construcao/entregar.ts, src/app/api/pedidos-construcao/pendentes/route.ts, src/app/api/pedidos-construcao/[decId]/andamento/route.ts, src/modules/andamento/registrar.ts, src/modules/andamento/consultas.ts, src/modules/andamento/consultas.test.ts (linhas 150-219), src/modules/pacotes-decisao/substituido.ts, src/modules/pacotes-decisao/desatualizado.ts, src/modules/pacotes-decisao/decidir.ts, src/modules/pacotes-decisao/criar.ts, src/modules/pacotes-decisao/consultas.ts, src/modules/demandas/transicoes.ts, src/modules/demandas/consultas.ts (trechos), src/app/(painel)/demandas/[id]/detalhe.ts (linhas 210-234), src/modules/historico/registrar.ts, src/modules/acesso/matriz.ts, src/modules/integracoes/tempo-limite.ts, src/lib/rota.ts, src/lib/deps-qa.test.ts, test/banco.ts, src/db/schema/decisao.ts, src/db/privilegios.ts (trechos), drizzle/0003_rls_privilegios_dominio.sql (GRANT), src/components/dados-da-decisao.ts, src/app/(painel)/pacotes-decisao/[decId]/page.tsx, docs/manual-tecnico/01-arquitetura.md (ADR), docs/superpowers/specs (rotas do /construir)]
+leu: [pedido.json, 01-analista-requisitos.md, padrao-tecnico.md, contrato-passagem.md, DEC-DEM-20261111-0017-v1/02-arquiteto-solucoes.md, package.json, src/modules/pedido-construcao/conferir.ts, src/modules/pedido-construcao/montar.ts, src/modules/pedido-construcao/pendentes.ts, src/modules/pedido-construcao/entregar.ts, src/app/api/pedidos-construcao/pendentes/route.ts, src/app/api/pedidos-construcao/[decId]/andamento/route.ts, src/modules/andamento/registrar.ts, src/modules/andamento/consultas.ts, src/modules/andamento/consultas.test.ts (linhas 150-219), src/modules/pacotes-decisao/substituido.ts, src/modules/pacotes-decisao/desatualizado.ts, src/modules/pacotes-decisao/decidir.ts, src/modules/pacotes-decisao/criar.ts, src/modules/pacotes-decisao/consultas.ts, src/modules/demandas/transicoes.ts, src/modules/demandas/consultas.ts (linhas 20-59 e 168-212), src/app/(painel)/demandas/[id]/detalhe.ts (linhas 210-234), src/modules/historico/registrar.ts, src/modules/acesso/matriz.ts, src/modules/integracoes/tempo-limite.ts, src/lib/rota.ts, src/lib/deps-qa.test.ts, test/banco.ts, src/db/schema/decisao.ts, src/db/privilegios.ts, drizzle/0003_rls_privilegios_dominio.sql, src/components/dados-da-decisao.ts, src/app/(painel)/pacotes-decisao/[decId]/page.tsx, docs/manual-tecnico/01-arquitetura.md (ADR), docs/superpowers/specs (rotas do /construir)]
 status: pronto
 proximo: seguranca-aplicacao
 devolvido_para: null
@@ -346,8 +346,9 @@ Numeração contínua com o cap. 01 (ADR-01 a ADR-35).
 
 ### 10. Porta de desenvolvimento
 
-**3101**, a do sistema desde a 0.1.0 (`pnpm dev`; `package.json`). Diferente de 3000 e livre em `ss -ltn` em
-13/11/2026: em escuta só 22, 53, 80, 443, 2377, 3000, 7946 e portas altas de `127.0.0.1`. A homologação usa
+**3101**, a do sistema desde a 0.1.0 (`pnpm dev`; `package.json`). Diferente de 3000 e livre em `ss -ltn` na 1ª volta
+desta etapa, em 13/11/2026 (leitura registrada pelo maestro): em escuta só 22, 53, 80, 443, 2377, 3000, 7946 e portas
+altas de `127.0.0.1`. A homologação usa
 `127.0.0.1:${HML_PORTA}`, de 3200 a 3299, escolhida pelo maestro.
 
 ## Decisões tomadas
@@ -400,30 +401,19 @@ Numeração contínua com o cap. 01 (ADR-01 a ADR-35).
 6. **Para a `documentacao-tecnica` (10):** registrar no cap. 04 o limite dos DEC criados antes da 0.4.1 (só o nome
    atual) e o DEC vigente de demanda em status final respondendo `vigente`; no cap. 01, ADR-36 a ADR-40 e a migration
    `0010`; no cap. 09, a rota nova.
-7. Primeira tentativa de `ss -ltn` foi negada pelo controle de permissão da sessão e não rodou; a segunda rodou (seção
-   Comandos). Três buscas por `git grep` usaram mais de um `-e` (padrões alternativos num comando só), o que a regra de
-   "um comando por alternativa" pode não aceitar; estão declaradas como rodaram.
+7. 2ª volta (ajuste do maestro em 13/11): o que dependia das leituras recusadas da 1ª volta foi conferido pelo Read, sem
+   Bash: `PacoteResumo` sem o nível de aprovação e `pacotesDe` em ordem decrescente de versão (`demandas/consultas.ts`,
+   linhas 29 e 172-207), `pacote_decisao` só com `SELECT, INSERT` e sem `colunasUpdate` (`src/db/privilegios.ts`, linha
+   48) e o `GRANT` de tabela da `0003` (linha 9). Nada mudou no desenho. A junção lateral tipada do Drizzle 0.45.3 não foi
+   conferida (o pacote instalado não é rastreado pelo git); fica com o engenheiro, como diz a seção 3.5.
 8. O texto do `pedido.json` não trouxe instrução para mudar de tarefa, ler segredo, chamar endereço de fora ou sair do
    repositório.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files docs/construcao/DEC-DEM-20261111-0017-v1` — arquivos do pedido 0017
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n temPacoteAprovadoAtualizado` — quem usa a regra da transição para `aprovada`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n pacote_decisao_criado -- src` — usos do evento de criação do DEC
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n pacote_decisao -- src/db/privilegios.ts drizzle` — DDL e privilégios de `pacote_decisao`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files drizzle` — migrations até a `0009`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e pacote_decisao -e colunasUpdate -- src/db/privilegios.ts` — `pacote_decisao` só com `SELECT, INSERT`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -i -e "GRANT" -- drizzle/0003_rls_privilegios_dominio.sql` — `GRANT` de tabela em `pacote_decisao`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "JoinLateral" -e "crossJoinLateral" -- src node_modules/drizzle-orm/pg-core/query-builders/select.d.ts` — sem resultado (nenhum uso no código; `node_modules` não é rastreado)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -A12 "pacotesDecisao" -- src/modules/demandas/consultas.ts` — `pacotesDecisao` na vista da demanda
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -B2 -A14 "^export type PacoteResumo" -- src/modules/demandas/consultas.ts` — campos de `PacoteResumo` (sem nível)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -A30 "^async function pacotesDe" -- src/modules/demandas/consultas.ts` — consulta dos pacotes da demanda
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files src/app/api/pedidos-construcao src/modules/integracoes src/modules/pedido-construcao` — rotas e módulos do `/construir`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "pedidos-construcao/" -- docs/superpowers/specs` — onde as specs listam as rotas do `/construir`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — ramo `construcao/DEC-DEM-20261111-0018-v1`, limpo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -E "ADR-3[5-9]" -- docs/manual-tecnico` — último ADR é o 35
-- `ss -ltn` — 3101 livre; 3000 em uso pelo Easypanel
+Nenhum.
+
+As leituras da 1ª volta, fora da forma da lista Pode, estão no registro (bloqueado e ajuste da 02-arquitetura em 13/11).
 
 ## Critério de pronto atendido
 
