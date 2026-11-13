@@ -31,15 +31,19 @@ export const TEXTOS_ANDAMENTO = {
 type AndamentoNaTela = { decId: string; fase: string; situacao: StatusConstrucao; prontas: number; total: number; atualizadoEm: Date };
 
 // Cada valor de novo (o tipo não protege do que veio montado à mão ou de leitura nova sem lerAndamento). Fora: null.
+// T13: também ausente (undefined) ou que não é objeto, como a vista montada sem a chave `andamento`.
 function conferido(a: AndamentoVista | null): AndamentoNaTela | null {
-  if (a === null) return null;
+  if (a === null || typeof a !== 'object') return null;
   const fase = faseNaTela(a.fase);
   const situacao = situacaoNaTela(a.statusConstrucao);
   const prontas = tarefaNaTela(a.tarefasProntas);
   const total = tarefaNaTela(a.tarefasTotal);
   const atualizadoEm = a.atualizadoEm instanceof Date && !Number.isNaN(a.atualizadoEm.getTime()) ? a.atualizadoEm : null;
   if (fase === null || situacao === null || prontas === null || total === null || prontas > total || atualizadoEm === null) return null;
-  return { decId: a.decId, fase, situacao, prontas, total, atualizadoEm };
+  // M1 da 06-T11-tech-lead (T13): RE_ID_DEC.test converte o valor para texto; só texto chega ao link e ao alerta. Outro
+  // tipo vira '' e cai em "Não informado", como o id fora do formato (CV-19).
+  const decId = typeof a.decId === 'string' ? a.decId : '';
+  return { decId, fase, situacao, prontas, total, atualizadoEm };
 }
 
 // --- T03: selo de fase (03, 4.1) ---

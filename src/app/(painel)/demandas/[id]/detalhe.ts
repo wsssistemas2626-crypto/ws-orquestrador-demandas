@@ -18,8 +18,10 @@ import type { Status } from '../../../../modules/demandas/schemas';
 import type { EventoVisivel } from '../../../../modules/historico/consultas';
 
 // Âncoras da navegação "Nesta página" (03, T05): o id fica no `h2` de cada seção, com tabindex="-1". 0.3.0 (03, 5.1 item
-// 3 e 5.5): `confirmacao`, a seção "Confirmação do Awave", que a linha 14 da Próxima ação aponta.
+// 3 e 5.5): `confirmacao`, a seção "Confirmação do Awave", que a linha 14 da Próxima ação aponta. 0.4.0 (T13; 03, 5.1
+// item 1 e seção 8): `andamento`, a seção "Andamento da construção".
 export const ID_SECAO = {
+  andamento: 'andamento-da-construcao',
   dados: 'dados',
   confirmacao: 'confirmacao',
   duvidas: 'duvidas-em-aberto',
@@ -34,6 +36,7 @@ export const TEXTOS_DETALHE = {
   editar: 'Editar dados',
   nestaPagina: 'Nesta página',
   secoes: {
+    andamento: 'Andamento da construção',
     dados: 'Dados',
     confirmacao: 'Confirmação do Awave',
     duvidas: 'Dúvidas em aberto',
@@ -89,7 +92,9 @@ export const TEXTOS_DETALHE = {
   dicaAprovadaIndisponivel: 'Aprovada: precisa de um pacote de decisão aprovado e atualizado.',
   dicaEstudo: 'Em construção: demanda do tipo Estudo não vai para construção.',
   statusFinal: (rotulo: string) => `${rotulo} é um status final. Não há próxima mudança.`,
-  dicaAprovada: 'Mudar para Em construção, Entregue ou Devolvida é manual nesta versão: faça quando o /construir avançar.',
+  // 0.4.0 (T13; 03, 5.1 item 6): a primeira mudança para Em construção passou a ser do /construir; Entregue, nunca.
+  dicaAprovada:
+    'Quando o /construir começar o Pedido de Construção gerado no painel, a demanda passa sozinha para Em construção. Entregue é sempre marcado por uma pessoa.',
   texto: {
     mostrar: 'Mostrar texto recebido',
     aviso: (data: string) => `Contém dado pessoal de terceiro. Não copie para fora do sistema sem necessidade. Será apagado em ${data}.`,

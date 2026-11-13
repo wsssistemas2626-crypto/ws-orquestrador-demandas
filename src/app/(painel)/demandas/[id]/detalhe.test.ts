@@ -568,7 +568,8 @@ describe('MudarStatus.tsx', () => {
     const p = html(
       h(MudarStatus, { id: ID, statusAtual: 'aprovada', opcoes: opcoesDeStatus(demanda({ status: 'aprovada' }), transicoesManuaisDe('aprovada')), final: null, dicaFixa: TEXTOS_DETALHE.dicaAprovada }),
     );
-    expect(p).toContain('Mudar para Em construção, Entregue ou Devolvida é manual nesta versão: faça quando o /construir avançar.');
+    // 0.4.0 (T13; 03, 5.1 item 6; G5): o texto novo da dica, que deixa de dizer que tudo é manual.
+    expect(p).toContain('Quando o /construir começar o Pedido de Construção gerado no painel, a demanda passa sozinha para Em construção. Entregue é sempre marcado por uma pessoa.');
   });
 });
 
