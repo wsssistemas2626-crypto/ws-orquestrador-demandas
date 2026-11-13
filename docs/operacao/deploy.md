@@ -7,7 +7,7 @@
 | Tags | `<sha do commit>`, `v<versão do package.json>` e `latest`; o GHCR guarda só as 2 versões mais recentes |
 | Workflows | `.github/workflows/ci.yml` (pull request e antes de publicar) e `.github/workflows/deploy.yml` (push na `main`) |
 | Quem executa | Tudo o que mexe em produção (serviço, variável, banco, migration, rollback) é de Fabiano, pelo Easypanel |
-| Atualizado em | 12/11/2026 (`documentacao-tecnica`, pedido 0019: versão 0.3.1); 12/11/2026 (`devops-sre`, pedido 0019: a 0.3.0 não se publica sozinha; publicação conjunta 0.2.0 → 0.3.1, com backup antes, a migration `0007` em passo separado e o Deploy do `worker` antes do `app`, na seção 5; o webhook que o merge da 0.3.1 chamaria sem a migration, nas seções 1 e 4; volta da 0.3.1 na seção 6, para a 0.3.0 só trocando a imagem e para a 0.2.0 só com o backup restaurado); 12/11/2026 (`documentacao-tecnica`, pedido 0016: versão 0.3.0 e, no passo 8 da publicação da 0.3.0, o link para `tokens-de-integracao.md`); 12/11/2026 (`devops-sre`, pedido 0016: publicação da 0.2.0 de 11/11 e aviso da origem GitHub na seção 4; publicação da 0.3.0, com a migration `0007` em passo separado, na seção 5; rollback da 0.3.0 na seção 6, para a 0.2.0, só com o backup restaurado; tamanho da imagem na seção 10); 11/11/2026 (`documentacao-tecnica`, pedido 0015: versão 0.2.0 e a situação da produção em 10/11 na seção 4); 11/11/2026 (`devops-sre`, pedido 0015: rollback da 0.2.0 na seção 6, para a `v0.1.13`, com o ensaio e a volta quando a origem do serviço for GitHub; merge da 0.2.0 sem migration na seção 4; tamanho da imagem e auditoria das `devDependencies` na seção 10); 10/11/2026 (`documentacao-tecnica`, pedido 0014: versão 0.1.13; `devops-sre`, pedido 0014: rollback da 0.1.13 na seção 6, para a `v0.1.12`, sha completo da `v0.1.11` no parágrafo da 0.1.12 e merges sem migration até a 0.1.13 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0013: versão 0.1.12; `devops-sre`, pedido 0013: rollback da 0.1.12 na seção 6, para a `v0.1.11`, e merges sem migration até a 0.1.12 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0012: versão 0.1.11; `devops-sre`, pedido 0012: rollback da 0.1.11 na seção 6, para a `v0.1.10`, risco residual do M-1 do 0009 reduzido de novo na seção 4 e erro que lança ao ser lido na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0011: versão 0.1.10; `devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
+| Atualizado em | 13/11/2026 (`devops-sre`, pedido 0017: a 0.3.1 no ar e o aviso do merge da 0.4.0 na seção 4; o merge da 0.4.0 não chama webhook, e o merge seguinte sem migration chamaria, na seção 1; publicação 0.3.1 → 0.4.0, com backup antes, as migrations `0008` e `0009` num passo separado e o envio do andamento ligado só no fim, na seção 5; volta da 0.4.0 para a 0.3.1, só com o backup restaurado e o estado do envio zerado, na seção 6; conferência e sinais do andamento nas seções 8 e 9; tamanho da imagem na seção 10); 12/11/2026 (`documentacao-tecnica`, pedido 0019: versão 0.3.1); 12/11/2026 (`devops-sre`, pedido 0019: a 0.3.0 não se publica sozinha; publicação conjunta 0.2.0 → 0.3.1, com backup antes, a migration `0007` em passo separado e o Deploy do `worker` antes do `app`, na seção 5; o webhook que o merge da 0.3.1 chamaria sem a migration, nas seções 1 e 4; volta da 0.3.1 na seção 6, para a 0.3.0 só trocando a imagem e para a 0.2.0 só com o backup restaurado); 12/11/2026 (`documentacao-tecnica`, pedido 0016: versão 0.3.0 e, no passo 8 da publicação da 0.3.0, o link para `tokens-de-integracao.md`); 12/11/2026 (`devops-sre`, pedido 0016: publicação da 0.2.0 de 11/11 e aviso da origem GitHub na seção 4; publicação da 0.3.0, com a migration `0007` em passo separado, na seção 5; rollback da 0.3.0 na seção 6, para a 0.2.0, só com o backup restaurado; tamanho da imagem na seção 10); 11/11/2026 (`documentacao-tecnica`, pedido 0015: versão 0.2.0 e a situação da produção em 10/11 na seção 4); 11/11/2026 (`devops-sre`, pedido 0015: rollback da 0.2.0 na seção 6, para a `v0.1.13`, com o ensaio e a volta quando a origem do serviço for GitHub; merge da 0.2.0 sem migration na seção 4; tamanho da imagem e auditoria das `devDependencies` na seção 10); 10/11/2026 (`documentacao-tecnica`, pedido 0014: versão 0.1.13; `devops-sre`, pedido 0014: rollback da 0.1.13 na seção 6, para a `v0.1.12`, sha completo da `v0.1.11` no parágrafo da 0.1.12 e merges sem migration até a 0.1.13 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0013: versão 0.1.12; `devops-sre`, pedido 0013: rollback da 0.1.12 na seção 6, para a `v0.1.11`, e merges sem migration até a 0.1.12 na seção 4); 04/11/2026 (`documentacao-tecnica`, pedido 0012: versão 0.1.11; `devops-sre`, pedido 0012: rollback da 0.1.11 na seção 6, para a `v0.1.10`, risco residual do M-1 do 0009 reduzido de novo na seção 4 e erro que lança ao ser lido na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0011: versão 0.1.10; `devops-sre`, pedido 0011: rollback da 0.1.10 na seção 6, para a `v0.1.9`, risco residual do M-1 do 0009 reduzido na seção 4 e reenvio ao Sentry do erro que falhou na redução na seção 8); 04/11/2026 (`documentacao-tecnica`, pedido 0010: versão 0.1.9; `devops-sre`, pedido 0010: rollback da 0.1.9 na seção 6, para a `v0.1.8`, e o que muda no log e no Sentry na seção 8); 03/11/2026 (`documentacao-tecnica`, pedido 0009: versão 0.1.8; `devops-sre`, pedido 0009: rollback da 0.1.8 na seção 6 e fim do bloqueio de dado pessoal da primeira publicação na seção 4, com o M-1 do 0009 como risco residual; antes, `devops-sre`: actions por SHA na seção 10, rollback da 0.1.6 e da 0.1.7 na seção 6, bloqueio da primeira publicação pelo M-a do 0008 na seção 4; `documentacao-tecnica`: versão 0.1.7; antes, na 0.1.6, primeira publicação bloqueada pelo M-1 na seção 4, guarda do seed na seção 7, `erro_requisicao` na seção 8 e 408 e 409 do aviso na seção 9) |
 | Dono | `devops-sre` (sistema: Fabiano) |
 
 Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel**.
@@ -27,6 +27,11 @@ Antes de qualquer passo das seções 4, 5 e 6: **tirar snapshot da VPS no hPanel
      com migration foi mergeada e não publicada (a 0.3.0, com a `0007`), o merge seguinte sem migration nova (a 0.3.1)
      dá "sem migration nova" e chamaria os webhooks, levando a `0007` à produção sem backup nem migrate. Por isso, na
      publicação conjunta da seção 5, os segredos de webhook ficam fora do repositório até o fim.
+   - **Na 0.4.0:** o push do merge traz a `0008` e a `0009` em `drizzle/`, então dá "com migration nova" e não chama
+     os webhooks. O risco é o merge **seguinte** (a 0018, por exemplo): se ele não trouxer migration e entrar antes de a
+     0.4.0 ser publicada, o `deploy.yml` chama os webhooks e leva a `0008` e a `0009` à produção sem backup nem migrate.
+     Por isso, nenhum outro merge na `main` entre o merge da 0.4.0 e o fim da publicação da seção 5, ou os segredos de
+     webhook ausentes nesse intervalo.
 4. Por último, apaga do GHCR as versões além das 2 mais recentes. A anterior fica sempre disponível para o rollback.
 
 Nenhum workflow publica imagem ou chama webhook fora do push na `main`.
@@ -106,8 +111,26 @@ Requisitos de operação que o código supõe:
 
 ## 4. Primeira publicação
 
-**Situação em 11/11/2026: a 0.2.0 está no ar.** Publicação feita por Fabiano por volta das 17h20 (horário de
-Brasília):
+**Situação em 13/11/2026: a 0.3.1 está no ar**, pela publicação conjunta 0.2.0 → 0.3.1 da seção 5. É o merge do PR #18
+na `main`, `0ac099a` (`0ac099a69e8bead9d10a118b2dcc850d6d22b11c`), com a migration `0007` aplicada. A informação é do
+maestro do pedido 0017; o `devops-sre` não conferiu a produção. Antes da publicação da 0.4.0 (seção 5), confira no
+painel:
+
+- se as imagens em uso foram rotuladas `:v0.3.1`;
+- se os segredos de webhook voltaram ao GitHub;
+- se os tokens `awave` e `construir` de produção já foram emitidos.
+
+> **Aviso para a 0.4.0.** O `app` e o `worker` têm origem GitHub no ramo `main`. Depois do merge da 0.4.0, **qualquer
+> Deploy** de um dos dois leva a 0.4.0 com a `0008` e a `0009` junto, até um Deploy feito só para trocar uma variável.
+> A imagem não aplica migration ao subir. Sem as duas aplicadas antes, o `app` sobe com a saúde em 503 (seção 8). Por
+> isso, do merge da 0.4.0 até a publicação da seção 5:
+>
+> - não faça Deploy dos serviços;
+> - deixe o "Auto Deploy" desligado no `app` e no `worker`;
+> - não faça outro merge na `main` (seção 1, passo 3).
+
+**Situação em 11/11/2026: a 0.2.0 estava no ar** (registro). Publicação feita por Fabiano por volta das 17h20 (horário
+de Brasília):
 
 - **Antes do Deploy:**
   - backup manual do banco, `20261111-2012-diario.sql.gz`;
@@ -119,7 +142,7 @@ Brasília):
   repetiram.
 - **Aceite:** Fabiano conferiu no computador e no iPhone, por volta das 17h40.
 
-> **Aviso para a 0.3.0 e a 0.3.1.** Os serviços têm origem GitHub no ramo `main`, então o Easypanel monta a imagem a
+> **Aviso para a 0.3.0 e a 0.3.1 (registro; cumprido com a publicação conjunta).** Os serviços têm origem GitHub no ramo `main`, então o Easypanel monta a imagem a
 > partir do que estiver na `main` na hora do Deploy. A 0.3.0 foi mergeada em 12/11/2026 (`d49de53`, PR #17) e **não foi
 > publicada**: a produção segue na 0.2.0. Desde esse merge, **qualquer Deploy do `app`** (ou do `worker`), até um
 > Deploy feito só para trocar uma variável, leva a versão da `main` (a 0.3.0 e, depois do próximo merge, a 0.3.1) com
@@ -212,6 +235,98 @@ Ordem fixa: **backup → migrate → deploy** (ADR-12, CA-P7-06). O app não rec
 5. Conferir a seção 8. Se a saúde não voltar a 200 em 5 minutos, ir para a seção 6.
 
 Sem migration nova, os passos 2 e 3 não existem: o `deploy.yml` já chama os webhooks sozinho.
+
+### Publicação 0.3.1 → 0.4.0 (migrations `0008` e `0009`, serviços com origem GitHub)
+
+A 0.4.0 (pedido 0017) recebe o andamento do Pedido de Construção enviado pelo /construir, pela rota
+`POST /api/pedidos-construcao/<DEC-id>/andamento` e só com o token `construir`. O que entra na produção:
+
+- **a migration `0008` (gerada):**
+  - cria a tabela `andamento_construcao`, vazia, com cinco CHECK;
+  - cria duas chaves estrangeiras, para `demanda` e `pacote_decisao`;
+  - cria três índices sobre a tabela nova;
+- **a migration `0009` (custom):** só `GRANT SELECT, INSERT ON andamento_construcao TO orquestrador_app`. O papel do app
+  não ganha `UPDATE` nem `DELETE` em lugar nenhum. O papel `orquestrador_app` já existe na produção desde a primeira
+  publicação, e a `0009` falha sem ele.
+
+As duas são aditivas: nenhuma linha existente muda, nenhuma coluna sai e nenhuma migration da `main` foi editada.
+`alteram_dado: false` é o esperado no ensaio. O migrador do Drizzle aplica as migrations pendentes numa transação só,
+então entram as duas ou nenhuma. As chaves estrangeiras seguram as escritas em `demanda` e `pacote_decisao` até o fim
+dessa transação. Com a tabela nova vazia, isso leva milissegundos. Mesmo assim, rode a migration num horário sem uso do
+painel, porque uma transação longa em `demanda` faria a migration esperar.
+
+A 0.4.0 não traz variável, dependência, serviço, job nem processo novo. O `Dockerfile`, os workflows e o
+`docker-compose.hml.yml` não mudam.
+
+A ordem continua **backup → migrate → deploy**. Tudo aqui é de Fabiano, depois do PR da 0.4.0 aprovado. Nada disto roda
+no /construir.
+
+1. **Antes do merge da 0.4.0:**
+   - conferir no Easypanel que o "Auto Deploy" está desligado no `app` e no `worker` (aviso da seção 4);
+   - conferir que `"andamento_ligado"` está `false` em `pedidos/config/orquestrador.json` da estruturaAutonoma. A 0.3.1
+     não tem a rota. Com o envio ligado, a resposta é 404, e o /construir grava `fora_do_orquestrador` no estado do
+     envio (`~/.local/state/wss-status/andamento.json` do usuário que roda o crontab). Ele só tenta de novo quando a
+     fase ou as tarefas daquele pedido mudarem;
+   - rotular as imagens em uso (a 0.3.1) para a volta: `easypanel/orquestrador/app:v0.3.1` e
+     `easypanel/orquestrador/worker:v0.3.1`. A imagem certa é a que o serviço usa hoje. Conferir com
+     `docker image ls easypanel/orquestrador/app` e `docker image ls easypanel/orquestrador/worker`;
+   - conferir que o host consegue fazer `docker pull` da imagem privada do GHCR (passo 1 da publicação conjunta,
+     abaixo). A migration do passo 5 usa essa imagem;
+   - combinar que **nenhum outro PR entra na `main`** até o passo 7. Se isso não for possível, apagar os segredos
+     `EASYPANEL_WEBHOOK_APP` e `EASYPANEL_WEBHOOK_WORKER` até o passo 7 (seção 1, passo 3).
+2. **Snapshot no hPanel.** Atenção: desde 06/11/2026, até a Hostinger resolver, o snapshot congela o servidor e exige
+   reboot manual. Com a produção no ar, decida antes se tira o snapshot ou se fica só com o backup do passo 4.
+3. **Merge do PR da 0.4.0** (Fabiano). O `deploy.yml` roda o CI e publica no GHCR as tags `<sha do merge>`, `v0.4.0` e
+   `latest`. O passo "Migration nova neste push?" dá `sim`, porque o push traz a `0008` e a `0009`:
+   - os webhooks **não** são chamados, e o resumo da execução mostra "Deploy parado antes da produção";
+   - a execução fica verde;
+   - a limpeza do GHCR deixa só as 2 versões mais recentes, a `v0.4.0` e a anterior publicada (a `v0.3.1`, se o merge
+     dela chegou a publicar). Confirme em Packages.
+
+   Nada muda na produção, que segue na 0.3.1.
+   - Se o passo "Disparar o Easypanel" rodar, o Easypanel monta e sobe a 0.4.0 sobre o banco **ainda sem** a `0008` e a
+     `0009`, e a saúde fica em 503. O banco não migrou, então há duas saídas, por decisão de Fabiano:
+     - seguir logo para os passos 4 e 5 (a saúde volta a 200 quando a migration termina);
+     - voltar o `worker` e o `app` para "Docker image" `:v0.3.1` (rotuladas no passo 1), **sem** restaurar nada.
+4. **Backup** pelo passo 2 acima: `pg_dump --create`, arquivo `<AAAAMMDD-HHMM>-antes-v0.4.0.sql`, `chmod 600`, conferir
+   que não está vazio. É este arquivo que a volta para a 0.3.1 restaura (seção 6). Se usar a rotina do backup manual
+   (`.sql.gz`), confira que o dump sai com `--create`, porque a restauração recria o banco a partir dele.
+5. **Migrations `0008` e `0009`, num passo separado**, pelo passo 3 acima. Use a imagem do GHCR do commit do merge da
+   0.4.0: `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:<sha do merge da 0.4.0>` (a `:v0.4.0` é a mesma).
+   Ela aplica só as duas, as únicas que faltam no banco da 0.3.1. Saída esperada: `Migrations aplicadas.`
+   - Daqui até o passo 6 terminar, a 0.3.1 continua servindo o painel, porque ela ignora a tabela nova. Mas
+     `GET /api/saude` responde 503, porque a última migration do banco deixa de ser a do journal da imagem dela. Faça o
+     passo 6 logo em seguida.
+   - Erro na migration: a saída traz só a classe e o código, e a 0.3.1 segue no ar. Não faça o Deploy. Para saber se
+     as migrations entraram, use a saúde da própria 0.3.1:
+     - 200: nada foi aplicado. Corrija a causa e repita o passo 5;
+     - 503: as duas entraram, e o erro veio depois, na instalação das filas do pg-boss. Repita o passo 5, que é
+       idempotente.
+
+     Se o erro persistir, a volta é a restauração da seção 6, sem trocar imagem.
+6. **Deploy do `worker` e depois do `app`** no Easypanel, origem GitHub no ramo `main`. Antes de cada um, conferir que o
+   commit que o Easypanel vai montar é o do merge da 0.4.0. O Easypanel monta a imagem antes de subir, o que leva alguns
+   minutos por serviço. Entre os dois Deploys, o `worker` da 0.4.0 roda com o `app` da 0.3.1. Nada muda para quem usa o
+   painel, porque o `worker` não lê nem grava o andamento.
+7. **Conferência** pela seção 8, inclusive o item 5 (andamento). As primeiras chamadas à saúde podem dar 503 com o pool
+   frio. Se a saúde não voltar a 200 em 5 minutos, seção 6. Até o passo 8, nenhuma demanda tem andamento: a fila fica
+   sem selo de fase, e o detalhe, sem a seção "Andamento da construção".
+8. **Só depois, e com Fabiano, nesta ordem:**
+   1. **P-04 do pedido 0017:** decidir o usuário do sistema que roda o envio do andamento. Hoje o crontab
+      (`ferramentas/status-report/enviar-andamento.sh`) roda como `deploy`, o mesmo usuário dos agentes. O arquivo do
+      token `construir` (permissão 600) tem de ser só desse usuário. O aceite do risco residual é com a `gestao-riscos`.
+   2. Conferir que o token `construir` de produção existe e não foi revogado
+      ([tokens-de-integracao.md](tokens-de-integracao.md)). Sem ele, o envio recebe 401, e a volta inteira do envio para.
+   3. Se o envio chegou a ser ligado contra a 0.3.1, apagar o estado do envio (`~/.local/state/wss-status/andamento.json`
+      do usuário do crontab). Assim, os pedidos marcados `fora_do_orquestrador` vão de novo. Pedido terminado e parado há
+      mais de 7 dias não é enviado pela primeira vez.
+   4. Trocar `"andamento_ligado"` para `true`. Em até 2 minutos (crontab):
+      - `andamento.log`, na mesma pasta, sem linha `atencao` nem `erro`;
+      - no log do `app`, linhas com `rota` `/api/pedidos-construcao/[decId]/andamento`, `atorTipo` `integracao` e
+        status 204. O 404 é esperado para pedido escrito direto, sem demanda gerada no painel (decisão A3);
+      - na fila, o selo de fase nas demandas em construção com pedido gerado.
+   5. P-05: conferir a tool do Awave com a sétima chave (`andamento`) antes da parte 3 da E01.
+   6. Se os segredos de webhook foram apagados no passo 1, cadastrá-los de novo (seção 2).
 
 ### Publicação conjunta 0.2.0 → 0.3.1 (migration `0007`, serviços com origem GitHub)
 
@@ -323,6 +438,63 @@ na homologação por `construir.mjs ensaiar-rollback <DEC-id>` antes de cada PR 
 anterior: o ensaio registrou `primeira_publicacao: true`, sem `volta_sem_restaurar`, e as 7 migrations novas não alteram
 dado existente (`alteram_dado: false`). A partir da 0.1.1, toda versão que trouxer migration nova cai no caminho B: a
 volta dela **exige restaurar o backup tirado antes da publicação**.
+
+### Volta da 0.4.0 (publicação 0.3.1 → 0.4.0)
+
+**Antes de voltar, veja se a falha é só do envio do andamento.** Nesse caso, o problema se resolve sem volta, sem Deploy
+e sem perder dado:
+
+| Sintoma | Ação |
+|---|---|
+| Envio errado ou em excesso (429 `limite_excedido`, fase que não confere com o /construir) | `"andamento_ligado": false` no `orquestrador.json` do /construir. O Orquestrador não muda |
+| Suspeita de vazamento do token `construir` | Revogar pelo prefixo ([tokens-de-integracao.md](tokens-de-integracao.md)). Cada linha de `andamento_construcao` guarda o prefixo de quem gravou, o que mostra o que ele escreveu |
+| Status errado numa demanda (`em_construcao` ou `devolvida` posto pelo /construir) | Uma pessoa corrige pela mudança manual de status, que segue como na 0.3.1 |
+
+A volta é para indisponibilidade ou erro do sistema causado pela própria 0.4.0.
+
+**Destino único: a 0.3.1, pelo caminho B, com o backup restaurado.** A 0.4.0 traz a `0008` e a `0009`. A 0.3.1 sobe
+sobre o banco migrado, mas a saúde dela responde 503, porque a última migration do banco não é a do journal dela. Por
+isso, **a volta da 0.4.0 exige restaurar o backup tirado antes da publicação** (passo 4 da publicação 0.3.1 → 0.4.0,
+seção 5). Apagar a tabela e o registro das migrations à mão no banco de produção não é procedimento deste sistema.
+
+Tudo o que foi gravado entre o backup e a volta se perde:
+
+- demandas, decisões e eventos;
+- mudanças de status, inclusive as feitas pelo /construir;
+- o andamento recebido;
+- os tokens emitidos depois do backup.
+
+Os tokens emitidos antes do backup continuam valendo. Restaurar é decisão de Fabiano.
+
+1. Snapshot no hPanel, com o mesmo aviso do passo 2 da publicação: hoje o snapshot congela o servidor e exige reboot
+   manual.
+2. `"andamento_ligado": false` no `orquestrador.json` do /construir. A 0.3.1 não tem a rota: com o envio ligado, ela
+   responde 404, e o /construir marca os pedidos como `fora_do_orquestrador`.
+3. Parar o `app` e o `worker` no Easypanel.
+4. Restaurar o backup pelo passo 3 do caminho B acima. Com o arquivo `.sql.gz`, descompactar na entrada do `psql`
+   (`gunzip -c <arquivo> | docker exec -i <contêiner do db> psql -v ON_ERROR_STOP=1 -U <usuário migrator> -d postgres`),
+   depois do `DROP DATABASE`.
+5. No `worker` e depois no `app`: trocar a origem de GitHub para "Docker image" com
+   `easypanel/orquestrador/worker:v0.3.1` e `easypanel/orquestrador/app:v0.3.1` (rotuladas no passo 1 da publicação), e
+   fazer o Deploy.
+   - Se as imagens locais não existirem, usar a do GHCR
+     `ghcr.io/wsssistemas2626-crypto/ws-orquestrador-demandas:0ac099a69e8bead9d10a118b2dcc850d6d22b11c` (a `v0.3.1`,
+     merge do PR #18), com a credencial de leitura do GHCR da seção 2. Confirme a tag em Packages antes.
+   - **Não** volte só fazendo Deploy com a origem GitHub: a `main` tem a 0.4.0, e o Deploy montaria a 0.4.0 de novo.
+6. Conferir a seção 8, itens 1 a 4. A 0.3.1 não mostra selo de fase nem a seção "Andamento da construção".
+7. Para publicar a correção, voltar a origem para GitHub e repetir a publicação 0.3.1 → 0.4.0 da seção 5, com backup
+   novo. Antes de religar o envio (passo 8 da publicação), apagar o estado do envio
+   (`~/.local/state/wss-status/andamento.json` do usuário do crontab). O /construir guarda o último estado enviado de
+   cada pedido e não manda de novo o que já mandou. Sem apagar, o andamento perdido na restauração só volta quando a fase
+   ou as tarefas de cada pedido mudarem.
+
+Ensaio da volta 0.4.0 → 0.3.1 na homologação: fica com o maestro, na Parada 3 do pedido 0017
+(`construir.mjs ensaiar-rollback DEC-DEM-20261111-0017-v1`). O esperado é `ok: true`, `alteram_dado: false` e
+**`volta_sem_restaurar: false`**: a 0.3.1 só volta com o backup restaurado, e isso é o esperado, não falha (02 do pedido
+0017, seção 8). O resultado entra aqui quando o ensaio rodar.
+
+Depois da publicação da 0.4.0, a "Volta da 0.3.1", abaixo, fica como registro. Ela só vale com o banco de volta ao
+estado da 0.3.1, sem a `0008` e a `0009`.
 
 ### Volta da 0.3.1 (publicação conjunta 0.2.0 → 0.3.1)
 
@@ -630,6 +802,16 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
    `desconhecido`, e a linha `console_erro` sai sem o campo `erro`.
 3. Em `/configuracao/agentes`, batimento do worker com menos de 5 minutos e uma instância só.
 4. Entrar com uma conta real (senha e 2FA) e abrir a fila de demandas.
+5. **Desde a 0.4.0, o andamento.**
+   - Sem o envio ligado: a fila não mostra selo de fase, e o detalhe não tem a seção "Andamento da construção".
+   - Com o envio ligado (passo 8 da publicação 0.3.1 → 0.4.0):
+     - o log do `app` mostra a linha `requisicao` com `rota` `/api/pedidos-construcao/[decId]/andamento`, `atorTipo`
+       `integracao` e status 204, com `ms` abaixo de 1.000 na maior parte das chamadas (RNF-01: p95 até 1 s);
+     - a demanda do pedido mostra o selo na fila (por exemplo, "Construindo · 9/17") e, no detalhe, a fase, a barra de
+       tarefas e "Atualizado em";
+     - o histórico mostra "Registrou o andamento" pelo `/construir (prefixo …)` só quando muda a fase ou a situação.
+   - No /construir, `~/.local/state/wss-status/andamento.log` (do usuário do crontab) só ganha linha quando algo foi
+     enviado ou falhou. Linha com `atencao` ou `erro` pede a seção 9.
 
 ## 9. Alertas mínimos
 
@@ -639,6 +821,10 @@ A 0.1.1 também não trouxe migration; a volta dela era o caminho A, para
 | Batimento do worker (`/configuracao/agentes`) | mais de 5 min sem bater | Logs do `worker`; deploy do serviço; conferir variáveis |
 | Duas instâncias de worker | qualquer ocorrência | Conferir réplicas = 1 no Easypanel |
 | Erro novo no Sentry (com DSN) | primeira ocorrência de cada tipo | Triagem pelo `tech-lead`; incidente se afetar decisão ou dado |
+| Andamento: 401 ou 403 no envio (desde a 0.4.0) | qualquer ocorrência no `andamento.log` do /construir | Token `construir` revogado, trocado ou errado: conferir o arquivo do token e [tokens-de-integracao.md](tokens-de-integracao.md). A volta inteira do envio para até corrigir |
+| Andamento: 429 `limite_excedido` (desde a 0.4.0) | qualquer ocorrência no log do `app` (rota do andamento) ou no `andamento.log` | Mais de 60 gravações de um DEC ou 600 no total numa hora. O /construir manda só quando muda, no máximo 1 a cada 2 min por pedido: 429 indica laço no envio ou token usado por outro. Desligar `"andamento_ligado"`; em suspeita de vazamento, revogar pelo prefixo |
+| Andamento: 503 `indisponivel` na rota do andamento (desde a 0.4.0) | 3 seguidos em 10 min | Trava ocupada ou banco lento: logs do `app` e do `db`, e a saúde. O /construir repete sozinho na volta seguinte, e nada foi gravado |
+| Andamento parado (desde a 0.4.0) | "Atualizado em" de uma demanda em construção sem mudar há mais de 1 dia, com o pedido andando no /construir | Conferir `"andamento_ligado"`, o crontab e o `andamento.log`. Conferência manual: não há monitor automático |
 
 Aviso por e-mail no Sentry, desde a 0.1.5 ([manual, cap. 07](../manual-tecnico/07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail)):
 
@@ -664,8 +850,9 @@ O monitor externo da saúde ainda não existe: até lá, a conferência é a da 
   que o próprio CI baixou para a tag.
 - **Primeira execução do gitleaks:** o repositório tem senhas fictícias de propósito (homologação, seed, e2e). Se o
   gitleaks acusar alguma, a triagem é do `seguranca-aplicacao`; nada entra em lista de exceção sem essa revisão.
-- **Tamanho da imagem:** cerca de 1,77 GB em disco (440 MB de conteúdo), medido na 0.3.0 e de novo na 0.3.1 (igual)
-  pela imagem da homologação; era 1,76 GB e 438 MB na 0.2.0, e 1,74 GB e 426 MB na 0.1.7. O tamanho vem de o worker, a migration e os scripts rodarem por `tsx`, que é
+- **Tamanho da imagem:** cerca de 1,77 GB em disco (441 MB de conteúdo) na 0.4.0, medido por
+  `docker build -t ws-orquestrador-demandas:local` e `docker image ls` em 13/11/2026. Era 1,77 GB e 440 MB na 0.3.0 e na
+  0.3.1, medido pela imagem da homologação; era 1,76 GB e 438 MB na 0.2.0, e 1,74 GB e 426 MB na 0.1.7. O tamanho vem de o worker, a migration e os scripts rodarem por `tsx`, que é
   dependência de desenvolvimento. Compilar o worker e os scripts no build permitiria instalar só as dependências de
   produção na imagem final. O estágio `build` continuaria com a instalação completa, porque as fontes da 0.2.0
   (`@fontsource/*`) são `devDependencies` lidas pelo `next build`.
