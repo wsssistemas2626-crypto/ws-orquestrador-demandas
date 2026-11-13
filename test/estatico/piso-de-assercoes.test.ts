@@ -69,6 +69,8 @@ const PISO: Readonly<Record<string, number>> = {
   'src/app/api/pedidos-construcao/andamento.test.ts': 95,
   'src/app/api/pedidos-construcao/andamento-422.test.ts': 11,
   'test/transversal/sentinelas-andamento.test.ts': 20,
+  // 06-T08-testes do DEC-DEM-20261111-0017-v1 (qa-automacao; credencial, ordem das recusas e CA-02.7 pela rota).
+  'src/app/api/pedidos-construcao/andamento-qa.test.ts': 37,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
