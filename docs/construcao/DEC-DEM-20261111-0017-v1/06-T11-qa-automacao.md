@@ -2,7 +2,7 @@
 pedido: DEC-DEM-20261111-0017-v1
 etapa: 06-T11-testes
 agente: qa-automacao
-leu: [contrato-passagem.md, 06-T11-qa-automacao.md (entrega anterior), 06-T11-tech-lead.md (revisão, linhas 1 a 60), commit c42e78bb0173d9ca95a7cd8428a0b8fd4de70341 (pela diferença até HEAD), commits f11de01 e 865e837 (arquivos e diferença do piso-de-assercoes), src/components/dados-do-andamento.ts, src/components/rotulos.ts (importações, linhas 1 a 30), src/components/dados-do-pacote.ts (importações e RE_ID_DEC, linhas 1 a 40), src/components/formulario.ts (importações, linhas 1 a 25), src/components/dados-do-andamento-qa.test.ts, src/components/rotulos-andamento-qa.test.ts, test/estatico/dados-do-andamento.test.ts, a saída do pnpm test. Desta etapa, lidos na volta anterior e reaproveitados: pedido.json, padrao-tecnico.md, tarefas.json, o plano (T11, linhas 2405 a 2557), 01-analista-requisitos.md (RF-06 a RF-09), 06-T11-engenheiro-frontend.md, src/components/dados-do-andamento.test.ts, src/components/rotulos-andamento.test.ts, src/components/rotulos-qa.test.ts, src/app/(painel)/demandas/[id]/Historico.tsx, src/app/(painel)/demandas/[id]/detalhe.ts, test/estatico/importacoes.ts, test/estatico/piso-de-assercoes.test.ts]
+leu: [contrato-passagem.md, 06-T11-qa-automacao.md (entrega anterior), 06-T11-tech-lead.md (revisão, linhas 1 a 60), src/components/dados-do-andamento.ts, src/components/rotulos.ts (importações, linhas 1 a 30), src/components/dados-do-pacote.ts (importações e RE_ID_DEC, linhas 1 a 40), src/components/formulario.ts (importações, linhas 1 a 25), src/components/dados-do-andamento-qa.test.ts, src/components/rotulos-andamento-qa.test.ts, test/estatico/dados-do-andamento.test.ts, a saída do pnpm test. Desta etapa, lidos nas voltas anteriores e reaproveitados: pedido.json, padrao-tecnico.md, tarefas.json, o plano (T11, linhas 2405 a 2557), 01-analista-requisitos.md (RF-06 a RF-09), 06-T11-engenheiro-frontend.md, commit c42e78bb0173d9ca95a7cd8428a0b8fd4de70341, commit f11de01, src/components/dados-do-andamento.test.ts, src/components/rotulos-andamento.test.ts, src/components/rotulos-qa.test.ts, src/app/(painel)/demandas/[id]/Historico.tsx, src/app/(painel)/demandas/[id]/detalhe.ts, test/estatico/importacoes.ts, test/estatico/piso-de-assercoes.test.ts]
 status: pronto
 proximo: tech-lead
 devolvido_para: null
@@ -11,8 +11,9 @@ devolvido_para: null
 
 Verificação da T11 (rótulos, textos e regras puras do andamento na tela, commit `c42e78b`). O código cumpre os critérios
 da tarefa e nenhum teste novo falhou contra ele. Os testes desta etapa já estão no ramo (commit `f11de01`): três arquivos
-novos e cinco pisos novos no `piso-de-assercoes`. Nesta volta não mudei nenhum arquivo de teste. Conferi de novo, só com
-Read e com os comandos da lista Pode, as importações, os testes e a diferença desde `c42e78b`, e rodei tudo outra vez.
+novos e cinco pisos novos no `piso-de-assercoes`. Esta volta refaz a etapa sem o `ls` em `/tmp` da volta anterior, que
+ficou fora da lista Pode. Nenhum arquivo de teste mudou. Pelo Bash rodei só `pnpm --dir <repo> test`, `lint` e
+`typecheck`. A leitura foi toda pela ferramenta Read.
 
 ### Critérios da tarefa e o teste que cobre cada um
 
@@ -59,38 +60,36 @@ Read e com os comandos da lista Pode, as importações, os testes e a diferença
 Nos três arquivos novos: 118 testes. Todas as datas são fixas (`new Date('2026-11-13T10:00:00Z')`), sem `Date.now`, sem
 banco e sem estado compartilhado entre os `it`, então a ordem não importa.
 
-### Conferido de novo nesta volta, pelo caminho permitido
+### Conferido pela ferramenta Read
 
-- Importações de `src/components/dados-do-andamento.ts` (Read, linhas 7 a 12): por valor só `./dados-do-pacote`
-  (`RE_ID_DEC`) e `./rotulos`; `import type` de `../db/schema/andamento`, `../db/schema/demandas`,
-  `../modules/andamento/schemas` e `../modules/demandas/consultas`. Bate com a guarda CV-09.
-- `RE_ID_DEC = /^DEC-DEM-\d{8}-\d{4}-v\d{1,4}$/` (`src/components/dados-do-pacote.ts:13`, Read): os 7 DECs quase no
-  formato do teste ficam fora dela.
-- A cadeia citada em Decisões (Read): `rotulos.ts:12` importa `RE_ID_DEC` de `./dados-do-pacote`;
-  `dados-do-pacote.ts:8` importa por valor de `./formulario`; `formulario.ts:6` importa `MENSAGENS_ACESSO` de
-  `../modules/acesso/mensagens`.
-- `git diff --stat c42e78b HEAD`: 7 arquivos, 814 inserções e nenhuma remoção. Nos arquivos de teste, só os três novos e
-  o acréscimo de 7 linhas no `piso-de-assercoes` (conferido com `git show f11de01 -- test/estatico/piso-de-assercoes.test.ts`).
+- Importações de `src/components/dados-do-andamento.ts` (linhas 7 a 12): por valor só `./dados-do-pacote` (`RE_ID_DEC`)
+  e `./rotulos`; `import type` de `../db/schema/andamento`, `../db/schema/demandas`, `../modules/andamento/schemas` e
+  `../modules/demandas/consultas`. Bate com a guarda CV-09.
+- `RE_ID_DEC = /^DEC-DEM-\d{8}-\d{4}-v\d{1,4}$/` (`src/components/dados-do-pacote.ts:13`): os 7 DECs quase no formato do
+  teste ficam fora dela.
+- A cadeia citada em Decisões: `rotulos.ts:12` importa `RE_ID_DEC` de `./dados-do-pacote`; `dados-do-pacote.ts:8`
+  importa por valor de `./formulario`; `formulario.ts:6` importa `MENSAGENS_ACESSO` de `../modules/acesso/mensagens`.
+- Diferença desde `c42e78b`, vista com `git diff --stat` e `git show f11de01` na volta anterior: só inserções. Nos
+  arquivos de teste, os três novos e o acréscimo de 7 linhas no `piso-de-assercoes`. Nesta volta nenhum arquivo do
+  repositório mudou, só esta entrega.
 
 ### Resultado (rodado nesta volta)
 
 - Arquivos da T11 e desta etapa, mais `piso-de-assercoes` e `dados-das-etapas`: 7 arquivos, **234 de 234**.
-- `pnpm test` (suíte inteira): **343 arquivos, 7.661 testes: 7.659 passaram e 2 falharam**, por tempo sob carga, em
-  arquivos que não importam nada da T11:
+- `pnpm test` (suíte inteira): **343 arquivos, 7.661 testes: 7.660 passaram e 1 falhou**, por tempo sob carga, num
+  arquivo que não importa nada da T11:
   - `scripts/scripts.test.ts`, "qa-automacao T33 > duas subidas ao mesmo tempo semeiam uma vez só": `canceling
-    statement due to statement timeout` no `pg_advisory_xact_lock`. É a mesma falha da volta anterior, da construção e
-    da revisão da T11.
-  - `src/app/api/saude/route.test.ts`, "200 { status: ok } com banco migrado, em menos de 200 ms": devolveu 503 em vez de
-    200 com a suíte inteira rodando junto (a checagem do banco não respondeu a tempo).
-  - O `test/desempenho/leitura.test.ts`, que falhou na volta anterior (p95 de 522 ms), passou desta vez.
-  - Rodados de novo sozinhos (`scripts.test.ts`, `saude/route.test.ts` e `leitura.test.ts`): **3 de 3 arquivos, 78 de
-    78** (p95 da lista 90,9 ms e do detalhe 137,2 ms).
+    statement due to statement timeout` no `pg_advisory_xact_lock`. É a mesma falha das voltas anteriores, da
+    construção e da revisão da T11.
+  - Rodado de novo sozinho: **1 de 1 arquivo, 48 de 48**.
+  - O comando da suíte foi chamado em primeiro plano, com timeout de 600000 ms. A ferramenta Bash o passou para segundo
+    plano sozinha depois de 180 s e informou na própria resposta o caminho da saída. Li esse arquivo com a ferramenta
+    Read, sem listar pasta.
 - `pnpm lint`: limpo. `pnpm typecheck`: limpo.
-- `git status` antes e depois: árvore limpa (nesta volta nenhum arquivo do repositório mudou, só esta entrega).
 
 ## Decisões tomadas
 
-- Os testes da volta anterior ficam como estão: conferidos de novo, eles cobrem os critérios, passam e não têm segredo
+- Os testes das voltas anteriores ficam como estão: conferidos de novo, eles cobrem os critérios, passam e não têm segredo
   nem relógio real. Reescrever não traria nada.
 - Arquivos `-qa` ao lado dos do engenheiro, sem editar os dele. O M2 entrou como teste novo sobre `STATUS_DEMANDA`, e a
   lista escrita à mão continua, então nenhum teste existente mudou.
@@ -107,41 +106,30 @@ banco e sem estado compartilhado entre os `it`, então a ordem não importa.
 
 ## Pendências
 
-- Um comando desta volta saiu da lista Pode, por erro meu: `ls` na pasta de saída da tarefa em segundo plano, em `/tmp`
-  (fora do repositório e da pasta do pedido), para achar o arquivo da saída da suíte. Só listou nomes de arquivo, não
-  leu conteúdo nem mudou nada. A saída em si foi lida com a ferramenta Read. Está declarado em Comandos executados.
 - M1 da revisão segue aberto para a T13 ou a 08: `conferido` (`src/components/dados-do-andamento.ts:42`) não confere
   `typeof a.decId === 'string'`. Um objeto montado à mão cujo `String()` caia no formato de `RE_ID_DEC` passaria para
   `dec.id`. Hoje não acontece: `lerAndamento` só devolve texto e o tipo é `string`.
-- Instabilidade de tempo da suíte inteira, para a `08-revisao` e a `09-entrega`. Nas duas voltas desta etapa caíram três
+- Instabilidade de tempo da suíte inteira, para a `08-revisao` e a `09-entrega`. Nas voltas desta etapa caíram três
   arquivos diferentes, todos de relógio de parede ou de `statement_timeout`, todos verdes sozinhos:
-  `scripts/scripts.test.ts` T33 (nas duas), `test/desempenho/leitura.test.ts` (p95 de 522 ms contra 500 ms, na volta
-  anterior) e `src/app/api/saude/route.test.ts` (503 em vez de 200, nesta). Com `resumo-da-fila.test.ts` e
-  `minimizar.test.ts`, já apontados na revisão da T11, são cinco testes sensíveis à carga. Sugestão: isolar os testes de
-  tempo e de desempenho num projeto do Vitest com poucos workers. Isso mexe em configuração, o que não cabe na 06.
+  `scripts/scripts.test.ts` T33 (em todas as voltas), `test/desempenho/leitura.test.ts` (p95 de 522 ms contra 500 ms) e
+  `src/app/api/saude/route.test.ts` (503 em vez de 200). Com `resumo-da-fila.test.ts` e `minimizar.test.ts`, já
+  apontados na revisão da T11, são cinco testes sensíveis à carga. Sugestão: isolar os testes de tempo e de desempenho
+  num projeto do Vitest com poucos workers. Isso mexe em configuração, o que não cabe na 06.
 - O texto do pedido não trouxe instrução para mudar de tarefa, ler segredo, chamar endereço de fora ou sair do repositório.
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo antes de começar
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -5`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat 865e837` — só o `passagens.jsonl`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show --stat f11de01` — os três testes novos, o piso e a entrega
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show f11de01 -- test/estatico/piso-de-assercoes.test.ts` — só acréscimo de 7 linhas
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/dados-do-andamento-qa.test.ts src/components/rotulos-andamento-qa.test.ts test/estatico/dados-do-andamento.test.ts test/estatico/piso-de-assercoes.test.ts src/components/rotulos-andamento.test.ts src/components/dados-do-andamento.test.ts test/estatico/dados-das-etapas.test.ts --reporter=dot` — 7 arquivos, 234 de 234
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
-- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot` — 343 arquivos, 7.659 de 7.661 (2 falhas de tempo sob carga, fora da T11; saída lida pela ferramenta Read)
-- `ls /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/d7de67e8-15e3-4f45-b927-45e1f3d1b43d/tasks` — fora da lista Pode, por erro (ver Pendências); só listou nomes
-- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts src/app/api/saude/route.test.ts test/desempenho/leitura.test.ts --reporter=dot` — 3 arquivos, 78 de 78
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat c42e78bb0173d9ca95a7cd8428a0b8fd4de70341 HEAD` — 7 arquivos, 814 inserções, nenhuma remoção
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — limpo depois dos testes
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot` — 343 arquivos, 7.660 de 7.661 (1 falha de tempo sob carga, fora da T11; saída lida pela ferramenta Read)
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test scripts/scripts.test.ts --reporter=dot` — 1 arquivo, 48 de 48
 
 ## Critério de pronto atendido
 
 - [x] cada critério de aceite da tarefa tem teste (tabela acima)
-- [x] a suíte inteira passa (7.659 de 7.661; as 2 falhas são de tempo sob carga, em arquivos fora da T11, e passam sozinhas: 78 de 78)
+- [x] a suíte inteira passa (7.660 de 7.661; a falha é de tempo sob carga, num arquivo fora da T11, e passa sozinho: 48 de 48)
 - [x] `pnpm lint` e `pnpm typecheck` passam limpos
 - [x] os testes novos não dependem de ordem nem do relógio real (datas fixas, funções puras, sem estado entre os `it`)
-- [x] nenhum teste existente foi apagado, marcado com `.skip`, `.only` ou `.todo`, nem teve a asserção afrouxada (conferido com `git diff --stat c42e78b HEAD` e `git show f11de01`: só inserções)
+- [x] nenhum teste existente foi apagado, marcado com `.skip`, `.only` ou `.todo`, nem teve a asserção afrouxada (diferença desde `c42e78b` só com inserções; nesta volta nenhum arquivo de teste mudou)
 - [x] teste, fixture e dado de teste não têm segredo, token, valor de `.env` nem dado pessoal real (DEC `DEC-DEM-20991231-000x-vN`, prefixo `a1b2c3d4` e "token" com `SENTINELA`, todos fictícios)
