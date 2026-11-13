@@ -56,7 +56,7 @@ test('CA-09.1: o Awave cria e lê a própria demanda, sem Origin', async ({ base
     const lida = await ctx.get(`/api/demandas/${id}`, { maxRedirects: 0 });
     expect(lida.status(), 'GET /api/demandas/:id do Awave').toBe(200);
     const vista = (await lida.json()) as Record<string, unknown>;
-    expect(Object.keys(vista).sort()).toEqual(['atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
+    expect(Object.keys(vista).sort()).toEqual(['andamento', 'atualizadaEm', 'criadaEm', 'id', 'status', 'tipo', 'titulo']);
     expect(vista).toMatchObject({ id, tipo: 'melhoria', status: 'nova' });
   } finally {
     await ctx.dispose();
