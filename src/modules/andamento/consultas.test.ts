@@ -202,3 +202,80 @@ describe('planos (RNF-01)', () => {
     expect(nos.filter((n) => n['Node Type'] === 'Seq Scan').map((n) => n['Relation Name'])).toEqual([]);
   });
 });
+
+// 06-T06-testes (qa-automacao). Fica no fim do arquivo e usa demandas próprias (3001 e 3002), fora das faixas acima,
+// sem `analyze`: não muda os dados nem as estatísticas que os outros blocos leem.
+describe('o último é a linha de maior id, não a de maior gravado_em (ADR-30)', () => {
+  const ANTES = '2026-11-12T11:00:00Z';
+  const DEPOIS = '2026-11-12T13:00:00Z';
+  let x: { dem: string; dec: string };
+  let y: { dem: string; dec: string };
+  beforeAll(async () => {
+    x = await demandaComDec(3001);
+    y = await demandaComDec(3002);
+    // O relógio injetado voltou: a segunda linha (maior id) tem data anterior à primeira.
+    for (const [dem, dec] of [
+      [x.dem, x.dec],
+      [y.dem, y.dec],
+    ] as const) {
+      await m(
+        `insert into andamento_construcao (demanda_id, dec_id, fase, tarefas_prontas, tarefas_total, status_construcao, ator_token_prefixo, gravado_em) values ($1, $2, 'testando', 5, 10, 'em_construcao', 'ficticio', $3)`,
+        [dem, dec, DEPOIS],
+      );
+      await m(
+        `insert into andamento_construcao (demanda_id, dec_id, fase, tarefas_prontas, tarefas_total, status_construcao, ator_token_prefixo, gravado_em) values ($1, $2, 'revisando_e_entregando', 10, 10, 'construido', 'ficticio', $3)`,
+        [dem, dec, ANTES],
+      );
+    }
+  });
+  const esperado = (dem: string, dec: string) => ({
+    demandaId: dem,
+    decId: dec,
+    fase: 'revisando_e_entregando',
+    tarefasProntas: 10,
+    tarefasTotal: 10,
+    statusConstrucao: 'construido',
+    gravadoEm: new Date(ANTES),
+  });
+
+  it('ultimoAndamento devolve a linha gravada por último, mesmo com data anterior', async () => {
+    expect(await ultimoAndamento(b.db, x.dem)).toEqual(esperado(x.dem, x.dec));
+  });
+  it('andamentosDasDemandas devolve, para cada demanda, a linha gravada por último dela', async () => {
+    const mapa = await andamentosDasDemandas(b.db, [y.dem, x.dem]);
+    expect(mapa).toEqual(
+      new Map([
+        [y.dem, esperado(y.dem, y.dec)],
+        [x.dem, esperado(x.dem, x.dec)],
+      ]),
+    );
+  });
+  it('a subconsulta do Awave devolve a linha gravada por último, mesmo com data anterior', async () => {
+    expect(await lerComSubconsulta(b.db, x.dem)).toEqual({ id: x.dem, fase: 'revisando_e_entregando', tarefasProntas: 10, gravadoEm: new Date(ANTES) });
+  });
+});
+
+describe('andamentosDasDemandas numa página cheia (ADR-16, RF-08)', () => {
+  it('200 demandas com andamento, 10 sem e uma que não existe: 200 entradas, cada uma com o último da própria demanda, numa consulta', async () => {
+    const comAndamento = Array.from({ length: 200 }, (_, i) => `DEM-20261112-${String(i + 3).padStart(4, '0')}`);
+    const semNada = Array.from({ length: 10 }, (_, i) => `DEM-20261112-${String(i + 203).padStart(4, '0')}`);
+    const ids = [...semNada, 'DEM-20261112-9999', ...[...comAndamento].reverse()];
+    let mapa = new Map<string, unknown>();
+    const consultas = await consultasGeradas(async (db) => {
+      mapa = await andamentosDasDemandas(db, ids);
+    });
+    expect(consultas).toHaveLength(1);
+    expect([...mapa.keys()].sort()).toEqual(comAndamento);
+    for (const dem of comAndamento) {
+      expect(mapa.get(dem), dem).toEqual({
+        demandaId: dem,
+        decId: `DEC-${dem}-v1`,
+        fase: 'testando',
+        tarefasProntas: 30,
+        tarefasTotal: 30,
+        statusConstrucao: 'em_construcao',
+        gravadoEm: new Date(QUANDO),
+      });
+    }
+  });
+});
