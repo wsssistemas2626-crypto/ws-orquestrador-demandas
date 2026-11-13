@@ -48,6 +48,9 @@ export type OpRota<P, Q, C> = {
   query?: ZodType<Q>;
   corpo?: ZodType<C>;
   exemplo?: Record<string, string>;
+  // ADR-33 (0.4.0): com a opção, a falha do Zod **do corpo** vira este erro, sem `campos` (o caminho de uma chave a mais
+  // seria eco). Sem ela, nada muda. Só a rota do andamento usa.
+  corpoInvalido?: { codigo: 'nao_processavel'; mensagem: string };
 };
 export type ContextoRota<P, Q, C> = { ator: Ator; params: P; query: Q; corpo: C; req: Request; deps: Deps };
 
@@ -80,6 +83,13 @@ const naoEncontrado = () => new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCON
 function validar<T>(schema: ZodType<T>, valor: unknown): T {
   const r = schema.safeParse(valor);
   if (!r.success) throw deZod(r.error);
+  return r.data;
+}
+
+function validarCorpo<C>(schema: ZodType<C>, valor: unknown, invalido: OpRota<unknown, unknown, C>['corpoInvalido']): C {
+  if (!invalido) return validar(schema, valor);
+  const r = schema.safeParse(valor);
+  if (!r.success) throw new ErroDominio(invalido.codigo, invalido.mensagem);
   return r.data;
 }
 
@@ -150,7 +160,7 @@ export function rota<P = undefined, Q = undefined, C = undefined>(
       atorTipo = ator.tipo;
       autorizar(ator, op.acao);
       const query = (op.query ? validar(op.query, lerQuery(req)) : undefined) as Q;
-      const corpo = (op.corpo ? validar(op.corpo, await lerCorpoJson(req)) : undefined) as C;
+      const corpo = (op.corpo ? validarCorpo(op.corpo, await lerCorpoJson(req), op.corpoInvalido) : undefined) as C;
       resposta = montarResposta(await fn({ ator, params, query, corpo, req, deps }));
     } catch (e) {
       const { status, corpo } = mapearErro(e);
