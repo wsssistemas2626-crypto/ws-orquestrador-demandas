@@ -3,6 +3,256 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.4.0 — 2026-11-13
+
+Melhoria do pedido `DEC-DEM-20261111-0017-v1` (cadeia completa, risco médio): **o andamento do Pedido de Construção,
+registrado pelo `/construir`**. Até aqui, o andamento real de um pedido só existia no `/construir`. No Orquestrador,
+"Em construção" era marcado à mão, e quem olhava a fila não sabia em que fase o pedido estava. A opção aprovada por
+Fabiano, como CTO, em 11/11 usa o token `construir` da 0.3.0, com três decisões:
+
+- **A1:** Entregue é sempre marcado por uma pessoa;
+- **A2:** o histórico ganha evento só quando muda a fase ou a situação da construção;
+- **A3:** o pedido escrito direto, sem geração no painel, fica sem andamento.
+
+Base: a `main` da 0.3.1 (`0ac099a`, merge do PR #18), em produção. Spec:
+`docs/superpowers/specs/2026-11-12-ws-orquestrador-demandas-andamento-design.md`; plano, com 14 tarefas:
+`docs/superpowers/plans/2026-11-12-ws-orquestrador-demandas-plano.md`.
+
+Nenhum controle existente foi afrouxado. Pessoa, agentes de IA e Awave seguem com as mesmas permissões e os mesmos
+limites. O lado do `/construir` (`ferramentas/construir/enviar-andamento.mjs`, commit aa01e2d) não mudou: ele define o
+contrato da rota. Não há processo, fila, job, pacote nem variável de ambiente nova. **Há duas migrations, a `0008` e a
+`0009`, só aditivas**: uma tabela nova e o privilégio dela.
+
+Ainda não foi publicada. O merge, a publicação e o envio ligado são de Fabiano, pela "Publicação 0.3.1 → 0.4.0" do
+`docs/operacao/deploy.md`, seção 5:
+
+1. antes do merge: "Auto Deploy" desligado no `app` e no `worker`, `"andamento_ligado": false` no `/construir`, as
+   imagens em uso rotuladas `:v0.3.1`, o `docker pull` do GHCR funcionando e **nenhum outro merge** até o fim da
+   publicação (ou os segredos de webhook fora nesse intervalo);
+2. backup;
+3. as migrations `0008` e `0009` num passo separado;
+4. o Deploy do `worker` e depois o do `app`, e a conferência;
+5. só então, e depois de decidir a P-04 (abaixo), `"andamento_ligado": true`. Em até 2 minutos, a fase aparece na fila.
+
+A volta (seção 6) tem um destino só: a 0.3.1, **com o backup restaurado**. O que foi gravado depois do backup se perde.
+Antes de qualquer volta, veja se basta desligar o envio, revogar o token ou corrigir o status à mão.
+
+### O que muda para quem usa
+
+- **Fase na fila (T03).** Na demanda em Em construção, abaixo do status, aparece o selo de fase com as tarefas prontas,
+  como "Construindo · 9/17". Sem plano de tarefas, só a fase ("Entendendo o pedido"). Com a construção terminada, o
+  selo diz "Construção concluída". Não há coluna, filtro nem contador novo. Se a leitura do andamento falhar, a fila
+  aparece sem os selos e com o aviso "Não foi possível ler o andamento da construção. A fila aparece sem a fase das
+  demandas em construção.".
+- **Andamento no detalhe (T05).** A seção nova "Andamento da construção" mostra o Pedido de Construção (com link), a
+  fase, a situação (Em andamento, Concluída ou Cancelada), "9 de 17 tarefas" com uma barra e "Última mudança informada
+  pelo /construir em <data e hora>.". Ela aparece em qualquer status, desde que a demanda tenha andamento, e é o
+  primeiro item de "Nesta página". A página não se atualiza sozinha: recarregue para ver o andamento mais novo.
+  - Construção cancelada: o alerta "A construção deste pedido foi cancelada no /construir.".
+  - Andamento de um pacote já substituído: o alerta de que o andamento do pedido novo aparece quando o `/construir`
+    começar.
+- **Duas mudanças de status passam a ser do `/construir`:**
+  - quando a construção começa, a demanda sai de Aprovada e vai **sozinha** para Em construção (a demanda do tipo Estudo
+    não muda);
+  - quando a construção é cancelada, ela sai de Em construção e vai para Devolvida pela construção.
+
+  O histórico mostra a mudança por "/construir (prefixo …)". Qualquer outra mudança de status continua à mão, e a
+  pessoa corrige pela mudança manual a que não deveria ter acontecido.
+- **Entregue continua com uma pessoa (A1).** Quando o `/construir` termina, a demanda fica em Em construção, e a Próxima
+  ação diz "Construção concluída: confira e marque como Entregue.", com "O /construir não marca Entregue: quem confere
+  a entrega é uma pessoa." e o link "Mudar o status".
+- **Histórico.** Textos novos, por "/construir (prefixo …)": "Registrou o andamento de <DEC>: Construindo, 9 de 17
+  tarefas", "Registrou o fim da construção de <DEC>: …" e "Registrou o cancelamento da construção de <DEC>: …". Só
+  entram quando muda a fase ou a situação (A2): uma tarefa pronta a mais atualiza a seção, sem linha nova no histórico.
+- **Mudar status.** As opções e as regras não mudaram. A dica da demanda em Aprovada passou a ser "Quando o /construir
+  começar o Pedido de Construção gerado no painel, a demanda passa sozinha para Em construção. Entregue é sempre marcado
+  por uma pessoa.".
+- **Awave.** A leitura das demandas que ele criou ganha o andamento, só com a fase, as tarefas e a data da última
+  mudança. Sem situação da construção, sem pacote e sem prazo ou previsão de qualquer tipo.
+- **Pedido escrito direto (A3).** O pedido gravado em `pedidos/` sem geração no painel não tem andamento: o envio
+  recebe 404, e a demanda segue como hoje.
+- **O envio nasce desligado** no `/construir` (`"andamento_ligado": false`). Até Fabiano ligar, nenhuma demanda tem
+  selo nem seção de andamento.
+
+A regra completa está no manual: [cap. 05](docs/manual-tecnico/05-pedido-de-construcao.md#andamento-da-construção-040),
+[cap. 03](docs/manual-tecnico/03-demandas.md#rf-07-status-e-transições),
+[cap. 08](docs/manual-tecnico/08-painel.md#fila-t03-rf-05-a-rf-07) e
+[cap. 02](docs/manual-tecnico/02-acesso-e-seguranca.md#matriz-de-acesso).
+
+### O que mudou na API
+
+- **Rota nova**, só para a integração `construir`: `POST /api/pedidos-construcao/:decId/andamento`, com exatamente
+  `{ "fase", "tarefasProntas", "tarefasTotal", "status" }`.
+  - `fase`: `entendendo_o_pedido`, `planejando`, `construindo`, `testando`, `revisando_e_entregando` ou
+    `documentando`. `status` (a situação da construção, não o status da demanda): `em_construcao`, `construido` ou
+    `cancelado`. Tarefas: inteiros de 0 a 999, com prontas menor ou igual ao total.
+  - 204 sem corpo, também quando o estado é o mesmo do último (nada é gravado).
+  - 404 igual para DEC inexistente e para DEC sem Pedido de Construção gerado por pessoa.
+  - 409 `conflito` para DEC substituído e para situação que contradiz o status final da demanda.
+  - 422 `nao_processavel` para corpo fora do formato, sem `campos` e sem eco, antes de olhar o DEC.
+  - 429 `limite_excedido` com 60 gravações do DEC, ou 600 no total, na última hora.
+  - 503 `indisponivel` com o prazo total de 8 s esgotado, nada gravado.
+- Pessoa, agentes e Awave recebem 403 na rota nova. O `construir` continua com 403 em toda rota fora das quatro dele.
+- `GET /api/demandas/:id` da pessoa ganha `andamento`: `decId`, `fase`, `tarefasProntas`, `tarefasTotal`,
+  `statusConstrucao` e `atualizadoEm`, ou `null`.
+- A vista do Awave, no `GET /api/demandas/:id` e no 201 do `POST /api/demandas`, ganha a sétima chave, `andamento`, com
+  `fase`, `tarefasProntas`, `tarefasTotal` e `atualizadoEm`, ou `null` (sempre `null` no 201). A demanda de outro autor
+  continua com o mesmo 404 da inexistente.
+- Sem mudança: a vista mínima do agente, a listagem `GET /api/demandas`, as leituras de ESP, RSK e DEC e as três rotas
+  do `/construir` da 0.3.0.
+
+Referência completa no [manual, cap. 09](docs/manual-tecnico/09-referencia-api.md).
+
+### O que mudou no código
+
+- **Matriz** (`src/modules/acesso/matriz.ts`, AN-01): a ação `registrar_andamento`, na linha `SO_CONSTRUIR`. São 24
+  ações; o `construir` tem exatamente quatro, e o `awave`, duas.
+- **Tabela e migrations** (ADR-30, AN-10): `andamento_construcao` (`src/db/schema/andamento.ts`), só de inclusão para o
+  papel da aplicação, com uma linha por gravação aceita e o prefixo do token em cada uma.
+  - `drizzle/0008_slippery_whirlwind.sql`, gerada: a tabela, cinco CHECK, duas chaves estrangeiras sem `CASCADE` e três
+    índices.
+  - `drizzle/0009_rls_andamento_construcao.sql`, custom: só `GRANT SELECT, INSERT` ao `orquestrador_app`
+    (`src/db/privilegios.ts`).
+  - Nenhuma coluna nova em `demanda` nem em `evento`, nenhuma linha muda.
+- **Módulo novo `src/modules/andamento/`**: o corpo e as vistas (`schemas.ts`), as regras puras (`regras.ts`: mesmo
+  estado, mudança de marco, decisão por status e a leitura que nunca lança), o registro (`registrar.ts`) e as leituras
+  só de `SELECT` (`consultas.ts`).
+- **Registro** (ADR-32, AN-03 a AN-06): numa transação com o orçamento `padrao` e o prazo total das integrações, com
+  as travas na ordem pedido → demanda → limite. O pedido gerado por pessoa e o vínculo do DEC com a demanda são
+  conferidos antes de travar a demanda; o mesmo estado vem antes dos 409.
+- **Transições** (`src/modules/demandas/transicoes.ts`, ADR-34, AN-04): `AUTOMATICAS_DO_CONSTRUIR`,
+  `CONTRADIZ_STATUS_FINAL` e `mudarStatusPeloConstruir`, com o ator de integração no `status_alterado`. `MANUAIS`, as
+  automáticas do sistema e `mudarStatusPeloSistema` não mudaram.
+- **Limite** (`src/modules/limites.ts`, ADR-31, AN-07 e AN-08): `LIMITE_ANDAMENTO` (60 e 600) e
+  `conferirLimiteDeAndamento`, contado nas linhas da tabela, sob a trava `limite:andamento:integracao:construir`. Os
+  limites de antes não mudaram.
+- **`rota()`** (`src/lib/rota.ts`, ADR-33, AN-02): a opção `corpoInvalido`, que transforma a falha do Zod do corpo num
+  422 com mensagem fixa. Só a rota do andamento a usa; sem ela, nenhuma rota muda.
+- **Histórico** (`src/modules/historico/registrar.ts`): a ação `andamento_registrado`.
+- **Leituras** (`src/modules/demandas/consultas.ts`, ADR-35, AN-09): `andamento` em `obterDemanda`; a vista do Awave
+  com o último andamento na mesma consulta da autoria, montada chave a chave (`paraIntegracao`); a vista mínima sem a
+  chave.
+- **Painel:**
+  - `src/components/dados-do-andamento.ts`, novo: `seloDeFase`, `secaoDoAndamento` e `TEXTOS_ANDAMENTO`;
+  - `rotulos.ts`: `ROTULO_FASE`, `ROTULO_SITUACAO_CONSTRUCAO` e os textos do `andamento_registrado`;
+  - `dados-das-etapas.ts`: a linha 15 da Próxima ação;
+  - fila: `andamentosDaPagina` (`leituras-da-fila.ts`), o selo em `fila.tsx` e `CartoesDaFila.tsx`;
+  - detalhe: `SecaoAndamento.tsx`, a seção na grade e o texto novo de `dicaAprovada` (`detalhe.ts`).
+- **Seed** (`scripts/seed-ficticio.ts`): oito demandas fictícias do andamento, 36 no total, com o ator `construir` de
+  prefixo `ficticio`, sem token.
+- **Testes:** 7.736 no Vitest, em 348 arquivos.
+  - Cobrem: pares exatos da matriz com a ação nova, matriz × rotas com os dois tokens e os quatro agentes, sentinelas
+    de texto livre na rota, concorrência com duas conexões, prazo total com relógio falso, 404 idêntico, privilégios e
+    imutabilidade da tabela nova e varredura das leituras a partir da matriz.
+  - e2e novos: `andamento-fila.spec.ts`, `andamento-detalhe.spec.ts` e `andamento-construir.spec.ts` (envio com o token
+    emitido no banco descartável do e2e). O axe roda sem violação nas telas tocadas, nas duas larguras.
+  - Os testes que mudaram de texto (`dicaAprovada`, a sétima chave do Awave) estão entre as mudanças aprovadas de
+    antemão pelo AN-13. A revisão final não achou teste afrouxado; achou um arquivo novo fora do piso de asserções
+    (B-08-2, abaixo).
+- **Versão:** o `package.json` passou de 0.3.1 para 0.4.0.
+- **Documentação:**
+  - estas notas e o `README.md`;
+  - o manual técnico: cap. 05, com a seção "Andamento da construção"; caps. 01, 02, 03, 08, 09 e 10; o índice, o mapa
+    dos RF do pedido e o glossário;
+  - o `docs/operacao/tokens-de-integracao.md`, com o token `construir` que agora escreve;
+  - no `docs/operacao/deploy.md`, a versão e o rótulo da data do detalhe nas seções 8 e 9. As seções 1, 4, 5, 6, 8, 9 e
+    10 vieram da `09-devops-sre.md`.
+
+### O que ficou fora desta versão
+
+Pela spec (seção 6), não entraram:
+
+- a tool `consultar_demanda` do Awave e o vínculo do contato com a demanda (E01, parte 3);
+- prazo, previsão ou data estimada de qualquer tipo;
+- texto livre no envio (nome de tarefa, arquivo, agente ou erro);
+- o `/construir` marcar Entregue ou Encerrada, e qualquer transição automática além das duas;
+- andamento para o pedido escrito direto (A3) e evento por tarefa pronta (A2);
+- filtro da fila por fase, andamento na listagem `GET /api/demandas` e na vista do agente;
+- selo de fase fora de Em construção e andamento na T11;
+- atualização automática da T05;
+- token novo ou mudança na emissão;
+- expurgo de `andamento_construcao`;
+- deploy, migration em produção e a troca de `"andamento_ligado"`, que são de Fabiano.
+
+### Verificações desta versão
+
+- `pnpm test`: 7.736 de 7.736, em 348 arquivos (`06-T14-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos (`06-T14-engenheiro-frontend.md`).
+- `pnpm test:e2e`, contra o build de produção: verde em três execuções seguidas, com 290 passando, as 9 capturas
+  puladas e nenhuma falha (`06-T14-engenheiro-frontend.md`). Na homologação, 281 passaram (`09-devops-sre.md`).
+- Revisão de código e de segurança (`08-maestro.md`): revisão por Workflow, com seis revisores e verificação
+  adversarial de cada achado, a pedido de Fabiano. Nenhum achado crítico, alto nem médio; dois baixos (abaixo).
+- `pnpm audit --prod` em 12/11 (`04-seguranca-aplicacao.md`): nenhuma alta nem crítica, as mesmas 5 moderadas de
+  ferramenta de build e teste. O `pnpm-lock.yaml` não mudou.
+- Imagem (`docker build`): 1,77 GB em disco e 441 MB de conteúdo (na 0.3.1, 440 MB).
+- Ensaio de rollback 0.4.0 → 0.3.1: `alteram_dado: false` e **`volta_sem_restaurar: false`**. A 0.3.1 só volta com o
+  backup restaurado, e isso é o esperado.
+- **Não rodaram:** a V-02 (o `enviar-andamento.mjs` contra a homologação com um pedido fictício, critério CP-9) e a
+  medida de tempo do RNF-01 (50 envios, p95 até 1 s). As duas pedem comandos fora da lista da `09-entrega`. Hoje, a
+  prova do RNF-01 é o plano de execução das leituras, com índice, sobre 6.000 linhas; o tempo do envio não foi medido.
+- O CI do PR fica para a Parada 3.
+
+### Pendências abertas
+
+Para Fabiano:
+
+- **Publicação** (`deploy.md`, seção 5). Antes do merge, conferir os cinco itens do passo 1 (acima). Snapshot no
+  hPanel: hoje ele congela a VPS e exige reboot manual, então decida antes se tira ou fica só com o backup.
+- **Antes de ligar o envio** (passo 8 da publicação), nesta ordem:
+  - **P-04:** o aceite formal do risco residual, com a `gestao-riscos`. O token `construir` passa a escrever, e o
+    arquivo dele é legível pelo usuário `deploy`, que roda os agentes com Bash. A recomendação é o envio rodar com um
+    usuário do sistema que os agentes não usem. Também ficam no aceite: um token vazado pode gastar as 600 gravações da
+    hora e parar o andamento de todos os pedidos por até 1 hora; e a tabela não tem expurgo;
+  - conferir que o token `construir` de produção existe e não foi revogado
+    ([tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md));
+  - apagar o estado do envio, se ele foi ligado antes da hora;
+  - `"andamento_ligado": true`, e conferir a fase na fila em até 2 minutos;
+  - **P-05:** conferir a tool do Awave (`awave-agents`) com a sétima chave antes da parte 3 da E01;
+  - cadastrar de novo os segredos de webhook, se saíram no passo 1.
+- **EXP-01 (ponto de produto, não defeito):** a fila e a leitura do Awave mostram o último andamento da demanda sem
+  olhar se o DEC dele foi substituído. Exemplo: o pedido v1 termina, o v2 é aprovado e gerado, e uma pessoa volta a
+  demanda a Em construção antes do primeiro envio do v2. A fila mostra "Construção concluída" do v1, e o detalhe mostra
+  o alerta de substituído e a linha 11 da Próxima ação. A spec não pede vigência no selo, e marcar Entregue é sempre de
+  uma pessoa, no detalhe, que avisa. Decidir se a fila e o Awave devem esconder o andamento de DEC substituído (isso
+  pede uma consulta de vigência na fila, contra a ADR-35, ou o selo só depois do primeiro envio do DEC novo).
+- **P-01 a P-03:** valem as decisões das entregas, se não houver outra: DEC substituído responde 409; a tabela de
+  status final (Entregue aceita `construido`, Encerrada aceita `cancelado`, o resto é 409); os limites de 60 e 600 por
+  hora.
+- **V-02 e RNF-01:** rodar antes do PR, pelo maestro ou com os comandos liberados por Fabiano. O roteiro está no plano,
+  na seção "Verificação na homologação".
+- **UAT:** o roteiro de 12 passos (A-01 a A-12) da `07-qa-funcional.md`, seção 4, na homologação, nunca em produção.
+- **Lembrete para a E01, parte 3:** quando o Awave mostrar o andamento ao cliente, usar os rótulos de fase do painel,
+  sem número de tarefas fora da fase Construindo e sem prazo. O número de tarefas pode voltar quando o plano é refeito.
+
+Para outras áreas:
+
+- `engenheiro-backend` e `tech-lead`, na 0018 (**B-08-1**, baixo): a leitura do andamento da página da fila
+  (`andamentosDasDemandas`, `src/modules/andamento/consultas.ts:45`) lê todas as linhas de andamento das demandas da
+  página e ordena. O resultado é certo, mas o custo de `/demandas` cresce com o tempo. A correção indicada é um
+  `CROSS JOIN LATERAL … LIMIT 1`, e o teste de plano deve exigir a ausência de Sort. Medir a fila no volume do RNF-01
+  antes e depois.
+- `qa-automacao` (**B-08-2**, baixo): pôr `src/modules/andamento/registrar-qa.test.ts` (69 asserções) no piso de
+  asserções (`test/estatico/piso-de-assercoes.test.ts`). É ele que cobre o 404 sem oráculo, a corrida com entrega e
+  recebimento e o prazo total.
+- `qa-automacao` e `qualidade`: instabilidade de tempo sob carga, conhecida, em arquivos que não usam código deste
+  pedido: `scripts/scripts.test.ts` T33, `test/desempenho/leitura.test.ts`, `src/app/api/saude/route.test.ts`,
+  `resumo-da-fila` e `minimizar`. Todos passam sozinhos. Se o CI do PR falhar num deles, a falha fica registrada, nunca
+  contornada. Proposta: tirar a dependência do relógio de parede desses testes.
+- Dívida das revisões por tarefa (para a 0018 ou a 0.4.x), sem efeito para quem usa:
+  - o comentário de `test/desempenho/leitura.test.ts:244` diz índice onde o banco vazio dá Seq Scan;
+  - os casos depois do CA-04.6 rodam num banco sem os dois CHECK;
+  - títulos de teste que ainda dizem "seis chaves" e o `a === null` em `paraIntegracao`;
+  - a lista de status escrita à mão num teste e a guarda das importações de `dados-do-andamento.ts`;
+  - o ramo morto de `SecaoAndamento.tsx` para o DEC sem link, que `secaoDoAndamento` nunca monta.
+- `devops-sre`, herdadas: o `deploy.yml` comparar `drizzle/` com o commit em produção, e não com o push anterior (a
+  0.4.0 mostra de novo o risco: o merge seguinte sem migration chamaria os webhooks); e tirar o `--prod` do
+  `pnpm audit` no CI.
+- `seguranca-informacao`, herdadas: o `x-real-ip` forjável pela rede interna do Easypanel e o `pnpm audit` sem
+  `--prod`.
+- As capturas do cap. 08 continuam as da 0.2.0 e não mostram o selo nem a seção do andamento.
+
+Seguem abertas, sem mudança neste pedido, as pendências da 0.3.1 e da 0.3.0.
+
 ## 0.3.1 — 2026-11-12
 
 Correção do pedido `DEC-DEM-20261112-0019-v1` (cadeia curta, tipo bug, risco médio). A revisão de código e de

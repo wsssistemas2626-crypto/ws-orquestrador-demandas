@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.3.1 (`package.json`) |
-| Atualizado em | 12/11/2026 (0.3.1: correções da revisão da 0.3.0 antes dos tokens de produção; 0.3.0: integrações `awave` e `construir`) |
+| Versão | 0.4.0 (`package.json`) |
+| Atualizado em | 13/11/2026 (0.4.0: andamento do Pedido de Construção informado pelo `/construir`); 12/11/2026 (0.3.1: correções da revisão da 0.3.0 antes dos tokens de produção; 0.3.0: integrações `awave` e `construir`) |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
 | Repositório | `wsssistemas2626-crypto/ws-orquestrador-demandas` (privado) |
@@ -52,18 +52,31 @@ A 0.3.1 fecha os achados médios da revisão da 0.3.0 antes de emitir os tokens 
 - cada transação das integrações tem prazo total, de 8 s, ou 12 s na entrega do pedido, contando a espera por conexão.
   Passou do prazo: 503 e nada gravado.
 
+Desde a 0.4.0, o `/construir` informa o andamento de cada Pedido de Construção gerado no painel: a fase, as tarefas
+prontas e a situação da construção ([manual, cap. 05](docs/manual-tecnico/05-pedido-de-construcao.md#andamento-da-construção-040)):
+
+- a fila mostra o selo de fase nas demandas em construção (por exemplo, "Construindo · 9/17"), e o detalhe mostra a
+  seção "Andamento da construção", com a fase, a barra de tarefas e a última mudança informada;
+- duas mudanças de status passam a ser do `/construir`: de Aprovada para Em construção quando a construção começa, e de
+  Em construção para Devolvida quando ela é cancelada. **Entregue é sempre marcado por uma pessoa**: quando a construção
+  termina, a Próxima ação pede essa conferência;
+- o Awave lê o andamento das demandas que ele criou, com a fase e as tarefas, sem prazo nem previsão;
+- o envio nasce desligado no `/construir` e só liga depois da publicação
+  ([docs/operacao/deploy.md, seção 5](docs/operacao/deploy.md)).
+
 ## Onde está cada coisa
 
 | Assunto | Documento |
 |---|---|
 | Como o sistema funciona, requisito por requisito | [Manual técnico](docs/manual-tecnico/README.md) |
 | Deploy, serviços do Easypanel, variáveis, rollback | [docs/operacao/deploy.md](docs/operacao/deploy.md) |
-| Tokens das integrações `awave` e `construir`: emitir, guardar, trocar, revogar | [docs/operacao/tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md) |
+| Tokens das integrações `awave` e `construir` (desde a 0.4.0, o `construir` também escreve o andamento): emitir, guardar, trocar, revogar | [docs/operacao/tokens-de-integracao.md](docs/operacao/tokens-de-integracao.md) |
 | O que entrou em cada versão e o que ficou pendente | [CHANGELOG.md](CHANGELOG.md) |
 | Spec aprovada na Parada 1 | [docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md](docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md) |
 | Plano de implementação (47 tarefas) | [docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md](docs/superpowers/plans/2026-10-25-ws-orquestrador-demandas-plano.md) |
 | Spec e plano do novo visual (0.2.0, 17 tarefas) | [spec](docs/superpowers/specs/2026-11-10-ws-orquestrador-demandas-novo-visual-design.md) e [plano](docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md) |
 | Spec e plano das integrações (0.3.0, 20 tarefas; a 0.3.1 mudou o que o manual e o CHANGELOG descrevem) | [spec](docs/superpowers/specs/2026-11-11-ws-orquestrador-demandas-integracoes-design.md) e [plano](docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md) |
+| Spec e plano do andamento do Pedido de Construção (0.4.0, 14 tarefas) | [spec](docs/superpowers/specs/2026-11-12-ws-orquestrador-demandas-andamento-design.md) e [plano](docs/superpowers/plans/2026-11-12-ws-orquestrador-demandas-plano.md) |
 
 ## Requisitos da máquina
 

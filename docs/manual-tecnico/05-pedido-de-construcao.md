@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.1: entrega e recebimento sob a mesma trava do DEC; recebimento só do hash da última entrega; entrega grava quando o hash difere do último; prazo total; DEC de demanda do Awave não confirmada fora da lista do agente, no RF-23); 12/11/2026 (0.3.0: conferência e montagem em `conferir.ts`, a mesma da geração e da entrega; seção "Entrega ao /construir", com as três rotas novas; texto da seção do pedido e "Recebido pelo /construir em …" na T11); 10/11/2026 (0.1.13: só o DEC aprovado mais novo gera, 409 do substituído, linha 6 da orientação e T11 do substituído, no RF-22; substituído marcado no RF-23); 04/11/2026 (0.1.12: recusa com o nome do solicitante, confirmação sem dado pessoal no corpo e na T11, `aprovadoPor` com o papel, no RF-22); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo de C-28 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
+| Atualizado em | 13/11/2026 (0.4.0: seção "Andamento da construção", com a rota `POST /api/pedidos-construcao/<DEC-id>/andamento`, as respostas, a tabela de transições, o evento `andamento_registrado`, o limite e a A3; o parágrafo dos dois caminhos do pedido deixa de dizer que o status muda só à mão); 12/11/2026 (0.3.1: entrega e recebimento sob a mesma trava do DEC; recebimento só do hash da última entrega; entrega grava quando o hash difere do último; prazo total; DEC de demanda do Awave não confirmada fora da lista do agente, no RF-23); 12/11/2026 (0.3.0: conferência e montagem em `conferir.ts`, a mesma da geração e da entrega; seção "Entrega ao /construir", com as três rotas novas; texto da seção do pedido e "Recebido pelo /construir em …" na T11); 10/11/2026 (0.1.13: só o DEC aprovado mais novo gera, 409 do substituído, linha 6 da orientação e T11 do substituído, no RF-22; substituído marcado no RF-23); 04/11/2026 (0.1.12: recusa com o nome do solicitante, confirmação sem dado pessoal no corpo e na T11, `aprovadoPor` com o papel, no RF-22); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo de C-28 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RF-22, RF-23; RNF-15; RF-12 a RF-15 do pedido 0016 (0.3.0) |
-| Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `conferir.ts`, `entregar.ts`, `receber.ts`, `pendentes.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`, `schemas.ts`), `src/modules/dados-pessoais/detectores.ts`, `src/modules/dados-pessoais/minimizar.ts` (`temNome`), `src/modules/pacotes-decisao/criar.ts` (`descricaoSemRotulos`), `src/modules/pacotes-decisao/substituido.ts`, `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/(painel)/pacotes-decisao/[decId]/` (`SecaoPedido.tsx`, `acoes-pedido.ts`), `src/components/dados-do-pedido.ts`, `src/components/dados-da-decisao.ts` (`linhaDoRecebimento`), `src/app/api/pacotes-decisao/route.ts`, `src/app/api/pedidos-construcao/` |
+| Cobre | RF-22, RF-23; RNF-15; RF-12 a RF-15 do pedido 0016 (0.3.0); RF-01 a RF-07 e RF-12 do pedido 0017 (0.4.0) |
+| Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `conferir.ts`, `entregar.ts`, `receber.ts`, `pendentes.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`, `schemas.ts`), `src/modules/dados-pessoais/detectores.ts`, `src/modules/dados-pessoais/minimizar.ts` (`temNome`), `src/modules/pacotes-decisao/criar.ts` (`descricaoSemRotulos`), `src/modules/pacotes-decisao/substituido.ts`, `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/(painel)/pacotes-decisao/[decId]/` (`SecaoPedido.tsx`, `acoes-pedido.ts`), `src/components/dados-do-pedido.ts`, `src/components/dados-da-decisao.ts` (`linhaDoRecebimento`), `src/app/api/pacotes-decisao/route.ts`, `src/app/api/pedidos-construcao/`; desde a 0.4.0, `src/modules/andamento/` (`schemas.ts`, `regras.ts`, `registrar.ts`, `consultas.ts`), `src/db/schema/andamento.ts`, `src/modules/demandas/transicoes.ts` (`AUTOMATICAS_DO_CONSTRUIR`, `CONTRADIZ_STATUS_FINAL`, `mudarStatusPeloConstruir`), `src/modules/limites.ts` (`LIMITE_ANDAMENTO`, `conferirLimiteDeAndamento`), `src/app/api/pedidos-construcao/[decId]/andamento/route.ts` |
 
 ## RF-22. Gerar o pedido
 
@@ -107,8 +107,13 @@ Formato (seção 3.1 da spec do `/construir`), com as chaves sempre nesta ordem:
 O pedido chega a `pedidos/` da estruturaAutonoma por um de dois caminhos. Com a busca automática do `/construir`
 ligada (desde a 0.3.0), o `/construir` busca o pedido gerado e confirma o recebimento
 ([Entrega ao /construir](#entrega-ao-construir-030)). Com a busca desligada, a pessoa baixa ou copia o JSON na T11 e o
-grava à mão em `pedidos/`. Nos dois caminhos, o sistema não chama o `/construir` (é o `/construir` que chama) e não
-recebe o andamento da construção: os status `em_construcao`, `entregue` e `devolvida` mudam à mão.
+grava à mão em `pedidos/`. Nos dois caminhos, o sistema não chama o `/construir` (é o `/construir` que chama).
+
+Desde a 0.4.0, o `/construir` informa o andamento do pedido gerado no painel, e duas mudanças de status passam a ser
+dele: `aprovada` → `em_construcao` quando a construção começa e `em_construcao` → `devolvida` quando ela é cancelada
+([Andamento da construção](#andamento-da-construção-040)). `entregue` continua só de pessoa (A1), e as outras mudanças
+de status seguem à mão. O pedido escrito direto em `pedidos/`, sem geração no painel, não tem andamento (A3). O pedido
+gerado no painel e copiado à mão tem, porque o que conta é o evento `pedido_gerado`, e não o caminho da cópia.
 
 Limite conhecido (B-01, backlog): o nome da conta ainda pode ser alterado por `/api/auth/update-user`, e esse nome vai
 para a aprovação gravada. Desde a 0.1.12, ele não vai mais para o `aprovadoPor` do pedido.
@@ -340,6 +345,190 @@ novo.
 
 Troque `"ligado"` para `false` em `pedidos/config/orquestrador.json`. A cópia manual pela T11 continua valendo. Um token
 vazado se revoga pelo prefixo, sem afetar os outros ([tokens-de-integracao.md](../operacao/tokens-de-integracao.md)).
+
+## Andamento da construção (0.4.0)
+
+Pedido `DEC-DEM-20261111-0017-v1`, RF-01 a RF-07 e RF-12 dele. A opção aprovada por Fabiano, como CTO, em 11/11 tem
+três decisões que valem em toda esta seção:
+
+- **A1:** `entregue` é sempre marcado por uma pessoa. O `/construir` nunca põe a demanda em `entregue` nem em
+  `encerrada`;
+- **A2:** o histórico ganha evento só quando muda a fase ou a situação da construção. Tarefa pronta a mais atualiza o
+  dado, sem evento;
+- **A3:** o pedido escrito direto em `pedidos/`, sem geração no painel, fica sem andamento e recebe 404.
+
+O `/construir` informa em que fase está a construção de um Pedido de Construção e quantas tarefas do plano estão
+prontas. Quem envia é `ferramentas/construir/enviar-andamento.mjs` da estruturaAutonoma, pelo crontab, e ele só manda
+quando o estado do pedido muda: no máximo um envio a cada 2 minutos por pedido. O envio usa o token da integração
+`construir`, o mesmo da busca, que ganhou a ação `registrar_andamento`
+([cap. 02](02-acesso-e-seguranca.md#matriz-de-acesso)). Só ele tem essa ação: pessoa, agentes e Awave recebem 403, e
+nenhuma Server Action nem job a chama.
+
+O envio nasce desligado (`"andamento_ligado": false` em `pedidos/config/orquestrador.json` da estruturaAutonoma). Ligar
+é passo de Fabiano, no fim da publicação da 0.4.0 ([deploy.md, seção 5](../operacao/deploy.md)).
+
+Termos desta seção:
+
+- **situação da construção** (`statusConstrucao`, o campo `status` do corpo): `em_construcao`, `construido` ou
+  `cancelado`. Não é o status da demanda. Na tela, "Em andamento", "Concluída" ou "Cancelada";
+- **mesmo estado:** DEC, fase, tarefas prontas, total de tarefas e situação iguais aos do último andamento gravado na
+  demanda;
+- **mudança de marco:** o primeiro andamento da demanda, ou fase, situação ou DEC diferente do último.
+
+### Rota (`registrar_andamento`)
+
+`POST /api/pedidos-construcao/<DEC-id>/andamento`, com `Authorization: Bearer`, sem `Origin` e com
+`Content-Type: application/json`. O corpo tem **exatamente** quatro chaves (`corpoAndamentoSchema`, `schemas.ts`, um
+`z.strictObject` sem conversão de tipo):
+
+| Chave | Valores aceitos |
+|---|---|
+| `fase` | `entendendo_o_pedido`, `planejando`, `construindo`, `testando`, `revisando_e_entregando`, `documentando` |
+| `tarefasProntas`, `tarefasTotal` | inteiro JSON de 0 a 999, com `tarefasProntas` menor ou igual a `tarefasTotal`. `tarefasTotal` 0 é aceito (pedido ainda sem plano de tarefas). Número escrito como texto, número com fração ou fora da faixa é recusado |
+| `status` | `em_construcao`, `construido`, `cancelado` (a situação da construção) |
+
+As listas de fase e de situação são as de `FASES_ANDAMENTO` e `STATUS_CONSTRUCAO` (`src/db/schema/andamento.ts`), as
+mesmas dos CHECK do banco. Os números podem diminuir de um envio para o outro, quando o `tech-lead` refaz o plano.
+
+Exemplo, com dados fictícios:
+
+```http
+POST /api/pedidos-construcao/DEC-DEM-20261112-0007-v1/andamento HTTP/1.1
+Authorization: Bearer wsod_<token da integração construir>
+Content-Type: application/json
+
+{ "fase": "construindo", "tarefasProntas": 9, "tarefasTotal": 17, "status": "em_construcao" }
+```
+
+### Respostas
+
+Corpo de erro `{ erro, mensagem }`, sem `campos` e sem repetir o que foi enviado.
+
+| Situação | Resposta | Mensagem |
+|---|---|---|
+| Corpo válido, DEC com pedido gerado: gravado, ou mesmo estado | 204 sem corpo, com `no-store` e `nosniff` | — |
+| JSON válido fora do formato: chave a mais ou faltando, fase ou situação fora da lista, número fora da faixa, prontas maior que total | 422 `nao_processavel` | "Andamento fora do formato. Envie só fase, tarefasProntas, tarefasTotal e status, com fase e status da lista e 0 ≤ tarefasProntas ≤ tarefasTotal ≤ 999." |
+| DEC inexistente, sem `pedido_gerado` de pessoa, ou com o vínculo DEC ↔ demanda diferente; id fora do formato | 404 `nao_encontrado` | a de sempre, igual nos casos |
+| DEC substituído por um aprovado mais novo da demanda | 409 `conflito` | "O pacote deste pedido foi substituído por um aprovado mais novo. O andamento não foi registrado: envie o do pedido novo." |
+| Situação que contradiz o status final da demanda (tabela abaixo) | 409 `conflito` | "A demanda deste pedido já está em um status final e não aceita este andamento. Nada foi registrado." |
+| O DEC já tem 60 gravações na última hora | 429 `limite_excedido` | "Limite de 60 registros de andamento por hora deste pedido atingido. Tente de novo mais tarde." |
+| O `/construir` já tem 600 gravações na última hora, somando todos os DEC | 429 `limite_excedido` | "Limite de 600 registros de andamento por hora do /construir atingido. Tente de novo mais tarde." |
+| Prazo esgotado (prazo total de 8 s, `statement_timeout` de 5 s, `lock_timeout` de 2 s) | 503 `indisponivel`, nada gravado | a de sempre ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)) |
+| JSON malformado, `content-type` errado, corpo acima de 512 KB, cookie junto com o Bearer | 400, 415, 413, 400 | as de sempre |
+| Token inválido ou revogado; ator sem a ação | 401; 403 | as de sempre |
+
+O 422 é igual para DEC existente e inexistente, porque sai em `rota()` antes de qualquer consulta (opção `corpoInvalido`
+de `src/lib/rota.ts`, ADR-33). O 409 de status final não diz qual é o status, e o de DEC substituído não cita o
+substituto. A linha `requisicao` do log da rota não leva o DEC, o corpo nem o prefixo: a `rota` é o padrão
+`/api/pedidos-construcao/[decId]/andamento`, e o ator sai só pelo `atorTipo`, com o `status` e o `codigoErro`.
+
+Pelo contrato do `/construir` (spec do pedido, seção 3.5), o envio trata o 204 como `enviado`; o 404 como
+`fora_do_orquestrador` e o 409 e o 422 como `recusado`, e nos três não tenta de novo até o estado do pedido mudar; o
+429 e o 503 como `erro`, e tenta de novo na volta seguinte; o 401 e o 403 param a volta inteira. Com o Orquestrador
+fora do ar, o `/construir` continua construindo.
+
+### Ordem das conferências
+
+Antes do banco, em `rota()`: o id pela regex do DEC (404), o tipo de conteúdo (415), `resolverAtor` (401),
+`autorizar(ator, 'registrar_andamento')` (403), a leitura do JSON (400, 413) e o `corpoAndamentoSchema` (422).
+
+O serviço, `registrarAndamento` (`registrar.ts`), chama `autorizar` de novo na primeira linha. Depois abre uma
+transação com o orçamento `padrao` das integrações (`executarComOrcamento`), sem receber transação de quem chama. Ali,
+nesta ordem:
+
+1. trava o pedido (`travarPedido`, chave `pedido:<DEC-id>`), a mesma trava da entrega e do recebimento;
+2. confere o `pedido_gerado` gravado por **pessoa** (`pedidoGeradoPorPessoa`) e que a demanda desse evento é a demanda
+   do próprio DEC (`pacote_decisao.demanda_id`). Faltou um dos dois: 404, sem travar a demanda nem gravar. É aqui que
+   cai o pedido escrito direto (A3);
+3. trava a demanda (`travarDemanda`). Tudo o que decide daqui em diante é lido depois das travas, sempre na ordem
+   pedido → demanda → limite;
+4. lê o último andamento da demanda. Mesmo estado: 204 e nada mais, sem linha nova, sem evento, sem mudar a data e sem
+   contar no limite. Vem antes dos 409, então repetir o último envio nunca dá erro;
+5. o DEC não é o aprovado vigente da demanda: 409 (DEC substituído);
+6. `decidirPorStatus`, com o status e o tipo da demanda lidos sob a trava: recusa dá 409 (status final);
+7. `conferirLimiteDeAndamento`: 429;
+8. grava a linha nova em `andamento_construcao`, com a hora do relógio do sistema e o prefixo do token;
+9. se a tabela de transições manda, muda o status (`mudarStatusPeloConstruir`) e grava `status_alterado` com o ator
+   `construir`. Sem transição, a demanda não é tocada, nem o `atualizadaEm` dela;
+10. se é mudança de marco, grava `andamento_registrado`.
+
+Nada enfileira job, dispara agente nem manda aviso.
+
+### Transições pelo andamento
+
+`decidirPorStatus` (`regras.ts`) e `AUTOMATICAS_DO_CONSTRUIR` e `CONTRADIZ_STATUS_FINAL` (`transicoes.ts`). Status da
+demanda × situação enviada, para o DEC vigente e estado novo; "grava" sem mais nada quer dizer que o status não muda:
+
+| Status da demanda | `em_construcao` | `construido` | `cancelado` |
+|---|---|---|---|
+| `nova`, `em_analise`, `aguardando_informacao`, `pronta_para_decisao` | grava | grava | grava |
+| `aprovada` | grava e vai para `em_construcao` (tipo `estudo`: só grava) | grava | grava |
+| `em_construcao` | grava | grava, e a Próxima ação pede a uma pessoa que marque Entregue | grava e vai para `devolvida` |
+| `devolvida` | grava | grava | grava |
+| `entregue` | 409 | grava | 409 |
+| `encerrada` | 409 | 409 | grava |
+
+- Só duas transições automáticas, com origem fixa: `aprovada` → `em_construcao` e `em_construcao` → `devolvida`.
+  `entregue` e `encerrada` nunca são destino (A1).
+- `construido` nunca muda o status. A demanda fica em `em_construcao`, e a Próxima ação da T05 diz "Construção
+  concluída: confira e marque como Entregue." ([cap. 08](08-painel.md#demanda-t05-rf-08-a-rf-10)).
+- A demanda do tipo `estudo` não vai para `em_construcao`, como na mudança manual.
+- A transição grava `status_alterado` com o ator "/construir (prefixo …)", e não "Sistema". As transições manuais
+  (`MANUAIS`) e as automáticas do ator `sistema` não mudaram ([cap. 03](03-demandas.md#rf-07-status-e-transições)).
+- Andamento errado se corrige pela mudança manual de status, como sempre. A mudança manual não apaga o andamento
+  gravado.
+
+### O que fica gravado (`andamento_construcao`)
+
+Tabela nova da 0.4.0 (migrations `0008` e `0009`, [cap. 01](01-arquitetura.md#banco)), só de inclusão para o papel da
+aplicação. Uma linha por gravação aceita; o último andamento da demanda é a linha de maior `id`.
+
+| Coluna | Conteúdo |
+|---|---|
+| `demanda_id` | a demanda conferida no passo 2, nunca tirada do corpo nem da URL |
+| `dec_id` | o DEC da URL |
+| `fase`, `tarefas_prontas`, `tarefas_total`, `status_construcao` | o corpo, com os mesmos CHECK do Zod |
+| `ator_token_prefixo` | o prefixo do token que gravou. Atribui também a gravação que não gera evento. Não sai em nenhuma vista, API nem tela |
+| `gravado_em` | a hora do relógio do sistema. É o `atualizadoEm` das leituras |
+
+O andamento não tem dado pessoal: só enumerações, inteiros, ids e datas. Segue a retenção da demanda, sem expurgo
+próprio nesta versão. Uma linha lida fora do esquema vale como "sem andamento" (`lerAndamento`, `regras.ts`): a fila,
+o detalhe e a API não quebram.
+
+### Evento `andamento_registrado`
+
+Gravado só na mudança de marco (A2), com o ator de integração `construir` e o prefixo do token, `entidade =
+'pacote_decisao'` e `entidadeId` = o DEC. O `depois` tem exatamente `fase`, `tarefasProntas`, `tarefasTotal` e
+`statusConstrucao`; o `antes` tem o mesmo do andamento anterior, ou `null` no primeiro. Um pedido de 20 tarefas que
+passa pelas seis fases gera no máximo 7 eventos. Os textos no histórico estão no
+[cap. 03](03-demandas.md#rf-21-histórico).
+
+### Limite (`conferirLimiteDeAndamento`)
+
+Próprio do `construir` e só para esta ação: **60 gravações por DEC e 600 no total**, na janela móvel de 60 minutos
+contada pelo relógio do sistema sobre as linhas de `andamento_construcao` (`LIMITE_ANDAMENTO`, `limites.ts`). Só
+gravação conta: o envio no mesmo estado não grava e não conta. As gravações esperam umas pelas outras na trava
+consultiva `limite:andamento:integracao:construir`, para o total de 600 ser exato. Os limites de pessoa, agentes e
+Awave não mudaram. Os números são decisão de Fabiano (P-03), e mudar pede um pedido.
+
+### Quem lê o andamento
+
+| Quem | Onde | O que recebe |
+|---|---|---|
+| Pessoa | `GET /api/demandas/:id`, T05 e T03 | `andamento` com `decId`, `fase`, `tarefasProntas`, `tarefasTotal`, `statusConstrucao` e `atualizadoEm`, ou `null`; o selo da fila e a seção do detalhe ([cap. 08](08-painel.md#fila-t03-rf-05-a-rf-07)) |
+| Awave | `GET /api/demandas/:id` e o 201 de `POST /api/demandas`, só da demanda que ele criou | `andamento` com `fase`, `tarefasProntas`, `tarefasTotal` e `atualizadoEm`, ou `null`; sem `statusConstrucao` nem `decId` ([cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)) |
+| Agentes, `sistema`, `GET /api/demandas` | — | nada: a chave não existe na vista mínima nem na listagem |
+
+O andamento lido é sempre o último da demanda, de qualquer DEC. A leitura não olha se esse DEC foi substituído: o
+detalhe avisa, a fila e o Awave não (EXP-01, ponto de produto aberto, [CHANGELOG](../../CHANGELOG.md)).
+
+### Se o envio der problema
+
+- **Envio com defeito ou em excesso:** troque `"andamento_ligado"` para `false` em `pedidos/config/orquestrador.json`.
+  O Orquestrador não muda, e o último andamento gravado continua na tela.
+- **Status errado:** a pessoa corrige pela mudança manual de status.
+- **Token vazado:** revogue pelo prefixo ([tokens-de-integracao.md](../operacao/tokens-de-integracao.md)). A coluna
+  `ator_token_prefixo` mostra o que esse token gravou, também sem evento.
 
 ## RF-23. Pacotes por status de decisão
 

@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.1: o estado da seção "Confirmação do Awave" só aceita a confirmação de pessoa, na T05); 12/11/2026 (0.3.0: origem e filtro "Origem" na T03; origem, selo "Aguardando confirmação", seção "Confirmação do Awave" e linha 14 da Próxima ação na T05; "Recebido pelo /construir em …" e texto novo da seção do pedido na T11; rótulos do histórico); 11/11/2026 (0.2.0: novo visual, com identidade, casca e gaveta, fila com contadores, T05 com barra de etapas e "Próxima ação", T11 por três botões e no celular, telas públicas, o que não mudou, testes nas duas larguras, capturas e pendências novas); 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
+| Atualizado em | 13/11/2026 (0.4.0: selo de fase na T03; seção "Andamento da construção", linha 15 da Próxima ação, textos do `andamento_registrado` e texto novo da dica de Aprovada na T05); 12/11/2026 (0.3.1: o estado da seção "Confirmação do Awave" só aceita a confirmação de pessoa, na T05); 12/11/2026 (0.3.0: origem e filtro "Origem" na T03; origem, selo "Aguardando confirmação", seção "Confirmação do Awave" e linha 14 da Próxima ação na T05; "Recebido pelo /construir em …" e texto novo da seção do pedido na T11; rótulos do histórico); 11/11/2026 (0.2.0: novo visual, com identidade, casca e gaveta, fila com contadores, T05 com barra de etapas e "Próxima ação", T11 por três botões e no celular, telas públicas, o que não mudou, testes nas duas larguras, capturas e pendências novas); 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RF-26; RNF-11, RNF-16; RF-01 a RF-17 do pedido `DEC-DEM-20261110-0015-v1` (0.2.0); RF-06, RF-10, RF-11 e RF-15 do pedido `DEC-DEM-20261111-0016-v1` (0.3.0) |
-| Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/app/globals.css`, `src/app/fontes.ts`, `src/components/` (inclusive `casca/` e `marca/`), `src/proxy.ts`, `e2e/` |
+| Cobre | RF-26; RNF-11, RNF-16; RF-01 a RF-17 do pedido `DEC-DEM-20261110-0015-v1` (0.2.0); RF-06, RF-10, RF-11 e RF-15 do pedido `DEC-DEM-20261111-0016-v1` (0.3.0); RF-07 a RF-09 do pedido `DEC-DEM-20261111-0017-v1` (0.4.0) |
+| Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/app/globals.css`, `src/app/fontes.ts`, `src/components/` (inclusive `casca/` e `marca/`; desde a 0.4.0, `dados-do-andamento.ts`), `src/proxy.ts`, `e2e/` |
 
 Todas as telas são em pt-BR, com os textos de `03-ux-ui-design.md` (do pedido 0001 e, desde a 0.2.0, do pedido 0015).
 Rótulos de enumeração e de selo vêm só de `src/components/rotulos.ts`. Cada página do painel começa por
@@ -23,15 +23,21 @@ leituras e textos para as integrações: a origem da demanda na T03 e na T05, a 
 o recebimento pelo `/construir` na T11. A T12 não muda: as integrações não aparecem nela. As capturas de tela
 continuam as da 0.2.0 e não mostram essas mudanças ([Capturas de tela](#capturas-de-tela)).
 
+Na 0.4.0 (pedido `DEC-DEM-20261111-0017-v1`), a base visual continua a mesma, sem token, cor, componente ou variação
+nova. Entra o andamento da construção informado pelo `/construir`
+([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)): o selo de fase na T03, a seção "Andamento da
+construção" e a linha 15 da Próxima ação na T05, os textos do evento novo no histórico e o texto novo da dica de
+Aprovada em "Mudar status". A T11 e a T12 não mudam. As capturas também não mostram o andamento.
+
 ## Telas
 
 | Tela | Rota | O que faz | RF |
 |---|---|---|---|
 | T01 Entrar | `/entrar` | senha e depois o código do aplicativo ou um código de recuperação; moldura pública desde a 0.2.0 | RF-01 |
 | T02 Configurar 2FA | `/configurar-2fa` | QR, chave para digitar, confirmação do código e códigos de recuperação; única tela aberta à sessão sem 2FA, por até 15 min; moldura pública desde a 0.2.0 | RF-01 |
-| T03 Fila de demandas | `/demandas` | contadores por status que filtram (desde a 0.2.0); filtros por tipo, origem (desde a 0.3.0) e linha de serviço na URL, aplicados por botão; tabela com etapas, idade e a origem embaixo do título, ou cartões no celular; total encontrado; entradas que aguardam o agente | RF-06 |
+| T03 Fila de demandas | `/demandas` | contadores por status que filtram (desde a 0.2.0); filtros por tipo, origem (desde a 0.3.0) e linha de serviço na URL, aplicados por botão; tabela com etapas, idade e a origem embaixo do título, ou cartões no celular; selo de fase na demanda em construção com andamento (desde a 0.4.0); total encontrado; entradas que aguardam o agente | RF-06 |
 | T04 Nova demanda | `/demandas/nova` | colar o texto e preencher os campos, ou mandar ao agente orquestrador quando ligado | RF-03, RF-05, RF-20 |
-| T05 Detalhe | `/demandas/[id]` | barra das cinco etapas e cartão "Próxima ação" (desde a 0.2.0); origem nos dados e, na demanda do Awave, o selo "Aguardando confirmação" e a seção "Confirmação do Awave" (desde a 0.3.0); dados, dúvidas, versões de ESP, RSK e DEC (com o selo "Substituído" no DEC aprovado substituído, desde a 0.1.13), mudança manual de status, texto recebido (com a data do expurgo), histórico completo, agente trabalhando | RF-06, RF-07, RF-12, RF-15, RF-21, RF-24 |
+| T05 Detalhe | `/demandas/[id]` | barra das cinco etapas e cartão "Próxima ação" (desde a 0.2.0); seção "Andamento da construção" (desde a 0.4.0); origem nos dados e, na demanda do Awave, o selo "Aguardando confirmação" e a seção "Confirmação do Awave" (desde a 0.3.0); dados, dúvidas, versões de ESP, RSK e DEC (com o selo "Substituído" no DEC aprovado substituído, desde a 0.1.13), mudança manual de status, texto recebido (com a data do expurgo), histórico completo, agente trabalhando | RF-06, RF-07, RF-12, RF-15, RF-21, RF-24 |
 | T06 Editar demanda | `/demandas/[id]/editar` | editar os campos | RF-06 |
 | T07 Nova ESP | `/demandas/[id]/especificacoes/nova` | começa com a mais nova; destino por conta e sistema | RF-08 |
 | T08 Novo RSK | `/demandas/[id]/pareceres-risco/novo` | três níveis, comentários, listas | RF-09 |
@@ -175,9 +181,35 @@ serviço, Etapas e Idade. Só
 o id é link, o cartão não. Em cada largura, só a tabela ou só a lista está na árvore de acessibilidade. Não há rolagem
 lateral em 390 nem em 320 px.
 
+**Selo de fase** (desde a 0.4.0, RF-08 do pedido 0017; `seloDeFase`, `src/components/dados-do-andamento.ts`;
+`SeloDaFase`, `CartoesDaFila.tsx`). Na demanda em `em_construcao` com andamento válido, a célula Status da tabela ganha
+uma segunda linha abaixo do selo de status. No cartão, o selo de fase fica abaixo do selo de status, à direita, e
+quebra para a linha de baixo em 320 px. Não há coluna, filtro nem contador novo.
+
+| Último andamento | Texto visível | Leitor de tela | Cor |
+|---|---|---|---|
+| situação `em_construcao`, total maior que 0 | "<Fase> · <prontas>/<total>" (por exemplo, "Construindo · 9/17") | "Andamento: Construindo, 9 de 17 tarefas prontas." ("tarefa pronta" com total 1) | `marinho` |
+| situação `em_construcao`, total 0 | "<Fase>" | "Andamento: <Fase>." | `marinho` |
+| situação `construido` | "Construção concluída" | "Andamento: construção concluída." | `positivo` |
+| situação `cancelado` (a demanda voltou a Em construção pela mão de uma pessoa depois do cancelamento) | "Construção cancelada" | "Andamento: construção cancelada." | `tinta-media` |
+
+- Os rótulos das fases são os de `ROTULO_FASE` (`rotulos.ts`): Entendendo o pedido, Planejando, Construindo, Testando,
+  Revisando e entregando e Documentando.
+- O texto visível é `aria-hidden`, em 13 px e peso 600, e o do leitor de tela fica em `sr-only` logo depois. A cor só
+  reforça: a diferença está no texto. O selo não é focável.
+- Sem selo: demanda em qualquer outro status, inclusive `devolvida`, `entregue` e `encerrada` com andamento gravado;
+  demanda sem andamento; andamento lido fora do esquema.
+- A página lê o andamento de todas as demandas dela numa consulta só (`andamentosDaPagina`, `leituras-da-fila.ts`, sobre
+  `andamentosDasDemandas`, `src/modules/andamento/consultas.ts`), depois de `exigirPessoaNaPagina`.
+- O selo mostra o último andamento da demanda sem olhar se o DEC dele foi substituído. Uma demanda que voltou a Em
+  construção antes do primeiro envio do DEC novo pode mostrar o selo do DEC antigo; o detalhe mostra o alerta de
+  substituído (EXP-01, ponto de produto aberto para Fabiano).
+
 **Estados:** vazio (`TEXTOS_FILA.vazio`), vazio com filtro (com "Limpar filtros"), carregando (esqueleto), erro da
 lista (`TEXTOS_FILA.erro` e "Tentar de novo"), erro dos contadores (acima), filtro inválido (`TEXTOS_FILA.filtroInvalido`,
-com "Todas" marcado) e sucesso.
+com "Todas" marcado) e sucesso. Desde a 0.4.0, também o erro só da leitura do andamento: a fila aparece sem nenhum selo
+de fase e com o alerta "Não foi possível ler o andamento da construção. A fila aparece sem a fase das demandas em
+construção." (`TEXTOS_ANDAMENTO.erroNaFila`). O log é `painel_andamento_falhou`, sem ids, SQL nem parâmetro.
 
 ## Demanda, T05 (RF-08 a RF-10)
 
@@ -185,9 +217,10 @@ Arquivos: `src/app/(painel)/demandas/[id]/page.tsx`, `BarraDeEtapas.tsx`, `Carta
 `src/components/dados-das-etapas.ts`.
 
 **Arranjo:** a partir de 1200 px, há duas colunas. A principal (2/3) tem Dados, Confirmação do Awave (só na demanda
-do Awave, desde a 0.3.0), Dúvidas, Versões, Status e Texto recebido; a lateral (1/3) tem Próxima ação e Histórico. Abaixo de 1200 px, a tela tem uma coluna só. A ordem no DOM é
-a mesma em toda largura: trilha, cabeçalho, "Nesta página", alertas, barra de etapas, **Próxima ação**, Dados,
-Dúvidas, Versões, Status, Texto recebido e **Histórico**.
+do Awave, desde a 0.3.0), Dúvidas, Versões, Status e Texto recebido; a lateral (1/3) tem Próxima ação, Andamento da
+construção (quando existe, desde a 0.4.0) e Histórico. Abaixo de 1200 px, a tela tem uma coluna só. A ordem no DOM é
+a mesma em toda largura: trilha, cabeçalho, "Nesta página", alertas, barra de etapas, **Próxima ação**, Andamento da
+construção (quando existe), Dados, Dúvidas, Versões, Status, Texto recebido e **Histórico**.
 
 **Cabeçalho:** a trilha (`nav "Trilha"`), o id em Mono, os selos e "Urgência: Alta" quando informada. Depois vêm o `h1`
 com o título, "Editar dados" e o botão **"Mudar status"**, que leva o foco ao `h2` Status. Nada saiu da 0.1.13:
@@ -230,9 +263,12 @@ DEC para a marca DEC ficar cheia (R-01, nas pendências).
 | 12 | `devolvida` | "Ler o motivo da devolução no histórico e voltar a demanda para Em construção ou Em análise." | idem | "Mudar o status" |
 | 13 | qualquer outro caso | "Acompanhar a demanda." | "Sem responsável definido" | — |
 | 14 (desde a 0.3.0; avaliada depois da 2 e antes da 3) | demanda do Awave não confirmada, fora de status final | "Confirmar a demanda aberta pelo Awave.", com o detalhe "Até a confirmação, nenhum agente de IA trabalha nela." | Uma pessoa (CTO ou administradora) | "Ir para a confirmação" |
+| 15 (desde a 0.4.0; avaliada dentro de `em_construcao`, antes da 11) | `em_construcao` com o último andamento do DEC **vigente** na situação `construido` | "Construção concluída: confira e marque como Entregue.", com o detalhe "O /construir não marca Entregue: quem confere a entrega é uma pessoa." | Uma pessoa (CTO ou administradora) | "Mudar o status" |
 
-A linha 14 tem esse número só para não renumerar as linhas da 0.2.0; a ordem de avaliação é a da tabela acima, com ela
-entre a 2 e a 3.
+As linhas 14 e 15 têm esses números só para não renumerar as linhas da 0.2.0; a ordem de avaliação é a da tabela
+acima, com a 14 entre a 2 e a 3 e a 15 logo antes da 11. Sem andamento, com o andamento em `em_construcao` ou
+`cancelado`, ou com o andamento de um DEC que não é o vigente, vale a linha 11. Depois que a pessoa marca Entregue, vale
+a linha 1 (`linhaDoStatus`, `dados-das-etapas.ts`; o andamento chega pela `DadosDasEtapas.andamento`).
 
 - O cartão só informa: não libera, não esconde e não decide nada. `etapasDaDemanda` e `proximaAcao` são funções puras,
   chamadas só pela página (`test/estatico/dados-das-etapas.test.ts`). De `src/modules/` elas só importam tipos.
@@ -271,6 +307,41 @@ entre a 2 e a 3.
   `confirmarDemandaNoPainel`; quem decide se pode é o servidor.
 - **Próxima ação:** linha 14 (acima).
 - A partir de 1200 px, a coluna principal passa de 5 para 6 linhas na grade. A barra de etapas não muda.
+
+**Andamento da construção** (desde a 0.4.0, RF-09 do pedido 0017; `SecaoAndamento.tsx`; regras em `secaoDoAndamento`
+e textos em `TEXTOS_ANDAMENTO`, `src/components/dados-do-andamento.ts`; regra do servidor no
+[cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)):
+
+- A seção existe em **qualquer** status da demanda, desde que ela tenha andamento válido. Sem andamento, ou com o
+  andamento lido fora do esquema, ela não existe, nem em "Nesta página". Quando existe, é o primeiro item de "Nesta
+  página", com o `h2` focável `id="andamento-da-construcao"`.
+- Conteúdo, numa `dl`:
+
+  | Termo | Valor |
+  |---|---|
+  | Pedido de Construção | o DEC em Mono, com link para `/pacotes-decisao/<DEC-id>` só quando o id casa o formato de DEC; fora dele, "Não informado", sem link |
+  | Fase | o rótulo de `ROTULO_FASE` |
+  | Situação | "Em andamento", "Concluída" ou "Cancelada" (`ROTULO_SITUACAO_CONSTRUCAO`; não são os rótulos de status da demanda) |
+  | Tarefas prontas | "<prontas> de <total> tarefas" ("… de 1 tarefa" com total 1) e a barra; com total 0, "Nenhuma tarefa contada. O plano de tarefas ainda não foi feito, ou este pedido não tem plano.", sem barra |
+
+- A barra é um `<progress>` nativo, porque a CSP e o CV-02 recusam `style=`, com o nome do termo "Tarefas prontas" e
+  `aria-valuetext` "9 de 17 tarefas". Não tem animação. Se o plano for refeito e o total subir, a barra volta.
+- Depois da `dl`, nesta ordem e só quando valem, dois alertas estáticos: "A construção deste pedido foi cancelada no
+  /construir." (situação `cancelado`) e "Este andamento é do pedido de <DEC-id>, cujo pacote foi substituído por um
+  aprovado mais novo. O andamento do pedido novo aparece aqui quando o /construir começar." (DEC do andamento
+  substituído).
+- Por fim, "Última mudança informada pelo /construir em <data e hora>." com `<time dateTime>`, e a nota "Esta página
+  não se atualiza sozinha. Recarregue para ver o andamento mais novo.". A data só muda quando o estado muda: o envio no
+  mesmo estado não a altera, e o painel não tem sinal de que o envio parou.
+- A partir de 1200 px, a seção fica na coluna lateral, entre Próxima ação e Histórico, e o Histórico desce uma linha
+  na grade.
+- **Próxima ação:** linha 15 (acima), só com o andamento do DEC vigente em `construido`.
+- **Histórico:** os textos do `andamento_registrado`, por "/construir (prefixo …)", estão no
+  [cap. 03](03-demandas.md#rf-21-histórico). O `status_alterado` feito pelo `/construir` tem o texto e o
+  "Antes/Depois" de sempre.
+- **Mudar status:** as opções e as regras não mudaram. Só a dica da demanda em Aprovada (`TEXTOS_DETALHE.dicaAprovada`)
+  passou a ser "Quando o /construir começar o Pedido de Construção gerado no painel, a demanda passa sozinha para Em
+  construção. Entregue é sempre marcado por uma pessoa.".
 
 ## Decisão, T11 (RF-11, RF-12)
 
@@ -425,7 +496,14 @@ integração (`substituicao.test.ts`, `gerar-substituido.test.ts`), porque o e2e
   configuração que suba `retries` ou desligue a CSP.
 - **Dados:** os e2e novos usam as demandas fictícias de `TITULOS_DO_E2E` (`scripts/seed-ficticio.ts`), como
   `etapasDupla` ("Etapas com uma de duas aprovações (fictício)"), `decisaoOpcaoB`, `decisaoCelularDupla` e
-  `textoDeTerceiro`. O seed tem 23 demandas.
+  `textoDeTerceiro`. Na 0.2.0, o seed tinha 23 demandas; desde a 0.4.0, tem 36
+  ([cap. 10](10-configuracao-e-scripts.md#scripts-de-operação)).
+
+**Desde a 0.4.0** (RNF-09 do pedido 0017): o axe roda sem violação na fila com o selo de fase e na T05 com a seção
+"Andamento da construção", em 1280 × 720 e em 390 × 844 (`e2e/andamento-fila.spec.ts`, `e2e/andamento-detalhe.spec.ts`
+e `e2e/axe-todas.spec.ts`). O `e2e/andamento-construir.spec.ts` faz o envio pela API com o token `construir` emitido no
+banco descartável do e2e, como nas integrações da 0.3.0, e confere a mudança de status e o histórico. Os dados são as
+demandas "Andamento: …" do seed fictício (`TITULOS_DO_E2E`).
 
 ## Capturas de tela
 

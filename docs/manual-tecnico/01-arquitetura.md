@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.1: prazo total das integrações no módulo `integracoes/`, ADR-28); 12/11/2026 (0.3.0: as duas integrações no desenho, módulos `integracoes/` e `pedido-construcao/` ampliado, migration `0007`, ADR-20 a ADR-29); 11/11/2026 (0.2.0: leituras da fila em `demandas/`, `src/components/`, fontes Noto, ADR-13 a ADR-19); 10/11/2026 (0.1.13: substituído no módulo `pacotes-decisao/`); 31/10/2026 |
+| Atualizado em | 13/11/2026 (0.4.0: o envio do andamento no desenho, módulo `andamento/`, tabela `andamento_construcao`, migrations `0008` e `0009`, ADR-30 a ADR-35); 12/11/2026 (0.3.1: prazo total das integrações no módulo `integracoes/`, ADR-28); 12/11/2026 (0.3.0: as duas integrações no desenho, módulos `integracoes/` e `pedido-construcao/` ampliado, migration `0007`, ADR-20 a ADR-29); 11/11/2026 (0.2.0: leituras da fila em `demandas/`, `src/components/`, fontes Noto, ADR-13 a ADR-19); 10/11/2026 (0.1.13: substituído no módulo `pacotes-decisao/`); 31/10/2026 |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RNF-01, RNF-02, RNF-05, RNF-17, ADR-01 a ADR-29 |
-| Fontes no código | `package.json`, `pnpm-workspace.yaml`, `src/worker/iniciar.ts`, `src/lib/rota.ts`, `src/lib/deps.ts`, `src/app/api/saude/route.ts`, `scripts/migrate.ts`, `next.config.ts`, `src/app/fontes.ts`, `src/app/layout.tsx`, `src/modules/demandas/resumo-da-fila.ts`, `drizzle/0007_greedy_wendigo.sql` |
+| Cobre | RNF-01, RNF-02, RNF-05, RNF-17, ADR-01 a ADR-35 |
+| Fontes no código | `package.json`, `pnpm-workspace.yaml`, `src/worker/iniciar.ts`, `src/lib/rota.ts`, `src/lib/deps.ts`, `src/app/api/saude/route.ts`, `scripts/migrate.ts`, `next.config.ts`, `src/app/fontes.ts`, `src/app/layout.tsx`, `src/modules/demandas/resumo-da-fila.ts`, `drizzle/0007_greedy_wendigo.sql`, `drizzle/0008_slippery_whirlwind.sql`, `drizzle/0009_rls_andamento_construcao.sql`, `src/db/schema/andamento.ts`, `src/db/privilegios.ts` |
 
 ## Visão geral
 
@@ -26,7 +26,7 @@ flowchart LR
   P[Pessoa com 2FA] -->|cookie de sessão| APP
   AE[Agente externo] -->|Bearer wsod_| APP
   AW["Awave (empresa-ia)"] -->|"Bearer wsod_, rede interna, desde a 0.3.0"| APP
-  CO["/construir (crontab)"] -->|"Bearer wsod_, https, desde a 0.3.0"| APP
+  CO["/construir (crontab)"] -->|"Bearer wsod_, https, desde a 0.3.0; andamento desde a 0.4.0"| APP
   APP[app: painel + /api] --> MOD[src/modules]
   WK[worker: pg-boss] --> MOD
   MOD --> DB[(Postgres 16: dados + esquema pgboss)]
@@ -37,6 +37,9 @@ flowchart LR
 
 Desde a 0.3.0, as duas integrações **chamam** o Orquestrador; o Orquestrador não chama ninguém de novo. Não há processo,
 fila, job, pacote nem variável de ambiente novos ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)).
+A 0.4.0 acrescenta uma única escrita vinda de fora, o andamento enviado pelo `/construir`
+([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)), também sem processo, fila, job, pacote nem
+variável novos.
 
 ## Módulos
 
@@ -48,9 +51,10 @@ fila, job, pacote nem variável de ambiente novos ([cap. 02](02-acesso-e-seguran
 | `src/modules/acesso/` | Better Auth (senha + TOTP), tokens de serviço (de agente e, desde a 0.3.0, de integração), `resolverAtor`, `exigirPessoa`, matriz de acesso |
 | `src/modules/demandas/` | criar, ler, alterar, gerador de id, máquina de status, entrada colando o texto, entradas pendentes; desde a 0.2.0, as duas leituras da fila do painel (`resumo-da-fila.ts`, só `SELECT`, [cap. 03](03-demandas.md#rf-06-consultar-e-alterar)); desde a 0.3.0, a origem da demanda, a leitura pelo Awave e a confirmação por pessoa (`confirmar.ts`, `confirmacao.ts`, [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)); desde a 0.3.1, a regra de visibilidade da demanda do Awave para agente e `sistema` (`exigirVisivelPara`, `condicaoVisivelAoAgente`, em `confirmacao.ts`) |
 | `src/modules/integracoes/` | desde a 0.3.0: tempo limite das transações de integração e o 503 `indisponivel` (`tempo-limite.ts`, ADR-28); desde a 0.3.1, o prazo total da transação (`PRAZO_TOTAL_MS`), aplicado por `comTransacao` (`src/db/transacao.ts`) desde a espera pela conexão ([cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030)) |
+| `src/modules/andamento/` | desde a 0.4.0: o andamento do Pedido de Construção informado pelo `/construir`. Corpo e vistas (`schemas.ts`), regras puras (`regras.ts`: mesmo estado, mudança de marco, decisão por status, leitura que nunca lança), o registro (`registrar.ts`) e as leituras, só `SELECT` (`consultas.ts`) ([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)). As duas transições do `/construir` ficam em `demandas/transicoes.ts`, e o limite, em `limites.ts` |
 | `src/modules/especificacoes/`, `pareceres-risco/`, `pacotes-decisao/` | versões de ESP, RSK e DEC, desatualizado, substituído (desde a 0.1.13), decisão e dupla aprovação |
 | `src/modules/versoes.ts` | trava da demanda (`SELECT … FOR UPDATE`) e próxima versão |
-| `src/modules/limites.ts` | limite por ator: 30 demandas e 60 versões (ESP, RSK e DEC somados) por hora; desde a 0.3.0, 10 demandas por hora para o Awave |
+| `src/modules/limites.ts` | limite por ator: 30 demandas e 60 versões (ESP, RSK e DEC somados) por hora; desde a 0.3.0, 10 demandas por hora para o Awave; desde a 0.4.0, 60 gravações de andamento por DEC e 600 no total por hora para o `/construir` |
 | `src/modules/historico/` | eventos só de inclusão |
 | `src/modules/agentes/`, `src/agents/` | interruptores, teto, preço, execução, entrada do agente, provedor; prompts |
 | `src/modules/dados-pessoais/` | detectores (e-mail, telefone, CPF, CNPJ) e minimização |
@@ -58,7 +62,7 @@ fila, job, pacote nem variável de ambiente novos ([cap. 02](02-acesso-e-seguran
 | `src/vendor/construir/` | cópia sem mudança do `validarPedido` do `/construir`, com SHA-256 conferido em teste (ADR-05) |
 | `src/modules/avisos/`, `retencao/` | e-mail de DEC pronto; expurgo |
 | `src/worker/`, `src/jobs/` | filas, agendamentos, batimento, varredura de execuções órfãs |
-| `src/db/`, `drizzle/` | esquema Drizzle e 8 migrations (`0000` a `0007`, três delas custom `rls_privilegios_*`). A `0007` (0.3.0) é gerada e só aditiva: ver [Banco](#banco) |
+| `src/db/`, `drizzle/` | esquema Drizzle e 10 migrations (`0000` a `0009`; quatro delas custom, as três `rls_privilegios_*` e a `0009_rls_andamento_construcao`). A `0007` (0.3.0) e a `0008` e a `0009` (0.4.0) são só aditivas: ver [Banco](#banco) |
 | `src/lib/` | relógio injetável, fuso de São Paulo, log, erros, adaptador de rota, leitura do corpo, configuração |
 | `scripts/` | migrate, homologação, seed fictício e scripts de operação ([cap. 10](10-configuracao-e-scripts.md)) |
 
@@ -75,7 +79,8 @@ fila, job, pacote nem variável de ambiente novos ([cap. 02](02-acesso-e-seguran
 - Tabelas: `user`, `session`, `account`, `verification`, `two_factor` (Better Auth), `bloqueio_verificacao`,
   `token_servico`, `demanda`, `entrada_bruta`, `entrada_pendente`, `especificacao_tecnica`, `parecer_risco`,
   `pacote_decisao`, `aprovacao`, `decisao`, `evento`, `configuracao_agente`, `configuracao_ia`, `preco_modelo`,
-  `execucao_agente`, `uso_ia`, `aviso_email`, `worker_batimento`, `rotina_execucao`.
+  `execucao_agente`, `uso_ia`, `aviso_email`, `worker_batimento`, `rotina_execucao` e, desde a 0.4.0,
+  `andamento_construcao`.
 - **Migration `0007` (0.3.0)**, gerada por `pnpm db:generate` e só aditiva (`drizzle/0007_greedy_wendigo.sql`):
   - `token_servico`: `agente` passa a anulável; coluna nova `integracao` (anulável); CHECK
     `token_servico_integracao_check` (`awave`, `construir`) e `token_servico_dono_check` (exatamente um dono);
@@ -87,6 +92,18 @@ fila, job, pacote nem variável de ambiente novos ([cap. 02](02-acesso-e-seguran
   Nenhuma linha muda e nenhuma coluna sai (`alteram_dado: false` no ensaio). Nenhum `GRANT` novo:
   `token_servico.integracao` fica fora das colunas que o papel da aplicação atualiza. A volta para a 0.2.0 exige
   restaurar o backup ([deploy.md, seção 6](../operacao/deploy.md)).
+- **Migrations `0008` e `0009` (0.4.0)**, as duas só aditivas (ADR-30):
+  - `0008_slippery_whirlwind.sql`, gerada por `pnpm db:generate`: a tabela `andamento_construcao`, vazia, com cinco
+    CHECK (fase, situação, `0 <= tarefas_prontas <= tarefas_total <= 999`, formato do `dec_id` e formato do prefixo do
+    token), duas chaves estrangeiras sem `CASCADE` (para `demanda` e `pacote_decisao`) e três índices,
+    `(demanda_id, id)`, `(dec_id, gravado_em)` e `(gravado_em)`;
+  - `0009_rls_andamento_construcao.sql`, custom, escrita à mão: só
+    `GRANT SELECT, INSERT ON "andamento_construcao" TO orquestrador_app`, sem `GRANT` de sequência. A regra está em
+    `src/db/privilegios.ts`, conferida por teste.
+
+  Nenhuma coluna nova em `demanda` nem em `evento`, nenhuma linha muda e nenhuma coluna sai (`alteram_dado: false` no
+  ensaio). O papel da aplicação só lê e inclui na tabela nova: o andamento gravado não muda nem se apaga. A volta para a
+  0.3.1 exige restaurar o backup (`volta_sem_restaurar: false` no ensaio; [deploy.md, seção 6](../operacao/deploy.md)).
 
 ## Saúde
 
@@ -208,9 +225,16 @@ Desenvolvimento em 3101 (`pnpm dev`), nunca 3000 (painel do Easypanel). Postgres
 | ADR-27 | Índice `evento (acao, entidade_id)` |
 | ADR-28 | Tempo limite do servidor abaixo do do cliente, só para integração; estouro vira 503 |
 | ADR-29 | Stack sem mudança; registra Next 16.4.1, Better Auth 1.7.7 e Zod 4.6.6 |
+| ADR-30 | Andamento em tabela própria só de inclusão (`andamento_construcao`); o último é a linha de maior `id`, e a demanda não ganha coluna |
+| ADR-31 | Limite do andamento contado nas linhas da própria tabela, só para o `construir`, sob uma trava consultiva própria |
+| ADR-32 | Registro numa transação com o orçamento `padrao`, com as travas sempre na ordem pedido → demanda → limite |
+| ADR-33 | O 422 do corpo fora do formato sai do próprio `rota()`, pela opção `corpoInvalido`; sem a opção, nenhuma rota muda |
+| ADR-34 | As transições do `/construir` em tabela própria (`AUTOMATICAS_DO_CONSTRUIR`, `CONTRADIZ_STATUS_FINAL`), com ator de integração no histórico |
+| ADR-35 | Andamento nas leituras por lista de permissão: uma consulta por página da fila, `andamento` na vista de pessoa e, com quatro campos, na do Awave, na mesma consulta da autoria |
 
 O texto completo dos ADR-01 a ADR-12 está em `docs/construcao/DEC-DEM-20261022-0001-v1/02-arquiteto-solucoes.md`; o
 dos ADR-13 a ADR-19 (0.2.0), em `docs/construcao/DEC-DEM-20261110-0015-v1/02-arquiteto-solucoes.md`, seção 9; o dos
-ADR-20 a ADR-29 (0.3.0), em `docs/construcao/DEC-DEM-20261111-0016-v1/02-arquiteto-solucoes.md`. Na
+ADR-20 a ADR-29 (0.3.0), em `docs/construcao/DEC-DEM-20261111-0016-v1/02-arquiteto-solucoes.md`; o dos ADR-30 a ADR-35
+(0.4.0), em `docs/construcao/DEC-DEM-20261111-0017-v1/02-arquiteto-solucoes.md`, seção 9. Na
 ADR-14 e na ADR-18, o plano trocou dois pontos: os nomes antigos de cor saíram de vez na T16 (D-01), e o recolhível
 é o componente `Recolhivel`, e não `<details>` (D-02, `05-tech-lead.md`).
