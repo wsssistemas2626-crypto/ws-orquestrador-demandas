@@ -65,8 +65,9 @@ describe('seed fictício com as integrações (agentes desligados, como na homol
     for (const t of [...DO_AWAVE, ...DOS_PEDIDOS]) expect(t).toContain('(fictício)');
   });
 
-  it('o total do seed conta as cinco novas: 28 demandas, e a mensagem diz o mesmo número', async () => {
-    expect(TOTAL_DEMANDAS_DO_SEED).toBe(28);
+  // 0.4.0 (T10 do DEC-DEM-20261111-0017-v1): mais as oito do andamento, conferidas em seed-andamento.test.ts.
+  it('o total do seed conta as cinco novas e, desde a 0.4.0, as oito do andamento: 36 demandas, e a mensagem diz o mesmo número', async () => {
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(36);
     expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
     expect(MENSAGENS_SEED.semeado).toContain(`${TOTAL_DEMANDAS_DO_SEED} demandas`);
   });

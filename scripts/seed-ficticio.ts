@@ -21,6 +21,13 @@
 // nasce num banco semeado. O seed grava com a hora do sistema, então o Awave fica com 3 das 10 demandas por hora (D2) na
 // primeira hora depois da subida.
 //
+// 0.4.0 (DEC-DEM-20261111-0017-v1, T10): também as oito demandas do andamento do Pedido de Construção, por
+// criarDadosDoAndamento (AN-15, D-07, D-11): cinco com andamento gravado pelo ator `construir` de prefixo `ficticio` (as
+// mesmas regras do serviço, sem chamá-lo, e sem token), uma com pedido gerado para o /construir enviar (V-02), uma com
+// DEC aprovado e sem pedido gerado (404 da V-02) e uma em construção sem andamento. Os seis pedidos do andamento já saem
+// entregues e recebidos pelo /construir do seed: a lista de pendentes continua só com a `pedidoParaBuscar`. Todas da
+// `sem2fa`, que fica com 28 de 30 demandas e 33 de 60 versões na primeira hora (C-36).
+//
 // As senhas e os segredos TOTP abaixo são fictícios e públicos, escritos aqui de propósito: só servem a um banco
 // semeado por este script, e nenhum deles tem o formato do token de serviço.
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -28,14 +35,17 @@ import { symmetricEncrypt } from 'better-auth/crypto';
 import { count, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { PROMPTS } from '../src/agents';
-import { demanda, twoFactor, user } from '../src/db/schema';
+import { andamentoConstrucao, demanda, twoFactor, user } from '../src/db/schema';
+import type { FaseAndamento, StatusConstrucao } from '../src/db/schema/andamento';
 import { comTransacao, type Transacao } from '../src/db/transacao';
 import type { Deps } from '../src/lib/deps';
 import { ehLoopback } from '../src/lib/env';
 import { log } from '../src/lib/log';
 import type { AtorAgente, AtorIntegracao, AtorPessoa, Papel } from '../src/modules/acesso/ator';
+import { marcoDoEvento, mudancaDeMarco, type EstadoDoAndamento } from '../src/modules/andamento/regras';
 import { alterarDemandaSchema, criarDemandaSchema, type CriarDemanda } from '../src/modules/demandas/schemas';
 import { alterarDemanda, criarDemanda } from '../src/modules/demandas/servico';
+import { mudarStatusPeloConstruir } from '../src/modules/demandas/transicoes';
 import { criarEspecificacaoSchema } from '../src/modules/especificacoes/schemas';
 import { criarEspecificacao } from '../src/modules/especificacoes/servico';
 import { registrarEvento } from '../src/modules/historico/registrar';
@@ -49,6 +59,7 @@ import { entregarPedido } from '../src/modules/pedido-construcao/entregar';
 import { gerarPedido } from '../src/modules/pedido-construcao/gerar';
 import { receberPedido } from '../src/modules/pedido-construcao/receber';
 import { confirmacaoDoPedidoSchema } from '../src/modules/pedido-construcao/schemas';
+import { travarDemanda } from '../src/modules/versoes';
 import { gravarConta } from './criar-usuario';
 import { definirPrecoModelo } from './definir-preco-modelo';
 import { lerArgumentos } from './lib/argumentos';
@@ -188,6 +199,15 @@ export const TITULOS_DO_E2E = {
   awaveEncerrada: 'Relatório do Awave encerrado sem confirmação (fictício)',
   pedidoParaBuscar: 'Pedido para o /construir buscar (fictício)',
   pedidoRecebido: 'Pedido já recebido pelo /construir (fictício)',
+  // 0.4.0 (DEC-DEM-20261111-0017-v1, T10): as do andamento (criarDadosDoAndamento), pela `sem2fa`, todas melhoria.
+  andamentoConstruindo: 'Andamento: construindo (fictício)',
+  andamentoRevisando: 'Andamento: revisando e entregando (fictício)',
+  andamentoConcluido: 'Andamento: construção concluída (fictício)',
+  andamentoCancelado: 'Andamento: construção cancelada (fictício)',
+  andamentoSemPlano: 'Andamento: sem plano de tarefas (fictício)',
+  andamentoParaEnviar: 'Andamento: para o /construir enviar (fictício)',
+  andamentoSemPedido: 'Andamento: pacote sem pedido gerado (fictício)',
+  emConstrucaoSemAndamento: 'Em construção sem andamento (fictício)',
 } as const;
 
 // A recomendação do DEC de agente da `decisaoRecomendaB`, que o e2e procura na T11 (P-01: em texto, sem opção marcada).
@@ -337,8 +357,87 @@ const DEMANDAS_DOS_PEDIDOS: ReadonlyArray<z.input<typeof criarDemandaSchema>> = 
   contexto,
 }));
 
-// Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e e as das integrações (0.3.0).
-export const TOTAL_DEMANDAS_DO_SEED = DEMANDAS.length + DEMANDAS_DO_E2E.length + DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length;
+// 0.4.0 (T10): um passo do andamento como o /construir mandaria (fase, prontas, total e situação), já no tipo do banco.
+type PassoDoAndamento = Readonly<{ fase: FaseAndamento; tarefasProntas: number; tarefasTotal: number; statusConstrucao: StatusConstrucao }>;
+const passo = (fase: FaseAndamento, tarefasProntas: number, tarefasTotal: number, statusConstrucao: StatusConstrucao): PassoDoAndamento =>
+  Object.freeze({ fase, tarefasProntas, tarefasTotal, statusConstrucao });
+
+// O que cada demanda do andamento recebe depois de ESP, RSK e DEC aprovado (a tabela da T10 no plano):
+//   - pedido: Pedido gerado pela "cto", entregue e recebido pelo /construir do seed (D-11), e a "cto" leva a aprovada;
+//   - emConstrucaoPelaPessoa: a "cto" leva de aprovada a em_construcao antes do andamento (construido não muda status, A1);
+//   - passos: o andamento gravado pelo construir, na ordem.
+type DemandaDoAndamento = Readonly<{ titulo: string; contexto: string; pedido: boolean; emConstrucaoPelaPessoa: boolean; passos: readonly PassoDoAndamento[] }>;
+const ANDAMENTOS: readonly DemandaDoAndamento[] = [
+  {
+    titulo: TITULOS_DO_E2E.andamentoConstruindo,
+    contexto: 'O /construir já passou do entendimento do pedido e está construindo as tarefas do plano.',
+    pedido: true,
+    emConstrucaoPelaPessoa: false,
+    passos: [passo('entendendo_o_pedido', 0, 0, 'em_construcao'), passo('construindo', 9, 17, 'em_construcao')],
+  },
+  {
+    titulo: TITULOS_DO_E2E.andamentoRevisando,
+    contexto: 'Todas as tarefas do plano estão prontas e a entrega está em revisão.',
+    pedido: true,
+    emConstrucaoPelaPessoa: false,
+    passos: [passo('revisando_e_entregando', 17, 17, 'em_construcao')],
+  },
+  {
+    titulo: TITULOS_DO_E2E.andamentoConcluido,
+    contexto: 'O /construir terminou a construção e a documentação; falta uma pessoa conferir a entrega.',
+    pedido: true,
+    emConstrucaoPelaPessoa: true,
+    passos: [passo('documentando', 12, 12, 'construido')],
+  },
+  {
+    titulo: TITULOS_DO_E2E.andamentoCancelado,
+    contexto: 'A construção parou no meio e o pedido voltou para análise.',
+    pedido: true,
+    emConstrucaoPelaPessoa: false,
+    passos: [passo('construindo', 3, 8, 'em_construcao'), passo('construindo', 3, 8, 'cancelado')],
+  },
+  {
+    titulo: TITULOS_DO_E2E.andamentoSemPlano,
+    contexto: 'O /construir começou o pedido e ainda não tem o plano de tarefas.',
+    pedido: true,
+    emConstrucaoPelaPessoa: false,
+    passos: [passo('entendendo_o_pedido', 0, 0, 'em_construcao')],
+  },
+  {
+    titulo: TITULOS_DO_E2E.andamentoParaEnviar,
+    contexto: 'O pedido foi gerado no painel e o /construir ainda não informou o andamento.',
+    pedido: true,
+    emConstrucaoPelaPessoa: false,
+    passos: [],
+  },
+  {
+    titulo: TITULOS_DO_E2E.andamentoSemPedido,
+    contexto: 'O pacote foi aprovado e o Pedido de Construção ainda não foi gerado no painel.',
+    pedido: false,
+    emConstrucaoPelaPessoa: false,
+    passos: [],
+  },
+  {
+    titulo: TITULOS_DO_E2E.emConstrucaoSemAndamento,
+    contexto: 'Uma pessoa marcou a demanda em construção sem pedido gerado no painel.',
+    pedido: false,
+    emConstrucaoPelaPessoa: true,
+    passos: [],
+  },
+];
+const DEMANDAS_DO_ANDAMENTO: ReadonlyArray<z.input<typeof criarDemandaSchema>> = ANDAMENTOS.map(({ titulo, contexto }) => ({
+  titulo,
+  tipo: 'melhoria' as const,
+  solicitanteNome: 'Pessoa Ficticia Produto',
+  solicitantePapel: 'produto' as const,
+  linhaServicoProvavel: 'sob_medida' as const,
+  contexto,
+}));
+
+// Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e, as das integrações (0.3.0) e as do andamento
+// (0.4.0).
+export const TOTAL_DEMANDAS_DO_SEED =
+  DEMANDAS.length + DEMANDAS_DO_E2E.length + DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length + DEMANDAS_DO_ANDAMENTO.length;
 
 const SISTEMA = { tipo: 'sistema' } as const;
 const agente = (a: AtorAgente['agente']): AtorAgente => ({ tipo: 'agente', agente: a, prefixoToken: null });
@@ -457,7 +556,65 @@ async function criarDadosDasIntegracoes(t: Transacao, deps: DepsDoSeed, { cto, s
       await receberPedido(deps, CONSTRUIR_DO_SEED, dec.id, sha256, t);
     }
   }
-  return DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length;
+  const doAndamento = await criarDadosDoAndamento(t, deps, { cto, sem2fa });
+  return DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length + doAndamento;
+}
+
+// 0.4.0 (DEC-DEM-20261111-0017-v1, T10): as demandas do andamento, pelos mesmos serviços da API, na transação do seed.
+// ESP, RSK e DEC da `sem2fa` (C-36), DEC de nível cto aprovado pela "cto" na opção A; depois, o que ANDAMENTOS manda. O
+// andamento entra direto (D-07: o serviço registrarAndamento não aceita a transação de quem chama, e nenhum token nasce
+// num banco semeado), com as regras dele: a trava da demanda, a transição da tabela do construir
+// (mudarStatusPeloConstruir), a linha nova com o prefixo `ficticio` e a hora do relógio, e o `andamento_registrado` só
+// quando muda o marco (A2). A trava do pedido não entra: a do seed já serializa tudo (G8, item 11).
+async function criarDadosDoAndamento(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: PessoasDoSeed): Promise<number> {
+  for (const [i, a] of ANDAMENTOS.entries()) {
+    const entrada = DEMANDAS_DO_ANDAMENTO[i];
+    if (!entrada) throw new Error('seed: demanda do andamento sem entrada');
+    const dem = await criarDemanda(deps, sem2fa, criarDemandaSchema.parse(entrada), t);
+    await criarEspecificacao(deps, sem2fa, dem.id, criarEspecificacaoSchema.parse(ESP_DO_E2E), t);
+    await criarParecerRisco(deps, sem2fa, dem.id, criarParecerRiscoSchema.parse(RSK_DO_E2E), t);
+    const dec = await criarPacoteDecisao(deps, sem2fa, dem.id, criarPacoteDecisaoSchema.parse({ ...DEC_DO_E2E, nivelAprovacaoRequerido: 'cto' }), t);
+    await registrarDecisao(deps, cto, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }), t);
+    if (a.pedido) {
+      await gerarPedido(deps, cto, dec.id, confirmacaoDoPedidoSchema.parse({ confirmaSemDadoPessoal: true }), t);
+      const { sha256 } = await entregarPedido(deps, CONSTRUIR_DO_SEED, dec.id, t);
+      await receberPedido(deps, CONSTRUIR_DO_SEED, dec.id, sha256, t);
+    }
+    if (a.pedido || a.emConstrucaoPelaPessoa) await alterarDemanda(deps, cto, dem.id, alterarDemandaSchema.parse({ status: 'aprovada' }), t);
+    if (a.emConstrucaoPelaPessoa) await alterarDemanda(deps, cto, dem.id, alterarDemandaSchema.parse({ status: 'em_construcao' }), t);
+    let anterior: EstadoDoAndamento | null = null;
+    for (const p of a.passos) {
+      const linha = await travarDemanda(t.tx, dem.id);
+      const novo: EstadoDoAndamento = { decId: dec.id, fase: p.fase, tarefasProntas: p.tarefasProntas, tarefasTotal: p.tarefasTotal, statusConstrucao: p.statusConstrucao };
+      await mudarStatusPeloConstruir(t, deps, CONSTRUIR_DO_SEED, linha, novo.statusConstrucao);
+      await t.tx.insert(andamentoConstrucao).values({
+        demandaId: linha.id,
+        decId: novo.decId,
+        fase: novo.fase,
+        tarefasProntas: novo.tarefasProntas,
+        tarefasTotal: novo.tarefasTotal,
+        statusConstrucao: novo.statusConstrucao,
+        atorTokenPrefixo: CONSTRUIR_DO_SEED.prefixoToken,
+        gravadoEm: deps.relogio.agora(),
+      });
+      if (mudancaDeMarco(anterior, novo))
+        await registrarEvento(
+          t.tx,
+          {
+            ator: CONSTRUIR_DO_SEED,
+            demandaId: linha.id,
+            entidade: 'pacote_decisao',
+            entidadeId: novo.decId,
+            acao: 'andamento_registrado',
+            antes: anterior ? marcoDoEvento(anterior) : null,
+            depois: marcoDoEvento(novo),
+          },
+          deps.relogio,
+        );
+      anterior = novo;
+    }
+  }
+  return DEMANDAS_DO_ANDAMENTO.length;
 }
 
 // 0.2.0 (T06): as versões das duas demandas do e2e que precisam de estado fixo, pelos mesmos serviços da API e do

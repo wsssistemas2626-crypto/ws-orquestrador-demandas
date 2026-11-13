@@ -2,7 +2,8 @@
 // V-01, D-09, G3.10).
 // (1) Pendência da 06-T15-revisao: o log do seed não leva título, decId, sha256, prefixo nem texto do Awave (G3.10).
 // (2) Minor 3 da revisão: o `TOTAL_DEMANDAS_DO_SEED - 5` de scripts.test.ts só vale se as cinco das integrações forem as
-//     últimas demandas criadas e os dois DECs delas vierem depois dos três de antes. Aqui isso fica conferido.
+//     últimas demandas criadas e os dois DECs delas vierem depois dos três de antes. Aqui isso fica conferido. Desde a
+//     0.4.0 (T10), as oito do andamento vêm depois delas, e o número de lá passou a 13.
 // (3) Minor 4 da revisão: as demandas dos dois pedidos têm o mesmo molde das demandas do e2e da 0.2.0.
 // (4) V-01 sobre o banco semeado, pelas três rotas e com token real do /construir, como o buscar-pedidos.mjs faz: o
 //     pedido a buscar é entregue (os bytes não mudam entre duas entregas), SHA errado dá 409, o certo tira da lista e a
@@ -39,6 +40,17 @@ const MINUTO = 60_000;
 const DO_AWAVE = [TITULOS_DO_E2E.awaveAguardando, TITULOS_DO_E2E.awaveConfirmar, TITULOS_DO_E2E.awaveEncerrada];
 const DOS_PEDIDOS = [TITULOS_DO_E2E.pedidoParaBuscar, TITULOS_DO_E2E.pedidoRecebido];
 const DA_T15: readonly string[] = [...DO_AWAVE, ...DOS_PEDIDOS];
+// 0.4.0 (T10 do DEC-DEM-20261111-0017-v1): as oito do andamento, na ordem em que o seed as cria.
+const DO_ANDAMENTO: readonly string[] = [
+  TITULOS_DO_E2E.andamentoConstruindo,
+  TITULOS_DO_E2E.andamentoRevisando,
+  TITULOS_DO_E2E.andamentoConcluido,
+  TITULOS_DO_E2E.andamentoCancelado,
+  TITULOS_DO_E2E.andamentoSemPlano,
+  TITULOS_DO_E2E.andamentoParaEnviar,
+  TITULOS_DO_E2E.andamentoSemPedido,
+  TITULOS_DO_E2E.emConstrucaoSemAndamento,
+];
 
 type Linha = Record<string, unknown>;
 const linhas = async (b: BancoDeTeste, sql: string, valores: unknown[] = []): Promise<Linha[]> => (await b.poolMigrator.query(sql, valores)).rows;
@@ -102,7 +114,9 @@ describe('seed das integrações: log, ordem de criação e molde (banco semeado
     expect(doSeed).toEqual([{ evento: 'seed_ficticio', status: 'semeado', quantidade: TOTAL_DEMANDAS_DO_SEED }]);
   });
 
-  it('Minor 3: as cinco das integrações são as últimas demandas criadas, e os dois DECs delas vêm depois dos três de antes', async () => {
+  // 0.4.0 (T10 do DEC-DEM-20261111-0017-v1): as oito do andamento vêm logo depois das cinco, e os oito DECs delas depois
+  // dos cinco de antes; o bloco das cinco fica imediatamente antes delas.
+  it('Minor 3: as cinco das integrações são as últimas demandas criadas antes das oito do andamento, e os dois DECs delas vêm depois dos três de antes', async () => {
     const ordem = (
       await linhas(
         b,
@@ -111,9 +125,12 @@ describe('seed das integrações: log, ordem de criação e molde (banco semeado
       )
     ).map((l) => l.titulo as string);
     expect(ordem).toHaveLength(TOTAL_DEMANDAS_DO_SEED);
-    // É o que dá sentido ao `TOTAL_DEMANDAS_DO_SEED - 5` de scripts.test.ts (terceiro aviso): o 5 é o tamanho deste bloco.
-    expect(ordem.slice(-DA_T15.length)).toEqual(DA_T15);
-    expect(ordem.slice(0, -DA_T15.length).filter((t) => DA_T15.includes(t))).toEqual([]);
+    // É o que dá sentido ao `TOTAL_DEMANDAS_DO_SEED - 13` de scripts.test.ts (terceiro aviso): o 13 é o tamanho deste
+    // bloco mais o das oito do andamento.
+    expect(ordem.slice(-DO_ANDAMENTO.length)).toEqual(DO_ANDAMENTO);
+    const antesDoAndamento = ordem.slice(0, -DO_ANDAMENTO.length);
+    expect(antesDoAndamento.slice(-DA_T15.length)).toEqual(DA_T15);
+    expect(antesDoAndamento.slice(0, -DA_T15.length).filter((t) => DA_T15.includes(t))).toEqual([]);
     const decsNaOrdem = (
       await linhas(
         b,
@@ -126,6 +143,7 @@ describe('seed das integrações: log, ordem de criação e molde (banco semeado
       TITULOS_DO_E2E.etapasDupla,
       TITULOS_DO_E2E.decisaoRecomendaB,
       ...DOS_PEDIDOS,
+      ...DO_ANDAMENTO,
     ]);
   });
 
