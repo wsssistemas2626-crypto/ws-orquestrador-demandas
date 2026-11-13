@@ -4,6 +4,7 @@
 // andamento/consultas.ts (T06, T12). Cada regra tem um caso plantado que a reprova.
 import { globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { importacoesDe } from './importacoes';
 
@@ -124,5 +125,71 @@ describe('andamento/consultas.ts (T06)', () => {
     ] as const;
     expect(importadoresDasConsultas(plantados)).toEqual(['src/app/x.ts', 'src/app/y.ts', 'src/app/z.ts', 'src/app/w.ts']);
     expect(importadoresDasConsultas(plantados).filter((a) => !IMPORTAM_CONSULTAS.includes(a))).toEqual(['src/app/x.ts', 'src/app/y.ts', 'src/app/z.ts', 'src/app/w.ts']);
+  });
+});
+
+// T07 (AN-06, lição da 0019): nenhum SET, transação própria, orçamento aninhado nem Promise.all no corpo do registro;
+// executarComOrcamento uma vez só, com `undefined` no lugar da transação, e o serviço sem parâmetro de transação; e o
+// mesmo nas duas funções que ele chama em outros arquivos. E as travas na ordem pedido → demanda → limite (ADR-32), com a
+// trava do pedido sendo a mesma da entrega e do recebimento.
+const REGISTRAR = 'src/modules/andamento/registrar.ts';
+export const PROIBIDOS_NO_PRAZO: readonly RegExp[] = [/set\s+local/i, /set_config/, /\bcomTransacao\s*\(/, /\bPromise\.all\s*\(/];
+
+// O corpo (e os parâmetros) da função declarada no nível do arquivo; vazio se não existir.
+export function funcaoDeclarada(arquivo: string, fonte: string, nome: string): { corpo: string; parametros: string[] } {
+  const sf = ts.createSourceFile(arquivo, fonte, ts.ScriptTarget.Latest, true);
+  let achada = { corpo: '', parametros: [] as string[] };
+  ts.forEachChild(sf, (n) => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === nome && n.body)
+      achada = { corpo: n.body.getText(sf), parametros: n.parameters.map((p) => p.name.getText(sf)) };
+  });
+  return achada;
+}
+
+// Posição da primeira chamada de cada função, na ordem pedida; -1 se faltar.
+export function posicoesDasChamadas(corpo: string, nomes: readonly string[]): number[] {
+  return nomes.map((n) => corpo.search(new RegExp(`\\b${n}\\s*\\(`)));
+}
+
+describe('AN-06: prazo total do registro, sem piso por cima (T07)', () => {
+  it('src/modules/andamento/**: nenhum SET, comTransacao nem Promise.all no código que roda', () => {
+    const doModulo = codigoQueRoda.filter((x) => x.startsWith('src/modules/andamento/'));
+    expect(doModulo).toContain(REGISTRAR);
+    for (const a of doModulo) for (const re of PROIBIDOS_NO_PRAZO) expect(ler(a), `${a} ${String(re)}`).not.toMatch(re);
+  });
+  it('registrar.ts: executarComOrcamento uma vez, com undefined; o serviço sem parâmetro de transação', () => {
+    const f = ler(REGISTRAR);
+    expect(f.match(/executarComOrcamento\(/g)).toHaveLength(1);
+    expect(f).toMatch(/executarComOrcamento\(deps\.pool, ator, 'padrao', undefined,/);
+    expect(f).not.toMatch(/\bt\?:\s*Transacao/);
+    expect(funcaoDeclarada(REGISTRAR, f, 'registrarAndamento').parametros).toEqual(['deps', 'ator', 'decId', 'corpo']);
+  });
+  it.each([
+    ['src/modules/demandas/transicoes.ts', 'mudarStatusPeloConstruir'],
+    ['src/modules/limites.ts', 'conferirLimiteDeAndamento'],
+  ])('%s: %s sem SET, transação própria, orçamento aninhado nem Promise.all', (arquivo, nome) => {
+    const { corpo } = funcaoDeclarada(arquivo, ler(arquivo), nome);
+    expect(corpo.length).toBeGreaterThan(0);
+    for (const re of [...PROIBIDOS_NO_PRAZO, /executarComOrcamento\s*\(/]) expect(corpo, String(re)).not.toMatch(re);
+  });
+  it('as travas: pedido → demanda → limite no registro; a do pedido é a mesma da entrega e do recebimento', () => {
+    const { corpo } = funcaoDeclarada(REGISTRAR, ler(REGISTRAR), 'registrarAndamento');
+    const [pedido, demanda, limite] = posicoesDasChamadas(corpo, ['travarPedido', 'travarDemanda', 'conferirLimiteDeAndamento']);
+    expect(pedido).toBeGreaterThanOrEqual(0);
+    expect(demanda).toBeGreaterThan(pedido!);
+    expect(limite).toBeGreaterThan(demanda!);
+    const daPendentes = (a: string) => importacoesDe(a, ler(a)).some((i) => i.nomes.includes('travarPedido') && /pedido-construcao\/pendentes$|^\.\/pendentes$/.test(i.origem));
+    for (const a of [REGISTRAR, 'src/modules/pedido-construcao/entregar.ts', 'src/modules/pedido-construcao/receber.ts']) expect(daPendentes(a), a).toBe(true);
+  });
+  it('as regras pegam o caso plantado', () => {
+    expect("await tx.execute(sql`set local lock_timeout = '9s'`)").toMatch(PROIBIDOS_NO_PRAZO[0]!);
+    expect("await c.query(\"select set_config('lock_timeout', $1, true)\")").toMatch(PROIBIDOS_NO_PRAZO[1]!);
+    expect('await comTransacao(deps.pool, async (t) => x)').toMatch(PROIBIDOS_NO_PRAZO[2]!);
+    expect('await Promise.all([a(), b()])').toMatch(PROIBIDOS_NO_PRAZO[3]!);
+    const plantada = 'export async function f(deps, ator, t) {\n  await travarDemanda(tx, d);\n  await travarPedido(tx, x);\n}\n';
+    expect(funcaoDeclarada('x.ts', plantada, 'f').parametros).toEqual(['deps', 'ator', 't']);
+    expect(funcaoDeclarada('x.ts', plantada, 'g')).toEqual({ corpo: '', parametros: [] });
+    const [p, d] = posicoesDasChamadas(funcaoDeclarada('x.ts', plantada, 'f').corpo, ['travarPedido', 'travarDemanda']);
+    expect(d).toBeLessThan(p!);
   });
 });
