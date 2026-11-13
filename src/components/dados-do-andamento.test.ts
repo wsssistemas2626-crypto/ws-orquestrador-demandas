@@ -166,3 +166,33 @@ describe('secaoDoAndamento (03, 5.2 e 5.3)', () => {
     expect(secaoDoAndamento(foraDaLista({ atualizadoEm: '2026-11-12' }), [], formatar)).toBeNull();
   });
 });
+
+// M1 da 06-T11-tech-lead, tratado na T13: movido de dados-das-etapas-andamento.test.ts na 06-T13-testes (M2 da
+// 06-T13-tech-lead), ao lado dos outros testes de secaoDoAndamento. Títulos e asserções iguais; o id é o DEC deste arquivo.
+describe('M1 da 06-T11-tech-lead: o decId da seção só como texto no formato de DEC', () => {
+  const comDecId = (decId: unknown): AndamentoVista => ({ ...andamento(), decId }) as unknown as AndamentoVista;
+
+  it('um objeto cujo texto casa o formato de DEC não vira link nem entra no alerta de substituído', () => {
+    const disfarce = { toString: () => DEC };
+    const s = secaoDoAndamento(comDecId(disfarce), [{ id: DEC, substituido: true }], formatar);
+    expect(s).not.toBeNull();
+    expect(s!.dec).toBeNull();
+    expect(s!.alertas).toEqual([]);
+  });
+
+  it('número, nulo e indefinido no decId: "Não informado" (dec null), sem alerta', () => {
+    for (const decId of [42, null, undefined]) {
+      const s = secaoDoAndamento(comDecId(decId), [], formatar);
+      expect(s!.dec).toBeNull();
+      expect(s!.alertas).toEqual([]);
+    }
+  });
+
+  it('andamento ausente (vista montada sem a chave, como numa fixture de antes da 0.4.0) ou que não é objeto: sem seção, sem lançar', () => {
+    for (const a of [undefined, 'construindo', 42]) expect(secaoDoAndamento(a as unknown as AndamentoVista, [], formatar)).toBeNull();
+  });
+
+  it('o texto no formato continua com o link', () => {
+    expect(secaoDoAndamento(comDecId(DEC), [], formatar)!.dec).toEqual({ id: DEC, href: `/pacotes-decisao/${DEC}` });
+  });
+});

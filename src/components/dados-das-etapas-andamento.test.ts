@@ -3,11 +3,11 @@
 // `construido`. Fora disso, as linhas de hoje: 11 em Em construção, 12 em Devolvida, 1 em Entregue. Mesmo molde de
 // fixture de dados-das-etapas.test.ts (DEC v1 aprovado vigente); dados só fictícios.
 //
-// E o M1 da 06-T11-tech-lead: a seção do andamento só leva ao link e ao texto um decId que é texto no formato de DEC.
+// Os testes do M1 da 06-T11-tech-lead (o decId da seção só como texto no formato de DEC) exercitam secaoDoAndamento e
+// foram movidos, sem mudar asserção, para dados-do-andamento.test.ts na 06-T13-testes (M2 da 06-T13-tech-lead).
 import { describe, expect, it } from 'vitest';
 import type { AndamentoVista } from '../modules/andamento/schemas';
 import { proximaAcao, type DadosDasEtapas, type ProximaAcao } from './dados-das-etapas';
-import { secaoDoAndamento } from './dados-do-andamento';
 
 const ID = 'DEM-20991231-0042';
 const QUANDO = new Date('2099-12-31T09:00:00Z');
@@ -111,35 +111,5 @@ describe('Próxima ação, linha 15 (RF-07; 03, 5.6)', () => {
   it('a linha 2 (agente trabalhando) continua vencendo a 15', () => {
     const x = dados('em_construcao', { decId: idDec(1), statusConstrucao: 'construido' });
     expect(proximaAcao({ ...x, demanda: { ...x.demanda, agentesEmAndamento: [{ agente: 'risco', status: 'em_andamento' }] } }).linha).toBe(2);
-  });
-});
-
-describe('M1 da 06-T11-tech-lead: o decId da seção só como texto no formato de DEC', () => {
-  const formatar = (d: Date) => d.toISOString();
-  const andamento = (decId: unknown): AndamentoVista =>
-    ({ decId, fase: 'construindo', tarefasProntas: 9, tarefasTotal: 17, statusConstrucao: 'em_construcao', atualizadoEm: QUANDO }) as unknown as AndamentoVista;
-
-  it('um objeto cujo texto casa o formato de DEC não vira link nem entra no alerta de substituído', () => {
-    const disfarce = { toString: () => idDec(1) };
-    const s = secaoDoAndamento(andamento(disfarce), [{ id: idDec(1), substituido: true }], formatar);
-    expect(s).not.toBeNull();
-    expect(s!.dec).toBeNull();
-    expect(s!.alertas).toEqual([]);
-  });
-
-  it('número, nulo e indefinido no decId: "Não informado" (dec null), sem alerta', () => {
-    for (const decId of [42, null, undefined]) {
-      const s = secaoDoAndamento(andamento(decId), [], formatar);
-      expect(s!.dec).toBeNull();
-      expect(s!.alertas).toEqual([]);
-    }
-  });
-
-  it('andamento ausente (vista montada sem a chave, como numa fixture de antes da 0.4.0) ou que não é objeto: sem seção, sem lançar', () => {
-    for (const a of [undefined, 'construindo', 42]) expect(secaoDoAndamento(a as unknown as AndamentoVista, [], formatar)).toBeNull();
-  });
-
-  it('o texto no formato continua com o link', () => {
-    expect(secaoDoAndamento(andamento(idDec(1)), [], formatar)!.dec).toEqual({ id: idDec(1), href: `/pacotes-decisao/${idDec(1)}` });
   });
 });
