@@ -44,7 +44,7 @@ import {
   TEXTOS_FILA,
 } from './fila';
 import { AvisoDaFila, FiltrosFila } from './FiltrosFila';
-import { contagemOuNada, etapasDaPagina } from './leituras-da-fila';
+import { andamentosDaPagina, contagemOuNada, etapasDaPagina } from './leituras-da-fila';
 
 export const metadata: Metadata = { title: 'Demandas' };
 
@@ -63,7 +63,10 @@ async function ListaDaFila({ filtro }: { filtro: FiltroDemandas }) {
     log.error({ evento: 'painel_fila_falhou', rota: '/demandas', erro: e });
     return <ErroDaFila />;
   }
-  return <ResultadoDaFila filtro={filtro} itens={lista.itens} total={lista.total} etapas={etapas} agora={agora} />;
+  // 0.4.0 (T12 do DEC-DEM-20261111-0017-v1; 03, 4.4): o andamento das demandas da página, fora do `try` da lista. A falha
+  // dele não é o erro da lista: vem null, e a fila aparece sem selo de fase e com o aviso (o log é o de andamentosDaPagina).
+  const andamentos = await andamentosDaPagina(deps.db, lista.itens.map((d) => d.id));
+  return <ResultadoDaFila filtro={filtro} itens={lista.itens} total={lista.total} etapas={etapas} agora={agora} andamentos={andamentos} />;
 }
 
 // Os contadores com a contagem do tipo, da linha e da origem da URL; contagem que falhou (null) deixa os botões sem

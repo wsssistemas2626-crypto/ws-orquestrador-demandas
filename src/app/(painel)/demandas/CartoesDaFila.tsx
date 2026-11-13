@@ -4,11 +4,16 @@
 // é link; só o id é. O título é texto de terceiro: só por expressão JSX e isolado por <bdi> (CV-18).
 //
 // Também ficam aqui as células que a tabela e o cartão dividem (idade, urgência e etapas), para os dois mostrarem o mesmo.
+//
+// 0.4.0 (T12 do DEC-DEM-20261111-0017-v1; 03, 4.1): o selo de fase (SeloDaFase), um pedaço só para a célula Status da
+// tabela e o topo do cartão, abaixo do selo de status. Recebe só o AndamentoVista já conferido (D-16).
 import Link from 'next/link';
+import { seloDeFase, type SeloDeFase } from '../../../components/dados-do-andamento';
 import { idadeDaDemanda } from '../../../components/dados-da-fila';
 import { MarcasDeEtapa } from '../../../components/MarcasDeEtapa';
 import { COR_STATUS, ROTULO_LINHA, ROTULO_ORIGEM, ROTULO_STATUS, ROTULO_TIPO, ROTULO_URGENCIA, SELO_RASCUNHO } from '../../../components/rotulos';
 import { Selo } from '../../../components/Selo';
+import type { AndamentoVista } from '../../../modules/andamento/schemas';
 import type { DemandaResumo } from '../../../modules/demandas/consultas';
 import type { EtapasNaFila } from '../../../modules/demandas/resumo-da-fila';
 
@@ -56,19 +61,46 @@ export function UrgenciaDaDemanda({ urgencia }: { urgencia: Urgencia | null }) {
   );
 }
 
+// O andamento de uma demanda da página; sem a entrada no mapa (sem andamento, fora do esquema ou leitura que falhou),
+// null: sem selo.
+export const andamentoDe = (andamentos: ReadonlyMap<string, AndamentoVista> | null, id: string): AndamentoVista | null => andamentos?.get(id) ?? null;
+
+// A cor por mapa fixo de classes escritas por inteiro (o Tailwind as encontra), sem style= (CV-02).
+const COR_DA_FASE: Readonly<Record<SeloDeFase['cor'], string>> = { marinho: 'text-marinho', positivo: 'text-positivo', 'tinta-media': 'text-tinta-media' };
+
+// O selo de fase (03, 4.1): o texto visível escondido do leitor de tela e, logo depois, o texto do leitor em sr-only.
+// Só com a demanda em Em construção e andamento válido (seloDeFase); fora disso, nada.
+export function SeloDaFase({ status, andamento }: { status: DemandaResumo['status']; andamento: AndamentoVista | null }) {
+  const selo = seloDeFase(status, andamento);
+  if (selo === null) return null;
+  return (
+    <span className="flex flex-col">
+      <span aria-hidden="true" className={`text-[0.8125rem] font-semibold ${COR_DA_FASE[selo.cor]}`}>
+        {selo.visivel}
+      </span>
+      <span className="sr-only">{selo.leitor}</span>
+    </span>
+  );
+}
+
 // A etiqueta da 03, 2.3 (Mono 12 / 600, caixa alta por CSS, +0,08 em), num lugar só: o cartão daqui, a etiqueta "Fila"
 // acima do h1 da T03 e os termos dos dados da T05 (Minor 2 da 06-T09-tech-lead).
 export const CLASSE_DA_ETIQUETA = 'font-mono text-xs font-semibold uppercase tracking-[0.08em] text-tinta-media';
 const ETIQUETA = CLASSE_DA_ETIQUETA;
 
-function CartaoDeDemanda({ d, etapas, agora }: { d: DemandaResumo; etapas: EtapasNaFila; agora: Date }) {
+function CartaoDeDemanda({ d, etapas, agora, andamento }: { d: DemandaResumo; etapas: EtapasNaFila; agora: Date; andamento: AndamentoVista | null }) {
   return (
     <li className="flex flex-col gap-2 rounded-cartao border border-linha bg-branco p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Link className="inline-flex min-h-11 items-center font-mono text-[0.8125rem] font-semibold text-acao-escura underline underline-offset-2 [overflow-wrap:anywhere]" href={`/demandas/${d.id}`}>
           {d.id}
         </Link>
-        <Selo cor={COR_STATUS[d.status]}>{ROTULO_STATUS[d.status]}</Selo>
+        {/* 0.4.0 (03, 4.1 item 5): selo de status e, abaixo, o de fase, empilhados à direita; sem espaço (320 px), o bloco
+            quebra para a linha de baixo, à esquerda. */}
+        <span className="flex flex-col items-end gap-1 text-right">
+          <Selo cor={COR_STATUS[d.status]}>{ROTULO_STATUS[d.status]}</Selo>
+          <SeloDaFase status={d.status} andamento={andamento} />
+        </span>
       </div>
       <h3 className="[overflow-wrap:anywhere]">
         <bdi>{d.titulo}</bdi>
@@ -116,13 +148,14 @@ function CartaoDeDemanda({ d, etapas, agora }: { d: DemandaResumo; etapas: Etapa
   );
 }
 
-type Props = { itens: readonly DemandaResumo[]; etapas: ReadonlyMap<string, EtapasNaFila>; agora: Date };
+// 0.4.0: `andamentos` é o mapa de andamentosDaPagina; ausente ou null, nenhum selo de fase.
+type Props = { itens: readonly DemandaResumo[]; etapas: ReadonlyMap<string, EtapasNaFila>; agora: Date; andamentos?: ReadonlyMap<string, AndamentoVista> | null };
 
-export function CartoesDaFila({ itens, etapas, agora }: Props) {
+export function CartoesDaFila({ itens, etapas, agora, andamentos = null }: Props) {
   return (
     <ul aria-labelledby={ID_RESULTADO} className="flex flex-col gap-3 md:hidden">
       {itens.map((d) => (
-        <CartaoDeDemanda key={d.id} d={d} etapas={etapasDe(etapas, d.id)} agora={agora} />
+        <CartaoDeDemanda key={d.id} d={d} etapas={etapasDe(etapas, d.id)} agora={agora} andamento={andamentoDe(andamentos, d.id)} />
       ))}
     </ul>
   );

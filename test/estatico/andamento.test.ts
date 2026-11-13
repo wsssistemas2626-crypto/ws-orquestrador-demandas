@@ -193,3 +193,54 @@ describe('AN-06: prazo total do registro, sem piso por cima (T07)', () => {
     expect(d).toBeLessThan(p!);
   });
 });
+
+// T12 (C-04, D-12; 03, 4.4): a página da fila lê o andamento só dentro de ListaDaFila, o componente que PaginaDemandas
+// devolve depois da guarda (exigirPessoaNaPagina e autorizar 'listar_demandas', conferida em leituras-da-fila.test.ts), e
+// fora do `try` da lista: a falha da leitura do andamento não é o erro da lista.
+const PAGINA_DA_FILA = 'src/app/(painel)/demandas/page.tsx';
+
+// O que reprova na leitura do andamento pela página; lista vazia = certo.
+export function achadosDoAndamentoNaPagina(fonte: string): string[] {
+  const sf = ts.createSourceFile(PAGINA_DA_FILA, fonte, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let lista: ts.FunctionDeclaration | undefined;
+  ts.forEachChild(sf, (n) => {
+    if (ts.isFunctionDeclaration(n) && n.name?.text === 'ListaDaFila' && n.body) lista = n;
+  });
+  if (!lista) return ['sem ListaDaFila'];
+  const chamadas: { naLista: boolean; noTry: boolean }[] = [];
+  const visitar = (n: ts.Node, naLista: boolean, noTry: boolean): void => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'andamentosDaPagina') chamadas.push({ naLista, noTry });
+    const dentro = naLista || n === lista;
+    if (ts.isTryStatement(n)) {
+      visitar(n.tryBlock, dentro, true);
+      if (n.catchClause) visitar(n.catchClause, dentro, noTry);
+      if (n.finallyBlock) visitar(n.finallyBlock, dentro, noTry);
+      return;
+    }
+    ts.forEachChild(n, (f) => visitar(f, dentro, noTry));
+  };
+  visitar(sf, false, false);
+  const achados: string[] = [];
+  if (!chamadas.some((c) => c.naLista)) achados.push('sem andamentosDaPagina( em ListaDaFila');
+  if (chamadas.some((c) => !c.naLista)) achados.push('andamentosDaPagina( fora de ListaDaFila');
+  if (chamadas.some((c) => c.noTry)) achados.push('andamentosDaPagina( dentro de um try');
+  return achados;
+}
+
+describe('T12: a fila lê o andamento por página, em ListaDaFila', () => {
+  it('page.tsx chama andamentosDaPagina( dentro de ListaDaFila, fora do try da lista', () => {
+    expect(codigoQueRoda).toContain(PAGINA_DA_FILA);
+    expect(achadosDoAndamentoNaPagina(ler(PAGINA_DA_FILA))).toEqual([]);
+  });
+  it('a regra pega o caso plantado', () => {
+    const lista = (corpo: string) => `async function ListaDaFila() {\n${corpo}\n}\nexport default async function PaginaDemandas() { return <ListaDaFila />; }`;
+    const certo = 'try { x = await listarDemandas(db); } catch { return <ErroDaFila />; }\nconst andamentos = await andamentosDaPagina(db, ids);\nreturn <R />;';
+    expect(achadosDoAndamentoNaPagina(lista(certo))).toEqual([]);
+    expect(achadosDoAndamentoNaPagina(lista('try { x = await listarDemandas(db); } catch { return null; }\nreturn <R />;'))).toEqual(['sem andamentosDaPagina( em ListaDaFila']);
+    expect(achadosDoAndamentoNaPagina(lista('try { x = await listarDemandas(db); a = await andamentosDaPagina(db, ids); } catch { return null; }\nreturn <R />;'))).toEqual([
+      'andamentosDaPagina( dentro de um try',
+    ]);
+    expect(achadosDoAndamentoNaPagina(`${lista(certo)}\nasync function Outra() { await andamentosDaPagina(db, ids); }`)).toEqual(['andamentosDaPagina( fora de ListaDaFila']);
+    expect(achadosDoAndamentoNaPagina('export default async function PaginaDemandas() { await andamentosDaPagina(db, ids); }')).toEqual(['sem ListaDaFila']);
+  });
+});
