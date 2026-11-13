@@ -65,6 +65,10 @@ const PISO: Readonly<Record<string, number>> = {
   'src/modules/andamento/registrar.test.ts': 56,
   'src/modules/andamento/registrar-concorrencia.test.ts': 36,
   'src/modules/andamento/registrar-prazo.test.ts': 6,
+  // T08 do DEC-DEM-20261111-0017-v1 (AN-01 c e d, AN-02, AN-03, AN-07 e AN-11 pela rota): contado no fim da tarefa.
+  'src/app/api/pedidos-construcao/andamento.test.ts': 95,
+  'src/app/api/pedidos-construcao/andamento-422.test.ts': 11,
+  'test/transversal/sentinelas-andamento.test.ts': 20,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
