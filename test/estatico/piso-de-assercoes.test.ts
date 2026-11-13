@@ -77,6 +77,13 @@ const PISO: Readonly<Record<string, number>> = {
   // 06-T09-testes do DEC-DEM-20261111-0017-v1 (qa-automacao; AN-09 por ator, andamento de cada demanda, CA-04.6 campo a campo).
   'src/app/api/demandas/leitura-andamento-qa.test.ts': 32,
   'src/app/api/demandas/leitura-andamento-fora-do-esquema-qa.test.ts': 14,
+  // 06-T11-testes do DEC-DEM-20261111-0017-v1 (qa-automacao; AN-12 na tela, CA-06.5, CA-08.4, CV-09): os dois da T11,
+  // que a construção não contou, e os três da etapa, contados ao fim da etapa.
+  'src/components/rotulos-andamento.test.ts': 14,
+  'src/components/dados-do-andamento.test.ts': 51,
+  'src/components/rotulos-andamento-qa.test.ts': 27,
+  'src/components/dados-do-andamento-qa.test.ts': 50,
+  'test/estatico/dados-do-andamento.test.ts': 22,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
