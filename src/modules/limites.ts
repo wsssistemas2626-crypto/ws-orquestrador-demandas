@@ -9,7 +9,7 @@
 // Integração sem limite definido para o tipo lança (nunca "sem limite"); só o sistema sai sem contar.
 import { and, count, eq, gt, sql } from 'drizzle-orm';
 import type { Db } from '../db';
-import { demanda, especificacaoTecnica, pacoteDecisao, parecerRisco } from '../db/schema';
+import { andamentoConstrucao, demanda, especificacaoTecnica, pacoteDecisao, parecerRisco } from '../db/schema';
 import type { AutorDemanda } from '../db/schema/demandas';
 import { ErroDominio } from '../lib/erros';
 import type { Relogio } from '../lib/relogio';
@@ -98,4 +98,42 @@ export async function conferirLimite(tx: Db, ator: Ator, tipo: TipoLimite, relog
   let total = 0;
   for (const tabela of tabelas) total += await contar(tx, tabela, a, desde);
   if (total >= limite.maximo) throw new ErroDominio('limite_excedido', limite.mensagem);
+}
+
+// 0.4.0 (RF-12, ADR-31, AN-07): limite próprio do /construir para registrar andamento, contado nas linhas de
+// andamento_construcao (só gravação conta; o envio no mesmo estado não grava e não chega aqui). Mudar os números é
+// decisão de Fabiano, por pedido (ADR-24; P-03 de 12/11/2026). Fora da tabela de limiteDe de propósito: aqui não há
+// ramo que saia sem contar (todo ator que não é o construir lança antes da trava, AN-08 c).
+export const LIMITE_ANDAMENTO = Object.freeze({
+  porDec: Object.freeze({ maximo: 60, mensagem: 'Limite de 60 registros de andamento por hora deste pedido atingido. Tente de novo mais tarde.' }),
+  total: Object.freeze({ maximo: 600, mensagem: 'Limite de 600 registros de andamento por hora do /construir atingido. Tente de novo mais tarde.' }),
+});
+
+// Uma trava só para as gravações de andamento: o total de 600 só é exato com elas em fila (04, seção 4). Chave literal,
+// por parâmetro (G3.6). Última da ordem pedido → demanda → limite (ADR-32).
+export const TRAVA_DO_LIMITE_DE_ANDAMENTO = 'limite:andamento:integracao:construir';
+
+const semLimiteDeAndamento = () => new Error('limite: só o /construir registra andamento');
+
+export async function conferirLimiteDeAndamento(tx: Db, ator: Ator, decId: string, relogio: Relogio): Promise<void> {
+  switch (ator.tipo) {
+    case 'integracao':
+      if (ator.integracao !== 'construir') throw semLimiteDeAndamento();
+      break;
+    case 'pessoa':
+    case 'agente':
+    case 'sistema':
+      throw semLimiteDeAndamento();
+    default:
+      return atorDesconhecido(ator);
+  }
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${TRAVA_DO_LIMITE_DE_ANDAMENTO}, 0))`);
+  const desde = new Date(relogio.agora().getTime() - JANELA_MS);
+  const [doDec] = await tx
+    .select({ n: count() })
+    .from(andamentoConstrucao)
+    .where(and(eq(andamentoConstrucao.decId, decId), gt(andamentoConstrucao.gravadoEm, desde)));
+  if ((doDec?.n ?? 0) >= LIMITE_ANDAMENTO.porDec.maximo) throw new ErroDominio('limite_excedido', LIMITE_ANDAMENTO.porDec.mensagem);
+  const [todos] = await tx.select({ n: count() }).from(andamentoConstrucao).where(gt(andamentoConstrucao.gravadoEm, desde));
+  if ((todos?.n ?? 0) >= LIMITE_ANDAMENTO.total.maximo) throw new ErroDominio('limite_excedido', LIMITE_ANDAMENTO.total.mensagem);
 }

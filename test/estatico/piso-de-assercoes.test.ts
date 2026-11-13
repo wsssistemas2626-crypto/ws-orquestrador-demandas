@@ -50,6 +50,8 @@ const PISO: Readonly<Record<string, number>> = {
   // 06-T02-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-01): contado ao fim da etapa.
   'src/modules/acesso/matriz-andamento-qa.test.ts': 31,
   'test/estatico/andamento-qa.test.ts': 13,
+  // T03 do DEC-DEM-20261111-0017-v1 (AN-07, AN-08 c): contado no fim da tarefa.
+  'src/modules/limites-andamento.test.ts': 12,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
