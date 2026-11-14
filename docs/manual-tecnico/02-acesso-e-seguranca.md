@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 13/11/2026 (0.4.0: ação `registrar_andamento`, só do `construir`, na matriz e na tabela das integrações; limite próprio do andamento; a sétima chave, `andamento`, na vista do Awave); 12/11/2026 (0.3.1: prazo total nas transações das integrações, contando a espera por conexão, em "Tempo limite"; demanda do Awave não confirmada invisível para agente e `sistema`, na matriz); 12/11/2026 (0.3.0: atores de integração `awave` e `construir`, token de integração, matriz com a coluna das integrações e as quatro ações novas, tempo limite e 503 das integrações, Bearer sem `Origin`); 04/11/2026 (0.1.11: nome grudado na vista mínima, `reduzirErro`, `lerCode`, `erroJaReduzido` e `mapearErro` sem lançar, `ehErro` e `lerDigest`, `stack` lido uma vez no envio ao Sentry); 04/11/2026 (0.1.10: partes do nome do solicitante na vista mínima, `name` do erro lido uma vez e só como texto, marca do Sentry depois do envio); 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
+| Atualizado em | 14/11/2026 (0.4.1: ação `ler_situacao_pedido`, só do `construir`, na matriz e na tabela das integrações; 25 ações); 13/11/2026 (0.4.0: ação `registrar_andamento`, só do `construir`, na matriz e na tabela das integrações; limite próprio do andamento; a sétima chave, `andamento`, na vista do Awave); 12/11/2026 (0.3.1: prazo total nas transações das integrações, contando a espera por conexão, em "Tempo limite"; demanda do Awave não confirmada invisível para agente e `sistema`, na matriz); 12/11/2026 (0.3.0: atores de integração `awave` e `construir`, token de integração, matriz com a coluna das integrações e as quatro ações novas, tempo limite e 503 das integrações, Bearer sem `Origin`); 04/11/2026 (0.1.11: nome grudado na vista mínima, `reduzirErro`, `lerCode`, `erroJaReduzido` e `mapearErro` sem lançar, `ehErro` e `lerDigest`, `stack` lido uma vez no envio ao Sentry); 04/11/2026 (0.1.10: partes do nome do solicitante na vista mínima, `name` do erro lido uma vez e só como texto, marca do Sentry depois do envio); 04/11/2026 (0.1.9: classe e `code` do erro reduzido com regra mais estreita, `CLASSES_DO_PROJETO` e envio único ao Sentry por objeto de erro); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para quem não é pessoa e `normalizarErro` reduzindo objeto que não é `Error`; 0.1.7: vista mínima nas leituras de ESP, RSK e DEC, console para o Sentry e erro reduzido no `onRequestError`; 0.1.6: registro do erro de tela, console saneado, `ErroLeituraSessao` e vista mínima do agente) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-01, RF-02, RNF-10, RNF-12, RNF-13; controles C-01 a C-21 de `04-seguranca-aplicacao.md`; RF-01 a RF-03, RF-09 e RF-11 do pedido 0016 (0.3.0) e os controles IN-01 a IN-04, IN-09, IN-14 e IN-15 dele; RF-01, RF-10 e RF-12 do pedido 0017 (0.4.0) e os controles AN-01, AN-07 e AN-09 dele |
 | Fontes no código | `src/modules/acesso/` (`auth.ts`, `exigir-pessoa.ts`, `resolver-ator.ts`, `tokens-servico.ts`, `matriz.ts`, `ator.ts`, `bloqueio-verificacao.ts`), `src/modules/integracoes/tempo-limite.ts`, `src/db/transacao.ts` (desde a 0.3.1), `src/modules/demandas/confirmacao.ts` (desde a 0.3.1), `src/modules/limites.ts`, `src/db/schema/acesso.ts`, `src/lib/rota.ts`, `src/lib/erros.ts`, `src/lib/env.ts`, `src/lib/log.ts`, `src/lib/reduzir-erro.ts`, `src/lib/sentry.ts`, `src/lib/console-saneado.ts`, `src/instrumentation.ts` |
@@ -59,7 +59,7 @@ teto, no uso de IA, em `configuracao_agente` nem em `GET /api/agentes` (RF-11 do
 | Integração | Quem é | Ações | Para quê |
 |---|---|---|---|
 | `awave` | o Awave (agentes da empresa, serviço `empresa-ia`) | `criar_demanda`, `ler_demanda` | abrir demanda quando o dono aprova em `/aprovacoes` do Awave, e ler as que ele mesmo criou ([cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)) |
-| `construir` | a busca automática do `/construir` (CA-F-01) e, desde a 0.4.0, o envio do andamento | `listar_pedidos_pendentes`, `entregar_pedido`, `confirmar_recebimento_pedido` e, desde a 0.4.0, `registrar_andamento` | buscar o Pedido de Construção que uma pessoa gerou no painel, sem cópia manual ([cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030)); informar a fase e as tarefas prontas da construção, o que pode mudar o status da demanda em dois casos ([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)) |
+| `construir` | a busca automática do `/construir` (CA-F-01) e, desde a 0.4.0, o envio do andamento | `listar_pedidos_pendentes`, `entregar_pedido`, `confirmar_recebimento_pedido`, desde a 0.4.0 `registrar_andamento` e, desde a 0.4.1, `ler_situacao_pedido` | buscar o Pedido de Construção que uma pessoa gerou no painel, sem cópia manual ([cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030)); informar a fase e as tarefas prontas da construção, o que pode mudar o status da demanda em dois casos ([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)); perguntar se o DEC de um pedido continua vigente ou foi substituído ([cap. 05](05-pedido-de-construcao.md#situação-do-pedido-041)) |
 
 - **Token:** o mesmo formato, a mesma geração e o mesmo hash do token de agente (`wsod_` + 32 bytes; no banco, só o
   SHA-256 e o prefixo de 8 caracteres), na mesma tabela `token_servico`. A linha tem dono agente **ou** integração,
@@ -74,7 +74,7 @@ teto, no uso de IA, em `configuracao_agente` nem em `GET /api/agentes` (RF-11 do
   integração e o prefixo do token (`evento_ator_integracao_check`). O histórico do painel mostra "Awave (prefixo …)" ou
   "/construir (prefixo …)", só com prefixo no formato `^[A-Za-z0-9_-]{8}$`. Nunca o token, o hash nem o SHA-256.
 - **Limite:** o Awave cria no máximo 10 demandas em 60 minutos ([cap. 03](03-demandas.md#rf-03-criar-demanda)). O
-  `construir` não tem limite de taxa na busca, na entrega nem no recebimento. Integração sem limite definido no código
+  `construir` não tem limite de taxa na busca, na entrega, no recebimento nem, desde a 0.4.1, na situação do pedido. Integração sem limite definido no código
   lança erro, e nunca fica "sem limite" (`limiteDe`, IN-09). Desde a 0.4.0, o `registrar_andamento` tem limite
   próprio, fora de `limiteDe`: 60 gravações por DEC e 600 no total por hora, e só o `construir` passa por ele
   (`conferirLimiteDeAndamento`; qualquer outro ator lança erro antes de contar,
@@ -104,8 +104,9 @@ teto, no uso de IA, em `configuracao_agente` nem em `GET /api/agentes` (RF-11 do
 `autorizar(ator, acao)` (`matriz.ts`) é a única porta. Ação, agente, integração ou papel desconhecido é negado. O ator
 `sistema` não passa em nenhuma ação: as mudanças automáticas de status usam funções internas que não chamam
 `autorizar`. Desde a 0.3.0, cada linha tem também a lista das integrações (`integracoes`), vazia por padrão: ação nova
-nasce negada para toda integração (IN-01). Só seis pares abrem: cinco desde a 0.3.0 e, desde a 0.4.0,
-`construir` em `registrar_andamento`. São 24 ações. O `construir` tem exatamente quatro, e o `awave`, duas.
+nasce negada para toda integração (IN-01). Só sete pares abrem: cinco desde a 0.3.0, desde a 0.4.0 `construir` em
+`registrar_andamento` e, desde a 0.4.1, `construir` em `ler_situacao_pedido`. São 25 ações. O `construir` tem
+exatamente cinco, e o `awave`, duas (testes de pares exatos, montados a partir da `MATRIZ`).
 
 | Ação | Pessoa | Agente | Integração |
 |---|---|---|---|
@@ -122,6 +123,7 @@ nasce negada para toda integração (IN-01). Só seis pares abrem: cinco desde a
 | `alterar_agente`, `alterar_teto` | só `cto` | nenhum | nenhuma |
 | `listar_pedidos_pendentes`, `entregar_pedido`, `confirmar_recebimento_pedido` (desde a 0.3.0) | nenhuma | nenhum | `construir` |
 | `registrar_andamento` (desde a 0.4.0) | nenhuma | nenhum | `construir` ([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)) |
+| `ler_situacao_pedido` (desde a 0.4.1) | nenhuma | nenhum | `construir` ([cap. 05](05-pedido-de-construcao.md#situação-do-pedido-041)); o 403 dos outros atores sai sem consulta ao banco |
 
 A autoria (quem criou, em nome de quem aprovou, se é rascunho de agente) vem sempre do ator resolvido. Nenhum schema
 de entrada tem campo de autoria, e o Zod descarta chave desconhecida (C-11).

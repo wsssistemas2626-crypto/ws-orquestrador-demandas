@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 12/11/2026 (0.3.1: recusa da demanda do Awave não confirmada para o agente, antes do status final e do limite, na ordem da criação); 10/11/2026 (0.1.13: o DEC aprovado mais novo substitui o anterior, no lugar da recusa da A-02, com a recusa do DEC só do CTO sobre um aprovado de dupla aprovação, no RF-13 e no RF-14); 04/11/2026 (0.1.10: nomes do 201 tirados da demanda travada nos três `POST` e guarda dos `extras` também em `criarPacoteDecisaoComNomes`, no RF-10); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` e teste estático dos `extras` do DEC, no RF-10); 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
+| Atualizado em | 14/11/2026 (0.4.1: arquivar o DEC mais novo com um aprovado em vigor deixa de encerrar a demanda, no passo 8 do RF-13 e na seção nova "Arquivar o DEC mais novo"; textos revistos do 409 do S-01 e da T11 do substituído; regra de uso do S-02 com a rota de situação; S-03 e S-04 em "Limite conhecido"); 12/11/2026 (0.3.1: recusa da demanda do Awave não confirmada para o agente, antes do status final e do limite, na ordem da criação); 10/11/2026 (0.1.13: o DEC aprovado mais novo substitui o anterior, no lugar da recusa da A-02, com a recusa do DEC só do CTO sobre um aprovado de dupla aprovação, no RF-13 e no RF-14); 04/11/2026 (0.1.10: nomes do 201 tirados da demanda travada nos três `POST` e guarda dos `extras` também em `criarPacoteDecisaoComNomes`, no RF-10); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` e teste estático dos `extras` do DEC, no RF-10); 03/11/2026 (0.1.6: decisão recusada em demanda em status final, no RF-13) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-08 a RF-14 |
-| Fontes no código | `src/modules/especificacoes/`, `src/modules/pareceres-risco/`, `src/modules/pacotes-decisao/` (`criar.ts`, `decidir.ts`, `desatualizado.ts`, `substituido.ts`, `consultas.ts`, `schemas.ts`), `src/modules/demandas/consultas.ts` (`PacoteResumo`), `src/modules/historico/registrar.ts`, `src/modules/versoes.ts`, `drizzle/0003_rls_privilegios_dominio.sql` |
+| Fontes no código | `src/modules/especificacoes/`, `src/modules/pareceres-risco/`, `src/modules/pacotes-decisao/` (`criar.ts`, `decidir.ts`, `desatualizado.ts`, `substituido.ts`, `consultas.ts`, `schemas.ts`), `src/modules/demandas/consultas.ts` (`PacoteResumo`), desde a 0.4.1 `src/modules/demandas/arquivamento.ts` e `mudarStatusPorArquivamento` (`src/modules/demandas/transicoes.ts`), `src/modules/historico/registrar.ts`, `src/modules/versoes.ts`, `drizzle/0003_rls_privilegios_dominio.sql` |
 
 Toda gravação de ESP, RSK ou DEC é uma versão nova. Criar, decidir e gerar o Pedido fazem `SELECT … FOR UPDATE` na
 linha da demanda:
@@ -159,12 +159,15 @@ Conferências, nesta ordem, dentro de uma transação:
    "outro pacote desta demanda já está aprovado." (A-02 da 08); a mensagem saiu do código;
 6. aprovar DEC desatualizado → 409;
 7. o DEC cita rascunho de agente e `revisouRascunhosDeAgente` não é `true` → 400 no campo;
-8. `devolvida` ou `arquivada`: grava a decisão, e a demanda muda pelo ator `sistema` (`em_analise` ou `encerrada`);
+8. `devolvida`: grava a decisão, e a demanda vai a `em_analise` pelo ator `sistema` (transição `decisao_devolvida`).
+   `arquivada`: grava a decisão, lê o aprovado vigente sob a trava e muda a demanda pelo ator `sistema` conforme a
+   tabela de [Arquivar o DEC mais novo](#arquivar-o-dec-mais-novo-041) (desde a 0.4.1: `aprovada`, `em_analise`,
+   `encerrada` ou nada);
 9. `aprovada`: as regras de papel e nível abaixo.
 
 A matriz vem antes de tudo isso (`autorizar`): token de agente recebe 403 e quem não tem credencial recebe 401, também
-numa demanda final. Depois de "Arquivar", que leva a demanda a `encerrada`, decidir de novo o mesmo DEC recebe o 409 do
-passo 2, e não o do passo 3. O texto do passo 2 foi escrito na triagem e espera a revisão da `ux-ui-design` (B-4 da
+numa demanda final. Depois de um "Arquivar" que leva a demanda a `encerrada` (sem aprovado vigente), decidir de novo o
+mesmo DEC recebe o 409 do passo 2, e não o do passo 3. Com a demanda fora de status final, recebe o 409 do passo 3. O texto do passo 2 foi escrito na triagem e espera a revisão da `ux-ui-design` (B-4 da
 0.1.6).
 
 Regras de papel e nível:
@@ -208,15 +211,17 @@ aprovação de um DEC de nível `cto`, depois do P1-b e antes de gravar, o siste
 ele é `cto_e_administradora`, a resposta é 409:
 
 ```json
-{ "erro": "conflito", "mensagem": "o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora." }
+{ "erro": "conflito", "mensagem": "o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora, e um pacote só do CTO não pode substituí-lo. Devolva ou arquive este pacote, ou crie um pacote novo com aprovação do CTO e da administradora." }
 ```
 
-(`MENSAGENS_DECISAO.nivelMenorQueOVigente`). Nada é gravado: nem aprovação, nem decisão, nem evento, e o vigente
-continua vigente. A administradora num DEC `cto` continua recebendo o 403 do P1-b, que vem antes. O inverso é
-permitido: um DEC `cto_e_administradora`, com as duas aprovações, substitui um vigente `cto`. O nível é escolhido por
-quem cria o DEC (RF-10), e a criação não é recusada: o DEC `cto` recusado pode ser devolvido ou arquivado, e a saída é
-um DEC novo de nível `cto_e_administradora`. A T11 desse DEC `cto` mostra o formulário de aprovar, e a recusa só aparece
-depois do envio, no alerta "Não foi possível concluir: …".
+(`MENSAGENS_DECISAO.nivelMenorQueOVigente`, texto revisto pela `ux-ui-design` na 0.4.1; continua sem id e sem nome).
+Nada é gravado: nem aprovação, nem decisão, nem evento, e o vigente continua vigente. A administradora num DEC `cto`
+continua recebendo o 403 do P1-b, que vem antes. O inverso é permitido: um DEC `cto_e_administradora`, com as duas
+aprovações, substitui um vigente `cto`. O nível é escolhido por quem cria o DEC (RF-10), e a criação não é recusada: o
+DEC `cto` recusado pode ser devolvido ou arquivado, e a saída é um DEC novo de nível `cto_e_administradora`. A T11
+desse DEC `cto` mostra o formulário de aprovar. Desde a 0.4.1, ela avisa antes do envio que a aprovação será recusada
+(aviso (c), [cap. 08](08-painel.md#avisos-da-vigência-e-arquivar-041)); o botão "Aprovar" continua disponível, e quem
+recusa é o servidor.
 
 **Na leitura.** A vista do DEC (`PacoteDecisaoVista`) e o resumo da lista de DEC da demanda (`PacoteResumo`) têm
 `substituido` (booleano) e `substituidoPor` (o id do aprovado vigente, ou `null`). Saem em
@@ -228,9 +233,9 @@ que gera. O filtro `statusDecisao=aprovada` (RF-23) continua trazendo o substitu
 **No histórico.** Na mesma transação, depois de `aprovacao_registrada` e `decisao_registrada`, a aprovação que
 substitui grava o evento `pacote_decisao_substituido`, com `entidadeId` igual ao DEC substituído e
 `depois: { "substituido": <DEC substituído>, "substituidoPor": <DEC aprovado agora> }`, só os dois ids, sem comentário,
-opção nem nome (C-30). A T05 mostra "<DEC substituído> foi substituído por <DEC aprovado>, aprovado depois", com Antes e
-Depois vazios. Se `substituidoPor` não tem o formato de id de DEC, a frase é "<DEC substituído> foi substituído por um
-pacote aprovado depois" (`textoDoEvento`, `src/components/rotulos.ts`). Cada substituição grava o seu evento: com v1, v2
+opção nem nome (C-30). A T05 mostra "<DEC substituído> foi substituído por <DEC aprovado>, aprovado depois dele", com
+Antes e Depois vazios. Se `substituidoPor` não tem o formato de id de DEC, a frase é "<DEC substituído> foi substituído
+por um pacote aprovado depois dele" (`textoDoEvento`, `src/components/rotulos.ts`; texto revisto na 0.4.1). Cada substituição grava o seu evento: com v1, v2
 e v3 aprovados nessa ordem, ficam v1→v2 e v2→v3.
 
 **Concorrência (C-13).** O vigente é lido sob a trava da demanda e antes do insert em `decisao`. Duas aprovações do
@@ -240,17 +245,54 @@ legítimo e o `pedido_gerado` fica antes da substituição no histórico) ou rec
 ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)).
 
 **No painel.** Na T11 do DEC substituído: o selo "Substituído" (cinza) depois do selo da decisão; um alerta de atenção
-"Este pacote foi substituído por <id>, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de
-Construção. Não use um pedido gerado deste pacote.", com o link "Abrir <id>" para a T11 do vigente, antes do alerta de
-desatualizado (com os dois valendo, aparecem os dois); sem a seção do Pedido de Construção e sem o lembrete de levar a
-demanda a "Aprovada" (P1-d). Na T05, o selo "Substituído" ao lado de "Aprovada" na linha do DEC substituído. Os textos
-são da triagem do 0014 e esperam a revisão da `ux-ui-design` ([cap. 08](08-painel.md#pendências-de-interface-conhecidas)).
+"Este pacote foi substituído por <id>, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste
+pacote já foi gerado, não o use. O pedido que vale é o de <id>.", com o link "Abrir o pacote <id>" para a T11 do
+vigente, antes do alerta de desatualizado (com os dois valendo, aparecem os dois); sem a seção do Pedido de Construção e
+sem o lembrete de levar a demanda a "Aprovada" (P1-d). Na T05, o selo "Substituído" ao lado de "Aprovada" na linha do
+DEC substituído. Os textos foram revistos pela `ux-ui-design` na 0.4.1. Desde a 0.4.1, a T11 também avisa **antes** da
+substituição: no DEC pendente que vai substituir o vigente e no vigente que tem um DEC mais novo pendente
+([cap. 08](08-painel.md#avisos-da-vigência-e-arquivar-041)).
 
-**Regra de uso (S-02, risco aceito no RSK do 0014).** Não use Pedido de Construção gerado de DEC substituído. O sistema
-recusa gerar de novo do substituído, mas não alcança um pedido já baixado e copiado para `pedidos/` da
-estruturaAutonoma antes da substituição, nem uma construção em curso, inclusive com a demanda em `em_construcao`: nada
-avisa o `/construir`. Antes de usar um pedido, confira na T05 (ou em `GET /api/pacotes-decisao/:decId`) que o DEC dele
-não tem `substituido: true`. O controle é só de processo; a consulta pelo `/construir` fica para um pedido futuro.
+**Regra de uso (S-02, risco aceito no RSK do 0014; revista na 0.4.1).** Não use Pedido de Construção gerado de DEC
+substituído. O sistema recusa gerar de novo do substituído, e a entrega e o andamento pelo `/construir` também o
+recusam (409). Um pedido já baixado e copiado para `pedidos/` da estruturaAutonoma antes da substituição, ou uma
+construção já em curso, só param se o `/construir` perguntar. Desde a 0.4.1, ele tem como perguntar: a rota
+`GET /api/pedidos-construcao/<DEC-id>/situacao` responde `vigente` ou `substituido`
+([cap. 05](05-pedido-de-construcao.md#situação-do-pedido-041)). O lado do `/construir` que usa a rota (a `00-inicio`
+parar com o DEC substituído e o aviso por e-mail) é de outra frente e ainda não está no ar. Até ele entrar, antes de
+usar um pedido, confira na T05 (ou em `GET /api/pacotes-decisao/:decId`) que o DEC dele não tem `substituido: true`.
+
+### Arquivar o DEC mais novo (0.4.1)
+
+Desde a 0.4.1 (pedido `DEC-DEM-20261111-0018-v1`, S-04, decisão S1 de Fabiano e decisão 7.1), arquivar o DEC mais
+novo de uma demanda que tem um aprovado vigente não encerra mais a demanda. Até a 0.4.0, a transição automática
+`decisao_arquivada` levava sempre a `encerrada`, e aí o aprovado vigente também deixava de gerar o Pedido (M-08).
+
+Só o DEC mais novo se decide (passo 4, A-01), então o arquivado é sempre o mais novo. Depois de gravar a decisão
+`arquivada`, sob a mesma trava da demanda, `decidir.ts` lê o aprovado vigente (`vigenteDaDemanda`, `substituido.ts`,
+com o `desatualizado` dele) e chama `mudarStatusPorArquivamento` (`transicoes.ts`). O destino sai de uma tabela só,
+`destinoDoArquivamento` (`src/modules/demandas/arquivamento.ts`), que a T11 também lê para a dica do Arquivar:
+
+| Status da demanda | Sem aprovado vigente | Vigente atualizado | Vigente desatualizado |
+|---|---|---|---|
+| `nova`, `aguardando_informacao`, `pronta_para_decisao` | `encerrada` (como antes) | `aprovada` (S1) | `em_analise` (7.1) |
+| `em_analise` | `encerrada` | `aprovada` | nada muda (já está em `em_analise`) |
+| `aprovada`, `em_construcao`, `devolvida` | nada muda | nada muda | nada muda |
+| `entregue`, `encerrada` | — (a decisão já é recusada no passo 2) | — | — |
+
+- A mudança é do ator `sistema`, com o `status_alterado` de sempre. Destino nulo ou igual ao status atual não grava
+  nada, nem evento.
+- O vigente lido é o aprovado mais novo da demanda, depois da decisão gravada: o DEC que acabou de ser arquivado não
+  conta.
+- Com o destino `aprovada`, o vigente continua gerando o Pedido de Construção. `aprovada` só sai com o mesmo critério
+  da transição manual para `aprovada` (um pacote aprovado e atualizado).
+- Devolver não mudou: continua levando a `em_analise` pela transição `decisao_devolvida`, das mesmas origens.
+- Corridas: o arquivamento, uma ESP nova e uma mudança manual de status da mesma demanda passam pela mesma trava; os
+  testes rodam as corridas com duas conexões, 50 vezes, sem *deadlock* (SB-11).
+
+A T11 avisa o destino antes do envio, na dica do Arquivar, e mostra depois o alerta pelo status gravado
+([cap. 08](08-painel.md#avisos-da-vigência-e-arquivar-041)). Na T05, a etapa 4 da barra mostra o vigente quando o DEC
+mais novo está arquivado ([cap. 08](08-painel.md#demanda-t05-rf-08-a-rf-10)).
 
 ## RF-14. Dupla aprovação
 
@@ -269,14 +311,27 @@ A regra de nível do S-01 não se aplica a este nível: um DEC `cto_e_administra
 
 Limite conhecido. O médio do reteste da 08 (a A-02, que impedia dois DEC aprovados, junto com a regra do desatualizado
 deixava a demanda sem saída) foi fechado na 0.1.13: com o v1 aprovado e uma ESP ou um RSK novos, o v1 fica desatualizado,
-e o v2, que cita as versões novas, pode ser aprovado e substitui o v1. Ficam abertos, da revisão do 0014
-([CHANGELOG](../../CHANGELOG.md)):
+e o v2, que cita as versões novas, pode ser aprovado e substitui o v1. Da revisão do 0014
+([CHANGELOG](../../CHANGELOG.md)), a 0.4.1 fechou:
 
-- **S-02 (médio):** um Pedido de Construção já copiado do DEC substituído continua valendo do lado do `/construir`. A
-  regra de uso está em [Substituição do DEC aprovado](#substituição-do-dec-aprovado).
-- **S-04 (baixo, desde a 0.1.0):** com o v1 aprovado e o v2 pendente, arquivar o v2 leva a demanda a `encerrada` se ela
-  estiver em `pronta_para_decisao` (transição `decisao_arquivada`, [cap. 03](03-demandas.md#rf-07-status-e-transições)), e
-  aí o v1 também deixa de gerar (M-08, passo 4 do [cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)). É decisão da pessoa; para descartar um DEC novo sem encerrar a demanda,
-  prefira devolvê-lo.
-- A T11 não avisa, antes do envio, que aprovar um DEC pendente substitui o aprovado vigente, nem, na T11 do vigente,
-  que há um DEC mais novo pendente. Fica para a `ux-ui-design`.
+- **S-04:** arquivar o v2 não encerra mais a demanda que tem um aprovado vigente
+  ([Arquivar o DEC mais novo](#arquivar-o-dec-mais-novo-041));
+- **S-03:** o D1 confere também o nome do solicitante em vigor na criação do DEC
+  ([cap. 05](05-pedido-de-construcao.md#nome-do-solicitante));
+- os avisos da T11 antes do envio: no DEC pendente que substituirá o vigente, no vigente com um DEC mais novo pendente e
+  no DEC `cto` com vigente de dupla aprovação ([cap. 08](08-painel.md#avisos-da-vigência-e-arquivar-041)).
+
+Ficam, como limites conhecidos da 0.4.1:
+
+- **S-02, lado do `/construir`:** o Orquestrador já responde a situação do pedido, mas o `/construir` ainda não a
+  consulta (outra frente). A regra de uso de [Substituição do DEC aprovado](#substituição-do-dec-aprovado) continua
+  valendo até isso entrar. Mesmo depois, um DEC pode ser substituído entre a resposta `vigente` e o início da
+  construção (risco residual baixo, para aceite com a `gestao-riscos`).
+- **S-03 nos DEC antigos:** o DEC criado antes da 0.4.1 não tem os caminhos da criação gravados (coluna nula) e confere
+  só o nome atual. Trocar o `solicitanteNome` ainda pode fazer um DEC desses, antes recusado, passar.
+- **Situação `vigente` não quer dizer "pode construir":** a rota de situação responde `vigente` também para o DEC
+  desatualizado e para o DEC de demanda em status final. A entrega e o andamento continuam recusando esses casos (409),
+  e a geração pela pessoa também.
+- **R-08-1 (pendência conhecida, não defeito):** com o DEC mais novo arquivado, o vigente desatualizado e a demanda em
+  `em_analise`, a T05 marca a etapa 4 como feita, mas a Próxima ação pede um pacote novo
+  ([cap. 08](08-painel.md#pendências-de-interface-conhecidas)).

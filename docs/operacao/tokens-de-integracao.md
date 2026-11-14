@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.4.0 |
-| Atualizado em | 13/11/2026 (`documentacao-tecnica`, pedido 0017: o token `construir` passou a escrever o andamento, com a ação `registrar_andamento`, sem mudar a emissão; onde o envio do andamento lê o token; suspeita de vazamento pede revogação imediata; como achar o que um prefixo gravou); 12/11/2026 (`documentacao-tecnica`, pedido 0019: a limitação da 0.3.0 saiu; os tokens de produção se emitem com a 0.3.1 no ar); 12/11/2026 (`documentacao-tecnica`, pedido 0016: primeira versão) |
+| Versão | 0.4.1 |
+| Atualizado em | 14/11/2026 (`documentacao-tecnica`, pedido 0018: o token `construir` passou a ler a situação do pedido, com a ação `ler_situacao_pedido`, sem mudar a emissão; o que essa leitura acrescenta a um vazamento); 13/11/2026 (`documentacao-tecnica`, pedido 0017: o token `construir` passou a escrever o andamento, com a ação `registrar_andamento`, sem mudar a emissão; onde o envio do andamento lê o token; suspeita de vazamento pede revogação imediata; como achar o que um prefixo gravou); 12/11/2026 (`documentacao-tecnica`, pedido 0019: a limitação da 0.3.0 saiu; os tokens de produção se emitem com a 0.3.1 no ar); 12/11/2026 (`documentacao-tecnica`, pedido 0016: primeira versão) |
 | Dono | `documentacao-tecnica` (operação: `devops-sre`; sistema: Fabiano) |
 | Quem executa | Fabiano. Emitir, trocar e revogar token de produção é ação dele, no console do serviço `app` do Easypanel |
 | Situação | vigente, ainda não executado em produção. A primeira execução é a UAT da 0.3.0 (UAT-03, UAT-09, UAT-10 e UAT-12 de `docs/construcao/DEC-DEM-20261111-0016-v1/07-qa-funcional.md`, seção 7), que também testa este texto |
@@ -15,7 +15,7 @@ Desde a 0.3.0, duas integrações internas entram na API com um token próprio, 
 | Integração | Quem usa | O que o token permite | Onde o token mora |
 |---|---|---|---|
 | `awave` | o Awave (serviço `empresa-ia`), quando o dono aprova a criação de uma demanda em `/aprovacoes` | criar demanda (no máximo 10 por hora) e ler só as demandas que ele criou | no Awave, pelo card "Token do Orquestrador" em `/config`, ou nas variáveis do serviço `empresa-ia` no Easypanel. Nunca no repositório do Awave nem neste |
-| `construir` | a busca automática do `/construir` (crontab do usuário `deploy`) e, desde a 0.4.0, o envio do andamento (crontab) | listar os Pedidos de Construção pendentes, buscar um pedido e confirmar o recebimento; desde a 0.4.0, **registrar o andamento** da construção, o que muda o status da demanda em dois casos | no arquivo `~/.config/ws-construir/token-orquestrador` do usuário `deploy`, com permissão 600. O `buscar-pedidos.mjs` recusa o arquivo com outra permissão. O caminho está em `pedidos/config/orquestrador.json` (`token_arquivo`) da estruturaAutonoma |
+| `construir` | a busca automática do `/construir` (crontab do usuário `deploy`) e, desde a 0.4.0, o envio do andamento (crontab) | listar os Pedidos de Construção pendentes, buscar um pedido e confirmar o recebimento; desde a 0.4.0, **registrar o andamento** da construção, o que muda o status da demanda em dois casos; desde a 0.4.1, ler a **situação do pedido** (`vigente` ou `substituido`) | no arquivo `~/.config/ws-construir/token-orquestrador` do usuário `deploy`, com permissão 600. O `buscar-pedidos.mjs` recusa o arquivo com outra permissão. O caminho está em `pedidos/config/orquestrador.json` (`token_arquivo`) da estruturaAutonoma |
 
 Regras que valem para os dois:
 
@@ -57,6 +57,23 @@ O arquivo do token é legível pelo usuário `deploy`, que também roda os agent
 (P-04 do pedido 0017). A recomendação é o envio do andamento rodar com um usuário do sistema que os agentes não usem,
 dono do arquivo do token. Isso se decide com Fabiano e a `gestao-riscos` **antes** de ligar o envio (deploy.md, seção
 5, passo 8).
+
+## O token `construir` lê a situação do pedido desde a 0.4.1
+
+Desde a 0.4.1, o token `construir` tem também a ação `ler_situacao_pedido`
+([manual, cap. 05](../manual-tecnico/05-pedido-de-construcao.md#situação-do-pedido-041)):
+`GET /api/pedidos-construcao/<DEC-id>/situacao` responde `vigente` ou `substituido`.
+
+- **A emissão não mudou.** É o mesmo token, com o mesmo script e o mesmo arquivo. A ação veio pela matriz do código. O
+  lado do `/construir` que usa a rota é de outra frente, e ainda não está no ar.
+- **O que ele lê:** a situação de **todo** DEC com Pedido de Construção gerado por uma pessoa, inclusive o substituído
+  e o de demanda em status final. Só um de dois valores, sem texto, sem o status da demanda e sem o id do substituto.
+  DEC sem pedido gerado recebe o mesmo 404 do inexistente.
+- **A rota é consultiva:** ela não autoriza nada. A entrega, o recebimento e o andamento continuam com as recusas deles.
+- **O cliente deve falhar fechado:** com 503, erro de rede ou tempo esgotado, o `/construir` não inicia a construção e
+  tenta de novo; com 401 ou 403, para a volta.
+- **A rota não tem limite de taxa** nem grava evento por consulta. A resposta a vazamento continua a mesma: revogar
+  pelo prefixo (seção 5).
 
 ## 1. Emitir
 
@@ -204,6 +221,9 @@ a linha de erro no `andamento.log`. O andamento já gravado continua no painel.
   A cópia manual do pedido, pela T11, continua valendo.
 - **Envio do andamento com erro repetido ou em excesso** (desde a 0.4.0): troque `"andamento_ligado"` para `false` no
   mesmo arquivo. O Orquestrador não muda, e o status se corrige à mão no painel.
+- **Volta da 0.4.1 para a 0.4.0:** pelo `deploy.md`, seção 6 ("Volta da 0.4.1"). O token `construir` continua valendo
+  na 0.4.0, que não tem a rota de situação: a rota deixa de existir, e o `/construir` deve tratar a resposta como
+  falha (não iniciar).
 - **Volta da 0.4.0 para a 0.3.1:** pelo `deploy.md`, seção 6 ("Volta da 0.4.0"), com `"andamento_ligado": false` antes.
   O token `construir` continua valendo na 0.3.1, que não tem a rota do andamento.
 - **Volta da 0.3.0 para a 0.2.0:** pelo `deploy.md`, seção 6 ("Volta da 0.3.0 para a 0.2.0"). Os tokens emitidos depois

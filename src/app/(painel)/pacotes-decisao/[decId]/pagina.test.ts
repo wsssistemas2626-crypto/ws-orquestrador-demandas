@@ -39,6 +39,12 @@ vi.mock('./acoes', () => ({ registrarDecisaoNoPainel: async () => ({ ok: false, 
 vi.mock('./acoes-pedido', () => ({ gerarPedidoNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
 // T19 do DEC-DEM-20261111-0016-v1: a leitura do recebimento (T10) é dublê; sem pedido_recebido por padrão.
 vi.mock('../../../../modules/pedido-construcao/pendentes', () => ({ recebimentoDoPedido: vi.fn() }));
+// T12 do DEC-DEM-20261111-0018-v1 (ADR-40): a leitura do vigente é dublê; sem vigente por padrão (os avisos e a dica pelo
+// destino ficam em pagina-vigencia.test.ts).
+vi.mock('../../../../modules/pacotes-decisao/substituido', async (original) => {
+  const real = await original<typeof import('../../../../modules/pacotes-decisao/substituido')>();
+  return { ...real, vigenteDaDemanda: vi.fn(async () => null) };
+});
 
 const mExigir = vi.mocked(exigirPessoaNaPagina);
 const mAutorizar = vi.mocked(autorizar);
@@ -186,24 +192,24 @@ describe('T11: DEC substituído (0.1.13)', () => {
     const s = await pagina();
     expect(s).toContain('>Substituído</span>');
     expect(s).toContain(
-      `Este pacote foi substituído por ${V2}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`,
+      `Este pacote foi substituído por ${V2}, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste pacote já foi gerado, não o use. O pedido que vale é o de ${V2}.`,
     );
-    expect(s).toMatch(new RegExp(`<a [^>]*href="/pacotes-decisao/${V2}"[^>]*>Abrir ${V2}</a>`));
+    expect(s).toMatch(new RegExp(`<a [^>]*href="/pacotes-decisao/${V2}"[^>]*>Abrir o pacote ${V2}</a>`));
     expect(s).not.toMatch(/<h2[^>]*>Pedido de Construção<\/h2>/);
     expect(s).not.toContain('Gerar Pedido de Construção');
     expect(s).not.toContain('A demanda continua em Pronta para decisão');
     // O aviso vem antes do alerta de desatualizado, e os dois aparecem quando os dois valem.
     mPacote.mockResolvedValue(aprovado({ substituido: true, substituidoPor: V2, desatualizado: true }));
     const ambos = await pagina();
-    expect(ambos.indexOf(`Abrir ${V2}`)).toBeGreaterThan(0);
-    expect(ambos.indexOf(`Abrir ${V2}`)).toBeLessThan(ambos.indexOf('Este pacote está desatualizado'));
+    expect(ambos.indexOf(`Abrir o pacote ${V2}`)).toBeGreaterThan(0);
+    expect(ambos.indexOf(`Abrir o pacote ${V2}`)).toBeLessThan(ambos.indexOf('Este pacote está desatualizado'));
   });
 
   it('controle: o aprovado mais novo não tem selo nem aviso, e mostra a seção do pedido e o lembrete', async () => {
     mPacote.mockResolvedValue(aprovado());
     const s = await pagina();
     expect(s).not.toContain('Substituído');
-    expect(s).not.toContain('Abrir DEC-');
+    expect(s).not.toContain('Abrir o pacote DEC-');
     expect(s).toMatch(/<h2[^>]*>Pedido de Construção<\/h2>/);
     expect(s).toContain('A demanda continua em Pronta para decisão');
   });
@@ -833,7 +839,7 @@ describe('T16: links soltos da T11 com alvo de toque de 44 px abaixo de 768 px (
 
     mPacote.mockResolvedValue(aprovado({ substituido: true, substituidoPor: V2 }));
     s = await pagina();
-    expect(classes(link(s, `/pacotes-decisao/${V2}`, `Abrir ${V2}`))).toEqual(expect.arrayContaining([...ALVO, 'text-acao-escura', 'underline']));
+    expect(classes(link(s, `/pacotes-decisao/${V2}`, `Abrir o pacote ${V2}`))).toEqual(expect.arrayContaining([...ALVO, 'text-acao-escura', 'underline']));
 
     mPacote.mockResolvedValue(pacote({ desatualizado: true }));
     mDemanda.mockResolvedValue(demanda({ especificacoes: [resumo(`ESP-${ID}-v3`), resumo(ESP)] }));

@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "alteram_dado": false,
+  "url": "http://127.0.0.1:3200",
+  "volta_sem_restaurar": false,
+  "verificacoes": [
+    {
+      "nome": "migracoes_da_main",
+      "ok": true,
+      "detalhe": "nenhuma alterada"
+    },
+    {
+      "nome": "migracoes_novas",
+      "ok": true,
+      "detalhe": "1; nenhuma altera dado existente"
+    },
+    {
+      "nome": "anterior",
+      "ok": true,
+      "detalhe": "versão da main: http://127.0.0.1:3200/api/saude respondeu 200 em 36 s"
+    },
+    {
+      "nome": "backup",
+      "ok": true,
+      "detalhe": "168 KB, impressão 0a21433b1bc4d132"
+    },
+    {
+      "nome": "nova",
+      "ok": true,
+      "detalhe": "versão do ramo sobre o banco da main: http://127.0.0.1:3200/api/saude respondeu 200 em 36 s"
+    },
+    {
+      "nome": "restauracao",
+      "ok": true,
+      "detalhe": "banco igual ao backup (impressão 0a21433b1bc4d132)"
+    },
+    {
+      "nome": "volta",
+      "ok": true,
+      "detalhe": "a versão da main só volta com o backup restaurado (o dado gravado depois da publicação se perde): http://127.0.0.1:3200/api/saude respondeu 200 em 10 s"
+    },
+    {
+      "nome": "ida_de_novo",
+      "ok": true,
+      "detalhe": "versão do ramo depois da volta: http://127.0.0.1:3200/api/saude respondeu 200 em 36 s"
+    },
+    {
+      "nome": "derrubar",
+      "ok": true,
+      "detalhe": "projeto e volumes removidos"
+    }
+  ],
+  "sha": "2f66c189de80664b40629089bc7a7b2446ccd20b",
+  "em": "2026-11-14T10:44:35.231Z"
+}

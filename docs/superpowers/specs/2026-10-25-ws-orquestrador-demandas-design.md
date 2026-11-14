@@ -33,7 +33,7 @@ desligados e a entrega do pedido por cópia manual. Usuários: Fabiano (papel `c
 | RF-04 | Id `DEM-AAAAMMDD-NNNN` (data em São Paulo, sequência **global**); ESP, RSK e DEC `<prefixo>-<dem>-vN` sem número repetido sob concorrência | CA-04.1 a CA-04.4 |
 | RF-05 | Entrada colando o texto bruto (guardado à parte); com o orquestrador ligado, um job propõe os campos | CA-05.1 a CA-05.3 |
 | RF-06 | Consultar com filtros e paginação (máx. 100); leitura nunca traz o texto bruto; PATCH vai ao histórico | CA-06.1 a CA-06.4 |
-| RF-07 | Nove status e tabela fechada de transições; quatro automáticas (ator `sistema`), o resto manual e só por pessoa | CA-07.1 a CA-07.5 |
+| RF-07 | Nove status e tabela fechada de transições; quatro automáticas (ator `sistema`), o resto manual e só por pessoa; desde a 0.4.1, arquivar o DEC mais novo segue o aprovado vigente (S-04) | CA-07.1 a CA-07.5 |
 | RF-08 | ESP versionada com listas em JSONB e os quatro campos de construção (`sistemaAlvo`, `repositorioDestino`, critérios, pronto) com as regras do `validarPedido` | CA-08.1 a CA-08.5 |
 | RF-09 | RSK versionado, três níveis `baixo`/`medio`/`alto` | CA-09.1 a CA-09.3 |
 | RF-10 | DEC cita a ESP e o RSK de maior versão, grava cópia da demanda; sem ESP ou RSK → 400 com `faltando` | CA-10.1 a CA-10.4 |
@@ -53,6 +53,31 @@ desligados e a entrega do pedido por cópia manual. Usuários: Fabiano (papel `c
 | RF-24 | Expurgo diário do texto bruto e dos metadados de origem com mais de 90 dias (configurável) | CA-24.1 a CA-24.4 |
 | RF-25 | E-mail (Resend) de DEC pronto, uma vez por DEC, só com ids e link | CA-25.1 a CA-25.3 |
 | RF-26 | Painel em pt-BR: fila, detalhe, entrada, formulários de ESP/RSK/DEC, decisão, agentes e teto | CA-26.1 a CA-26.4 |
+
+### Critérios revistos depois da Parada 1 (0.1.13 e 0.4.1)
+
+Vale o código; a regra completa está no manual, caps. 04 e 05.
+
+- **RF-07 (0.4.1, S-04, decisão S1 e 7.1).** Dado o DEC mais novo arquivado com a demanda em `nova`, `em_analise`,
+  `aguardando_informacao` ou `pronta_para_decisao`, então a demanda vai, pelo ator `sistema`, para `aprovada` se há
+  aprovado vigente atualizado, para `em_analise` se o vigente está desatualizado (sem mudança se já está em
+  `em_analise`) e para `encerrada` sem aprovado vigente. Em `aprovada`, `em_construcao` e `devolvida`, arquivar não
+  muda o status. Com destino `aprovada`, o vigente continua gerando o Pedido. Devolver não muda.
+- **RF-13 (0.1.13, A-02 revista).** Dado um aprovado vigente v1 e um DEC mais novo v2, quando a aprovação do v2
+  fica completa (nível `cto`: a aprovação da `cto`; nível `cto_e_administradora`: a segunda aprovação), então o v1
+  passa a substituído (`substituido: true`, `substituidoPor: v2`), o v2 é o vigente, o evento
+  `pacote_decisao_substituido` é gravado e o status da demanda não muda (P1-d). Com só a primeira das duas
+  aprovações, nada é substituído.
+- **RF-13 (0.1.13, S-01).** Dado um aprovado vigente de nível `cto_e_administradora` e um DEC mais novo de nível
+  `cto`, quando a `cto` o aprova, então a resposta é 409 (`MENSAGENS_DECISAO.nivelMenorQueOVigente`) e nada é
+  gravado. O inverso é permitido.
+- **RF-22, CA-22.4 (0.1.13).** Dado um DEC aprovado substituído, quando se gera o Pedido (ou o `/construir` pede a
+  entrega), então 409 com o id do vigente (`MENSAGENS_PEDIDO.substituido`), sem arquivo nem evento; só o aprovado
+  vigente gera.
+- **RF-22, D1 com o nome da criação (0.4.1, S-03).** Dado um DEC criado a partir da 0.4.1 com o nome do
+  solicitante em vigor na criação num texto escrito por pessoa, quando o `solicitanteNome` da demanda é trocado e
+  se gera o Pedido, então 422 com `<caminho>: nome`, sem o valor. O DEC criado antes da 0.4.1
+  (`caminhos_com_nome_na_criacao` nula) confere só o nome atual.
 
 ### Requisitos não funcionais (os números)
 

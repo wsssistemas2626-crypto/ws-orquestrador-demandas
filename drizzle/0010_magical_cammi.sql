@@ -1,0 +1,1 @@
+ALTER TABLE "pacote_decisao" ADD COLUMN "caminhos_com_nome_na_criacao" text[];

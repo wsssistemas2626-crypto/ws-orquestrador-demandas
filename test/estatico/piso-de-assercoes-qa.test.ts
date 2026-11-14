@@ -22,7 +22,8 @@ const PISO_MODULOS: Readonly<Record<string, number>> = {
   'src/modules/acesso/exigir-pessoa-qa.test.ts': 15,
   'src/modules/acesso/exigir-pessoa.test.ts': 40,
   'src/modules/acesso/matriz-qa.test.ts': 37,
-  'src/modules/acesso/matriz.test.ts': 44,
+  // 06-T09-testes do DEC-DEM-20261111-0018-v1: sobe de 44 para a contagem do fim da etapa (igual ao PISO principal).
+  'src/modules/acesso/matriz.test.ts': 47,
   'src/modules/acesso/resolver-ator-qa.test.ts': 17,
   'src/modules/acesso/resolver-ator.test.ts': 20,
   'src/modules/acesso/sonda-mutacao-qa.test.ts': 8,
@@ -50,7 +51,8 @@ const PISO_MODULOS: Readonly<Record<string, number>> = {
   'src/modules/dados-pessoais/detectores.test.ts': 93,
   'src/modules/dados-pessoais/minimizar.test.ts': 106,
   'src/modules/demandas/consultas.test.ts': 28,
-  'src/modules/demandas/entrada-qa.test.ts': 51,
+  // 06-T09-testes do DEC-DEM-20261111-0018-v1: sobe de 51 para a contagem do fim da etapa.
+  'src/modules/demandas/entrada-qa.test.ts': 52,
   'src/modules/demandas/entrada.test.ts': 89,
   'src/modules/demandas/gerar-id.test.ts': 38,
   'src/modules/demandas/schemas.bordas.test.ts': 29,

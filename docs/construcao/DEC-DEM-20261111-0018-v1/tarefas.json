@@ -1,0 +1,16 @@
+[
+  { "id": "T01", "titulo": "Ação ler_situacao_pedido só do construir na matriz (SB-01)", "engenheiro": "engenheiro-backend", "fase": "Situação do pedido", "risco": "alto" },
+  { "id": "T02", "titulo": "Serviço situacaoDoPedido e rota GET /api/pedidos-construcao/[decId]/situacao (SB-02 a SB-06)", "engenheiro": "engenheiro-backend", "fase": "Situação do pedido", "risco": "alto" },
+  { "id": "T03", "titulo": "Coluna caminhos_com_nome_na_criacao e migration 0010 (SB-10)", "engenheiro": "engenheiro-dados-bd", "fase": "D1 com o nome da criação", "risco": "alto" },
+  { "id": "T04", "titulo": "Textos da criação e marcação na criação do DEC (SB-07, SB-08 c e f, SB-09 a e b)", "engenheiro": "engenheiro-backend", "fase": "D1 com o nome da criação", "risco": "alto" },
+  { "id": "T05", "titulo": "D1 com o nome da criação na geração e na entrega (SB-08, SB-09 c e d)", "engenheiro": "engenheiro-backend", "fase": "D1 com o nome da criação", "risco": "alto" },
+  { "id": "T06", "titulo": "Destino do arquivamento pelo aprovado vigente (SB-11)", "engenheiro": "engenheiro-backend", "fase": "Arquivamento", "risco": "alto" },
+  { "id": "T07", "titulo": "Uma linha de andamento por demanda da página, por crossJoinLateral (SB-13)", "engenheiro": "engenheiro-backend", "fase": "Fila", "risco": "baixo" },
+  { "id": "T08", "titulo": "C-27: estabilizar deps-qa.test.ts sem asserção a menos (SB-14)", "engenheiro": "engenheiro-backend", "fase": "Teste instável e piso", "risco": "alto" },
+  { "id": "T09", "titulo": "Piso de asserções: registrar-qa e os testes de segurança da 0.3.x e da 0.4.0 (SB-15)", "engenheiro": "engenheiro-backend", "fase": "Teste instável e piso", "risco": "baixo" },
+  { "id": "T10", "titulo": "Seed fictício com as demandas da vigência", "engenheiro": "engenheiro-backend", "fase": "Seed", "risco": "baixo" },
+  { "id": "T11", "titulo": "Textos revistos da 03: substituído, 409s, histórico e linha 6 por nível", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T12", "titulo": "T11: avisos (a), (b), (c), dica e chegada do Arquivar (SB-12)", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T13", "titulo": "T05: barra de etapas e Próxima ação com o DEC mais novo arquivado", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" },
+  { "id": "T14", "titulo": "e2e da vigência na T11 e na T05, e versão 0.4.1", "engenheiro": "engenheiro-frontend", "fase": "Painel", "risco": "baixo" }
+]

@@ -430,7 +430,7 @@ test('CA-12.5 e CV-11: DEC já decidido sem rodapé e com "Decisão registrada: 
     if (tela === CELULAR) await semViolacoes(page, 'T11 decidida em 390 px');
 
     await page.goto(`/pacotes-decisao/${substituido.id}`);
-    await expect(page.getByText(/^Este pacote foi substituído por DEC-.+, aprovado depois dele\./), rotulo).toBeVisible();
+    await expect(page.getByText(/^Este pacote foi substituído por DEC-.+, aprovado depois dele, e não gera mais o Pedido de Construção\./), rotulo).toBeVisible();
     await expect(page.getByText('Substituído', { exact: true }), rotulo).toBeVisible();
     await expect(page.locator('#rodape-da-decisao'), rotulo).toHaveCount(0);
     await expect(pedido(page), rotulo).toHaveCount(0);

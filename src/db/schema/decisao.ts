@@ -49,6 +49,10 @@ export const pacoteDecisao = pgTable(
     rascunhoAgente: boolean().notNull(),
     execucaoAgenteId: uuid(),
     criadaEm: momento().notNull(),
+    // 0.4.1 (S-03, ADR-37, SB-07): os caminhos de textosDaCriacao cujo texto continha o nome do solicitante em vigor na
+    // criação, gravados uma vez por criar.ts, sob a trava da demanda. Só nomes de campo de lista fechada, sem o nome nem
+    // hash dele (acessória do D5). null = DEC criado antes da 0.4.1, que confere só o nome atual. Nunca sai em vista.
+    caminhosComNomeNaCriacao: text().array(),
   },
   (t) => [
     unique('pacote_decisao_demanda_versao_unique').on(t.demandaId, t.versao),

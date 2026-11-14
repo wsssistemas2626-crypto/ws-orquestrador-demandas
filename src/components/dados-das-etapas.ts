@@ -31,6 +31,10 @@ export type DadosDasEtapas = {
   // 0.4.0 (T13 do DEC-DEM-20261111-0017-v1; 03, 5.6; RF-07): o último andamento da demanda (d.andamento, já conferido por
   // lerAndamento), para a linha 15. Opcional: ausente vale como sem andamento, e as linhas de hoje não mudam.
   andamento?: Pick<AndamentoVista, 'decId' | 'statusConstrucao'> | null;
+  // 0.4.1 (T13 do DEC-DEM-20261111-0018-v1; 7.2, item 3; D-14): o aprovado vigente (vigenteDe(demanda)), lido pela página
+  // com ler_pacote_decisao só quando o DEC mais novo está arquivado, para a etapa 4. Opcional: ausente ou null, a etapa 4
+  // de hoje.
+  decVigente?: Pick<PacoteDecisaoVista, 'id' | 'decisao' | 'aprovadores'> | null;
 };
 export type EstadoDaEtapa =
   | 'Registrada'
@@ -54,6 +58,7 @@ type SecaoDaAcao = 'duvidas' | 'status' | 'confirmacao';
 export type ProximaAcao = { linha: number; oQueFalta: string; detalhe: string | null; quemAge: string; link: { rotulo: string; destino: DestinoDaAcao } | null };
 
 type DecMaisNovo = NonNullable<DadosDasEtapas['decMaisNovo']>;
+type ComOpcao = Pick<PacoteDecisaoVista, 'decisao' | 'aprovadores'>;
 type Link = ProximaAcao['link'];
 
 // Textos fixos da barra e do cartão (03, seção 9).
@@ -68,20 +73,25 @@ const ABRIR_APROVADA = 'Abrir a decisão aprovada';
 
 // A ESP e o DEC mais novos têm de ser os da demanda (a página lê cada um pelo id de `d.especificacoes[0]` e de
 // `d.pacotesDecisao[0]`). Dado incoerente vira erro e a tela de erro de hoje, em vez de um estado errado (02, seção 5).
+// 0.4.1 (T13): o DEC vigente, quando veio, tem de ser o de vigenteDe(demanda).
 function conferir(x: DadosDasEtapas): void {
   if ((x.demanda.especificacoes[0]?.id ?? null) !== (x.espMaisNova?.id ?? null)) throw new Error('etapas: ESP mais nova incoerente');
   if ((x.demanda.pacotesDecisao[0]?.id ?? null) !== (x.decMaisNovo?.id ?? null)) throw new Error('etapas: DEC mais novo incoerente');
+  if (x.decVigente && x.decVigente.id !== (vigenteDe(x.demanda)?.id ?? null)) throw new Error('etapas: DEC vigente incoerente');
 }
 
 const emStatusFinal = (s: Status): boolean => s === 'entregue' || s === 'encerrada';
 
-// Aprovado vigente: o primeiro aprovado não substituído, do mais novo para o mais antigo.
-const vigenteDe = (d: DadosDasEtapas['demanda']): PacoteResumo | null => d.pacotesDecisao.find((p) => p.statusDecisao === 'aprovada' && !p.substituido) ?? null;
+// Aprovado vigente: o primeiro aprovado não substituído, do mais novo para o mais antigo. 0.4.1 (T13): exportada, para a
+// página tirar dela o id do DEC vigente que lê (CV-09).
+export function vigenteDe(d: DadosDasEtapas['demanda']): PacoteResumo | null {
+  return d.pacotesDecisao.find((p) => p.statusDecisao === 'aprovada' && !p.substituido) ?? null;
+}
 
 const umaDeDuas = (dec: DecMaisNovo): boolean => dec.nivelAprovacaoRequerido === 'cto_e_administradora' && dec.aprovadores.length === 1;
 
 // A opção aprovada: a da decisão, senão a da primeira aprovação. Sem nenhuma, erro: número errado não (02, seção 5).
-function opcaoAprovada(dec: DecMaisNovo): OpcaoDecisao {
+function opcaoAprovada(dec: ComOpcao): OpcaoDecisao {
   const opcao = dec.decisao?.opcaoEscolhida ?? dec.aprovadores[0]?.opcao;
   if (!opcao) throw new Error('etapas: DEC aprovado sem opção');
   return opcao;
@@ -130,7 +140,10 @@ export function etapasDaDemanda(x: DadosDasEtapas): EtapaDaDemanda[] {
       : { numero: 3, nome: 'Parecer de risco', idVersao: rsk.id, estado: 'Feito', feita: true },
     dec === null
       ? { numero: 4, nome: 'Decisão', idVersao: null, estado: 'Por fazer', feita: false }
-      : { numero: 4, nome: 'Decisão', idVersao: dec.id, estado: estadoDaDecisao(dec), feita: dec.statusDecisao === 'aprovada' },
+      : // 0.4.1 (T13; 7.2, item 3): com o mais novo arquivado e o vigente lido, a etapa 4 mostra o vigente.
+        dec.statusDecisao === 'arquivada' && x.decVigente
+        ? { numero: 4, nome: 'Decisão', idVersao: x.decVigente.id, estado: `Aprovada, opção ${opcaoAprovada(x.decVigente)}`, feita: true }
+        : { numero: 4, nome: 'Decisão', idVersao: dec.id, estado: estadoDaDecisao(dec), feita: dec.statusDecisao === 'aprovada' },
     gerado
       ? { numero: 5, nome: 'Pedido de Construção', idVersao: vigente.id, estado: 'Gerado', feita: true }
       : { numero: 5, nome: 'Pedido de Construção', idVersao: null, estado: vigente ? 'Ainda não gerado' : 'Depois da aprovação', feita: false },
@@ -229,7 +242,8 @@ export function proximaAcao(x: DadosDasEtapas): ProximaAcao {
     return acao(4, 'Escrever a especificação técnica.', 'Agente de insumo técnico ou uma pessoa', paraDemanda(d.id, 'especificacoes/nova', 'Escrever a especificação'));
   if (d.pareceresRisco.length === 0)
     return acao(5, 'Escrever o parecer de risco.', 'Agente de risco ou uma pessoa', paraDemanda(d.id, 'pareceres-risco/novo', 'Escrever o parecer de risco'));
-  if (dec === null || dec.statusDecisao === 'devolvida')
+  // 0.4.1 (T13; 7.2, item 4; D-14): também com o mais novo arquivado e a demanda em Nova ou Em análise.
+  if (dec === null || dec.statusDecisao === 'devolvida' || (dec.statusDecisao === 'arquivada' && (d.status === 'nova' || d.status === 'em_analise')))
     return acao(6, 'Montar o pacote de decisão.', 'Agente de consolidação ou uma pessoa', paraDemanda(d.id, 'pacotes-decisao/novo', 'Montar o pacote de decisão'));
   if (dec.statusDecisao === 'pendente' && dec.desatualizado)
     return acao(7, 'Montar um pacote novo. O pacote atual está desatualizado.', UMA_PESSOA, paraDemanda(d.id, 'pacotes-decisao/novo', 'Montar um pacote novo'));

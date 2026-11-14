@@ -632,6 +632,7 @@ describe('proximaAcao: bordas (06-T10-testes)', () => {
 
   // CA-09.3 em todo status: cada um dos nove status com cada cenário de versões dá a linha que a tabela do 01 (RF-09)
   // manda, pela ordem dela. O oráculo abaixo é a tabela escrita de novo, linha a linha, sem usar o código testado.
+  // 0.4.1 (T13 do DEC-DEM-20261111-0018-v1; 7.2, item 4; D-14): com o DEC mais novo arquivado, nova e em_analise vão à 6.
   const STATUS = Object.keys(ROTULO_STATUS) as Demanda['status'][];
   const aprovadoA = { pacotes: [pacote(1, 'aprovada')], dec: { decisao: decidida('A') } };
   const CENARIOS: ReadonlyArray<[string, Opcoes, number | null]> = [
@@ -647,7 +648,7 @@ describe('proximaAcao: bordas (06-T10-testes)', () => {
     ['DEC aprovado e pedido gerado', { esp: 1, rsk: 1, ...aprovadoA, historico: [{ acao: 'pedido_gerado', entidadeId: idDec(1) }] }, null],
     ['DEC arquivado', { esp: 1, rsk: 1, pacotes: [pacote(1, 'arquivada')] }, null],
   ];
-  const linhaEsperada = (status: Demanda['status'], pelasVersoes: number | null, temVigente: boolean): number => {
+  const linhaEsperada = (status: Demanda['status'], pelasVersoes: number | null, temVigente: boolean, maisNovoArquivado: boolean): number => {
     if (status === 'entregue' || status === 'encerrada') return 1;
     if (status === 'aguardando_informacao') return 3;
     if (pelasVersoes !== null) return pelasVersoes;
@@ -655,10 +656,11 @@ describe('proximaAcao: bordas (06-T10-testes)', () => {
     if (status === 'aprovada') return 10;
     if (status === 'em_construcao') return 11;
     if (status === 'devolvida') return 12;
+    if (maisNovoArquivado && (status === 'nova' || status === 'em_analise')) return 6;
     return 13;
   };
   const COMBINACOES = STATUS.flatMap((status) =>
-    CENARIOS.map(([nome, opcoes, pelasVersoes]) => [status, nome, linhaEsperada(status, pelasVersoes, nome !== 'DEC arquivado'), opcoes] as const),
+    CENARIOS.map(([nome, opcoes, pelasVersoes]) => [status, nome, linhaEsperada(status, pelasVersoes, nome !== 'DEC arquivado', nome === 'DEC arquivado'), opcoes] as const),
   );
 
   it('a varredura cobre os nove status e os dez cenários', () => {

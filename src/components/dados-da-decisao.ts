@@ -5,15 +5,21 @@
 // depois de criar o pacote ou de decidir. Vai ao navegador: só tipos vêm dos módulos, e as mensagens que o servidor
 // também usa são cópia das de decidir.ts (o teste confere). Quem decide é o servidor (registrarDecisao, T21): a regra
 // daqui só evita o erro previsível, como a opção fixada na segunda aprovação, que evita o 409 do CA-14.4.
+//
+// 0.4.1 (T12 do DEC-DEM-20261111-0018-v1; RF-03, RF-06; D-10, D-11): os três avisos da vigência, a dica do Arquivar pelo
+// destino e a chegada depois de arquivar pelo status gravado. A página lê o vigente e calcula o destino
+// (destinoDoArquivamento); daqui só saem textos, e de src/modules/ continuam vindo só tipos.
 import type { NivelAprovacao, OpcaoDecisao, PapelAprovacao, StatusDecisaoGravado } from '../db/schema/decisao';
 import type { ResultadoAcao } from '../lib/acao-painel';
 import { formatarDataHora } from '../lib/fuso';
 import type { AtorPessoa } from '../modules/acesso/ator';
+import type { Status } from '../modules/demandas/schemas';
 import type { Aprovador, PacoteDecisaoVista } from '../modules/pacotes-decisao/consultas';
-import { AVISO_PACOTE, LETRAS, LIMITE_CAMPO_DEC, TEXTOS_DEC, type LetraOpcao } from './dados-do-pacote';
+import { RE_ID_DEMANDA_NA_TELA } from './dados-das-etapas';
+import { AVISO_PACOTE, LETRAS, LIMITE_CAMPO_DEC, RE_ID_DEC, TEXTOS_DEC, type LetraOpcao } from './dados-do-pacote';
 import { errosDoResultado, idDoCampo, type ErroDeCampo, type ErrosDoFormulario } from './formulario';
 import type { OpcaoDoGrupo } from './GrupoOpcoes';
-import { ROTULO_NIVEL, ROTULO_NIVEL_APROVACAO } from './rotulos';
+import { ROTULO_NIVEL, ROTULO_NIVEL_APROVACAO, ROTULO_STATUS } from './rotulos';
 
 // LIMITE_REFERENCIA_DOCUMENTO de pacotes-decisao/schemas.ts.
 export const LIMITE_REFERENCIA = 200;
@@ -39,10 +45,18 @@ export const TEXTOS_DECISAO = {
   desatualizadoRsk: (id: string) =>
     `Este pacote está desatualizado. A demanda já tem ${id}, mais novo que o citado aqui. Ele não pode ser aprovado; você pode devolvê-lo ou arquivá-lo. Para aprovar, crie um pacote novo.`,
   criarPacoteNovo: 'Criar pacote novo',
-  // 0.1.13: textos da 02-triagem do DEC-DEM-20261104-0014-v1, para revisão da ux-ui-design.
+  // 0.1.13; textos revistos na 0.4.1 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, seções 4.8 e 8).
   substituido: (id: string) =>
-    `Este pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`,
-  abrirSubstituto: (id: string) => `Abrir ${id}`,
+    `Este pacote foi substituído por ${id}, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste pacote já foi gerado, não o use. O pedido que vale é o de ${id}.`,
+  abrirSubstituto: (id: string) => `Abrir o pacote ${id}`,
+  // 0.4.1 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, seções 4.2 e 8): os três avisos da vigência; o link de (a) e (b)
+  // é abrirSubstituto, o de (c) é criarPacoteNovo.
+  avisoVigente: (v: string) =>
+    `Esta demanda já tem um pacote aprovado em vigor: ${v}. Quando a aprovação deste pacote ficar completa, ele passa a valer no lugar de ${v}, e um pedido já gerado de ${v} deixa de valer.`,
+  avisoMaisNovoPendente: (p: string) =>
+    `Há um pacote mais novo pendente nesta demanda: ${p}. Quando a aprovação dele ficar completa, ele passa a valer no lugar deste, e um pedido já gerado deste pacote deixa de valer.`,
+  avisoNivelMenor: (v: string) =>
+    `A aprovação deste pacote será recusada: o pacote em vigor nesta demanda, ${v}, exigiu a aprovação do CTO e da administradora, e um pacote só do CTO não pode substituí-lo. Você pode devolver ou arquivar este pacote. Para substituir ${v}, crie um pacote novo com aprovação do CTO e da administradora.`,
   alertaRascunho: (ids: string) => `Este pacote cita conteúdo gerado por agente de IA: ${ids}. Leia cada um antes de decidir.`,
   // Revisão de C-14 (04): a 03 não a desenha; os rótulos são os de T07, T08 e T11.
   revisao: 'Revisão antes de decidir',
@@ -81,6 +95,11 @@ export const TEXTOS_DECISAO = {
   // 0.2.0 (03 do DEC-DEM-20261110-0015-v1, seção 9): a consequência do botão curto "Devolver".
   dicaDevolver: 'Devolver: a demanda volta para Em análise.',
   dicaArquivar: 'Arquivar: a demanda vai para Encerrada.',
+  // 0.4.1 (03 do DEC-DEM-20261111-0018-v1, 4.6 e seção 8): a dica do Arquivar pelo destino (dicaDoArquivar); a de
+  // Encerrada continua dicaArquivar.
+  dicaArquivarSemMudanca: (status: string) => `Arquivar: a demanda continua em ${status}.`,
+  dicaArquivarAprovada: (v: string) => `Arquivar: a demanda vai para Aprovada, e ${v} continua em vigor.`,
+  dicaArquivarEmAnalise: (v: string) => `Arquivar: a demanda vai para Em análise, porque ${v}, o pacote em vigor, está desatualizado.`,
   // 0.2.0 (T12): os três botões de envio e o grupo deles. `legendaDecisao`, `aprovar` como rótulo de rádio, `devolver`
   // e `registrar` como texto de botão ficam sem uso na T11 (03, seção 9); o `h2` "Registrar decisão" continua.
   aprovarOpcao: (o: OpcaoDecisao) => `Aprovar a opção ${o}`,
@@ -143,6 +162,9 @@ export const TEXTOS_DECISAO = {
     },
     devolvida: 'Pacote devolvido para nova análise. A demanda voltou para Em análise.',
     arquivada: 'Pacote arquivado. A demanda foi para Encerrada.',
+    // 0.4.1 (03 do DEC-DEM-20261111-0018-v1, 4.7 e seção 8): pelo status gravado da demanda (chegadaNaDecisao).
+    arquivadaAprovada: (v: string) => `Pacote arquivado. A demanda está em Aprovada, e ${v} continua em vigor.`,
+    arquivadaEm: (status: string) => `Pacote arquivado. A demanda está em ${status}.`,
   },
 } as const;
 
@@ -420,6 +442,87 @@ export function alertaDeSubstituido(p: Pick<PacoteDecisaoVista, 'substituidoPor'
   return { texto: TEXTOS_DECISAO.substituido(id), link: { rotulo: TEXTOS_DECISAO.abrirSubstituto(id), href: `/pacotes-decisao/${id}` } };
 }
 
+// --- vigência (0.4.1) ---
+
+// 0.4.1 (RF-06, ADR-40; 03, 4.2): os três avisos da vigência. Só informam: não habilitam nem escondem botão; a regra
+// que vale é a do servidor. Só aparecem fora de status final; só citam id que casa RE_ID_DEC (SB-12).
+export type ContextoDaVigencia = {
+  statusDaDemanda: Status;
+  maisNovoId: string | null;
+  vigente: { id: string; nivel: NivelAprovacao } | null;
+  // só quando o aberto é o vigente e o mais novo é outro, pendente (D-12)
+  pendenteMaisNovo: { id: string; nivel: NivelAprovacao; desatualizado: boolean } | null;
+};
+export type AvisoDeVigencia = { texto: string; link: { rotulo: string; href: string } };
+
+const FINAL: ReadonlySet<Status> = new Set(['entregue', 'encerrada']);
+// O S-01: um DEC só do CTO não substitui um aprovado de dupla aprovação.
+const soCtoSobreDupla = (novo: NivelAprovacao, vigente: NivelAprovacao) => novo === 'cto' && vigente === 'cto_e_administradora';
+
+export function avisoDeVigencia(
+  p: Pick<PacoteDecisaoVista, 'id' | 'demandaId' | 'statusDecisao' | 'desatualizado' | 'nivelAprovacaoRequerido'>,
+  c: ContextoDaVigencia,
+): AvisoDeVigencia | null {
+  const t = TEXTOS_DECISAO;
+  if (FINAL.has(c.statusDaDemanda)) return null;
+  const v = c.vigente;
+  // (a) e (c): o aberto é o pendente mais novo, não desatualizado, e há outro DEC em vigor.
+  if (p.statusDecisao === 'pendente' && p.id === c.maisNovoId && !p.desatualizado && v && v.id !== p.id && RE_ID_DEC.test(v.id)) {
+    if (soCtoSobreDupla(p.nivelAprovacaoRequerido, v.nivel)) {
+      if (!RE_ID_DEMANDA_NA_TELA.test(p.demandaId)) return null;
+      return { texto: t.avisoNivelMenor(v.id), link: { rotulo: t.criarPacoteNovo, href: `/demandas/${p.demandaId}/pacotes-decisao/novo` } };
+    }
+    return { texto: t.avisoVigente(v.id), link: { rotulo: t.abrirSubstituto(v.id), href: `/pacotes-decisao/${v.id}` } };
+  }
+  // (b): o aberto é o vigente, e o mais novo é outro, pendente, não desatualizado e capaz de substituí-lo.
+  const n = c.pendenteMaisNovo;
+  if (v?.id === p.id && n && n.id !== p.id && !n.desatualizado && !soCtoSobreDupla(n.nivel, p.nivelAprovacaoRequerido) && RE_ID_DEC.test(n.id))
+    return { texto: t.avisoMaisNovoPendente(n.id), link: { rotulo: t.abrirSubstituto(n.id), href: `/pacotes-decisao/${n.id}` } };
+  return null;
+}
+
+// "<Status>" dos textos só por ROTULO_STATUS, e só chave própria (Object.hasOwn: `__proto__` não passa). Fora da lista,
+// lança sem o valor (D-13): a página mostra a tela de erro de hoje.
+function rotuloDoStatus(s: Status): string {
+  if (!Object.hasOwn(ROTULO_STATUS, s)) throw new Error('T11: status da demanda fora da lista');
+  return ROTULO_STATUS[s];
+}
+
+// O id do vigente citado na dica ou na chegada, só no formato de DEC; fora dele (ou sem vigente), lança sem o valor
+// (D-13). O CHECK de pacote_decisao.id torna o caso impossível no banco: é dado incoerente, não texto a inventar.
+function idDoVigente(id: string | null): string {
+  if (id === null || !RE_ID_DEC.test(id)) throw new Error('T11: id do pacote em vigor fora do formato');
+  return id;
+}
+
+// 0.4.1 (RF-03, CA-03.6; 03, 4.6; D-10, D-11): a dica do Arquivar pelo destino que a página tira de
+// destinoDoArquivamento (a mesma tabela do servidor). Sem destino, o status não muda e a dica diz "continua em".
+export function dicaDoArquivar(destino: Status | null, statusAtual: Status, vigenteId: string | null): string {
+  const t = TEXTOS_DECISAO;
+  if (destino === null) return t.dicaArquivarSemMudanca(rotuloDoStatus(statusAtual));
+  switch (destino) {
+    case 'encerrada':
+      return t.dicaArquivar;
+    case 'aprovada':
+      return t.dicaArquivarAprovada(idDoVigente(vigenteId));
+    case 'em_analise':
+      return t.dicaArquivarEmAnalise(idDoVigente(vigenteId));
+    case 'nova':
+    case 'aguardando_informacao':
+    case 'pronta_para_decisao':
+    case 'em_construcao':
+    case 'devolvida':
+    case 'entregue':
+      throw new Error('T11: destino do arquivamento fora da tabela');
+    default: {
+      // Sem o valor na mensagem (D-13).
+      const nunca: never = destino;
+      void nunca;
+      throw new Error('T11: destino do arquivamento desconhecido');
+    }
+  }
+}
+
 // --- revisão antes de decidir (C-14) ---
 
 export type ItemDaRevisao = { termo: string; valor: string | string[]; rascunho?: boolean };
@@ -527,15 +630,31 @@ function segundaAprovacao(aprovadores: readonly Aprovador[], decididaPor: string
   return doNome.length === 1 ? doNome[0] : aprovadores[aprovadores.length - 1];
 }
 
+// 0.4.1 (RF-03; 03, 4.7; SB-12): depois de arquivar, o texto sai do status da demanda lido na página (o gravado depois
+// da ação) e do vigente dela, nunca da URL.
+export type ContextoDaChegada = { statusDaDemanda: Status; vigente: { id: string; desatualizado: boolean } | null };
+
+function chegadaDoArquivamento(c: ContextoDaChegada): string {
+  const s = TEXTOS_DECISAO.sucesso;
+  if (c.statusDaDemanda === 'encerrada') return s.arquivada;
+  if (c.statusDaDemanda === 'aprovada' && c.vigente && !c.vigente.desatualizado) return s.arquivadaAprovada(idDoVigente(c.vigente.id));
+  return s.arquivadaEm(rotuloDoStatus(c.statusDaDemanda));
+}
+
 // O alerta de resultado (03, T09 e T11, Sucesso). Só os valores fixos de `?aviso=` escolhem o texto, e o texto sai do
-// estado do pacote, nunca da URL: depois de decidir, o que o pacote tem gravado.
-export function chegadaNaDecisao(params: Parametros, p: Pick<PacoteDecisaoVista, 'id' | 'statusDecisao' | 'decisao' | 'aprovadores' | 'nivelAprovacaoRequerido'>): string | null {
+// estado do pacote, nunca da URL: depois de decidir, o que o pacote tem gravado; depois de arquivar, também o status
+// gravado da demanda (0.4.1).
+export function chegadaNaDecisao(
+  params: Parametros,
+  p: Pick<PacoteDecisaoVista, 'id' | 'statusDecisao' | 'decisao' | 'aprovadores' | 'nivelAprovacaoRequerido'>,
+  c: ContextoDaChegada,
+): string | null {
   const s = TEXTOS_DECISAO.sucesso;
   if (params.aviso === AVISO_DECISAO.pacoteCriado) return !p.decisao && p.aprovadores.length === 0 ? TEXTOS_DEC.criado(p.id) : null;
   if (params.aviso !== AVISO_DECISAO.decisaoRegistrada) return null;
   if (p.decisao) {
     if (p.statusDecisao === 'devolvida') return s.devolvida;
-    if (p.statusDecisao === 'arquivada') return s.arquivada;
+    if (p.statusDecisao === 'arquivada') return chegadaDoArquivamento(c);
     if (p.statusDecisao !== 'aprovada') return null;
     if (p.nivelAprovacaoRequerido === 'cto') return p.decisao.opcaoEscolhida ? s.aprovada(p.decisao.opcaoEscolhida) : null;
     const quemFechou = segundaAprovacao(p.aprovadores, p.decisao.decididaPor);

@@ -427,7 +427,6 @@ describe('mudarStatusPeloSistema', () => {
     ['duvida_em_aberto', ['nova', 'em_analise', 'pronta_para_decisao'], 'aguardando_informacao'],
     ['dec_criado', ['nova', 'em_analise', 'aguardando_informacao'], 'pronta_para_decisao'],
     ['decisao_devolvida', ['nova', 'aguardando_informacao', 'pronta_para_decisao'], 'em_analise'],
-    ['decisao_arquivada', ['nova', 'em_analise', 'aguardando_informacao', 'pronta_para_decisao'], 'encerrada'],
   ];
   const TODOS: Status[] = ['nova', 'em_analise', 'aguardando_informacao', 'pronta_para_decisao', 'encerrada', 'aprovada', 'em_construcao', 'entregue', 'devolvida'];
 

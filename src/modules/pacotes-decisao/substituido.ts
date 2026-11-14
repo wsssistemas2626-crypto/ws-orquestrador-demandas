@@ -8,6 +8,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from '../../db';
 import { decisao, pacoteDecisao } from '../../db/schema';
 import type { NivelAprovacao } from '../../db/schema/decisao';
+import { expressaoDesatualizado } from './desatualizado';
 
 // Nomes próprios: a subconsulta é correlacionada com a linha de `pacote_decisao` da consulta externa (que também junta
 // `decisao`) e não pode se confundir com ela nem com as subconsultas de expressaoDesatualizado. No template `sql`, a
@@ -38,4 +39,20 @@ export async function aprovadoVigente(tx: Db, demandaId: string): Promise<{ id: 
 // O id do aprovado mais novo da demanda, ou null. Mesma leitura de aprovadoVigente, sob a trava de quem chama.
 export async function aprovadoMaisNovo(tx: Db, demandaId: string): Promise<string | null> {
   return (await aprovadoVigente(tx, demandaId))?.id ?? null;
+}
+
+// 0.4.1 (S-04, ADR-38, ADR-40): o aprovado vigente com o nível e o `desatualizado` dele, ou null. A mesma leitura de
+// aprovadoVigente. No arquivamento, lido sob a trava da demanda e depois de gravarDecisao (decidir.ts); na T11, só
+// depois de autorizar e de achar o pacote.
+export type VigenteDaDemanda = { id: string; nivel: NivelAprovacao; desatualizado: boolean };
+
+export async function vigenteDaDemanda(db: Db, demandaId: string): Promise<VigenteDaDemanda | null> {
+  const [linha] = await db
+    .select({ id: pacoteDecisao.id, nivel: pacoteDecisao.nivelAprovacaoRequerido, desatualizado: sql<boolean>`${expressaoDesatualizado()}` })
+    .from(pacoteDecisao)
+    .innerJoin(decisao, eq(decisao.pacoteDecisaoId, pacoteDecisao.id))
+    .where(and(eq(pacoteDecisao.demandaId, demandaId), eq(decisao.statusDecisao, 'aprovada')))
+    .orderBy(desc(pacoteDecisao.versao))
+    .limit(1);
+  return linha ?? null;
 }

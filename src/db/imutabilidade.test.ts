@@ -34,6 +34,8 @@ describe('versões gravadas não mudam (RF-11)', () => {
     ['delete from especificacao_tecnica', []],
     ['update parecer_risco set resumo = $1', ['outro']],
     ['update pacote_decisao set resumo_executivo = $1', ['outro']],
+    // 0.4.1 (SB-07 d, T03 do DEC-DEM-20261111-0018-v1): os caminhos da criação são gravados uma vez, na inclusão.
+    ['update pacote_decisao set caminhos_com_nome_na_criacao = $1', ['{}']],
     ['update aprovacao set opcao = $1', ['B']],
     ['update decisao set status_decisao = $1', ['arquivada']],
     ['delete from demanda', []],

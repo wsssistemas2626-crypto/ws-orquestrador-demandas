@@ -256,13 +256,14 @@ describe('textoDoEvento (03, T05, tabela "Histórico")', () => {
 
   // 0.1.13 (S4): a substituição grava os dois ids, e a frase é fixa. Um substituidoPor fora do formato de id de DEC não
   // aparece: o texto de reserva cita só o substituído.
-  it('pacote substituído: "<DEC antigo> foi substituído por <DEC novo>, aprovado depois"; fora do formato, o texto de reserva', () => {
+  // 0.4.1: "dele" no fim (03-ux-ui-design do DEC-DEM-20261111-0018-v1, 6.1).
+  it('pacote substituído: "<DEC antigo> foi substituído por <DEC novo>, aprovado depois dele"; fora do formato, o texto de reserva', () => {
     const subst = { acao: 'pacote_decisao_substituido', entidade: 'pacote_decisao', entidadeId: 'DEC-DEM-20261104-0042-v1' } as const;
     expect(textoDoEvento(ev({ ...subst, depois: { substituido: 'DEC-DEM-20261104-0042-v1', substituidoPor: 'DEC-DEM-20261104-0042-v2' } }))).toBe(
-      'DEC-DEM-20261104-0042-v1 foi substituído por DEC-DEM-20261104-0042-v2, aprovado depois',
+      'DEC-DEM-20261104-0042-v1 foi substituído por DEC-DEM-20261104-0042-v2, aprovado depois dele',
     );
     for (const depois of [{ substituidoPor: 'Carla Santos Ficticia' }, { substituidoPor: 42 }, {}, null]) {
-      expect(textoDoEvento(ev({ ...subst, depois })), JSON.stringify(depois)).toBe('DEC-DEM-20261104-0042-v1 foi substituído por um pacote aprovado depois');
+      expect(textoDoEvento(ev({ ...subst, depois })), JSON.stringify(depois)).toBe('DEC-DEM-20261104-0042-v1 foi substituído por um pacote aprovado depois dele');
     }
   });
 

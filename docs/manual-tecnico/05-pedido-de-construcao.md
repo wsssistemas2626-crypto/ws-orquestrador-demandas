@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 13/11/2026 (0.4.0: seção "Andamento da construção", com a rota `POST /api/pedidos-construcao/<DEC-id>/andamento`, as respostas, a tabela de transições, o evento `andamento_registrado`, o limite e a A3; o parágrafo dos dois caminhos do pedido deixa de dizer que o status muda só à mão); 12/11/2026 (0.3.1: entrega e recebimento sob a mesma trava do DEC; recebimento só do hash da última entrega; entrega grava quando o hash difere do último; prazo total; DEC de demanda do Awave não confirmada fora da lista do agente, no RF-23); 12/11/2026 (0.3.0: conferência e montagem em `conferir.ts`, a mesma da geração e da entrega; seção "Entrega ao /construir", com as três rotas novas; texto da seção do pedido e "Recebido pelo /construir em …" na T11); 10/11/2026 (0.1.13: só o DEC aprovado mais novo gera, 409 do substituído, linha 6 da orientação e T11 do substituído, no RF-22; substituído marcado no RF-23); 04/11/2026 (0.1.12: recusa com o nome do solicitante, confirmação sem dado pessoal no corpo e na T11, `aprovadoPor` com o papel, no RF-22); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo de C-28 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
+| Atualizado em | 14/11/2026 (0.4.1: seção "Situação do pedido", com a rota `GET /api/pedidos-construcao/<DEC-id>/situacao`; D1 com o nome em vigor na criação do DEC, em "Nome do solicitante"; textos revistos do 409 do substituído e da linha 6 da orientação, com a variação da dupla aprovação); 13/11/2026 (0.4.0: seção "Andamento da construção", com a rota `POST /api/pedidos-construcao/<DEC-id>/andamento`, as respostas, a tabela de transições, o evento `andamento_registrado`, o limite e a A3; o parágrafo dos dois caminhos do pedido deixa de dizer que o status muda só à mão); 12/11/2026 (0.3.1: entrega e recebimento sob a mesma trava do DEC; recebimento só do hash da última entrega; entrega grava quando o hash difere do último; prazo total; DEC de demanda do Awave não confirmada fora da lista do agente, no RF-23); 12/11/2026 (0.3.0: conferência e montagem em `conferir.ts`, a mesma da geração e da entrega; seção "Entrega ao /construir", com as três rotas novas; texto da seção do pedido e "Recebido pelo /construir em …" na T11); 10/11/2026 (0.1.13: só o DEC aprovado mais novo gera, 409 do substituído, linha 6 da orientação e T11 do substituído, no RF-22; substituído marcado no RF-23); 04/11/2026 (0.1.12: recusa com o nome do solicitante, confirmação sem dado pessoal no corpo e na T11, `aprovadoPor` com o papel, no RF-22); 04/11/2026 (0.1.11: detector de e-mail linear e com acento no usuário, no passo de C-28 do RF-22); 03/11/2026 (0.1.6: trava da demanda e recusa em status final na geração) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RF-22, RF-23; RNF-15; RF-12 a RF-15 do pedido 0016 (0.3.0); RF-01 a RF-07 e RF-12 do pedido 0017 (0.4.0) |
-| Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `conferir.ts`, `entregar.ts`, `receber.ts`, `pendentes.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`, `schemas.ts`), `src/modules/dados-pessoais/detectores.ts`, `src/modules/dados-pessoais/minimizar.ts` (`temNome`), `src/modules/pacotes-decisao/criar.ts` (`descricaoSemRotulos`), `src/modules/pacotes-decisao/substituido.ts`, `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/(painel)/pacotes-decisao/[decId]/` (`SecaoPedido.tsx`, `acoes-pedido.ts`), `src/components/dados-do-pedido.ts`, `src/components/dados-da-decisao.ts` (`linhaDoRecebimento`), `src/app/api/pacotes-decisao/route.ts`, `src/app/api/pedidos-construcao/`; desde a 0.4.0, `src/modules/andamento/` (`schemas.ts`, `regras.ts`, `registrar.ts`, `consultas.ts`), `src/db/schema/andamento.ts`, `src/modules/demandas/transicoes.ts` (`AUTOMATICAS_DO_CONSTRUIR`, `CONTRADIZ_STATUS_FINAL`, `mudarStatusPeloConstruir`), `src/modules/limites.ts` (`LIMITE_ANDAMENTO`, `conferirLimiteDeAndamento`), `src/app/api/pedidos-construcao/[decId]/andamento/route.ts` |
+| Cobre | RF-22, RF-23; RNF-15; RF-12 a RF-15 do pedido 0016 (0.3.0); RF-01 a RF-07 e RF-12 do pedido 0017 (0.4.0); RF-01, RF-02 e RF-05 do pedido 0018 (0.4.1) |
+| Fontes no código | `src/modules/pedido-construcao/` (`gerar.ts`, `conferir.ts`, `entregar.ts`, `receber.ts`, `pendentes.ts`, `montar.ts`, `conteudo.ts`, `serializar.ts`, `schemas.ts`), `src/modules/dados-pessoais/detectores.ts`, `src/modules/dados-pessoais/minimizar.ts` (`temNome`), `src/modules/pacotes-decisao/criar.ts` (`descricaoSemRotulos`), `src/modules/pacotes-decisao/substituido.ts`, `src/vendor/construir/pedido.mjs`, `src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts`, `src/app/(painel)/pacotes-decisao/[decId]/` (`SecaoPedido.tsx`, `acoes-pedido.ts`), `src/components/dados-do-pedido.ts`, `src/components/dados-da-decisao.ts` (`linhaDoRecebimento`), `src/app/api/pacotes-decisao/route.ts`, `src/app/api/pedidos-construcao/`; desde a 0.4.0, `src/modules/andamento/` (`schemas.ts`, `regras.ts`, `registrar.ts`, `consultas.ts`), `src/db/schema/andamento.ts`, `src/modules/demandas/transicoes.ts` (`AUTOMATICAS_DO_CONSTRUIR`, `CONTRADIZ_STATUS_FINAL`, `mudarStatusPeloConstruir`), `src/modules/limites.ts` (`LIMITE_ANDAMENTO`, `conferirLimiteDeAndamento`), `src/app/api/pedidos-construcao/[decId]/andamento/route.ts`; desde a 0.4.1, `src/modules/pedido-construcao/situacao.ts`, `src/modules/pedido-construcao/caminhos-da-criacao.ts`, `src/app/api/pedidos-construcao/[decId]/situacao/route.ts`, `src/modules/pacotes-decisao/criar.ts` (a marcação da criação), `drizzle/0010_magical_cammi.sql` |
 
 ## RF-22. Gerar o pedido
 
@@ -37,8 +37,8 @@ que a geração e a entrega ao `/construir` chamam: os bytes da entrega são os 
 5. DEC sem decisão `aprovada` completa (pendente, com só uma das duas aprovações, devolvido ou arquivado) → 409
    "o Pedido de Construção só é gerado de pacote aprovado.";
 6. DEC substituído por um aprovado mais novo da demanda (desde a 0.1.13), lido junto com o DEC, sob a trava → 409
-   "o pacote foi substituído por <id>, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de
-   Construção." (`MENSAGENS_PEDIDO.substituido(id)`, uma função, com o id do aprovado vigente). Vem antes do
+   "o pacote foi substituído por <id>, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de
+   Construção." (`MENSAGENS_PEDIDO.substituido(id)`, uma função, com o id do aprovado vigente; texto revisto na 0.4.1). Vem antes do
    desatualizado, porque aponta o DEC que gera: um DEC desatualizado e substituído recebe esta mensagem. Uma aprovação
    do DEC mais novo ao mesmo tempo ou espera esta transação, ou já é vista; nunca sai 200 do substituído depois que a
    aprovação do mais novo foi gravada ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado));
@@ -53,7 +53,8 @@ que a geração e a entrega ao `/construir` chamam: os bytes da entrega são os 
      o detector de e-mail tem custo linear (100 mil caracteres abaixo de 200 ms; antes, cerca de 20 s com o event loop
      travado) e aceita letra com acento no usuário. No reteste da `seguranca-aplicacao`, com 300 mil textos sorteados,
      nenhum texto que a 0.1.10 bloqueia deixou de ser bloqueado ([cap. 06](06-agentes-de-ia.md#detector-de-e-mail));
-   - **nome do solicitante** (desde a 0.1.12, D1 do 0013): o tipo é `nome`. Ver [Nome do solicitante](#nome-do-solicitante);
+   - **nome do solicitante** (desde a 0.1.12, D1 do 0013; desde a 0.4.1, também o nome em vigor na criação do DEC):
+     o tipo é `nome`. Ver [Nome do solicitante](#nome-do-solicitante);
 11. `validarPedido` da cópia em `src/vendor/construir/pedido.mjs` (a mesma regra do `/construir`, conferida por SHA-256
     em teste) → 422 com a mesma mensagem e os `erros` dele;
 12. evento `pedido_gerado` e a resposta. Desde a 0.1.12, o evento grava `depois: { "confirmaSemDadoPessoal": true }`,
@@ -101,7 +102,8 @@ Formato (seção 3.1 da spec do `/construir`), com as chaves sempre nesta ordem:
   e comentários.
 - **Determinístico** (RNF-15): só dado imutável, chaves em ordem fixa, dois espaços de recuo e quebra de linha no fim.
   O mesmo DEC gera sempre o mesmo arquivo, byte a byte, enquanto a demanda não está em status final (passo 4) e
-  enquanto a geração é aceita (o nome conferido no passo 10 é o atual; ver abaixo). O mesmo DEC gerado na 0.1.11 e na
+  enquanto a geração é aceita (o nome conferido no passo 10 é o atual e, desde a 0.4.1, também o da criação; ver
+  abaixo). O mesmo DEC gerado na 0.1.11 e na
   0.1.12 dá arquivos diferentes, por causa do `aprovadoPor`.
 
 O pedido chega a `pedidos/` da estruturaAutonoma por um de dois caminhos. Com a busca automática do `/construir`
@@ -158,8 +160,45 @@ passos 3 e 4 de `minimizar` foram extraídos para `trocarNomes`, que as duas usa
 - O nome conferido é o `solicitanteNome` **atual** da demanda travada (`nomesDoSolicitante`), a mesma fonte da vista
   mínima. Renomear o solicitante depois pode fazer o mesmo DEC, antes aceito, passar a ser recusado. Nome com menos de
   3 letras não confere nada.
+- Desde a 0.4.1 (S-03), conta também o nome **em vigor na criação do DEC**. Ver [Nome da criação](#nome-da-criação-041).
 - `nome` não é um `TipoDadoPessoal`: não tem detector nem marcador, e a minimização do texto que vai ao agente não
   muda.
+
+#### Nome da criação (0.4.1)
+
+Até a 0.4.0, trocar o `solicitanteNome` da demanda fazia passar um DEC antes recusado pelo nome (E11 da reprodução do
+0013, S-03 da revisão do 0014). Desde a 0.4.1 (pedido `DEC-DEM-20261111-0018-v1`, ADR-37), a conferência marca também
+os textos que tinham o nome em vigor quando o DEC foi criado.
+
+- **Na criação** (`criarPacoteDecisao`, `criar.ts`), sob a trava da demanda, o servidor monta os mesmos textos que a
+  geração confere (`textosDaCriacao`, `montar.ts`, com as duas opções no lugar da escolhida) e grava, na coluna
+  `caminhos_com_nome_na_criacao` do DEC, os **caminhos** dos textos em que o nome atual aparece, pela regra de `temNome`.
+  Não grava o nome, nem um hash dele, nem o texto. Sem nome (menos de 3 letras), a lista é vazia. Todo DEC criado a
+  partir da 0.4.1 grava a coluna, por qualquer caminho de criação (painel, API ou worker), e ela nunca muda: o papel da
+  aplicação não tem `UPDATE` em `pacote_decisao`, e nenhum schema de entrada tem o campo.
+- **Na geração e na entrega** (`conferirEMontarPedido`, `conferir.ts`), a coluna é lida por uma lista de permissão
+  (`lerCaminhosDaCriacao`, `caminhos-da-criacao.ts`): só os caminhos da tabela acima, com até 8 + 2 × o limite de
+  itens das listas. Valor fora do formato é erro interno (500), nunca lido como vazio. Os caminhos gravados passam para
+  o vocabulário do pedido: o da opção escolhida vira `decisao.opcaoEscolhida`, e o da outra opção sai (a opção não
+  escolhida não vai ao pedido e não recusa).
+- Um texto recusa quando tem o nome atual **ou** quando o caminho dele foi marcado na criação. O caminho marcado pelos
+  dois sai uma vez no `erros`, na ordem de `textosDoPedido`. O 422 é o de sempre, com o caminho e o tipo `nome`, sem o
+  valor.
+- Os textos conferidos não mudam depois da criação (a cópia da demanda e as opções estão no DEC, e a ESP e o RSK
+  citados são versões imutáveis), então o caminho marcado aponta sempre o mesmo texto.
+
+Exemplo, com dados fictícios: a solicitante `Joana Ficticia Lima` e o título `Pedido da Joana Ficticia Lima`. O DEC
+criado com esse nome é recusado com `demanda.titulo: nome`. Trocar o solicitante para `Outra Pessoa Teste` não faz o DEC
+passar: o caminho `demanda.titulo` continua marcado. A saída continua sendo corrigir o título e criar um DEC novo.
+
+**Limite (decisão 7.2, item 1):** o DEC criado antes da 0.4.1 tem a coluna nula e confere só o nome atual, como antes.
+Vale também para o DEC criado pela 0.4.0 no intervalo da publicação, entre a migration e o Deploy da 0.4.1
+([deploy.md, seção 5](../operacao/deploy.md)).
+O nome da criação não é recuperável para esses DEC: nem o DEC nem o histórico guardam o valor antigo do
+`solicitanteNome`. O nome que valia antes de uma edição feita **antes** da criação do DEC também não conta.
+
+A coluna não é dado pessoal em si (só nomes de campo), mas, por cautela, segue a base legal, a retenção e o expurgo do
+DEC (04, seção 5, do pedido). Ela não sai em nenhuma vista, API, evento, entrada do agente nem no JSON do pedido.
 
 Exemplo, com a solicitante fictícia `Joana Ficticia`: título `Pedido da Joana Ficticia` e
 `contato@exemplo.test` na ESP dão `["especificacao.conteudo: e-mail", "demanda.titulo: nome"]`. Com o solicitante
@@ -172,7 +211,8 @@ começo da frase, `Campos`. Só reescrevendo o texto ela passa. Ver [Corrigir um
 **O que a conferência não pega.** A confirmação da T11 e a regra de uso cobrem estes casos; nenhum é recusado:
 
 - o nome de outras pessoas, inclusive de quem aprovou, escrito no texto. Só o nome do solicitante é conferido;
-- o nome antigo do solicitante, de antes de uma edição da demanda;
+- o nome antigo do solicitante, de antes de uma edição da demanda: desde a 0.4.1, ele conta quando estava em vigor na
+  criação do DEC, e só no DEC criado a partir da 0.4.1 ([Nome da criação](#nome-da-criação-041));
 - a parte do nome escrita toda em minúscula (`a joana pediu`), para não recusar a palavra comum. O nome completo em
   minúscula, com espaço ou `_`, é recusado;
 - o nome completo em minúscula ligado por hífen ou ponto (`joana-ficticia`, `joana.ficticia`). Em `sistema_alvo` e
@@ -198,8 +238,13 @@ parágrafo por linha, só com as linhas que valem e nesta ordem:
    "ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.";
 4. `risco.`: "Parecer de risco (risco.conteudo): corrija num parecer de risco novo.";
 5. `decisao.`: "Opção escolhida (decisao.opcaoEscolhida): corrija num pacote novo.";
-6. sempre que houver linha de 2 a 5 (texto da 0.1.13): "Depois de corrigir, crie um pacote novo e aprove-o: o pacote
-   aprovado mais novo substitui este, e só ele gera o Pedido de Construção.";
+6. sempre que houver linha de 2 a 5, com o texto do nível do DEC aberto (desde a 0.4.1, revisto pela `ux-ui-design`;
+   `orientacaoDoPedido` recebe o nível):
+   - DEC `cto`: "Depois de corrigir, crie um pacote novo e aprove-o. Aprovado, ele substitui este e passa a ser o único
+     que gera o Pedido de Construção.";
+   - DEC `cto_e_administradora`: "Depois de corrigir, crie um pacote novo com aprovação do CTO e da administradora e
+     registre as duas aprovações. Com as duas, ele substitui este e passa a ser o único que gera o Pedido de
+     Construção." (um DEC novo só do CTO seria recusado pelo S-01);
 7. nenhuma linha de 2 a 5 valeu (por exemplo, erro do `validarPedido` fora desses caminhos): "Corrija criando uma
    versão nova da ESP e um pacote novo.".
 
@@ -245,8 +290,9 @@ ordem, o texto da seção, o aviso de C-28, a caixa de confirmação e o botão 
   "Gerar" recebe o 409 do passo 6 e mostra "Não foi possível concluir: o pacote foi substituído por <id>, …", com o foco
   no alerta, sem lista nem orientação.
 
-Os textos do aviso, da caixa, do erro da caixa e da orientação foram escritos na triagem do 0013 e esperam a revisão da
-`ux-ui-design` ([cap. 08](08-painel.md#pendências-de-interface-conhecidas)).
+Os textos do aviso, da caixa, do erro da caixa e das linhas 1 a 5 e 7 da orientação foram escritos na triagem do 0013 e
+esperam a revisão da `ux-ui-design` ([cap. 08](08-painel.md#pendências-de-interface-conhecidas)). A linha 6 e o 409 do
+substituído foram revistos na 0.4.1.
 
 Desde a 0.3.0, o cabeçalho da T11 mostra "Recebido pelo /construir em <data e hora>.", depois de "Repositório destino",
 quando o DEC tem `pedido_recebido` ([Entrega ao /construir](#entrega-ao-construir-030)).
@@ -300,7 +346,8 @@ total de 12 s, contando a espera por conexão ([cap. 02](02-acesso-e-seguranca.m
 2. `conferirEMontarPedido`: as mesmas conferências e a mesma montagem da geração, passos 3 a 11 do
    [RF-22](#rf-22-gerar-o-pedido), **sem** pedir de novo a confirmação sem dado pessoal (ela foi dada na geração). As
    recusas são as da geração (404, 409 e 422, com as mesmas mensagens), sem evento. O nome conferido é o atual do
-   solicitante, então um solicitante renomeado depois da geração pode fazer a entrega ser recusada;
+   solicitante (e, desde a 0.4.1, também o da criação do DEC), então um solicitante renomeado depois da geração pode
+   fazer a entrega ser recusada;
 3. o SHA-256 dos bytes é calculado pelo servidor. Se ele difere do hash da última entrega do DEC
    (`ultimoShaEntregue`, `pendentes.ts`), grava `pedido_entregue` com `{ sha256 }`. Repetir a entrega dos mesmos bytes
    não grava de novo. Desde a 0.3.1, a sequência X → Y → X grava três eventos, para a última entrega ser de fato a
@@ -529,6 +576,79 @@ detalhe avisa, a fila e o Awave não (EXP-01, ponto de produto aberto, [CHANGELO
 - **Status errado:** a pessoa corrige pela mudança manual de status.
 - **Token vazado:** revogue pelo prefixo ([tokens-de-integracao.md](../operacao/tokens-de-integracao.md)). A coluna
   `ator_token_prefixo` mostra o que esse token gravou, também sem evento.
+
+## Situação do pedido (0.4.1)
+
+Pedido `DEC-DEM-20261111-0018-v1`, RF-01 dele (S-02 da revisão do 0014, ADR-36). Um Pedido de Construção copiado para
+`pedidos/` continua lá depois que o DEC dele é substituído ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)).
+A rota de situação deixa o `/construir` perguntar, antes de começar a construção, se o DEC do pedido que ele tem em mãos
+continua **vigente** ou foi **substituído**. Ela funciona também com o envio do andamento desligado, e não tem efeito
+colateral.
+
+O lado do `/construir` (a `00-inicio` parar com o DEC substituído e o envio do andamento avisar Fabiano por e-mail se
+um pedido em curso virar substituído) é de outra frente, fora deste repositório, e ainda não está no ar. Até ele entrar,
+vale a regra de uso do [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado).
+
+### Rota (`ler_situacao_pedido`)
+
+`GET /api/pedidos-construcao/<DEC-id>/situacao`, com `Authorization: Bearer`, sem `Origin` e sem corpo. Só a
+integração `construir` tem a ação `ler_situacao_pedido` ([cap. 02](02-acesso-e-seguranca.md#matriz-de-acesso)); pessoa,
+agentes e Awave recebem 403, sem consulta ao banco.
+
+| Situação | Resposta |
+|---|---|
+| DEC com Pedido de Construção gerado por pessoa, e é o aprovado vigente da demanda | 200 `{ "situacao": "vigente" }` |
+| DEC com Pedido de Construção gerado por pessoa, e outro DEC aprovado depois dele é o vigente | 200 `{ "situacao": "substituido" }` |
+| DEC inexistente, sem `pedido_gerado` de pessoa, com o `pedido_gerado` em outra demanda, ou id fora do formato | 404 `nao_encontrado`, com o mesmo corpo nos casos, igual ao da entrega e do andamento |
+| Prazo total de 8 s esgotado (`statement_timeout` de 5 s, `lock_timeout` de 2 s) | 503 `indisponivel`, nada gravado |
+| Token inválido ou revogado; ator sem a ação | 401; 403 |
+
+O 200 sai com `no-store` e `nosniff`, e o corpo tem uma chave só, com um dos dois valores, montado no código. A resposta
+não traz o status da demanda, o id do substituto, data nem texto.
+
+### Como responde
+
+`situacaoDoPedido` (`situacao.ts`) chama `autorizar` na primeira linha e abre uma transação com o orçamento `padrao` das
+integrações (`executarComOrcamento`), sem trava e sem evento. Nesta ordem:
+
+1. confere o `pedido_gerado` gravado por **pessoa** (`pedidoGeradoPorPessoa`). Sem ele: 404;
+2. confere que a demanda desse evento é a demanda do próprio DEC. Senão: o mesmo 404;
+3. `vigente` se o DEC é o aprovado vigente da demanda (`aprovadoVigente`, a mesma função do 409 `decSubstituido` do
+   andamento); senão, `substituido`.
+
+Como não trava nada, a leitura não espera uma entrega, um recebimento nem um envio de andamento em curso. Ela não grava
+evento nem linha nova, e o log tem só a linha `requisicao` da `rota()`, sem o DEC, o token nem o prefixo.
+
+### Limites
+
+- **A situação informa, não autoriza.** Nenhum código do Orquestrador a usa para decidir. A entrega, o recebimento e o
+  andamento continuam com as recusas deles, e a rota responde `substituido` se e só se o andamento desse DEC recebe o
+  409 de DEC substituído.
+- **`vigente` em demanda em status final** (decisão 7.2, item 9): o DEC vigente de uma demanda `entregue` ou
+  `encerrada` responde `vigente`. A entrega e o andamento continuam recusando pelo status final.
+- **`vigente` em DEC desatualizado:** a situação só olha a substituição. Um DEC vigente com ESP ou RSK mais nova na
+  demanda responde `vigente`, e a entrega o recusa com o 409 de desatualizado.
+- **Sem limite de taxa** na rota e sem evento por consulta (fora do escopo). O que a rota acrescenta ao que o token
+  `construir` já lê é um de dois valores por DEC com pedido gerado, inclusive o substituído e o de demanda em status
+  final; a resposta a vazamento continua sendo revogar pelo prefixo
+  ([tokens-de-integracao.md](../operacao/tokens-de-integracao.md)).
+- **Corrida:** um DEC pode ser substituído entre a resposta `vigente` e o início da construção. A entrega e o andamento
+  recusam o substituído com 409 depois disso.
+
+### O que o `/construir` deve fazer com cada resposta
+
+Recomendação da arquitetura (02, seção 6, do pedido) para a outra frente: **falhar fechado**. O cliente espera até
+15 s; o servidor desiste em 8 s.
+
+| Resposta | O que fazer |
+|---|---|
+| 200 `vigente` | seguir |
+| 200 `substituido` | não iniciar a construção; com a construção em curso, avisar Fabiano |
+| 503, erro de rede ou tempo esgotado | não iniciar; tentar de novo na volta seguinte |
+| 404 | tratar como pedido fora do Orquestrador |
+| 401 ou 403 | parar a volta inteira |
+
+Exemplo de chamada no [cap. 09](09-referencia-api.md#exemplo-o-construir-consulta-a-situação-do-pedido).
 
 ## RF-23. Pacotes por status de decisão
 

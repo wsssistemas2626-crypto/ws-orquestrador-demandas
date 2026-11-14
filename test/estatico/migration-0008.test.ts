@@ -19,9 +19,11 @@ const comandos = (sql: string) =>
     )
     .filter(Boolean);
 
-it('a 0008 e a 0009 são as duas últimas, e só elas são novas; a 0009 é a custom de nome rls_andamento_construcao', () => {
-  expect(diario.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  expect(diario.entries[9]!.tag).toBe('0009_rls_andamento_construcao');
+// T03 do DEC-DEM-20261111-0018-v1 (G5): com a 0010, a 0008 e a 0009 deixam de ser as últimas; a ordem delas no diário
+// segue conferida pelo índice. A 0010 tem a guarda própria em migration-0010.test.ts.
+it('a 0008 e a 0009 estão nos índices 8 e 9 do diário; a 0009 é a custom de nome rls_andamento_construcao', () => {
+  expect(diario.entries.find((e) => e.idx === 8)?.tag).toBe('0008_slippery_whirlwind');
+  expect(diario.entries.find((e) => e.idx === 9)?.tag).toBe('0009_rls_andamento_construcao');
 });
 
 it('a 0008 só cria a tabela, os CHECKs, as FKs sem cascata e os índices', () => {

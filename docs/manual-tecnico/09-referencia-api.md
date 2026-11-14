@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 13/11/2026 (0.4.0: rota `POST /api/pedidos-construcao/:decId/andamento`, com exemplo; `andamento` na leitura de pessoa e, como sétima chave, na do Awave; 422, 409 e 429 do andamento na tabela de erros); 12/11/2026 (0.3.1: 404 ao agente na demanda do Awave não confirmada e nos artefatos dela, fora das listas; 409 do recebimento para hash que não é o da última entrega; 503 também pelo prazo total); 12/11/2026 (0.3.0: integrações `awave` e `construir` na autenticação e nas rotas, filtro `origem`, as três rotas de `/api/pedidos-construcao`, exemplos das integrações, 429 do Awave, 409 do recebimento e 503 `indisponivel` das integrações); 10/11/2026 (0.1.13: `substituido` e `substituidoPor` nas leituras de DEC, 409 do DEC substituído no `POST .../pedido-construcao` e 409 do S-01 no `PATCH .../decisao`; saiu o 409 da A-02); 04/11/2026 (0.1.12: corpo com a confirmação e recusa com o nome do solicitante no `POST .../pedido-construcao`); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase trocado para o agente; 500 `erro_interno` também para erro que lança ao ser lido); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
+| Atualizado em | 14/11/2026 (0.4.1: rota `GET /api/pedidos-construcao/:decId/situacao`, com exemplo; 403 nas cinco rotas do `/construir`; textos revistos dos 409 do DEC substituído e do S-01; o status depois de arquivar, no `PATCH .../decisao`; 404 da situação na tabela de erros); 13/11/2026 (0.4.0: rota `POST /api/pedidos-construcao/:decId/andamento`, com exemplo; `andamento` na leitura de pessoa e, como sétima chave, na do Awave; 422, 409 e 429 do andamento na tabela de erros); 12/11/2026 (0.3.1: 404 ao agente na demanda do Awave não confirmada e nos artefatos dela, fora das listas; 409 do recebimento para hash que não é o da última entrega; 503 também pelo prazo total); 12/11/2026 (0.3.0: integrações `awave` e `construir` na autenticação e nas rotas, filtro `origem`, as três rotas de `/api/pedidos-construcao`, exemplos das integrações, 429 do Awave, 409 do recebimento e 503 `indisponivel` das integrações); 10/11/2026 (0.1.13: `substituido` e `substituidoPor` nas leituras de DEC, 409 do DEC substituído no `POST .../pedido-construcao` e 409 do S-01 no `PATCH .../decisao`; saiu o 409 da A-02); 04/11/2026 (0.1.12: corpo com a confirmação e recusa com o nome do solicitante no `POST .../pedido-construcao`); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase trocado para o agente; 500 `erro_interno` também para erro que lança ao ser lido); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas para o agente e nomes do 201 tirados da demanda travada nos três `POST`); 04/11/2026 (0.1.9: nomes lidos antes de gravar nos três `POST` de criação); 03/11/2026 (0.1.8: texto livre de ESP, RSK e DEC minimizado para o agente, na leitura e no 201; 0.1.7: texto livre minimizado e leituras de ESP, RSK e DEC sem nome de pessoa para o agente; 0.1.6: vista mínima do agente, 409 de decisão e de Pedido em demanda final) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Fontes no código | `src/app/api/**/route.ts` (desde a 0.3.0, também `src/app/api/pedidos-construcao/`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts`, `src/modules/integracoes/tempo-limite.ts` |
+| Fontes no código | `src/app/api/**/route.ts` (desde a 0.3.0, também `src/app/api/pedidos-construcao/`; desde a 0.4.1, `src/app/api/pedidos-construcao/[decId]/situacao/route.ts`), `src/lib/rota.ts`, `src/lib/erros.ts`, `src/modules/acesso/matriz.ts`, `src/modules/integracoes/tempo-limite.ts` |
 | Uso | interno; documento não publicável fora da empresa sem aprovação de Fabiano |
 
 Base: a origem do `BETTER_AUTH_URL`. Toda rota abaixo, menos `/api/auth/*` e `/api/saude`, passa por `rota(...)`
@@ -44,7 +44,7 @@ Base: a origem do `BETTER_AUTH_URL`. Toda rota abaixo, menos `/api/auth/*` e `/a
 | `GET /api/demandas/:id/pacotes-decisao` | pessoa, os 4 agentes | — | versões |
 | `GET /api/pacotes-decisao` | pessoa, os 4 agentes | `statusDecisao`, `limit`, `offset` | lista |
 | `GET /api/pacotes-decisao/:decId` | pessoa, os 4 agentes | — | DEC com `statusDecisao`, `desatualizado`, `substituido` e `substituidoPor` (desde a 0.1.13), aprovadores |
-| `PATCH /api/pacotes-decisao/:decId/decisao` | pessoa | `registrarDecisaoSchema` ([cap. 04](04-versoes-e-decisao.md#rf-13-decisão)) | DEC e resultado (`aprovada`, `aprovacao_parcial`, `devolvida`, `arquivada`) |
+| `PATCH /api/pacotes-decisao/:decId/decisao` | pessoa | `registrarDecisaoSchema` ([cap. 04](04-versoes-e-decisao.md#rf-13-decisão)) | DEC e resultado (`aprovada`, `aprovacao_parcial`, `devolvida`, `arquivada`); desde a 0.4.1, o status da demanda depois de `arquivada` segue o aprovado vigente ([cap. 04](04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041)) |
 | `POST /api/pacotes-decisao/:decId/pedido-construcao` | pessoa | `{ "confirmaSemDadoPessoal": true }` (`confirmacaoDoPedidoSchema`, desde a 0.1.12) | 200, arquivo `<decId>.json` ([cap. 05](05-pedido-de-construcao.md)) |
 | `GET /api/agentes` | pessoa | — | os quatro agentes |
 | `PATCH /api/agentes/:agente` | cto | `{ "ligado": boolean, "modelo"?: string }` | agente |
@@ -54,6 +54,7 @@ Base: a origem do `BETTER_AUTH_URL`. Toda rota abaixo, menos `/api/auth/*` e `/a
 | `POST /api/pedidos-construcao/:decId/entrega` | `construir` (desde a 0.3.0) | sem corpo e sem `content-type` | o JSON do Pedido de Construção, os mesmos bytes da geração ([cap. 05](05-pedido-de-construcao.md#entrega-entregar_pedido)) |
 | `POST /api/pedidos-construcao/:decId/recebimento` | `construir` (desde a 0.3.0) | `{ "sha256": "<64 hexadecimais minúsculos>" }` | 204 sem corpo ([cap. 05](05-pedido-de-construcao.md#recebimento-confirmar_recebimento_pedido)) |
 | `POST /api/pedidos-construcao/:decId/andamento` | `construir` (desde a 0.4.0) | exatamente `{ "fase", "tarefasProntas", "tarefasTotal", "status" }` (`corpoAndamentoSchema`) | 204 sem corpo; 404, 409, 422, 429 e 503 ([cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)) |
+| `GET /api/pedidos-construcao/:decId/situacao` | `construir` (desde a 0.4.1) | — | `{ "situacao": "vigente" }` ou `{ "situacao": "substituido" }`; 404 e 503 ([cap. 05](05-pedido-de-construcao.md#situação-do-pedido-041)) |
 
 Desde a 0.3.1, para os quatro agentes, a demanda do Awave que nenhuma pessoa confirmou não existe. Ela e a ESP, o RSK
 e o DEC dela respondem o mesmo 404 da demanda inexistente, nas leituras por id, nas três listas de versões e nos três
@@ -62,8 +63,8 @@ e o DEC dela respondem o mesmo 404 da demanda inexistente, nas leituras por id, 
 ([cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030)).
 
 Sem status na coluna Resposta, a rota responde 200. Fora da coluna Quem, 403: a integração `awave` recebe 403 em toda
-rota que não é `POST /api/demandas` nem `GET /api/demandas/:id`, e pessoa, agentes e `awave` recebem 403 nas quatro
-rotas de `/api/pedidos-construcao` (três desde a 0.3.0 e a do andamento desde a 0.4.0). Os testes de cada rota ficam ao lado dela
+rota que não é `POST /api/demandas` nem `GET /api/demandas/:id`, e pessoa, agentes e `awave` recebem 403 nas cinco
+rotas de `/api/pedidos-construcao` (três desde a 0.3.0, a do andamento desde a 0.4.0 e a da situação desde a 0.4.1). Os testes de cada rota ficam ao lado dela
 (`src/app/api/**/*.test.ts`).
 
 ## Exemplo: criar demanda com token de agente
@@ -175,6 +176,31 @@ lista ou `tarefasProntas` maior que `tarefasTotal`, a resposta é 422, antes de 
 - `em_construcao` ou `cancelado` numa demanda já `entregue`, ou `em_construcao` ou `construido` numa demanda já
   `encerrada`: `{ "erro": "conflito", "mensagem": "A demanda deste pedido já está em um status final e não aceita este andamento. Nada foi registrado." }`.
 - A 61ª gravação do mesmo DEC numa hora, ou a 601ª do `/construir`: 429 `limite_excedido`.
+
+## Exemplo: o /construir consulta a situação do pedido
+
+Desde a 0.4.1, pelo domínio público em https, sem `Origin`, só com o token da integração `construir`
+([cap. 05](05-pedido-de-construcao.md#situação-do-pedido-041)). Valores fictícios: na demanda `DEM-20261112-0007`, o
+v1 foi aprovado e gerado, e depois o v2 foi aprovado.
+
+```http
+GET /api/pedidos-construcao/DEC-DEM-20261112-0007-v1/situacao HTTP/1.1
+Authorization: Bearer wsod_<token da integração construir>
+```
+
+```json
+{"situacao":"substituido"}
+```
+
+A mesma chamada para o v2, depois de gerado o pedido dele, responde `{"situacao":"vigente"}`. A resposta tem só essa
+chave. DEC inexistente, ou sem Pedido de Construção gerado por pessoa no painel, recebe o mesmo 404 nos dois casos:
+
+```json
+{ "erro": "nao_encontrado", "mensagem": "Confira o endereço ou o id. A demanda, a versão ou o pacote podem não existir." }
+```
+
+A situação só informa. `vigente` não quer dizer que a entrega vai aceitar: o DEC desatualizado e o de demanda em status
+final respondem `vigente`, e a entrega os recusa com 409.
 
 ## Exemplo: decisão recusada
 
@@ -335,15 +361,21 @@ Gerar o Pedido do v1 (`POST .../DEC-DEM-20261110-0901-v1/pedido-construcao`, com
 `content-disposition` nem evento:
 
 ```json
-{ "erro": "conflito", "mensagem": "o pacote foi substituído por DEC-DEM-20261110-0901-v2, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção." }
+{ "erro": "conflito", "mensagem": "o pacote foi substituído por DEC-DEM-20261110-0901-v2, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção." }
 ```
 
 Se o v1 tivesse sido aprovado no nível `cto_e_administradora` e o v2 fosse de nível `cto`, a aprovação do v2 pela `cto`
 (`PATCH .../DEC-DEM-20261110-0901-v2/decisao`) daria 409, sem gravar nada (S-01):
 
 ```json
-{ "erro": "conflito", "mensagem": "o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora." }
+{ "erro": "conflito", "mensagem": "o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora, e um pacote só do CTO não pode substituí-lo. Devolva ou arquive este pacote, ou crie um pacote novo com aprovação do CTO e da administradora." }
 ```
+
+Os dois textos foram revistos pela `ux-ui-design` na 0.4.1.
+
+Se o v2 estivesse pendente e fosse **arquivado**, com o v1 aprovado e atualizado e a demanda em `pronta_para_decisao`, o `PATCH .../DEC-DEM-20261110-0901-v2/decisao`
+com `{ "statusDecisao": "arquivada" }` daria 200 e, desde a 0.4.1, a demanda ficaria em `aprovada`, com o v1 ainda
+gerando o pedido (até a 0.4.0, ia a `encerrada`; [cap. 04](04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041)).
 
 ## Exemplo: parecer de risco numa demanda encerrada
 
@@ -376,7 +408,7 @@ Corpo de erro: `{ "erro": <código>, "mensagem": <texto em pt-BR> }`, mais `camp
 | `nao_autenticado` | 401 | sem sessão nem token; token de agente ou de integração inválido ou revogado |
 | `sem_permissao` | 403 | fora da matriz; `Origin` diferente; papel errado na decisão |
 | `sem_2fa` | 403 | sessão de conta sem 2FA ativo |
-| `nao_encontrado` | 404 | id fora do formato (sem consulta) ou inexistente; desde a 0.3.1, para agente, também a demanda do Awave não confirmada e a ESP, o RSK e o DEC dela, com o mesmo corpo; desde a 0.4.0, o andamento de DEC sem Pedido de Construção gerado por pessoa, igual ao do DEC inexistente |
+| `nao_encontrado` | 404 | id fora do formato (sem consulta) ou inexistente; desde a 0.3.1, para agente, também a demanda do Awave não confirmada e a ESP, o RSK e o DEC dela, com o mesmo corpo; desde a 0.4.0, o andamento de DEC sem Pedido de Construção gerado por pessoa, igual ao do DEC inexistente; desde a 0.4.1, a situação do pedido nos mesmos casos |
 | `metodo_nao_permitido` | 405 | método que a rota não tem |
 | `conflito` | 409 | confirmar demanda que não é do Awave ou em status final (painel, desde a 0.3.0); recebimento de pedido nunca entregue ou com SHA-256 que não confere (desde a 0.3.0; desde a 0.3.1, que não é o da última entrega); já decidido; não é o DEC mais novo; DEC só do CTO sobre um aprovado vigente de dupla aprovação (S-01, desde a 0.1.13; até a 0.1.12, qualquer outro DEC aprovado, A-02); desatualizado; Pedido de DEC substituído (desde a 0.1.13); transição de status recusada; agente desligado; ESP, RSK ou DEC numa demanda `entregue` ou `encerrada`; decidir DEC ou gerar Pedido numa demanda `entregue` ou `encerrada`; desde a 0.4.0, andamento de DEC substituído e andamento que contradiz o status final da demanda |
 | `capacidade_de_ids_esgotada` | 409 | a sequência de ids de demanda passou de 9.999 |

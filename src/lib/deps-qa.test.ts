@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { CONFIG_TESTE } from '../../test/auth';
 import { novoBanco, type BancoDeTeste } from '../../test/banco';
 import { SENTINELAS } from '../../test/sentinelas';
+import { diagnosticoDasSessoes, papeisDasSessoesDeCliente, sessoesDoBanco } from '../../test/sessoes-do-banco';
 
 let b: BancoDeTeste;
 
@@ -32,11 +33,11 @@ describe('obterDeps QA', () => {
     const { obterDeps } = await import('./deps');
     const d = await obterDeps();
     try {
-      // A fila já conectou no start(); o pool conecta aqui. Toda sessão deste banco é do papel do app.
-      const { rows } = await d.pool.query<{ usename: string }>(
-        'select distinct usename from pg_stat_activity where datname = current_database() order by 1',
-      );
-      expect(rows.map((r) => r.usename)).toEqual(['orquestrador_app']);
+      // A fila já conectou no start(); o pool conecta aqui. Toda sessão de cliente deste banco é do papel do app
+      // (`select distinct usename` só de `client backend`, com espera contada pela sessão ainda sem papel; C-27, SB-14).
+      const papeis = await papeisDasSessoesDeCliente(d.pool);
+      const diagnostico = diagnosticoDasSessoes(await sessoesDoBanco(d.pool));
+      expect(papeis, diagnostico).toEqual(['orquestrador_app']);
       expect(d.config.databaseUrl).toBe(b.urlApp);
       expect(Object.values(d.config)).not.toContain(b.urlMigrator);
     } finally {

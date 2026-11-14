@@ -19,6 +19,13 @@
 // pacote, a página lê o primeiro pedido_recebido do DEC no histórico (recebimentoDoPedido, T10). Com ele, a linha
 // "Recebido pelo /construir em …" entra no cabeçalho, depois do repositório destino e antes das citações, em toda
 // situação do DEC; sem ele, nada. Falha na leitura sobe para a tela de erro de hoje.
+//
+// 0.4.1 (T12 do DEC-DEM-20261111-0018-v1; RF-03, RF-06; ADR-40; 03, 4.2 a 4.7; SB-12; D-10 a D-12): depois de autorizar
+// e de achar o pacote, a página lê o aprovado vigente da demanda e, só quando o aberto é o vigente e o mais novo é outro
+// DEC pendente e atualizado, o mais novo (o nível dele). Com isso, um dos avisos (a), (b) ou (c) entra entre o aviso do
+// substituído e o alerta de desatualizado, a dica do Arquivar diz o destino da tabela do servidor
+// (destinoDoArquivamento) e a chegada depois de arquivar diz o status gravado. Os avisos só informam: os botões não
+// mudam. Falha na leitura sobe para a tela de erro de hoje.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -28,7 +35,9 @@ import { Cartao } from '../../../../components/Cartao';
 import {
   alertaDeDesatualizado,
   alertaDeSubstituido,
+  avisoDeVigencia,
   chegadaNaDecisao,
+  dicaDoArquivar,
   formularioDaConta,
   itensDaRevisao,
   linhaDoRecebimento,
@@ -49,7 +58,9 @@ import { obterDeps } from '../../../../lib/deps';
 import { formatarDataHora } from '../../../../lib/fuso';
 import { exigirPessoaNaPagina } from '../../../../modules/acesso/exigir-pessoa';
 import { autorizar } from '../../../../modules/acesso/matriz';
+import { destinoDoArquivamento, estadoDoVigente } from '../../../../modules/demandas/arquivamento';
 import { RE_ID_DEMANDA } from '../../../../modules/demandas/gerar-id';
+import { vigenteDaDemanda } from '../../../../modules/pacotes-decisao/substituido';
 import { recebimentoDoPedido } from '../../../../modules/pedido-construcao/pendentes';
 import { lerDemandaDaPagina } from '../../demandas/[id]/demanda-da-pagina';
 import { caminhos, rotuloResponsavel } from '../../demandas/[id]/detalhe';
@@ -127,12 +138,30 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
   autorizar(pessoa, 'ler_demanda');
   const d = await lerDemandaDaPagina(p.demandaId);
   if (!d) notFound();
+  const db = (await obterDeps()).db;
   // RF-15: só depois de autorizar e de achar o pacote; a leitura é do histórico, sem ação nova na matriz.
-  const recebidoEm = await recebimentoDoPedido((await obterDeps()).db, p.id);
+  const recebidoEm = await recebimentoDoPedido(db, p.id);
+  // 0.4.1 (RF-06, ADR-40): o vigente, só depois de autorizar e de achar o pacote (SB-12, oráculo); o mais novo, só com o
+  // aberto vigente e o mais novo outro, pendente e atualizado (D-12), pelo id da vista da demanda, já lida com ler_demanda.
+  const vigente = await vigenteDaDemanda(db, p.demandaId);
+  const maisNovo = d.pacotesDecisao[0] ?? null;
+  const pendente =
+    vigente?.id === p.id && maisNovo && maisNovo.id !== p.id && maisNovo.statusDecisao === 'pendente' && !maisNovo.desatualizado
+      ? await lerPacoteDaPagina(maisNovo.id)
+      : null;
 
   const t = TEXTOS_DECISAO;
-  const chegada = chegadaNaDecisao(await searchParams, p);
+  const chegada = chegadaNaDecisao(await searchParams, p, { statusDaDemanda: d.status, vigente });
   const substituido = alertaDeSubstituido(p);
+  const aviso = avisoDeVigencia(p, {
+    statusDaDemanda: d.status,
+    maisNovoId: maisNovo?.id ?? null,
+    vigente,
+    // O mais novo lido de novo pode já não estar pendente (decidido entre as duas leituras): sem aviso.
+    pendenteMaisNovo:
+      pendente && pendente.statusDecisao === 'pendente' ? { id: pendente.id, nivel: pendente.nivelAprovacaoRequerido, desatualizado: pendente.desatualizado } : null,
+  });
+  const dicaArquivar = dicaDoArquivar(destinoDoArquivamento(d.status, estadoDoVigente(vigente)), d.status, vigente?.id ?? null);
   const desatualizado = alertaDeDesatualizado(p, d);
   const aprovacoes = linhasDeAprovacao(p);
   const formulario = formularioDaConta(p, pessoa);
@@ -204,6 +233,15 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
           <p>{substituido.texto}</p>
           <Link href={substituido.link.href} className={CLASSE_LINK_SOLTO}>
             {substituido.link.rotulo}
+          </Link>
+        </Alerta>
+      ) : null}
+      {/* 0.4.1 (03, 4.2 e seção 9): estático, sem role; o id em texto corrido quebra sem rolagem lateral. */}
+      {aviso ? (
+        <Alerta tipo="atencao" className="flex flex-col items-start gap-2">
+          <p className="[overflow-wrap:anywhere]">{aviso.texto}</p>
+          <Link href={aviso.link.href} className={CLASSE_LINK_SOLTO}>
+            {aviso.link.rotulo}
           </Link>
         </Alerta>
       ) : null}
@@ -285,6 +323,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
               opcoesEscolha={opcoesDaEscolha(p)}
               repositorioDestino={p.especificacaoCitada.repositorioDestino}
               nivelAprovacaoRequerido={p.nivelAprovacaoRequerido}
+              dicaArquivar={dicaArquivar}
             />
           ) : formulario.tipo === 'sem_formulario' ? (
             <p>{formulario.texto}</p>
@@ -303,7 +342,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
 
         {pedido !== 'nenhuma' ? (
           <Secao id="pedido-construcao" titulo={TEXTOS_PEDIDO.titulo} className="xl:col-span-5">
-            {pedido === 'estudo' ? <p>{TEXTOS_PEDIDO.estudo}</p> : <SecaoPedido decId={p.id} />}
+            {pedido === 'estudo' ? <p>{TEXTOS_PEDIDO.estudo}</p> : <SecaoPedido decId={p.id} nivelAprovacaoRequerido={p.nivelAprovacaoRequerido} />}
           </Secao>
         ) : null}
       </div>

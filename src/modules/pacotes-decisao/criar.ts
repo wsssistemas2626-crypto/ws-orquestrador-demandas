@@ -1,7 +1,8 @@
 // Criação do pacote de decisão (DEC, RF-10, RF-11). Cada gravação é uma versão nova e imutável: o papel do app só tem
 // SELECT e INSERT na tabela (C-34). Numa transação: autorizar → trava da demanda (CA-04.3; fecha também a corrida com
 // ESP ou RSK nova) → recusa em status final (409, M-02) → limite por ator (C-36) → a ESP e o RSK citados (os que o worker
-// leu, M-01; senão os de maior versão), ou 400 com o que falta → próxima versão →
+// leu, M-01; senão os de maior versão), ou 400 com o que falta → a marcação do nome em vigor na criação (0.4.1, S-03,
+// ADR-37) → próxima versão →
 // insert com a cópia da demanda (RF-22) e a autoria só do ator (C-11) → evento sem texto livre (C-30) → a demanda vai a
 // pronta_para_decisao pelo ator sistema (RF-07) → aviso por e-mail pendente e o job dele (RF-25, T30). Aceita a
 // transação de quem chama (G3.8): o worker grava a versão, a execução e o job juntos (ADR-02, ADR-06). A entrada já
@@ -21,8 +22,13 @@ import { exigirVisivelPara } from '../demandas/confirmacao';
 import { nomesDoSolicitante } from '../demandas/consultas';
 import { autoriaDo, type DepsComFila } from '../demandas/servico';
 import { mudarStatusPeloSistema, recusarSeDemandaFinal } from '../demandas/transicoes';
+import { obterEspecificacao } from '../especificacoes/consultas';
 import { registrarEvento } from '../historico/registrar';
 import { conferirLimite } from '../limites';
+import { obterParecerRisco } from '../pareceres-risco/consultas';
+import { caminhosComNomeNaCriacao } from '../pedido-construcao/caminhos-da-criacao';
+import { PARTES_DA_DESCRICAO, SEPARADOR_DA_DESCRICAO } from '../pedido-construcao/conteudo';
+import { textosDaCriacao } from '../pedido-construcao/montar';
 import { idVersao, proximaVersao, travarDemanda } from '../versoes';
 import { obterPacoteDecisao, type PacoteDecisaoVista } from './consultas';
 import type { CriarPacoteDecisao } from './schemas';
@@ -38,14 +44,9 @@ export const NIVEL_DO_DEC_DE_AGENTE: NivelAprovacao = 'cto_e_administradora';
 // como iguais (mesma regra do RSK).
 const preenchido = (v: string | null | undefined): v is string => typeof v === 'string' && v.trim() !== '';
 
-// Exportada para os testes da descrição e do Pedido de Construção (D1 do 0013).
-export const PARTES_DA_DESCRICAO = [
-  ['contexto', 'Contexto'],
-  ['descricaoProblema', 'Problema'],
-  ['impactoPercebido', 'Impacto percebido'],
-] as const;
-
-const SEPARADOR_DA_DESCRICAO = '\n\n';
+// D-04 da 0.4.1: PARTES_DA_DESCRICAO, o separador e descricaoSemRotulos moram em pedido-construcao/conteudo.ts (montar.ts
+// os usa, e criar.ts importa textosDaCriacao de montar.ts: assim não há ciclo). Reexportados para os testes de hoje.
+export { descricaoSemRotulos, PARTES_DA_DESCRICAO } from '../pedido-construcao/conteudo';
 
 // "Contexto: ...\n\nProblema: ...\n\nImpacto percebido: ...", só com as partes preenchidas. É a `descricao` do Pedido de
 // Construção (RF-22), copiada no DEC para não mudar quando a demanda for editada.
@@ -54,17 +55,6 @@ export function descricaoDaDemanda(d: { contexto?: string | null; descricaoProbl
     const v = d[campo];
     return preenchido(v) ? [`${rotulo}: ${v}`] : [];
   }).join(SEPARADOR_DA_DESCRICAO);
-}
-
-// D1 do 0013: o rótulo de uma parte no começo de um bloco (o começo do texto ou logo depois da linha em branco que
-// separa as partes). Os rótulos não têm caractere de regex.
-const RE_ROTULO_DA_DESCRICAO = new RegExp(`(^|${SEPARADOR_DA_DESCRICAO})(?:${PARTES_DA_DESCRICAO.map(([, rotulo]) => rotulo).join('|')}): `, 'g');
-
-// D1 do 0013: a descrição gravada no DEC sem os rótulos "Contexto: ", "Problema: " e "Impacto percebido: " do começo de
-// cada bloco, para o Pedido de Construção conferir o nome do solicitante só no que a pessoa escreveu (o rótulo
-// "Contexto" não é o nome de ninguém). O mesmo texto fora do começo de um bloco fica.
-export function descricaoSemRotulos(descricao: string): string {
-  return descricao.replace(RE_ROTULO_DA_DESCRICAO, '$1');
 }
 
 // Campo a campo, e só o que veio preenchido: nada a mais chega ao jsonb.
@@ -150,10 +140,23 @@ async function criarComNomes(
       const faltando = [...(esp ? [] : ['especificacao']), ...(rsk ? [] : ['parecer_risco'])];
       throw new ErroDominio('entrada_invalida', MENSAGEM_FALTAM_ITENS, { faltando });
     }
+    // 0.4.1 (S-03, SB-07): a marcação do nome em vigor na criação, sobre os mesmos textos que o D1 confere na geração.
+    // O nome é o da linha travada (`d`, a mesma fonte dos `nomes` do 201); a ESP e o RSK citados, lidos pela PK sob a
+    // trava. Os valores são os que vão ao insert: a cópia da demanda e as opções gravadas.
+    const opcaoA = opcaoGravada(entrada.opcaoA);
+    const opcaoB = opcaoGravada(entrada.opcaoB);
+    const demandaDescricao = descricaoDaDemanda(d);
+    const textos = textosDaCriacao({
+      dec: { demandaTitulo: d.titulo, demandaDescricao, opcaoA, opcaoB },
+      esp: await obterEspecificacao(tx, esp.id),
+      rsk: await obterParecerRisco(tx, rsk.id),
+    });
+    const nomes = nomesDoSolicitante(d.solicitanteNome);
     const versao = await proximaVersao(tx, pacoteDecisao, demandaId);
     const id = idVersao('DEC', demandaId, versao);
-    // Campo a campo, e não `...entrada`: nada que o chamador tenha a mais chega ao banco (C-11).
-    await tx.insert(pacoteDecisao).values({
+    // Campo a campo, e não `...entrada`: nada que o chamador tenha a mais chega ao banco (C-11). A coluna da marcação é
+    // obrigatória no tipo da linha (SB-07): nenhum DEC novo nasce com null.
+    const linha: typeof pacoteDecisao.$inferInsert & { caminhosComNomeNaCriacao: string[] } = {
       id,
       demandaId,
       versao,
@@ -163,17 +166,19 @@ async function criarComNomes(
       parecerRiscoVersao: rsk.versao,
       demandaTipo: d.tipo,
       demandaTitulo: d.titulo,
-      demandaDescricao: descricaoDaDemanda(d),
+      demandaDescricao,
       resumoExecutivo: entrada.resumoExecutivo,
-      opcaoA: opcaoGravada(entrada.opcaoA),
-      opcaoB: opcaoGravada(entrada.opcaoB),
+      opcaoA,
+      opcaoB,
       recomendacao: preenchido(entrada.recomendacao) ? entrada.recomendacao : null,
       nivelAprovacaoRequerido,
       ...autoria,
       rascunhoAgente,
       execucaoAgenteId: extras.execucaoAgenteId ?? null,
       criadaEm: deps.relogio.agora(),
-    });
+      caminhosComNomeNaCriacao: caminhosComNomeNaCriacao(textos, nomes),
+    };
+    await tx.insert(pacoteDecisao).values(linha);
     // C-30: só ids, números e enumerações; nada do resumo, das opções nem da recomendação, que podem trazer dado de
     // terceiro.
     await registrarEvento(
@@ -191,8 +196,8 @@ async function criarComNomes(
     await mudarStatusPeloSistema(tr, deps, demandaId, 'dec_criado');
     // RF-25: um aviso por DEC, na mesma transação; o rollback leva o aviso e o job junto.
     await agendarAviso(tr, deps, id);
-    // B-3 do 0010: o nome da linha travada, que nenhuma renomeação muda até o commit.
-    return { id, nomes: nomesDoSolicitante(d.solicitanteNome) };
+    // B-3 do 0010: o nome da linha travada, que nenhuma renomeação muda até o commit (o mesmo da marcação).
+    return { id, nomes };
   };
   const { id, nomes } = t ? await corpo(t) : await comTransacao(deps.pool, corpo);
   return { vista: await obterPacoteDecisao(t?.tx ?? deps.db, id), nomes };

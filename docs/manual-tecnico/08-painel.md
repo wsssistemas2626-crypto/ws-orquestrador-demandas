@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 13/11/2026 (0.4.0: selo de fase na T03; seção "Andamento da construção", linha 15 da Próxima ação, textos do `andamento_registrado` e texto novo da dica de Aprovada na T05); 12/11/2026 (0.3.1: o estado da seção "Confirmação do Awave" só aceita a confirmação de pessoa, na T05); 12/11/2026 (0.3.0: origem e filtro "Origem" na T03; origem, selo "Aguardando confirmação", seção "Confirmação do Awave" e linha 14 da Próxima ação na T05; "Recebido pelo /construir em …" e texto novo da seção do pedido na T11; rótulos do histórico); 11/11/2026 (0.2.0: novo visual, com identidade, casca e gaveta, fila com contadores, T05 com barra de etapas e "Próxima ação", T11 por três botões e no celular, telas públicas, o que não mudou, testes nas duas larguras, capturas e pendências novas); 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
+| Atualizado em | 14/11/2026 (0.4.1: três avisos da vigência, dica do Arquivar pelo destino e alerta de chegada pelo status gravado na T11; textos revistos do DEC substituído, da linha 6 e do 409 do S-01; etapa 4 e linha 6 da Próxima ação com o DEC mais novo arquivado na T05; e2e `vigencia.spec.ts`; R-08-1 e textos fechados nas pendências); 13/11/2026 (0.4.0: selo de fase na T03; seção "Andamento da construção", linha 15 da Próxima ação, textos do `andamento_registrado` e texto novo da dica de Aprovada na T05); 12/11/2026 (0.3.1: o estado da seção "Confirmação do Awave" só aceita a confirmação de pessoa, na T05); 12/11/2026 (0.3.0: origem e filtro "Origem" na T03; origem, selo "Aguardando confirmação", seção "Confirmação do Awave" e linha 14 da Próxima ação na T05; "Recebido pelo /construir em …" e texto novo da seção do pedido na T11; rótulos do histórico); 11/11/2026 (0.2.0: novo visual, com identidade, casca e gaveta, fila com contadores, T05 com barra de etapas e "Próxima ação", T11 por três botões e no celular, telas públicas, o que não mudou, testes nas duas larguras, capturas e pendências novas); 10/11/2026 (0.1.13: selo e aviso do DEC substituído na T11 e na T05, e2e da substituição e textos novos nas pendências); 04/11/2026 (0.1.12: caixa de confirmação da T11, e2e do pedido e textos novos nas pendências); 04/11/2026 (0.1.11: aviso e dica com os limites da troca do nome, nas pendências); 04/11/2026 (0.1.10: dica do nome e aviso de minimização, nas pendências); 03/11/2026 (0.1.6: textos de 409 em status final e tela de erro, nas pendências) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
-| Cobre | RF-26; RNF-11, RNF-16; RF-01 a RF-17 do pedido `DEC-DEM-20261110-0015-v1` (0.2.0); RF-06, RF-10, RF-11 e RF-15 do pedido `DEC-DEM-20261111-0016-v1` (0.3.0); RF-07 a RF-09 do pedido `DEC-DEM-20261111-0017-v1` (0.4.0) |
+| Cobre | RF-26; RNF-11, RNF-16; RF-01 a RF-17 do pedido `DEC-DEM-20261110-0015-v1` (0.2.0); RF-06, RF-10, RF-11 e RF-15 do pedido `DEC-DEM-20261111-0016-v1` (0.3.0); RF-07 a RF-09 do pedido `DEC-DEM-20261111-0017-v1` (0.4.0); RF-03, RF-05 e RF-06 do pedido `DEC-DEM-20261111-0018-v1` (0.4.1) |
 | Fontes no código | `src/app/entrar/`, `src/app/configurar-2fa/`, `src/app/(painel)/`, `src/app/globals.css`, `src/app/fontes.ts`, `src/components/` (inclusive `casca/` e `marca/`; desde a 0.4.0, `dados-do-andamento.ts`), `src/proxy.ts`, `e2e/` |
 
 Todas as telas são em pt-BR, com os textos de `03-ux-ui-design.md` (do pedido 0001 e, desde a 0.2.0, do pedido 0015).
@@ -29,6 +29,12 @@ nova. Entra o andamento da construção informado pelo `/construir`
 construção" e a linha 15 da Próxima ação na T05, os textos do evento novo no histórico e o texto novo da dica de
 Aprovada em "Mudar status". A T11 e a T12 não mudam. As capturas também não mostram o andamento.
 
+Na 0.4.1 (pedido `DEC-DEM-20261111-0018-v1`), ainda sem token, cor, componente ou variação nova, a T11 ganha os três
+avisos da vigência, a dica do Arquivar pelo destino certo e o alerta de chegada pelo status gravado
+([Avisos da vigência e Arquivar](#avisos-da-vigência-e-arquivar-041)). Os textos que a 0.1.13 deixou para a
+`ux-ui-design` foram revistos. Na T05, a etapa 4 e a linha 6 da Próxima ação acompanham o arquivamento do DEC mais
+novo. As capturas não mostram essas mudanças.
+
 ## Telas
 
 | Tela | Rota | O que faz | RF |
@@ -43,7 +49,7 @@ Aprovada em "Mudar status". A T11 e a T12 não mudam. As capturas também não m
 | T08 Novo RSK | `/demandas/[id]/pareceres-risco/novo` | três níveis, comentários, listas | RF-09 |
 | T09 Novo DEC | `/demandas/[id]/pacotes-decisao/novo` | resumo, opções A e B, recomendação, nível de aprovação | RF-10 |
 | T10 Ver ESP ou RSK | `/especificacoes/[espId]`, `/pareceres-risco/[rskId]` | somente leitura | RF-11 |
-| T11 Decisão | `/pacotes-decisao/[decId]` | revisão do destino, dos níveis e do nível de aprovação; decisão por três botões ("Aprovar a opção X", "Devolver", "Arquivar", desde a 0.2.0) com confirmação em diálogo; arranjo próprio no celular (desde a 0.2.0); aprovar indisponível e explicado quando desatualizado; gerar, baixar e copiar o pedido; "Recebido pelo /construir em …" no cabeçalho (desde a 0.3.0); aviso sobre dado pessoal no pedido; caixa de confirmação sem dado pessoal antes de gerar (desde a 0.1.12, [cap. 05](05-pedido-de-construcao.md#na-t11)); no DEC substituído, o selo, o aviso com o link para o DEC que gera e nenhuma seção do pedido (desde a 0.1.13, [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)) | RF-12, RF-13, RF-14, RF-22 |
+| T11 Decisão | `/pacotes-decisao/[decId]` | revisão do destino, dos níveis e do nível de aprovação; decisão por três botões ("Aprovar a opção X", "Devolver", "Arquivar", desde a 0.2.0) com confirmação em diálogo; arranjo próprio no celular (desde a 0.2.0); aprovar indisponível e explicado quando desatualizado; gerar, baixar e copiar o pedido; "Recebido pelo /construir em …" no cabeçalho (desde a 0.3.0); aviso sobre dado pessoal no pedido; caixa de confirmação sem dado pessoal antes de gerar (desde a 0.1.12, [cap. 05](05-pedido-de-construcao.md#na-t11)); no DEC substituído, o selo, o aviso com o link para o DEC que gera e nenhuma seção do pedido (desde a 0.1.13, [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)); avisos da vigência, dica do Arquivar pelo destino e alerta de chegada pelo status gravado (desde a 0.4.1, [abaixo](#avisos-da-vigência-e-arquivar-041)) | RF-12, RF-13, RF-14, RF-22 |
 | T12 Agentes e teto | `/configuracao/agentes` | interruptor e modelo de cada agente, teto, gasto do mês, batimento do worker, último expurgo; as duas contas leem, só a `cto` altera | RF-17, RF-18, RF-19 |
 | Sem permissão | `/sem-permissao` | conta sem papel válido; moldura pública desde a 0.2.0 | RF-01 |
 | Erro e 404 | `src/app/error.tsx`, 404 da raiz e do painel | "Não foi possível carregar esta página." e "Tentar de novo"; o 404 do painel fica dentro da casca, o da raiz na moldura pública | — |
@@ -237,11 +243,13 @@ e um anel (atual) ou um círculo tracejado (por fazer). O estado é o primeiro d
 | 1 Demanda | "Registrada" (sempre feita) |
 | 2 Especificação | "Por fazer" (sem ESP) · "Com dúvidas em aberto" (a ESP mais nova tem dúvidas) · "Feita" |
 | 3 Parecer de risco | "Por fazer" · "Feito" |
-| 4 Decisão (DEC mais novo) | "Por fazer" (sem DEC) · pendente: "Pacote desatualizado", "1 de 2 aprovações" ou "Decisão pendente" · "Aprovada, opção X" (feita) · "Devolvida" · "Arquivada" |
+| 4 Decisão (DEC mais novo) | "Por fazer" (sem DEC) · pendente: "Pacote desatualizado", "1 de 2 aprovações" ou "Decisão pendente" · "Aprovada, opção X" (feita) · "Devolvida" · "Arquivada". Desde a 0.4.1, com o DEC mais novo arquivado e um aprovado vigente, a etapa mostra o vigente: o id dele e "Aprovada, opção X" (feita) |
 | 5 Pedido de Construção | "Gerado" (há `pedido_gerado` do aprovado vigente no histórico) · "Ainda não gerado" (há aprovado vigente) · "Depois da aprovação" |
 
 A etapa atual (`aria-current="step"`) é a primeira, de 2 a 5, que não está feita. Uma demanda em `entregue` ou
-`encerrada` não tem etapa atual. A Decisão só conta como feita com o DEC mais novo aprovado. Na fila, basta haver um
+`encerrada` não tem etapa atual. A Decisão só conta como feita com o DEC mais novo aprovado ou, desde a 0.4.1, com o
+DEC mais novo arquivado e um aprovado vigente (decisão 7.2, item 3; o vigente é lido só depois de
+`autorizar(pessoa, 'ler_pacote_decisao')`). Na fila, basta haver um
 DEC para a marca DEC ficar cheia (R-01, nas pendências).
 
 **Próxima ação** (`proximaAcao`; `section` marinho com o `h2` "Próxima ação"): mostra o que falta, o detalhe quando há,
@@ -254,7 +262,7 @@ DEC para a marca DEC ficar cheia (R-01, nas pendências).
 | 3 | `aguardando_informacao` | "Responder às dúvidas em aberto e voltar a demanda para Em análise." | Uma pessoa (CTO ou administradora) | "Ver as dúvidas em aberto" (ou "Mudar o status", sem a seção de dúvidas) |
 | 4 | sem ESP | "Escrever a especificação técnica." | Agente de insumo técnico ou uma pessoa | "Escrever a especificação" (T07) |
 | 5 | sem RSK | "Escrever o parecer de risco." | Agente de risco ou uma pessoa | "Escrever o parecer de risco" (T08) |
-| 6 | sem DEC, ou o DEC mais novo devolvido | "Montar o pacote de decisão." | Agente de consolidação ou uma pessoa | "Montar o pacote de decisão" (T09) |
+| 6 | sem DEC, ou o DEC mais novo devolvido, ou (desde a 0.4.1) o DEC mais novo arquivado com a demanda em `nova` ou `em_analise` | "Montar o pacote de decisão." | Agente de consolidação ou uma pessoa | "Montar o pacote de decisão" (T09) |
 | 7 | DEC mais novo pendente e desatualizado | "Montar um pacote novo. O pacote atual está desatualizado." | Uma pessoa (CTO ou administradora) | "Montar um pacote novo" (T09) |
 | 8 | DEC mais novo pendente | "Decidir entre as opções A e B." | CTO; CTO e administradora; ou o papel que falta, com o detalhe "O CTO já aprovou a opção A. Falta a aprovação da administradora, com o identificador do documento assinado." (ou o inverso) | "Abrir a decisão" (T11) |
 | 9 | `pronta_para_decisao` com aprovado vigente | "Mudar o status para Aprovada e gerar o Pedido de Construção." | Uma pessoa (CTO ou administradora) | "Abrir a decisão aprovada" (T11 do vigente) |
@@ -269,6 +277,11 @@ As linhas 14 e 15 têm esses números só para não renumerar as linhas da 0.2.0
 acima, com a 14 entre a 2 e a 3 e a 15 logo antes da 11. Sem andamento, com o andamento em `em_construcao` ou
 `cancelado`, ou com o andamento de um DEC que não é o vigente, vale a linha 11. Depois que a pessoa marca Entregue, vale
 a linha 1 (`linhaDoStatus`, `dados-das-etapas.ts`; o andamento chega pela `DadosDasEtapas.andamento`).
+
+Com o DEC mais novo arquivado e a demanda em `aprovada` (o arquivamento com vigente atualizado, desde a 0.4.1), vale a
+linha 10, com o link para a T11 do vigente. Com a demanda em `em_analise` (vigente desatualizado), vale a linha 6, e a
+barra mostra a etapa 4 feita e, sem pedido gerado do vigente, a 5 como atual: é a R-08-1, em
+[Pendências](#pendências-de-interface-conhecidas).
 
 - O cartão só informa: não libera, não esconde e não decide nada. `etapasDaDemanda` e `proximaAcao` são funções puras,
   chamadas só pela página (`test/estatico/dados-das-etapas.test.ts`). De `src/modules/` elas só importam tipos.
@@ -356,7 +369,9 @@ diálogo e as validações são os da 0.1.13 ([cap. 04](04-versoes-e-decisao.md#
   - o principal diz "Aprovar a opção X", com a opção marcada ou a fixada pela primeira aprovação. Sem opção, diz
     "Aprovar";
   - "Devolver" e "Arquivar" levam a consequência escrita e ligada por `aria-describedby`: "Devolver: a demanda volta
-    para Em análise." e "Arquivar: a demanda vai para Encerrada.".
+    para Em análise." e, desde a 0.4.1, a dica do Arquivar pelo destino
+    ([Avisos da vigência e Arquivar](#avisos-da-vigência-e-arquivar-041)). Até a 0.4.0, ela dizia sempre "Arquivar: a
+    demanda vai para Encerrada.".
 - O botão ativado (`submitter`) define a decisão uma vez só. O mesmo valor vai à validação, ao diálogo e à Server
   Action, e só pode ser `aprovada`, `devolvida` ou `arquivada`.
 - Todo envio passa pela validação e pelo diálogo, inclusive o Enter num campo de texto, que aciona o principal. Em
@@ -378,8 +393,9 @@ diálogo e as validações são os da 0.1.13 ([cap. 04](04-versoes-e-decisao.md#
   opções e o documento não aparecem, e a revisão e os comentários continuam. O servidor segue respondendo 409.
 
 **Cabeçalho**, em toda largura: o id em Mono, os selos, o `h1` "Decisão: <título>", a linha com a demanda, o nível de
-aprovação e a criação, a linha nova **"Repositório destino: <valor>"** e as citações. Depois vêm os alertas de antes
-(desatualizado, substituído, rascunho).
+aprovação e a criação, a linha nova **"Repositório destino: <valor>"** e as citações. Depois vêm os alertas, nesta
+ordem: o resultado do envio, o lembrete de levar a demanda a Aprovada, o substituído, desde a 0.4.1 o aviso da
+vigência (um só por vez), o desatualizado e o rascunho de agente.
 
 Desde a 0.3.0 (RF-15 do pedido 0016), depois de "Repositório destino", a linha **"Recebido pelo /construir em <data e
 hora>."**, com um visto decorativo e `<time>`, quando o DEC tem `pedido_recebido`. Ela aparece em toda situação do DEC
@@ -411,6 +427,62 @@ em toda largura, com a revisão antes do formulário.
 
 Ficam sem uso na T11, mas ainda em `dados-da-decisao.ts`, os textos do rádio "Decisão" (`legendaDecisao`, `aprovar`,
 `devolver`) e do botão "Registrar decisão" (`registrar`). O `h2` "Registrar decisão" continua.
+
+### Avisos da vigência e Arquivar (0.4.1)
+
+Pedido `DEC-DEM-20261111-0018-v1`, RF-03, RF-05 e RF-06 dele (textos da `03-ux-ui-design.md`, seção 8). Regras em
+`avisoDeVigencia`, `dicaDoArquivar` e `chegadaNaDecisao` (`src/components/dados-da-decisao.ts`), funções puras. A página
+lê o aprovado vigente da demanda (`vigenteDaDemanda`) só depois de autorizar e de achar o pacote. Nenhum token, cor,
+componente ou variação nova: os avisos usam o `Alerta` de atenção, estático (sem `role="alert"`), com o link solto. Na
+tela, o termo da vigência é "em vigor"; a palavra "situação" não aparece em texto de tela sobre vigência.
+
+**Avisos da vigência.** Só com a demanda fora de status final, um por vez, e só com id no formato de DEC. Eles só
+informam: os botões são os mesmos com e sem aviso, e quem recusa é o servidor.
+
+| Aviso | Aparece quando | Texto (`TEXTOS_DECISAO`) | Link |
+|---|---|---|---|
+| (a) | o DEC aberto está pendente, é o mais novo, não está desatualizado, e há outro DEC aprovado vigente; não é o caso (c) | `avisoVigente`: "Esta demanda já tem um pacote aprovado em vigor: <v>. Quando a aprovação deste pacote ficar completa, ele passa a valer no lugar de <v>, e um pedido já gerado de <v> deixa de valer." | "Abrir o pacote <v>" |
+| (b) | o DEC aberto é o vigente, e o mais novo é outro, pendente e não desatualizado; não é o caso de o pendente ser `cto` e o aberto `cto_e_administradora` | `avisoMaisNovoPendente`: "Há um pacote mais novo pendente nesta demanda: <p>. Quando a aprovação dele ficar completa, ele passa a valer no lugar deste, e um pedido já gerado deste pacote deixa de valer." | "Abrir o pacote <p>" |
+| (c) | como (a), mas o DEC aberto é `cto` e o vigente é `cto_e_administradora` (S-01) | `avisoNivelMenor`: "A aprovação deste pacote será recusada: o pacote em vigor nesta demanda, <v>, exigiu a aprovação do CTO e da administradora, e um pacote só do CTO não pode substituí-lo. Você pode devolver ou arquivar este pacote. Para substituir <v>, crie um pacote novo com aprovação do CTO e da administradora." | "Criar pacote novo" (T09) |
+
+No caso (c), o (a) não aparece. O "Aprovar" continua disponível no caso (c), e a recusa é o 409 do S-01
+([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)); deixá-lo indisponível é pedido futuro. O aviso não é
+focável: só o link entra no Tab, com 44 px de alvo abaixo de 768 px e o id inteiro no nome, para dois links "Abrir"
+na mesma página se distinguirem.
+
+**Dica do Arquivar** (`dicaDoArquivar`, a partir de `destinoDoArquivamento`, a mesma tabela do servidor,
+[cap. 04](04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041)):
+
+| Destino | Texto |
+|---|---|
+| `encerrada` (sem vigente) | "Arquivar: a demanda vai para Encerrada." |
+| `aprovada` (vigente atualizado) | "Arquivar: a demanda vai para Aprovada, e <v> continua em vigor." |
+| `em_analise` (vigente desatualizado) | "Arquivar: a demanda vai para Em análise, porque <v>, o pacote em vigor, está desatualizado." |
+| nenhum (status fora das origens, ou já em Em análise com vigente desatualizado) | "Arquivar: a demanda continua em <Status>." |
+
+**Chegada depois de arquivar** (`chegadaNaDecisao`): o texto sai do status da demanda lido na página, depois da ação, e
+do vigente dela, nunca da URL:
+
+- `encerrada`: "Pacote arquivado. A demanda foi para Encerrada.";
+- `aprovada` com vigente atualizado: "Pacote arquivado. A demanda está em Aprovada, e <v> continua em vigor.";
+- outro status: "Pacote arquivado. A demanda está em <Status>.".
+
+Status ou id fora da lista fazem a página mostrar a tela de erro, sem o valor na mensagem.
+
+**Textos revistos** pela `ux-ui-design` na 0.4.1 (eram da triagem do 0014; só as constantes mudaram):
+
+| Onde | Constante | Texto |
+|---|---|---|
+| Aviso do DEC substituído | `TEXTOS_DECISAO.substituido` | "Este pacote foi substituído por <id>, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste pacote já foi gerado, não o use. O pedido que vale é o de <id>." |
+| Link do substituído, de (a) e de (b) | `TEXTOS_DECISAO.abrirSubstituto` | "Abrir o pacote <id>" (era "Abrir <id>") |
+| 409 do substituído no gerar | `MENSAGENS_PEDIDO.substituido` | "o pacote foi substituído por <id>, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção." |
+| 409 do S-01 | `MENSAGENS_DECISAO.nivelMenorQueOVigente` | "o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora, e um pacote só do CTO não pode substituí-lo. Devolva ou arquive este pacote, ou crie um pacote novo com aprovação do CTO e da administradora." |
+| Linha 6 da orientação, DEC `cto` | `ORIENTACAO.aviso` | "Depois de corrigir, crie um pacote novo e aprove-o. Aprovado, ele substitui este e passa a ser o único que gera o Pedido de Construção." |
+| Linha 6 da orientação, DEC `cto_e_administradora` (novo) | `ORIENTACAO.avisoDupla` | "Depois de corrigir, crie um pacote novo com aprovação do CTO e da administradora e registre as duas aprovações. Com as duas, ele substitui este e passa a ser o único que gera o Pedido de Construção." |
+| Histórico | `textoDoEvento` (`rotulos.ts`) | "<DEC> foi substituído por <DEC>, aprovado depois dele" (sem id válido: "… por um pacote aprovado depois dele") |
+| Selo | `SELO_SUBSTITUIDO` | "Substituído" (sem mudança) |
+
+O 409 do S-01 continua sem id e sem nome. Os 409 aparecem na T11 depois de "Não foi possível concluir: ".
 
 ## Telas públicas e demais telas (RF-13, RF-14)
 
@@ -496,7 +568,7 @@ integração (`substituicao.test.ts`, `gerar-substituido.test.ts`), porque o e2e
   configuração que suba `retries` ou desligue a CSP.
 - **Dados:** os e2e novos usam as demandas fictícias de `TITULOS_DO_E2E` (`scripts/seed-ficticio.ts`), como
   `etapasDupla` ("Etapas com uma de duas aprovações (fictício)"), `decisaoOpcaoB`, `decisaoCelularDupla` e
-  `textoDeTerceiro`. Na 0.2.0, o seed tinha 23 demandas; desde a 0.4.0, tem 36
+  `textoDeTerceiro`. Na 0.2.0, o seed tinha 23 demandas; na 0.4.0, 36; desde a 0.4.1, tem 40
   ([cap. 10](10-configuracao-e-scripts.md#scripts-de-operação)).
 
 **Desde a 0.4.0** (RNF-09 do pedido 0017): o axe roda sem violação na fila com o selo de fase e na T05 com a seção
@@ -504,6 +576,12 @@ integração (`substituicao.test.ts`, `gerar-substituido.test.ts`), porque o e2e
 e `e2e/axe-todas.spec.ts`). O `e2e/andamento-construir.spec.ts` faz o envio pela API com o token `construir` emitido no
 banco descartável do e2e, como nas integrações da 0.3.0, e confere a mudança de status e o histórico. Os dados são as
 demandas "Andamento: …" do seed fictício (`TITULOS_DO_E2E`).
+
+**Desde a 0.4.1** (RNF-10 do pedido 0018): o `e2e/vigencia.spec.ts` confere os três avisos da T11 com os textos exatos
+da `ux-ui-design` e o arquivamento com um aprovado vigente (a demanda em Aprovada e a Próxima ação apontando o
+vigente), com o axe sem violação em 1280 × 720 e em 390 × 844. O axe da T05 com DEC substituído (`e2e/decisao.spec.ts`)
+passou a rodar nas duas larguras. Os dados são as quatro demandas "Vigência: …" e "Arquivar sem pacote aprovado em
+vigor" do seed fictício. O e2e grava em duas delas: para repetir o roteiro manual ou o UAT, refaça o seed antes.
 
 ## Capturas de tela
 
@@ -587,6 +665,19 @@ testes exibe o formato americano no campo nativo de data (QF-0015-03). No Chrome
 
 ## Pendências de interface conhecidas
 
+Da 0.4.1 (pedido 0018):
+
+- **R-08-1 (pendência conhecida, não defeito):** com o DEC mais novo arquivado, o vigente desatualizado e a demanda em
+  Em análise, a barra marca a etapa 4 como feita ("Aprovada, opção X" do vigente) e a etapa 5 como atual, mas a Próxima
+  ação diz "Montar o pacote de decisão." (`dados-das-etapas.ts:144` e `:246`). O servidor continua recusando o pedido
+  do vigente com o 409 de desatualizado, então o efeito fica só na leitura da tela. É o que a decisão 7.2, itens 3 e 4,
+  manda, e o `detalhe-vigente-banco-qa.test.ts:172` trava esse comportamento. Se confundir, a etapa 4 pode deixar de
+  marcar como feito o vigente desatualizado: isso é mudança de decisão de produto, para Fabiano e a `ux-ui-design`.
+- **Pedido futuro** (decisão 7.2, itens 5 e 6, para a `desenvolvimento-produto`): o "Aprovar" indisponível no caso (c),
+  em vez de só o aviso e o 409; e a dica do Devolver fora das origens da `decisao_devolvida`, com a mesma solução da
+  dica do Arquivar ("… continua em <Status>.").
+- As capturas não mostram os avisos nem a dica nova.
+
 Da 0.2.0 (pedido 0015):
 
 - **QF-0015-01:** em 1280 px, a coluna "Idade" da fila fica cortada e só aparece rolando a tabela. O id e o selo
@@ -637,14 +728,9 @@ De antes da 0.2.0, sem mudança:
   [cap. 05](05-pedido-de-construcao.md#corrigir-uma-recusa)). Foram escritos na triagem e esperam a revisão da
   `ux-ui-design`. A linha "Título e descrição …: corrija na demanda, em "Editar dados"." não diz que a edição só vale
   para um DEC novo; desde a 0.1.13, a linha 6 diz que o pacote novo, aprovado, substitui este.
-- Desde a 0.1.13 (pedido 0014), textos novos escritos na triagem e na correção, que esperam a revisão da
-  `ux-ui-design`: o selo "Substituído" (`SELO_SUBSTITUIDO`, `rotulos.ts`), o aviso e o link da T11 do DEC substituído
-  (`TEXTOS_DECISAO.substituido` e `abrirSubstituto`, `dados-da-decisao.ts`), a linha 6 da orientação
-  (`dados-do-pedido.ts`), a mensagem do 409 do substituído no gerar (`MENSAGENS_PEDIDO.substituido`), a frase do
-  histórico e o 409 do S-01 (`MENSAGENS_DECISAO.nivelMenorQueOVigente`). Ficam em aberto três avisos que a T11 não
-  mostra: na T11 de um DEC pendente, que aprová-lo substitui o aprovado vigente; na T11 do vigente, que há um DEC mais
-  novo pendente; e, na T11 de um DEC `cto` com o vigente de dupla aprovação, que a aprovação será recusada (hoje a
-  recusa só aparece depois do envio).
+- Os textos da 0.1.13 (pedido 0014) que esperavam a revisão da `ux-ui-design` (o selo, o aviso e o link do DEC
+  substituído, a linha 6 da orientação, o 409 do substituído no gerar, a frase do histórico e o 409 do S-01) e os três
+  avisos que a T11 não mostrava **fecharam na 0.4.1** ([Avisos da vigência e Arquivar](#avisos-da-vigência-e-arquivar-041)).
 - Falha ao carregar uma tela mostra "Não foi possível carregar esta página." e "Tentar de novo" (`src/app/error.tsx`),
   sem mensagem, pilha nem `digest`. O registro do erro é o `erro_requisicao` do servidor
   ([cap. 02](02-acesso-e-seguranca.md#log-e-sentry-rnf-10-c-20-c-21)).

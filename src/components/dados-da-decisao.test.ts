@@ -549,40 +549,60 @@ describe('chegada depois de decidir (só valores fixos de ?aviso=; o texto vem d
   const aprovadaDecisao = { opcaoEscolhida: 'B' as const, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO };
 
   it('pacote criado (T09), enquanto ninguém decidiu', () => {
-    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, pacote())).toBe(
+    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, pacote(), { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
       `${DEC} criado. A demanda está pronta para decisão e o aviso por e-mail entrou na fila de envio.`,
     );
-    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, pacote({ aprovadores: [aprovacaoCto] }))).toBeNull();
+    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, pacote({ aprovadores: [aprovacaoCto] }), { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBeNull();
   });
 
   it('decisão registrada: aprovada (nível cto), parcial, completa, devolvida e arquivada', () => {
     const aviso = { aviso: AVISO_DECISAO.decisaoRegistrada };
-    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: aprovadaDecisao, aprovadores: [{ ...aprovacaoCto, opcao: 'B' }] }))).toBe(
-      'Decisão registrada: Aprovada, opção B.',
-    );
+    expect(
+      chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: aprovadaDecisao, aprovadores: [{ ...aprovacaoCto, opcao: 'B' }] }), {
+        statusDaDemanda: 'pronta_para_decisao',
+        vigente: null,
+      }),
+    ).toBe('Decisão registrada: Aprovada, opção B.');
     const dupla = pacote({ nivelAprovacaoRequerido: 'cto_e_administradora' });
-    expect(chegadaNaDecisao(aviso, { ...dupla, aprovadores: [aprovacaoCto] })).toBe('Aprovação do CTO registrada. Falta a aprovação da administradora.');
-    expect(chegadaNaDecisao(aviso, { ...dupla, aprovadores: [aprovacaoAdm] })).toBe('Aprovação da administradora registrada. Falta a aprovação do CTO.');
+    expect(chegadaNaDecisao(aviso, { ...dupla, aprovadores: [aprovacaoCto] }, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
+      'Aprovação do CTO registrada. Falta a aprovação da administradora.',
+    );
+    expect(chegadaNaDecisao(aviso, { ...dupla, aprovadores: [aprovacaoAdm] }, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
+      'Aprovação da administradora registrada. Falta a aprovação do CTO.',
+    );
     // Quem fechou é quem registrou a decisão; com o mesmo instante, a vista ordena pelo papel, e a ordem não decide.
     const pelaAdm = { ...aprovadaDecisao, decididaPor: aprovacaoAdm.nome };
     for (const aprovadores of [
       [aprovacaoCto, aprovacaoAdm],
       [aprovacaoAdm, aprovacaoCto],
     ]) {
-      expect(chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: pelaAdm, aprovadores })).toBe('Aprovação da administradora registrada. O pacote está aprovado.');
-      expect(chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: aprovadaDecisao, aprovadores })).toBe('Aprovação do CTO registrada. O pacote está aprovado.');
+      expect(chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: pelaAdm, aprovadores }, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
+        'Aprovação da administradora registrada. O pacote está aprovado.',
+      );
+      expect(chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: aprovadaDecisao, aprovadores }, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
+        'Aprovação do CTO registrada. O pacote está aprovado.',
+      );
     }
     // Sem o nome (conta que não existe mais), a mais nova.
     expect(
-      chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: { ...aprovadaDecisao, decididaPor: null }, aprovadores: [aprovacaoCto, aprovacaoAdm] }),
+      chegadaNaDecisao(
+        aviso,
+        { ...dupla, statusDecisao: 'aprovada', decisao: { ...aprovadaDecisao, decididaPor: null }, aprovadores: [aprovacaoCto, aprovacaoAdm] },
+        { statusDaDemanda: 'pronta_para_decisao', vigente: null },
+      ),
     ).toBe('Aprovação da administradora registrada. O pacote está aprovado.');
-    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'devolvida', decisao: { ...aprovadaDecisao, opcaoEscolhida: null } }))).toBe(TEXTOS_DECISAO.sucesso.devolvida);
-    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'arquivada', decisao: { ...aprovadaDecisao, opcaoEscolhida: null } }))).toBe(TEXTOS_DECISAO.sucesso.arquivada);
-    expect(chegadaNaDecisao(aviso, pacote())).toBeNull();
+    expect(
+      chegadaNaDecisao(aviso, pacote({ statusDecisao: 'devolvida', decisao: { ...aprovadaDecisao, opcaoEscolhida: null } }), { statusDaDemanda: 'pronta_para_decisao', vigente: null }),
+    ).toBe(TEXTOS_DECISAO.sucesso.devolvida);
+    expect(
+      chegadaNaDecisao(aviso, pacote({ statusDecisao: 'arquivada', decisao: { ...aprovadaDecisao, opcaoEscolhida: null } }), { statusDaDemanda: 'encerrada', vigente: null }),
+    ).toBe(TEXTOS_DECISAO.sucesso.arquivada);
+    expect(chegadaNaDecisao(aviso, pacote(), { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBeNull();
   });
 
   it('outro valor, lista ou ausência: nada', () => {
-    for (const aviso of [undefined, 'qualquer', ['decisao-registrada'], '<script>']) expect(chegadaNaDecisao({ aviso }, pacote({ statusDecisao: 'arquivada' }))).toBeNull();
+    for (const aviso of [undefined, 'qualquer', ['decisao-registrada'], '<script>'])
+      expect(chegadaNaDecisao({ aviso }, pacote({ statusDecisao: 'arquivada' }), { statusDaDemanda: 'encerrada', vigente: null })).toBeNull();
   });
 });
 
@@ -702,10 +722,20 @@ describe('bordas da tela de decisão (qa-automacao)', () => {
 
   it('chegada: "criado" some depois de qualquer decisão; aprovada sem opção gravada ou pendente com duas aprovações não inventam texto', () => {
     const devolvida = pacote({ statusDecisao: 'devolvida', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO } });
-    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, devolvida)).toBeNull();
+    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, devolvida, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBeNull();
     const aviso = { aviso: AVISO_DECISAO.decisaoRegistrada };
-    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: null, decididaEm: APROVADO } }))).toBeNull();
-    expect(chegadaNaDecisao(aviso, pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto, aprovacaoAdm] }))).toBeNull();
+    expect(
+      chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: null, decididaEm: APROVADO } }), {
+        statusDaDemanda: 'pronta_para_decisao',
+        vigente: null,
+      }),
+    ).toBeNull();
+    expect(
+      chegadaNaDecisao(aviso, pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto, aprovacaoAdm] }), {
+        statusDaDemanda: 'pronta_para_decisao',
+        vigente: null,
+      }),
+    ).toBeNull();
     expect(textoDaDecisaoRegistrada(pacote({ statusDecisao: 'pendente', decisao: { opcaoEscolhida: 'A', comentarios: null, decididaPor: 'x', decididaEm: APROVADO } }))).toBeNull();
   });
 
@@ -833,15 +863,15 @@ describe('envioDaDecisao: as exigências de aprovação de hoje em toda combina�
 });
 
 // 0.1.13 (DEC-DEM-20261104-0014-v1, S5): o DEC aprovado que um aprovado mais novo substituiu mostra o aviso com o link
-// para o substituto. Textos da triagem, para revisão da ux-ui-design.
+// para o substituto. Textos revistos na 0.4.1 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, 4.8).
 describe('alertaDeSubstituido (0.1.13)', () => {
   const V2 = `DEC-${ID}-v2`;
 
   it('os textos: o aviso cita o id do substituto e manda não usar pedido deste pacote; o link leva o id', () => {
     expect(TEXTOS_DECISAO.substituido(V2)).toBe(
-      `Este pacote foi substituído por ${V2}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`,
+      `Este pacote foi substituído por ${V2}, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste pacote já foi gerado, não o use. O pedido que vale é o de ${V2}.`,
     );
-    expect(TEXTOS_DECISAO.abrirSubstituto(V2)).toBe(`Abrir ${V2}`);
+    expect(TEXTOS_DECISAO.abrirSubstituto(V2)).toBe(`Abrir o pacote ${V2}`);
   });
 
   it('sem substituto: null; com o id do substituto: o texto e o link para a T11 dele', () => {
@@ -849,7 +879,7 @@ describe('alertaDeSubstituido (0.1.13)', () => {
     expect(alertaDeSubstituido(pacote({ statusDecisao: 'aprovada', substituidoPor: null }))).toBeNull();
     expect(alertaDeSubstituido(pacote({ statusDecisao: 'aprovada', substituido: true, substituidoPor: V2 }))).toEqual({
       texto: TEXTOS_DECISAO.substituido(V2),
-      link: { rotulo: `Abrir ${V2}`, href: `/pacotes-decisao/${V2}` },
+      link: { rotulo: `Abrir o pacote ${V2}`, href: `/pacotes-decisao/${V2}` },
     });
   });
 

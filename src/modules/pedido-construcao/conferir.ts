@@ -7,8 +7,9 @@
 //   2. demanda do tipo estudo, pela cópia gravada no DEC → 422 (CA-22.3);
 //   3. a montagem, só com a ESP e o RSK citados no DEC;
 //   4. e-mail, telefone ou CPF em qualquer campo (C-28) e o nome do solicitante da demanda travada, inteiro ou em parte,
-//      em qualquer texto escrito por pessoa (D1 do 0013) → um 422 só, com o caminho e o tipo, sem o valor: primeiro a
-//      lista do C-28, depois os caminhos com `nome`;
+//      em qualquer texto escrito por pessoa (D1 do 0013), ou o caminho marcado pelo nome em vigor na criação do DEC,
+//      gravado a partir da 0.4.1 → um 422 só, com o caminho e o tipo, sem o valor: primeiro a lista do C-28, depois os
+//      caminhos com `nome`;
 //   5. o validarPedido copiado do /construir (src/vendor/construir, ADR-05) → 422 com os erros dele.
 // Sem autorizar, sem a confirmação de dado pessoal e sem evento: quem chama faz. Recusado, nada é gravado aqui. Precisa
 // rodar numa transação (a trava da demanda vale até o fim dela).
@@ -25,6 +26,7 @@ import { obterEspecificacao } from '../especificacoes/consultas';
 import { obterPacoteDecisao, type PacoteDecisaoVista } from '../pacotes-decisao/consultas';
 import { obterParecerRisco } from '../pareceres-risco/consultas';
 import { travarDemanda } from '../versoes';
+import { caminhosDaCriacaoNoPedido, lerCaminhosDaCriacao } from './caminhos-da-criacao';
 import { MENSAGEM_PEDIDO_SEM_APROVACAO, montarPedido, textosDoPedido } from './montar';
 import { serializarPedido } from './serializar';
 
@@ -39,8 +41,8 @@ export const MENSAGENS_PEDIDO = {
   naoPassou: 'O pedido não passou na validação do /construir. Nada foi entregue.',
   // D3 do 0013: texto da 02-triagem, para revisão da ux-ui-design. Sem lista: não diz nada do DEC.
   semConfirmacao: 'Confirme que o título, a descrição, a ESP e o parecer de risco não têm dado pessoal de ninguém. Nada foi entregue.',
-  // 0.1.13: texto da 02-triagem do DEC-DEM-20261104-0014-v1, para revisão da ux-ui-design. Só o id do DEC que gera.
-  substituido: (id: string) => `o pacote foi substituído por ${id}, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção.`,
+  // 0.1.13; texto revisto na 0.4.1 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, seção 5). Só o id do DEC que gera.
+  substituido: (id: string) => `o pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção.`,
 } as const;
 
 // CNPJ fica de fora no pedido (decisão da 04, C-28); a minimização da T24 usa os quatro.
@@ -55,8 +57,13 @@ const naoPassou = (erros: string[]) => new ErroDominio('nao_processavel', MENSAG
 export async function conferirEMontarPedido(tx: Db, decId: string): Promise<{ dec: PacoteDecisaoVista; json: string }> {
   // M-08: o mesmo padrão de registrarDecisao. A trava da demanda põe em fila o encerramento e a ESP ou o RSK novos; o DEC
   // (e o `desatualizado`) só é lido depois dela.
-  const [alvo] = await tx.select({ demandaId: pacoteDecisao.demandaId }).from(pacoteDecisao).where(eq(pacoteDecisao.id, decId));
+  const [alvo] = await tx
+    .select({ demandaId: pacoteDecisao.demandaId, caminhosDaCriacao: pacoteDecisao.caminhosComNomeNaCriacao })
+    .from(pacoteDecisao)
+    .where(eq(pacoteDecisao.id, decId));
   if (!alvo) throw new ErroDominio('nao_encontrado', MENSAGEM_NAO_ENCONTRADO);
+  // 0.4.1 (S-03, SB-08): imutável desde a criação; fora do formato é erro interno, nunca null nem lista vazia.
+  const daCriacao = lerCaminhosDaCriacao(alvo.caminhosDaCriacao);
   const demandaTravada = await travarDemanda(tx, alvo.demandaId);
   if (ehStatusFinal(demandaTravada.status)) throw new ErroDominio('conflito', MENSAGENS_PEDIDO.demandaFinal);
   const dec = await obterPacoteDecisao(tx, decId);
@@ -75,9 +82,15 @@ export async function conferirEMontarPedido(tx: Db, decId: string): Promise<{ de
 
   // D1 do 0013 (E6): o nome conferido é o atual da demanda travada, a mesma fonte da vista mínima. Nulo, ou com menos de
   // 3 letras, não confere nada. Nomes de outras pessoas ficam com a confirmação de quem gera (gerar.ts).
+  // 0.4.1 (S-03, SB-08): e também o caminho que o nome em vigor na criação marcou, traduzido para o pedido (a opção
+  // escolhida vira decisao.opcaoEscolhida; a outra não vai ao pedido e não recusa). Coluna nula (DEC anterior à 0.4.1):
+  // só o nome atual. Um caminho marcado pelos dois critérios sai uma vez, na ordem de textosDoPedido.
   const nomes = nomesDoSolicitante(demandaTravada.solicitanteNome);
+  // montarPedido já recusou o DEC sem decisão aprovada: aqui a opção existe.
+  const escolhida = dec.decisao?.opcaoEscolhida;
+  const marcados = daCriacao === null || !escolhida ? new Set<string>() : caminhosDaCriacaoNoPedido(daCriacao, escolhida);
   const comNome = textosDoPedido({ dec, esp, rsk })
-    .filter((texto) => texto.valores.some((v) => temNome(v, nomes)))
+    .filter((texto) => marcados.has(texto.caminho) || texto.valores.some((v) => temNome(v, nomes)))
     .map((texto) => `${texto.caminho}: ${TIPO_NOME}`);
   const erros = [...encontrarDadosPessoais(pedido, DADOS_PESSOAIS_DO_PEDIDO).map((d) => `${d.caminho}: ${d.tipo}`), ...comNome];
   if (erros.length > 0) throw naoPassou(erros);
