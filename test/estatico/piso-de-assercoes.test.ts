@@ -110,6 +110,10 @@ const PISO: Readonly<Record<string, number>> = {
   // T03 do DEC-DEM-20261111-0018-v1 (SB-07 d, SB-10): contado no fim da tarefa.
   'src/db/schema/caminhos-da-criacao.test.ts': 9,
   'test/estatico/migration-0010.test.ts': 4,
+  // 06-T03-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; SB-09 na coluna nova a partir da MATRIZ, SB-10 e G4 com as
+  // migrations da main presas pelo SHA-256): contado ao fim da etapa.
+  'test/transversal/visibilidade-caminhos-da-criacao-qa.test.ts': 19,
+  'test/estatico/migrations-congeladas-qa.test.ts': 12,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
