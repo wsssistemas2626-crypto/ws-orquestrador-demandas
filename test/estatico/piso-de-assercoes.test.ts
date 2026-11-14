@@ -92,11 +92,17 @@ const PISO: Readonly<Record<string, number>> = {
   'test/estatico/andamento-detalhe-qa.test.ts': 10,
   // T01 do DEC-DEM-20261111-0018-v1 (SB-01): contado no fim da tarefa.
   'src/modules/acesso/matriz-situacao.test.ts': 15,
-  'test/estatico/situacao.test.ts': 8,
+  'test/estatico/situacao.test.ts': 17,
   // 06-T01-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; SB-01 adversarial e varredura ampliada): contado ao fim
   // da etapa.
   'src/modules/acesso/matriz-situacao-qa.test.ts': 46,
   'test/estatico/situacao-qa.test.ts': 21,
+  // T02 do DEC-DEM-20261111-0018-v1 (SB-01 c, SB-02 a SB-06): contado no fim da tarefa; test/estatico/situacao.test.ts
+  // sobe de 8 para 17 (acima), a contagem do fim da tarefa.
+  'src/modules/pedido-construcao/situacao.test.ts': 29,
+  'src/app/api/pedidos-construcao/situacao.test.ts': 48,
+  'src/app/api/pedidos-construcao/situacao-403.test.ts': 11,
+  'test/transversal/sentinelas-situacao.test.ts': 14,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 

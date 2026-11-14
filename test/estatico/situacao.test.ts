@@ -42,3 +42,38 @@ describe('SB-01 (f): onde a ação ler_situacao_pedido aparece', () => {
     expect(ehServerAction("export const x = 'use server';")).toBe(false);
   });
 });
+
+// T02: SB-03 (sem trava), SB-04 (prazo total sem piso por cima) e SB-06 (a situação informa, não autoriza).
+const PROIBIDOS_NA_SITUACAO: readonly RegExp[] = [
+  /set\s+local/i,
+  /set_config/,
+  /\bcomTransacao\s*\(/,
+  /\bPromise\.all\s*\(/,
+  /\btravarPedido\s*\(/,
+  /\btravarDemanda\s*\(/,
+  /for\s+update/i,
+  /pg_advisory/,
+];
+
+describe('situacao.ts: só leitura, sem trava e com o prazo total (SB-03, SB-04)', () => {
+  it('nenhum SET, transação própria, Promise.all nem trava; executarComOrcamento uma vez, com undefined', () => {
+    const f = ler(SERVICO);
+    for (const re of PROIBIDOS_NA_SITUACAO) expect(f, String(re)).not.toMatch(re);
+    expect(f.match(/executarComOrcamento\(/g)).toHaveLength(1);
+    expect(f).toMatch(/executarComOrcamento\(deps\.pool, ator, 'padrao', undefined,/);
+    expect(f).not.toMatch(/\bt\?:\s*Transacao/);
+    expect(f).toMatch(/autorizar\(ator, 'ler_situacao_pedido'\)/);
+  });
+  it('as regras pegam o caso plantado', () => {
+    expect('await travarPedido(tx, decId);').toMatch(PROIBIDOS_NA_SITUACAO[4]!);
+    expect('select 1 from pacote_decisao for update').toMatch(PROIBIDOS_NA_SITUACAO[6]!);
+    expect('select pg_advisory_xact_lock(1)').toMatch(PROIBIDOS_NA_SITUACAO[7]!);
+  });
+});
+
+describe('SB-06: só a rota nova importa o serviço da situação', () => {
+  it('no código que roda, quem importa pedido-construcao/situacao é só a route.ts nova', () => {
+    const importam = codigoQueRoda.filter((a) => a !== SERVICO && /pedido-construcao\/situacao['"]/.test(ler(a)));
+    expect(importam).toEqual([ROTA]);
+  });
+});

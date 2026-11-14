@@ -7,6 +7,7 @@ import { expect } from 'vitest';
 import * as rotaAndamento from '../src/app/api/pedidos-construcao/[decId]/andamento/route';
 import * as rotaEntrega from '../src/app/api/pedidos-construcao/[decId]/entrega/route';
 import * as rotaRecebimento from '../src/app/api/pedidos-construcao/[decId]/recebimento/route';
+import * as rotaSituacao from '../src/app/api/pedidos-construcao/[decId]/situacao/route';
 import * as rotaPendentes from '../src/app/api/pedidos-construcao/pendentes/route';
 import type { Deps } from '../src/lib/deps';
 import type { AtorPessoa } from '../src/modules/acesso/ator';
@@ -103,6 +104,16 @@ export function chamadasDoConstruir(token: () => string) {
         bearer: credencial(op),
         semOrigin: op.semOrigin ?? true,
         corpo,
+        cabecalhos: { accept: 'application/json', ...op.cabecalhos },
+      }),
+    // T02 do DEC-DEM-20261111-0018-v1: a leitura da situação do pedido (S-02), como o /construir vai chamar. GET,
+    // Bearer e `accept: application/json`, sem `Origin`, sem cookie e sem corpo.
+    situacao: (decId: string, op: Omit<OpChamada, 'corpo'> = {}) =>
+      chamarRota(rotaSituacao.GET, {
+        caminho: `/api/pedidos-construcao/${encodeURIComponent(decId)}/situacao`,
+        params: { decId },
+        bearer: credencial(op),
+        semOrigin: op.semOrigin ?? true,
         cabecalhos: { accept: 'application/json', ...op.cabecalhos },
       }),
   };
