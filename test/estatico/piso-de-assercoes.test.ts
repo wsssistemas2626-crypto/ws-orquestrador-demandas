@@ -127,6 +127,10 @@ const PISO: Readonly<Record<string, number>> = {
   // T05 do DEC-DEM-20261111-0018-v1 (SB-08 a, b, d, e; SB-09 c, d; CA-02.1 a CA-02.5): contado no fim da tarefa.
   'src/modules/pedido-construcao/conferir-nome-da-criacao.test.ts': 48,
   'test/transversal/sentinelas-nome-da-criacao.test.ts': 10,
+  // 06-T05-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; SB-08 adversarial nos cinco caminhos de geração e entrega,
+  // o DEC recusado continua recusado em toda troca do solicitanteNome, e sentinelas com o Sentry exercitado): contado ao
+  // fim da etapa.
+  'src/modules/pedido-construcao/conferir-nome-da-criacao-qa.test.ts': 30,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
