@@ -245,6 +245,11 @@ const PISO: Readonly<Record<string, number>> = {
   'scripts/seed-andamento-qa.test.ts': 37,
   // Irmão de test/matriz-rotas.test.ts (401 e 403 em todo método e toda rota):
   'test/matriz-rotas-qa.test.ts': 22,
+  // 06-T10-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; P1 da 06-T10-revisao, critério CV-20 do D-18, como o
+  // seed-andamento da 0.4.0): o seed da vigência tem guardas de log (G3.13), de token, de pendentes do /construir e de
+  // dado só fictício; contado ao fim da etapa.
+  'scripts/seed-vigencia.test.ts': 46,
+  'scripts/seed-vigencia-qa.test.ts': 62,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
