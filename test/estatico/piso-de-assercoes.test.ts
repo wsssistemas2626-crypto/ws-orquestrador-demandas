@@ -124,6 +124,9 @@ const PISO: Readonly<Record<string, number>> = {
   // com a coluna obrigatória): contado ao fim da etapa.
   'src/modules/pacotes-decisao/marcacao-da-criacao-qa.test.ts': 27,
   'test/estatico/caminhos-da-criacao-qa.test.ts': 33,
+  // T05 do DEC-DEM-20261111-0018-v1 (SB-08 a, b, d, e; SB-09 c, d; CA-02.1 a CA-02.5): contado no fim da tarefa.
+  'src/modules/pedido-construcao/conferir-nome-da-criacao.test.ts': 48,
+  'test/transversal/sentinelas-nome-da-criacao.test.ts': 10,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
