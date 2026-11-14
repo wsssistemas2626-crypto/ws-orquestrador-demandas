@@ -250,6 +250,11 @@ const PISO: Readonly<Record<string, number>> = {
   // dado só fictício; contado ao fim da etapa.
   'scripts/seed-vigencia.test.ts': 46,
   'scripts/seed-vigencia-qa.test.ts': 62,
+  // T12 do DEC-DEM-20261111-0018-v1 (SB-12; G9: vigenteDaDemanda só depois de autorizar e de achar o pacote; id só no
+  // formato de DEC; avisos sem mudar botão): contado no fim da tarefa.
+  'src/components/dados-da-decisao-vigencia.test.ts': 64,
+  'src/app/(painel)/pacotes-decisao/[decId]/pagina-vigencia.test.ts': 69,
+  'test/estatico/vigencia-t11.test.ts': 25,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 

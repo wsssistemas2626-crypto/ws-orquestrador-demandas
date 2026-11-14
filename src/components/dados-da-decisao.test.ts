@@ -549,40 +549,60 @@ describe('chegada depois de decidir (só valores fixos de ?aviso=; o texto vem d
   const aprovadaDecisao = { opcaoEscolhida: 'B' as const, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO };
 
   it('pacote criado (T09), enquanto ninguém decidiu', () => {
-    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, pacote())).toBe(
+    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, pacote(), { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
       `${DEC} criado. A demanda está pronta para decisão e o aviso por e-mail entrou na fila de envio.`,
     );
-    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, pacote({ aprovadores: [aprovacaoCto] }))).toBeNull();
+    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, pacote({ aprovadores: [aprovacaoCto] }), { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBeNull();
   });
 
   it('decisão registrada: aprovada (nível cto), parcial, completa, devolvida e arquivada', () => {
     const aviso = { aviso: AVISO_DECISAO.decisaoRegistrada };
-    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: aprovadaDecisao, aprovadores: [{ ...aprovacaoCto, opcao: 'B' }] }))).toBe(
-      'Decisão registrada: Aprovada, opção B.',
-    );
+    expect(
+      chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: aprovadaDecisao, aprovadores: [{ ...aprovacaoCto, opcao: 'B' }] }), {
+        statusDaDemanda: 'pronta_para_decisao',
+        vigente: null,
+      }),
+    ).toBe('Decisão registrada: Aprovada, opção B.');
     const dupla = pacote({ nivelAprovacaoRequerido: 'cto_e_administradora' });
-    expect(chegadaNaDecisao(aviso, { ...dupla, aprovadores: [aprovacaoCto] })).toBe('Aprovação do CTO registrada. Falta a aprovação da administradora.');
-    expect(chegadaNaDecisao(aviso, { ...dupla, aprovadores: [aprovacaoAdm] })).toBe('Aprovação da administradora registrada. Falta a aprovação do CTO.');
+    expect(chegadaNaDecisao(aviso, { ...dupla, aprovadores: [aprovacaoCto] }, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
+      'Aprovação do CTO registrada. Falta a aprovação da administradora.',
+    );
+    expect(chegadaNaDecisao(aviso, { ...dupla, aprovadores: [aprovacaoAdm] }, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
+      'Aprovação da administradora registrada. Falta a aprovação do CTO.',
+    );
     // Quem fechou é quem registrou a decisão; com o mesmo instante, a vista ordena pelo papel, e a ordem não decide.
     const pelaAdm = { ...aprovadaDecisao, decididaPor: aprovacaoAdm.nome };
     for (const aprovadores of [
       [aprovacaoCto, aprovacaoAdm],
       [aprovacaoAdm, aprovacaoCto],
     ]) {
-      expect(chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: pelaAdm, aprovadores })).toBe('Aprovação da administradora registrada. O pacote está aprovado.');
-      expect(chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: aprovadaDecisao, aprovadores })).toBe('Aprovação do CTO registrada. O pacote está aprovado.');
+      expect(chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: pelaAdm, aprovadores }, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
+        'Aprovação da administradora registrada. O pacote está aprovado.',
+      );
+      expect(chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: aprovadaDecisao, aprovadores }, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBe(
+        'Aprovação do CTO registrada. O pacote está aprovado.',
+      );
     }
     // Sem o nome (conta que não existe mais), a mais nova.
     expect(
-      chegadaNaDecisao(aviso, { ...dupla, statusDecisao: 'aprovada', decisao: { ...aprovadaDecisao, decididaPor: null }, aprovadores: [aprovacaoCto, aprovacaoAdm] }),
+      chegadaNaDecisao(
+        aviso,
+        { ...dupla, statusDecisao: 'aprovada', decisao: { ...aprovadaDecisao, decididaPor: null }, aprovadores: [aprovacaoCto, aprovacaoAdm] },
+        { statusDaDemanda: 'pronta_para_decisao', vigente: null },
+      ),
     ).toBe('Aprovação da administradora registrada. O pacote está aprovado.');
-    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'devolvida', decisao: { ...aprovadaDecisao, opcaoEscolhida: null } }))).toBe(TEXTOS_DECISAO.sucesso.devolvida);
-    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'arquivada', decisao: { ...aprovadaDecisao, opcaoEscolhida: null } }))).toBe(TEXTOS_DECISAO.sucesso.arquivada);
-    expect(chegadaNaDecisao(aviso, pacote())).toBeNull();
+    expect(
+      chegadaNaDecisao(aviso, pacote({ statusDecisao: 'devolvida', decisao: { ...aprovadaDecisao, opcaoEscolhida: null } }), { statusDaDemanda: 'pronta_para_decisao', vigente: null }),
+    ).toBe(TEXTOS_DECISAO.sucesso.devolvida);
+    expect(
+      chegadaNaDecisao(aviso, pacote({ statusDecisao: 'arquivada', decisao: { ...aprovadaDecisao, opcaoEscolhida: null } }), { statusDaDemanda: 'encerrada', vigente: null }),
+    ).toBe(TEXTOS_DECISAO.sucesso.arquivada);
+    expect(chegadaNaDecisao(aviso, pacote(), { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBeNull();
   });
 
   it('outro valor, lista ou ausência: nada', () => {
-    for (const aviso of [undefined, 'qualquer', ['decisao-registrada'], '<script>']) expect(chegadaNaDecisao({ aviso }, pacote({ statusDecisao: 'arquivada' }))).toBeNull();
+    for (const aviso of [undefined, 'qualquer', ['decisao-registrada'], '<script>'])
+      expect(chegadaNaDecisao({ aviso }, pacote({ statusDecisao: 'arquivada' }), { statusDaDemanda: 'encerrada', vigente: null })).toBeNull();
   });
 });
 
@@ -702,10 +722,20 @@ describe('bordas da tela de decisão (qa-automacao)', () => {
 
   it('chegada: "criado" some depois de qualquer decisão; aprovada sem opção gravada ou pendente com duas aprovações não inventam texto', () => {
     const devolvida = pacote({ statusDecisao: 'devolvida', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: 'Pessoa Ficticia CTO', decididaEm: APROVADO } });
-    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, devolvida)).toBeNull();
+    expect(chegadaNaDecisao({ aviso: AVISO_DECISAO.pacoteCriado }, devolvida, { statusDaDemanda: 'pronta_para_decisao', vigente: null })).toBeNull();
     const aviso = { aviso: AVISO_DECISAO.decisaoRegistrada };
-    expect(chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: null, decididaEm: APROVADO } }))).toBeNull();
-    expect(chegadaNaDecisao(aviso, pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto, aprovacaoAdm] }))).toBeNull();
+    expect(
+      chegadaNaDecisao(aviso, pacote({ statusDecisao: 'aprovada', decisao: { opcaoEscolhida: null, comentarios: null, decididaPor: null, decididaEm: APROVADO } }), {
+        statusDaDemanda: 'pronta_para_decisao',
+        vigente: null,
+      }),
+    ).toBeNull();
+    expect(
+      chegadaNaDecisao(aviso, pacote({ nivelAprovacaoRequerido: 'cto_e_administradora', aprovadores: [aprovacaoCto, aprovacaoAdm] }), {
+        statusDaDemanda: 'pronta_para_decisao',
+        vigente: null,
+      }),
+    ).toBeNull();
     expect(textoDaDecisaoRegistrada(pacote({ statusDecisao: 'pendente', decisao: { opcaoEscolhida: 'A', comentarios: null, decididaPor: 'x', decididaEm: APROVADO } }))).toBeNull();
   });
 

@@ -35,6 +35,11 @@ vi.mock('../../../../modules/pacotes-decisao/consultas', async (original) => {
 vi.mock('./acoes', () => ({ registrarDecisaoNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
 vi.mock('./acoes-pedido', () => ({ gerarPedidoNoPainel: async () => ({ ok: false, erro: 'erro_interno', mensagem: '' }) }));
 vi.mock('../../../../modules/pedido-construcao/pendentes', () => ({ recebimentoDoPedido: vi.fn() }));
+// T12 do DEC-DEM-20261111-0018-v1 (ADR-40): a leitura do vigente é dublê, sem vigente (como em pagina.test.ts).
+vi.mock('../../../../modules/pacotes-decisao/substituido', async (original) => {
+  const real = await original<typeof import('../../../../modules/pacotes-decisao/substituido')>();
+  return { ...real, vigenteDaDemanda: vi.fn(async () => null) };
+});
 // O dublê da SecaoPedido: guarda as props e mostra o nível num atributo, para conferir também o HTML.
 vi.mock('./SecaoPedido', async () => {
   const { createElement } = await import('react');

@@ -64,9 +64,11 @@ type Props = {
   opcoesEscolha: readonly OpcaoDoGrupo[];
   repositorioDestino: string | null;
   nivelAprovacaoRequerido: NivelAprovacao;
+  // 0.4.1 (D-10; 03, 4.6): a consequência do Arquivar pelo destino, pronta da página (dicaDoArquivar); só texto.
+  dicaArquivar: string;
 };
 
-export function FormularioDecisao({ decId, contexto, opcoesEscolha, repositorioDestino, nivelAprovacaoRequerido }: Props) {
+export function FormularioDecisao({ decId, contexto, opcoesEscolha, repositorioDestino, nivelAprovacaoRequerido, dicaArquivar }: Props) {
   const router = useRouter();
   const [valores, setValores] = useState<ValoresDaDecisao>(valoresDaDecisao);
   const [enviando, setEnviando] = useState(false);
@@ -204,7 +206,7 @@ export function FormularioDecisao({ decId, contexto, opcoesEscolha, repositorioD
             {t.dicaDevolver}
           </p>
           <p id={ID_CONSEQUENCIA.arquivada} className={CLASSE_DA_NOTA}>
-            {t.dicaArquivar}
+            {dicaArquivar}
           </p>
         </div>
         <div id={ID_RODAPE} role="group" aria-label={t.grupoAcoes} className={CLASSE_DO_RODAPE}>
