@@ -2,10 +2,10 @@
 pedido: DEC-DEM-20261111-0018-v1
 etapa: 07-qa-funcional
 agente: qa-funcional
-leu: [pedido.json, contrato-passagem.md, docs/superpowers/specs/2026-11-13-ws-orquestrador-demandas-sobras-design.md, 01-analista-requisitos.md, 03-ux-ui-design.md, tarefas.json, 06-T01-qa-automacao.md, 06-T02-qa-automacao.md, 06-T03-qa-automacao.md, 06-T04-qa-automacao.md, 06-T05-qa-automacao.md, 06-T06-qa-automacao.md, 06-T07-qa-automacao.md, 06-T08-qa-automacao.md, 06-T09-qa-automacao.md, 06-T10-qa-automacao.md, 06-T11-qa-automacao.md, 06-T12-qa-automacao.md, 06-T13-qa-automacao.md, 06-T14-qa-automacao.md, docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md (G5 e T14; busca por CA-05), DEC-DEM-20261111-0017-v1/07-qa-funcional.md (formato), src/app/(painel)/pacotes-decisao/[decId]/page.tsx (linhas 140 a 270), src/app/(painel)/pacotes-decisao/[decId]/FormularioDecisao.tsx (por busca e linhas 195 a 297), src/components/Alerta.tsx, src/components/dados-da-decisao.ts (linhas 80 a 180 e 390 a 450), src/app/globals.css (busca por focus-visible), e2e/vigencia.spec.ts, e2e/decisao.spec.ts (linhas 300 a 370), e2e/decisao-celular.spec.ts (linhas 395 a 440), e2e/apoio.ts (busca), e2e/axe-todas.spec.ts (busca), e2e (busca por semViolacoes com T05 e substituído), playwright.config.ts (busca), test/matriz-rotas*.test.ts (busca), src/**/*vigencia*.test.ts (busca), scripts/seed-ficticio.ts (busca pelos títulos)]
-status: devolvido
-proximo: engenheiro-frontend
-devolvido_para: 06-T11-construcao
+leu: [pedido.json, contrato-passagem.md, docs/superpowers/specs/2026-11-13-ws-orquestrador-demandas-sobras-design.md, 01-analista-requisitos.md, 03-ux-ui-design.md, tarefas.json, 06-T01-qa-automacao.md, 06-T02-qa-automacao.md, 06-T03-qa-automacao.md, 06-T04-qa-automacao.md, 06-T05-qa-automacao.md, 06-T06-qa-automacao.md, 06-T07-qa-automacao.md, 06-T08-qa-automacao.md, 06-T09-qa-automacao.md, 06-T10-qa-automacao.md, 06-T11-qa-automacao.md, 06-T12-qa-automacao.md, 06-T13-qa-automacao.md, 06-T14-qa-automacao.md, 06-T11-engenheiro-frontend.md (volta do CA-05.2), 06-T11-tech-lead.md (volta do CA-05.2), docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md (G5 e T14; busca por CA-05), DEC-DEM-20261111-0017-v1/07-qa-funcional.md (formato), src/app/(painel)/pacotes-decisao/[decId]/page.tsx (linhas 140 a 270), src/app/(painel)/pacotes-decisao/[decId]/FormularioDecisao.tsx (por busca e linhas 195 a 297), src/components/Alerta.tsx, src/components/dados-da-decisao.ts (linhas 80 a 180 e 390 a 450), src/app/globals.css (busca por focus-visible), e2e/vigencia.spec.ts, e2e/decisao.spec.ts (linhas 300 a 370; na volta, busca por semViolacoes e pelo import), e2e/decisao-celular.spec.ts (linhas 395 a 440), e2e/apoio.ts (busca; na volta, semViolacoesNasDuasLarguras, linhas 128 a 137), e2e/axe-todas.spec.ts (busca), e2e (busca por semViolacoes com T05 e substituído), playwright.config.ts (busca), test/matriz-rotas*.test.ts (busca), src/**/*vigencia*.test.ts (busca), scripts/seed-ficticio.ts (busca pelos títulos)]
+status: pronto
+proximo: maestro
+devolvido_para: null
 ---
 ## Entrega
 
@@ -21,9 +21,10 @@ O documento tem seis partes:
 5. o roteiro de aceite para Fabiano (seção 5);
 6. os candidatos a automação (seção 6).
 
-**Resultado:** 36 dos 37 critérios estão cobertos. O CA-05.2 está coberto só em parte: o axe da T05 com DEC substituído
-roda em 1280 × 720 e não roda em 390 × 844. Por isso a entrega volta à `06-T11-construcao` (Pendências, primeira
-linha). O restante do documento já vale para depois da correção.
+**Resultado:** os 37 critérios estão cobertos. O CA-05.2, que na primeira volta estava coberto só em parte, foi fechado
+pela T11 (commit `7ae0beb`): o `e2e/decisao.spec.ts:365` passou a usar `semViolacoesNasDuasLarguras`, e o axe da T05 com
+DEC substituído roda agora em 1280 × 720 e em 390 × 844. Nesta volta, só a linha do CA-05.2 no mapa mudou, junto com o
+que dependia dela (resumo, R-05.2, candidatos, decisões, pendências e critério de pronto).
 
 Regras do documento:
 
@@ -66,10 +67,10 @@ Demandas que o roteiro cria à mão, sempre como "cto", com ESP e RSK mínimas:
 ### 1. Mapa: critério de aceite → teste automatizado
 
 São 37 critérios do `01` (CA-01.1 a CA-10.2), e todos estão no mapa.
-- 33 estão cobertos por teste automatizado.
+- 34 estão cobertos por teste automatizado.
 - 3 são documentação, cobertos pela etapa dona, a `10-documentacao`, como no 0017: CA-04.4, CA-09.1 e CA-10.2. O
   critério 8 do pedido, que não é CA do `01`, também fica com a etapa dona: a `09-entrega` e a `10-documentacao`.
-- 1 está coberto só em parte (CA-05.2) e é o motivo da devolução.
+- Nenhum ficou "sem cobertura" nem coberto só em parte.
 
 A coluna "Nível" diz onde o critério é provado: U (unidade), B (Postgres real), R (rota real pelo `rota()`), T (HTML do
 servidor), E (e2e Playwright contra o build), S (estático) e D (conferência documental). Os arquivos `-qa` são da
@@ -121,7 +122,7 @@ servidor), E (e2e Playwright contra o build), S (estático) e D (conferência do
 | CA | Teste automatizado | Nível |
 |---|---|---|
 | CA-05.1 | `src/components/textos-0018.test.ts`; `dados-da-decisao-vigencia-qa.test.ts` › "os textos novos são os da própria entrega da ux-ui-design" (lê a seção 8 da 03 e compara 12 constantes); `rotulos.test.ts`; `nivel-do-pedido.test.ts` e `test/estatico/nivel-do-pedido.test.ts` (linha 6 pelo nível); e2e `decisao.spec.ts:305`, `decisao-celular.spec.ts:402` e `pedido-construcao.spec.ts:264` e `:344` | U, T, S, E |
-| CA-05.2 | **Coberto em parte.** T11 do substituído: 1280 × 720 em `decisao.spec.ts:354` e `pedido-construcao.spec.ts:409`; 390 × 844 em `decisao-celular.spec.ts:437`. T05 com DEC substituído: só `decisao.spec.ts:365` (`semViolacoes`, viewport `Desktop Chrome` de 1280 × 720). **T05 em 390 × 844: sem cobertura** → devolvido à `06-T11-construcao` | E |
+| CA-05.2 | Coberto nas duas telas e nas duas larguras. T11 do substituído: 1280 × 720 em `decisao.spec.ts:354` e `pedido-construcao.spec.ts:409`; 390 × 844 em `decisao-celular.spec.ts:437`. T05 com DEC substituído: `decisao.spec.ts:365` com `semViolacoesNasDuasLarguras` (`e2e/apoio.ts:128-137`), que roda o axe em 1280 × 720 ("T05 com DEC substituído (1280 × 720)") e em 390 × 844 ("T05 com DEC substituído (390 × 844)"). Volta da T11, commit `7ae0beb`; e2e completo na 06-T11-qa-automacao: 294 de 303, 9 pulados que já existiam, 0 falha | E |
 
 #### RF-06. Avisos (a), (b) e (c) (T10, T12, T14)
 
@@ -270,7 +271,7 @@ passos R-01.2, R-03.1, R-03.5 e R-05.1 mudam o estado das demandas da vigência.
 | R-05.1c | Repetir o R-01.2 numa demanda nova, com a T11 do v1 aberta numa segunda aba antes da aprovação completa do v2. Depois da aprovação, clicar em "Gerar Pedido de Construção" na aba velha | — | "Não foi possível concluir: o pacote foi substituído por `<v2>`, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção." |
 | R-05.1d | O 409 do S-01: é o R-03.5 | — | o texto da seção 5 da 03, sem id e sem nome |
 | R-05.1e | Criar "Linha 6 da dupla aprovação": ESP com `contato@ficticio.test` no contexto; DEC `cto_e_administradora` aprovado pela "cto" e pela "administradora" (`DOC-FICTICIO-0018`); gerar o pedido. Repetir com um DEC `cto` | — | 422. Linha 6 do dupla: "Depois de corrigir, crie um pacote novo com aprovação do CTO e da administradora e registre as duas aprovações. Com as duas, ele substitui este e passa a ser o único que gera o Pedido de Construção." No `cto`: "Depois de corrigir, crie um pacote novo e aprove-o. Aprovado, ele substitui este e passa a ser o único que gera o Pedido de Construção." |
-| R-05.2 | Axe (extensão do navegador) em 1280 × 720 e 390 × 844 na T11 do R-05.1a e na T05 do R-05.1b | — | Sem violação nas quatro combinações. A T05 em 390 × 844 é a que falta no automatizado |
+| R-05.2 | Axe (extensão do navegador) em 1280 × 720 e 390 × 844 na T11 do R-05.1a e na T05 do R-05.1b | — | Sem violação nas quatro combinações. As quatro já estão no automatizado (seção 1); a conferência manual é confirmação na homologação |
 
 #### RF-06
 
@@ -366,22 +367,26 @@ como Aceito ou Pendente e anote o motivo.
 
 | Candidato | Por quê |
 |---|---|
-| Axe da T05 com DEC substituído em 390 × 844 | É a lacuna do CA-05.2 e o motivo da devolução |
 | e2e da linha 6 do nível `cto_e_administradora` na tela (R-05.1e) | Hoje só em U e S (06-T11). Pede demanda própria no seed |
 | e2e do aviso (a) depois da primeira das duas aprovações (R-06.1) | Hoje em U e T. A 06-T14 deixou de fora para não gastar a aprovação da "administradora" numa demanda do seed |
 | Teste estático: o `CHANGELOG.md` tem a seção da versão do `package.json` | Fecha o CA-04.4 e o CA-10.1 sem conferência manual. Já foi sugerido no 0017 |
 | Teste estático: o `deploy.md` cita o serviço `migrar` e a ordem backup → `migrar` → worker → app | Pega a volta do roteiro antigo (critério 8). Só depois da `10-documentacao` |
 | Reflow em 320 px com os três avisos (R-A11Y.3) | Hoje só manual |
 
+O axe da T05 com DEC substituído em 390 × 844, que era o primeiro candidato da volta anterior, saiu da lista: foi
+automatizado pela T11 em `decisao.spec.ts:365`.
+
 ## Decisões tomadas
 
-- Devolvo pelo CA-05.2, e não marco "coberto". O critério pede o axe na T11 e na T05, nas duas larguras. A T05 com DEC
-  substituído só roda em 1280 × 720 (`decisao.spec.ts:365` usa `semViolacoes`, e o `playwright.config.ts` tem só o
-  projeto `Desktop Chrome`). Nenhum outro spec abre a T05 nesse estado em 390 × 844.
-- A dona é a T11, pelo `tarefas.json`. Ela cobre o RF-05, que tem o CA-05.2, e já mexeu em `e2e/decisao.spec.ts:364` pela
-  G5. A correção é de uma linha, no molde do Minor 1 da 06-T14.
-- O risco para quem usa é baixo: na T05, a 0.4.1 só muda uma palavra da frase do histórico. A devolução vem da regra do
-  contrato, e não da criticidade.
+- Nesta volta, marco o CA-05.2 como coberto. Li o `e2e/decisao.spec.ts`: a linha 365 chama
+  `semViolacoesNasDuasLarguras(page, 'T05 com DEC substituído')`, e o import está na linha 44. O auxiliar
+  (`e2e/apoio.ts:128-137`) roda o axe em 1280 × 720 e em 390 × 844 e devolve o tamanho de antes. Com a T11 do substituído
+  já coberta nas duas larguras, as quatro combinações do critério têm teste.
+- Aceito a execução registrada pela `06-T11-qa-automacao` (e2e completo: 294 de 303, 9 pulados que já existiam, 0 falha) e
+  a revisão da `06-T11-tech-lead` (status `pronto`; nenhuma asserção saiu). Este agente não roda testes; a prova de
+  execução é da entrega dona.
+- Troquei só a linha do CA-05.2 e o que dependia dela (resumo, contagem do mapa, R-05.2, candidatos, decisões, pendências e
+  critério de pronto). O resto da entrega anterior continua valendo sem mudança.
 - CA-04.4, CA-09.1, CA-10.2 e o critério 8 do pedido ficam cobertos pela etapa dona (09 e 10), como pediu o maestro e como
   no 0017. Pela G2, nenhuma 06 escreve em `docs/`.
 - A conferência de foco, teclado e leitor de tela foi feita pela leitura do código e do e2e da T14. O que só se julga com
@@ -392,11 +397,6 @@ como Aceito ou Pendente e anote o motivo.
 
 ## Pendências
 
-- Devolvido à `06-T11-construcao` (`engenheiro-frontend`): o CA-05.2 não tem axe da T05 com DEC substituído em 390 × 844.
-  - O que pede: em `e2e/decisao.spec.ts:365`, trocar `semViolacoes(page, 'T05 com DEC substituído')` por
-    `semViolacoesNasDuasLarguras(page, 'T05 com DEC substituído')`, com o import.
-  - É só acréscimo de medição. Nenhuma asserção sai, e o `test/estatico/decisao-e2e.test.ts` (piso 37) não muda.
-  - Depois, o e2e roda de novo (RNF-11). Esta 07 volta só para trocar a linha do CA-05.2 no mapa.
 - **Execução:** este agente só lê e escreve (Read, Grep, Glob, Write). Nenhum roteiro nem sessão exploratória foi
   executado. A execução manual pede a homologação, que é da 09.
 - **Para a 09:**
@@ -432,5 +432,5 @@ Nenhum.
 ## Critério de pronto atendido
 
 - [x] (07) todo critério de aceite de 01 aparece no mapa
-- [ ] (07) nenhum critério ficou "sem cobertura" (CA-05.2 em parte: T05 em 390 × 844; devolvido à 06-T11-construcao)
+- [x] (07) nenhum critério ficou "sem cobertura" (CA-05.2 fechado na volta da T11, `decisao.spec.ts:365` nas duas larguras)
 - [x] (07) os dados de teste são fictícios
