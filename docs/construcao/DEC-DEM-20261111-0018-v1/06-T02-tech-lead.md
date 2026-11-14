@@ -2,7 +2,7 @@
 pedido: DEC-DEM-20261111-0018-v1
 etapa: 06-T02-revisao
 agente: tech-lead
-leu: [contrato-passagem.md, padrao-tecnico.md (seções 5 a 12), 2026-11-13-ws-orquestrador-demandas-sobras-plano.md (G0 a G10 e T02), 04-seguranca-aplicacao.md (SB-02 a SB-06), 06-T01-tech-lead.md, 06-T01-qa-automacao.md (cabeçalho), 06-T02-engenheiro-backend.md, git show c274715, src/modules/pedido-construcao/situacao.ts, src/app/api/pedidos-construcao/[decId]/situacao/route.ts, src/modules/pedido-construcao/situacao.test.ts, src/app/api/pedidos-construcao/situacao.test.ts, src/app/api/pedidos-construcao/situacao-403.test.ts, test/transversal/sentinelas-situacao.test.ts, test/estatico/situacao.test.ts, test/estatico/piso-de-assercoes.test.ts (diff), test/pedidos-construcao.ts (diff), src/modules/integracoes/tempo-limite.ts, src/modules/pedido-construcao/pendentes.ts (pedidoGeradoPorPessoa), test/deps.ts (pool), saída do pnpm test em /tmp]
+leu: [contrato-passagem.md, padrao-tecnico.md (seções 5 a 12), 2026-11-13-ws-orquestrador-demandas-sobras-plano.md (G0 a G10 e T02), 04-seguranca-aplicacao.md (SB-02 a SB-06), 06-T01-tech-lead.md, 06-T01-qa-automacao.md (cabeçalho), 06-T02-engenheiro-backend.md, git show c274715, src/modules/pedido-construcao/situacao.ts, src/app/api/pedidos-construcao/[decId]/situacao/route.ts, src/modules/pedido-construcao/situacao.test.ts, src/app/api/pedidos-construcao/situacao.test.ts, src/app/api/pedidos-construcao/situacao-403.test.ts, test/transversal/sentinelas-situacao.test.ts, test/estatico/situacao.test.ts, test/estatico/piso-de-assercoes.test.ts (diff), test/pedidos-construcao.ts (diff), src/modules/integracoes/tempo-limite.ts, src/modules/pedido-construcao/pendentes.ts (pedidoGeradoPorPessoa), test/deps.ts (pool), test/estatico/situacao-qa.test.ts, tsconfig.json, saída do pnpm test em /tmp]
 status: pronto
 proximo: qa-automacao
 devolvido_para: null
@@ -55,21 +55,23 @@ Minor estão abaixo e em Pendências. O M1 vai para a `06-T02-testes` com instru
   estático da importação também passa (com a ressalva do M1).
 - **TDD (G3.1):** a entrega mostra o comando e a falha antes do código: as suítes de banco falham na carga, e os dois
   blocos novos do estático falham. Os testes de guarda que nasceram verdes estão nomeados.
-- **Piso (G3.9):** contei as linhas `expect(` de cada arquivo pelo `git grep`. São 29, 48, 11, 14 e 17, iguais ao `PISO`.
+- **Piso (G3.9):** contei de novo, nesta volta, as linhas `expect(` de cada arquivo com `git grep -c`. São 29, 48, 11, 14
+  e 17, iguais ao `PISO`.
   O arquivo só recebeu acréscimos, e a subida de 8 para 17 é permitida pela G5. Nenhum valor desceu.
 - **Dados (G3.3):** os dados são fictícios (`Pessoa Ficticia`, `DOC-FICTICIO-018`, `sentry.exemplo.test`, prefixo
   `ficticio`). Os tokens só nascem em tempo de teste. Nenhum `expect` leva token na mensagem.
 - **Zod e erro:** a única entrada é o `decId`, validado em `rota()`. O 403, o 404 e o 503 têm mensagem fixa, e o 5xx é
   o genérico, sem o texto do Postgres.
 - **Interface e axe:** não se aplica, a tarefa não tem tela.
-- **Verde do meu lado:** a suíte inteira passou em segundo plano, com 356 de 356 arquivos e 7868 de 7868 testes, sem
-  nenhuma falha e sem as instabilidades conhecidas (198,6 s). `pnpm lint` e `pnpm typecheck` estão limpos.
+- **Verde do meu lado (rodado na 1ª volta, sobre o commit `c274715`; esta volta não mexe em código):** a suíte inteira passou em segundo plano, com
+  356 de 356 arquivos e 7868 de 7868 testes, sem nenhuma falha e sem as instabilidades conhecidas (198,6 s). `pnpm lint`
+  e `pnpm typecheck` estão limpos.
 
 **Pareceres (Minor, não bloqueiam)**
 
 | # | Arquivo:linha | Problema | Razão |
 |---|---|---|---|
-| M1 | `test/estatico/situacao.test.ts:76` | A guarda do SB-06 procura `pedido-construcao/situacao['"]`. Por isso não vê a importação relativa da mesma pasta (`from './situacao'`). | Os arquivos que decidem a entrega e o recebimento (`conferir.ts`, `entregar.ts`, `receber.ts`) estão justamente em `src/modules/pedido-construcao/`, e o `conferir.ts` muda na T05. Hoje nenhum arquivo importa o serviço (`git grep`), e o "se e só se" dinâmico cobre a divergência. Então o comportamento está certo, e o que falta é proteção contra regressão. A regex é a do plano (erro da 05), não do engenheiro. |
+| M1 | `test/estatico/situacao.test.ts:76` | A guarda do SB-06 procura `pedido-construcao/situacao['"]`. Por isso não vê a importação relativa da mesma pasta (`from './situacao'`). | Os arquivos que decidem a entrega e o recebimento (`conferir.ts`, `entregar.ts`, `receber.ts`) estão justamente em `src/modules/pedido-construcao/`, e o `conferir.ts` muda na T05. Pelo `git grep` desta volta, hoje só a rota e os testes importam o serviço, e na pasta só o próprio teste usa `./situacao`. O alias `@/*` do `tsconfig.json` cai na regex. O `situacao-qa.test.ts` da T01 não olha importação. O "se e só se" dinâmico cobre a divergência. Então o comportamento está certo, e o que falta é proteção contra regressão. A regex é a do plano (erro da 05), não do engenheiro. |
 | M2 | `src/modules/pedido-construcao/situacao.test.ts:210` | O título diz "passa do prazo no meio da leitura", mas o comentário da linha 213 (e o da rota, `situacao.test.ts:228`) diz que o prazo vence antes da primeira consulta. | O relatório do teste descreve um cenário diferente do que roda. A asserção está certa. |
 | M3 | `src/modules/pedido-construcao/situacao.test.ts:59` e `src/app/api/pedidos-construcao/situacao.test.ts:49,59,70-73`, `situacao-403.test.ts:40`, `test/transversal/sentinelas-situacao.test.ts:47` | `retrato`, `foto`, `v2De`, `aprovarPelaAdministradora` e `textoDepoisDoPrefixo` estão copiados em até três arquivos. | A D-06 proíbe importar de `*.test.ts`, mas não de `test/pedidos-construcao.ts`, que é ajudante e já recebe a chamada `situacao`. O engenheiro seguiu o molde do andamento, e a cópia não muda nenhuma asserção. |
 | M4 | `src/modules/pedido-construcao/situacao.test.ts:184-206` | O caso SB-03 (d) não compara o retrato antes e depois, e o item 10 do plano pede o retrato "em cada caso". | O 200 com retrato está no CA-01.1 do serviço e no CA-01.5 da rota. A falta é de redundância, não de cobertura. |
@@ -113,29 +115,15 @@ Minor estão abaixo e em Pendências. O M1 vai para a `06-T02-testes` com instru
 
 ## Comandos executados
 
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files docs/construcao/DEC-DEM-20261111-0018-v1`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "### Tarefa" -- docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md` — sem saída
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff c2747153c0699153c77e1cc856a5ace91a1b66ce~1 c2747153c0699153c77e1cc856a5ace91a1b66ce --stat` — 11 arquivos, nenhum da G4
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "^## \|^### " -- docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md`
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma grep -n "^## " -- docs/construcao/padrao-tecnico.md`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show c2747153c0699153c77e1cc856a5ace91a1b66ce -- src/modules/pedido-construcao/situacao.ts src/app/api/pedidos-construcao/[decId]/situacao/route.ts test/estatico/situacao.test.ts test/estatico/piso-de-assercoes.test.ts test/pedidos-construcao.ts`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "poolApp\|pool:" -- test/deps.ts`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "aprovadoVigente" -- src`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -A 14 "export async function pedidoGeradoPorPessoa" -- src/modules/pedido-construcao/pendentes.ts`
-- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot` — em segundo plano: 356 de 356 arquivos, 7868 de 7868 testes, 0 falhas (198,6 s); saída lida com Read em /tmp
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "expect(" -- src/modules/pedido-construcao/situacao.test.ts | wc -l` — 29
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "expect(" -- src/app/api/pedidos-construcao/situacao.test.ts | wc -l` — 48
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "expect(" -- src/app/api/pedidos-construcao/situacao-403.test.ts | wc -l` — 11
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "expect(" -- test/transversal/sentinelas-situacao.test.ts | wc -l` — 14
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "expect(" -- test/estatico/situacao.test.ts | wc -l` — 17
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — limpo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "SB-0[2-6]" -- docs/construcao/DEC-DEM-20261111-0018-v1/04-seguranca-aplicacao.md`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "situacao'" -- src scripts` — só a rota e testes importam o serviço
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "from '@/" -- src` — sem saída (sem alias)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "situacao\b\|importa\|SERVICO\|situacaoDoPedido" -- test/estatico/situacao-qa.test.ts`
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "^leu:" -- docs/construcao/DEC-DEM-20261111-0018-v1/06-T01-qa-automacao.md`
-- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
-- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -c "expect(" -- src/modules/pedido-construcao/situacao.test.ts` — 29
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -c "expect(" -- src/app/api/pedidos-construcao/situacao.test.ts` — 48
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -c "expect(" -- src/app/api/pedidos-construcao/situacao-403.test.ts` — 11
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -c "expect(" -- test/transversal/sentinelas-situacao.test.ts` — 14
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -c "expect(" -- test/estatico/situacao.test.ts` — 17
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "pedido-construcao/situacao" -- src scripts` — só a rota e os testes importam o serviço
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "./situacao" -- src/modules/pedido-construcao` — só o próprio teste do serviço
+
+As leituras da 1ª volta, fora da forma da lista Pode, estão no registro (bloqueado e ajuste da 06-T02-revisao em 14/11).
 
 ## Critério de pronto atendido
 
