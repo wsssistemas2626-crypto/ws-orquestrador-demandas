@@ -41,7 +41,7 @@
 // Uso por conta deste arquivo: "cto" 0 demandas pela API; "administradora" 0 demandas.
 import { type Locator, type Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
-import { api, demandaDoSeed, entrarComo, expect, semViolacoes, test } from './apoio';
+import { api, demandaDoSeed, entrarComo, expect, semViolacoes, semViolacoesNasDuasLarguras, test } from './apoio';
 import { prepararEspERsk, procurarEmPaginas, proximoId, TAMANHO_DA_PAGINA } from './preparacao';
 
 type Versao = { id: string };
@@ -362,7 +362,7 @@ test('substituição: com um DEC aprovado na demanda, aprovar o mais novo dá "A
   await expect(linhaDoDec(page, anterior).getByText('Substituído', { exact: true })).toBeVisible();
   await expect(linhaDoDec(page, decId).getByText('Substituído', { exact: true })).toHaveCount(0);
   await expect(page.getByText(`${anterior} foi substituído por ${decId}, aprovado depois dele`, { exact: true })).toBeVisible();
-  await semViolacoes(page, 'T05 com DEC substituído');
+  await semViolacoesNasDuasLarguras(page, 'T05 com DEC substituído');
   const historico = (await api<{ itens: { acao: string; entidadeId: string; depois: unknown }[] }>(page, 'GET', `/api/demandas/${demandaId}/historico`)).itens;
   expect(historico.filter((e) => e.acao === 'pacote_decisao_substituido' && e.depois !== null && (e.depois as { substituidoPor?: unknown }).substituidoPor === decId)).toEqual([
     expect.objectContaining({ entidadeId: anterior, depois: { substituido: anterior, substituidoPor: decId } }),

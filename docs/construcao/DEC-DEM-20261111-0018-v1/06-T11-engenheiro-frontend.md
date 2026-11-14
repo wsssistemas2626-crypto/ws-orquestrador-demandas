@@ -2,12 +2,35 @@
 pedido: DEC-DEM-20261111-0018-v1
 etapa: 06-T11-construcao
 agente: engenheiro-frontend
-leu: [pedido.json, padrao-tecnico.md, contrato-passagem.md, tarefas.json, docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md (G0 a G10 e T11), 03-ux-ui-design.md (seções 0 a 10), src/components/dados-da-decisao.ts, src/components/dados-do-pedido.ts, src/components/rotulos.ts, src/components/dados-das-etapas.ts (padrão do never), src/modules/pacotes-decisao/decidir.ts, src/modules/pedido-construcao/conferir.ts, src/app/(painel)/pacotes-decisao/[decId]/SecaoPedido.tsx, src/app/(painel)/pacotes-decisao/[decId]/page.tsx, os testes de texto da G5, src/app/api/pacotes-decisao/decisao.test.ts, e2e/decisao.spec.ts, e2e/decisao-celular.spec.ts, e2e/pedido-construcao.spec.ts, scripts/seed-ficticio.ts (TITULOS_DO_E2E e comentário da vigência), test/estatico/decisao-e2e.test.ts, playwright.config.ts, e2e/servidor.ts]
+leu: [07-qa-funcional.md (motivo da volta), e2e/apoio.ts (semViolacoesNasDuasLarguras), pedido.json, padrao-tecnico.md, contrato-passagem.md, tarefas.json, docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md (G0 a G10 e T11), 03-ux-ui-design.md (seções 0 a 10), src/components/dados-da-decisao.ts, src/components/dados-do-pedido.ts, src/components/rotulos.ts, src/components/dados-das-etapas.ts (padrão do never), src/modules/pacotes-decisao/decidir.ts, src/modules/pedido-construcao/conferir.ts, src/app/(painel)/pacotes-decisao/[decId]/SecaoPedido.tsx, src/app/(painel)/pacotes-decisao/[decId]/page.tsx, os testes de texto da G5, src/app/api/pacotes-decisao/decisao.test.ts, e2e/decisao.spec.ts, e2e/decisao-celular.spec.ts, e2e/pedido-construcao.spec.ts, scripts/seed-ficticio.ts (TITULOS_DO_E2E e comentário da vigência), test/estatico/decisao-e2e.test.ts, playwright.config.ts, e2e/servidor.ts]
 status: pronto
 proximo: tech-lead
 devolvido_para: null
 ---
 ## Entrega
+
+### Volta da 07-qa-funcional (CA-05.2)
+
+Motivo: o axe da T05 com DEC substituído rodava só em 1280 × 720, e não em 390 × 844.
+
+O que mudou, só em `e2e/decisao.spec.ts`:
+- import de `semViolacoesNasDuasLarguras` de `./apoio`, ao lado de `semViolacoes` (que continua em uso nas outras
+  chamadas);
+- linha 365: `await semViolacoes(page, 'T05 com DEC substituído');` →
+  `await semViolacoesNasDuasLarguras(page, 'T05 com DEC substituído');`. O auxiliar roda o axe no mesmo estado em
+  1280 × 720 e em 390 × 844, com a página no topo, e devolve a janela ao tamanho de antes.
+
+Nenhuma asserção saiu nem foi acrescentada. Nenhum outro arquivo de código ou teste mudou nesta volta. O teste estático
+`test/estatico/decisao-e2e.test.ts` confere só o axe do "T11 arquivado", que ficou igual.
+
+Resultado desta volta:
+- `pnpm test:e2e e2e/decisao.spec.ts` (retries 0): **9 passaram, 0 falha, 0 pulado**, 1,1 min. A substituição, que
+  agora roda o axe da T05 nas duas larguras, levou 12,2 s; o maior teste da spec, abaixo de 24 s.
+- `pnpm lint`: limpo. `pnpm typecheck`: limpo.
+- A suíte unitária (`pnpm test`) não foi rodada de novo nesta volta: a mudança é só em um arquivo de `e2e/`, que o
+  Vitest não executa; vale o resultado da volta anterior (8300 de 8300).
+
+### Entrega original da T11
 
 T11: os textos revistos da 03, seção 8 (substituído, 409 do substituído, 409 do S-01, frase do histórico e linha 6 da
 orientação por nível), com o nível do DEC levado da página até `erroDoPedido`, e o "Arquivar" do e2e na demanda nova do
@@ -73,7 +96,8 @@ Received: "DEC-DEM-20991231-0001-v1 foi substituído por DEC-DEM-20991231-0001-v
   O `✘` do `vigia.spec.ts:5` ("CV-03 (negativo)") é a falha esperada do próprio teste (conta nos 290 que passaram;
   saída 0). Maior teste: 8,7 s (`axe-todas` T03), nenhum acima de 24 s. Os tocados: substituição 7,7 s, "Arquivar"
   1,9 s, celular do substituído 2,9 s, caminho completo do pedido 5,1 s.
-- axe sem violação nas telas tocadas: T11 substituído e T05 com DEC substituído (`decisao.spec.ts`), T11 arquivado,
+- axe sem violação nas telas tocadas: T11 substituído e T05 com DEC substituído (`decisao.spec.ts`; a T05, desde a volta
+  da 07-qa-funcional, em 1280 × 720 e em 390 × 844), T11 arquivado,
   T11 substituída em 390 px (`decisao-celular.spec.ts`), T11 com o 409 do substituído e a recusa por nome
   (`pedido-construcao.spec.ts`).
 
@@ -116,6 +140,20 @@ Received: "DEC-DEM-20991231-0001-v1 foi substituído por DEC-DEM-20991231-0001-v
 - Nenhuma instrução estranha no `pedido.json`.
 
 ## Comandos executados
+
+Volta da 07-qa-funcional (CA-05.2):
+
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "semViolacoesNasDuasLarguras" -- e2e`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "semViolacoes" -- test`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "test:e2e\|retries" -- package.json playwright.config.ts`
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e e2e/decisao.spec.ts`
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint`
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -- e2e/decisao.spec.ts`
+
+Resultados: e2e da spec, 9 passaram e 0 falha (retries 0); lint e typecheck limpos.
+
+Volta anterior (entrega original):
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "Task 11\|T11" -- docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "^## " -- docs/construcao/DEC-DEM-20261111-0018-v1/03-ux-ui-design.md`
