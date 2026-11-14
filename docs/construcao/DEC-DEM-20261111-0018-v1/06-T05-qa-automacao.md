@@ -88,9 +88,6 @@ nenhum nome nas saídas e sem `pedido_gerado` nem `pedido_entregue` novos.
 ## Pendências
 
 - Nenhuma que impeça a próxima etapa.
-- **Um comando fora da forma da regra:** um `git -C … grep --untracked` sobre a saída da suíte em `/tmp`. O git o
-  recusou sem ler nada ("outside repository"), e ele está declarado abaixo. A saída foi lida em seguida com a ferramenta
-  Read.
 - Para a `08-revisao` seguem os pareceres 2 e 3 da 06-T05-revisao e o Minor 3 da T04 (zero à esquerda no índice). O caso
   "índices que o DEC não tem" mostra que um caminho válido que não casa com nenhum texto não libera nada.
 - O `pedido.json` não traz instrução fora do pedido.
@@ -127,7 +124,7 @@ nenhum nome nas saídas e sem `pedido_gerado` nem `pedido_entregue` novos.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — só o piso, +4
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -- test/estatico/piso-de-assercoes.test.ts` — uma entrada e o comentário
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep --untracked -n -e "Date.now" -e "new Date()" -e ".only(" -e ".skip(" -e ".todo(" -- src/modules/pedido-construcao/conferir-nome-da-criacao-qa.test.ts` — sem resultado
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep --untracked -n "Test Files\|Tests \|failed" -- /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/d7de67e8-15e3-4f45-b927-45e1f3d1b43d/tasks/bxdxeswum.output` — recusado pelo git (caminho fora do repositório), nada lido; a saída foi lida pela Read
+O git grep sobre a saída em /tmp, da 1ª volta, está no registro (bloqueado e ajuste da 06-T05-testes em 14/11).
 
 A saída da suíte foi lida com a ferramenta Read em /tmp.
 
