@@ -100,12 +100,8 @@ Revisão da T12 (avisos (a), (b), (c), dica e chegada do Arquivar; RF-03, RF-05,
 - Para a T14: o axe com cada aviso (a), (b) e (c) em 1280 × 720 e 390 × 844, e o e2e com as demandas da vigência do
   seed da T10. Hoje nenhum e2e confere um aviso.
 - Para a `07-qa-funcional`: foco, teclado e leitor de tela nos três avisos, na dica e na chegada (03, seção 9).
-- Comandos desta revisão:
-  - rodei um `git -C` na estruturaAutonoma (o primeiro da lista), para achar a seção 12 do `padrao-tecnico.md`. A
-    leitura é de arquivo rastreado que esta etapa pode ler, mas a forma `git -C` da lista **Pode** é a do repositório
-    do sistema. Declaro o comando para o maestro avaliar;
-  - um `git show <hash>:<caminho>` com parêntese sem aspas falhou na sintaxe do shell e não leu nada. Li o arquivo
-    pelo Read.
+- Na 1ª volta, um `git show <hash>:<caminho>` com parêntese sem aspas falhou na sintaxe do shell e não leu nada. Li o
+  arquivo pelo Read.
 - O texto do `pedido.json` não foi lido nesta etapa. A entrega do engenheiro não traz instrução para mudar de tarefa,
   ler segredo, chamar endereço de fora ou sair do repositório.
 
@@ -124,9 +120,10 @@ Revisão da T12 (avisos (a), (b), (c), dica e chegada do Arquivar; RF-03, RF-05,
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/components/dados-da-decisao-vigencia.test.ts "src/app/(painel)/pacotes-decisao/[decId]/pagina-vigencia.test.ts" test/estatico/vigencia-t11.test.ts src/components/dados-da-decisao.test.ts "src/app/(painel)/pacotes-decisao/[decId]/pagina.test.ts" "src/app/(painel)/pacotes-decisao/[decId]/nivel-do-pedido.test.ts" "src/app/(painel)/pacotes-decisao/[decId]/recebimento-qa.test.ts" test/estatico/piso-de-assercoes.test.ts --reporter=dot` — 364 de 364 (8 arquivos)
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 989acf1836600ef6348efaf70044a9ab8f8ff03c:src/app/(painel)/pacotes-decisao/[decId]/pacote-da-pagina.ts` — erro de sintaxe do shell, nada lido
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "statusDecisao" -- src/modules/pacotes-decisao/consultas.ts`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "it(\|describe(" -- "src/app/(painel)/pacotes-decisao/[decId]/pagina-vigencia.test.ts" test/estatico/vigencia-t11.test.ts`
+
+O git show com (painel) sem aspas, da 1ª volta, está no registro (bloqueado e ajuste da 06-T12-revisao em 14/11).
 
 ## Critério de pronto atendido
 
