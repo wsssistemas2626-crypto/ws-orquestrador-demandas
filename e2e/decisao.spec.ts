@@ -292,9 +292,9 @@ const vigentes = async (page: Page, id: string) =>
   (await pacotes(page, id)).filter((p) => p.statusDecisao === 'aprovada' && !p.substituido).map((p) => p.id);
 
 // Texto da T11 do substituído e do histórico (dados-da-decisao.ts e rotulos.ts), por inteiro, para o teste quebrar se
-// mudar.
+// mudar. 0.4.1: textos revistos pela 03 do DEC-DEM-20261111-0018-v1 (seção 8).
 const AVISO_SUBSTITUIDO = (id: string) =>
-  `Este pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`;
+  `Este pacote foi substituído por ${id}, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste pacote já foi gerado, não o use. O pedido que vale é o de ${id}.`;
 const LEMBRETE_P1D = 'A demanda continua em Pronta para decisão até alguém mudar o status para Aprovada no detalhe da demanda.';
 // A linha do DEC na tabela de pacotes da T05: a que tem o link "Abrir decisão <id>" (o histórico também cita o id).
 const linhaDoDec = (page: Page, decId: string) =>
@@ -345,7 +345,7 @@ test('substituição: com um DEC aprovado na demanda, aprovar o mais novo dá "A
   await page.goto(`/pacotes-decisao/${anterior}`);
   await expect(page.getByText('Substituído', { exact: true })).toBeVisible();
   await expect(page.getByText(AVISO_SUBSTITUIDO(decId), { exact: true })).toBeVisible();
-  const link = page.getByRole('link', { name: `Abrir ${decId}`, exact: true });
+  const link = page.getByRole('link', { name: `Abrir o pacote ${decId}`, exact: true });
   await expect(link).toHaveAttribute('href', `/pacotes-decisao/${decId}`);
   await expect(page.getByRole('region', { name: 'Pedido de Construção', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Gerar Pedido de Construção' })).toHaveCount(0);
@@ -361,7 +361,7 @@ test('substituição: com um DEC aprovado na demanda, aprovar o mais novo dá "A
   await expect(linhaDoDec(page, anterior)).toContainText('Aprovada');
   await expect(linhaDoDec(page, anterior).getByText('Substituído', { exact: true })).toBeVisible();
   await expect(linhaDoDec(page, decId).getByText('Substituído', { exact: true })).toHaveCount(0);
-  await expect(page.getByText(`${anterior} foi substituído por ${decId}, aprovado depois`, { exact: true })).toBeVisible();
+  await expect(page.getByText(`${anterior} foi substituído por ${decId}, aprovado depois dele`, { exact: true })).toBeVisible();
   await semViolacoes(page, 'T05 com DEC substituído');
   const historico = (await api<{ itens: { acao: string; entidadeId: string; depois: unknown }[] }>(page, 'GET', `/api/demandas/${demandaId}/historico`)).itens;
   expect(historico.filter((e) => e.acao === 'pacote_decisao_substituido' && e.depois !== null && (e.depois as { substituidoPor?: unknown }).substituidoPor === decId)).toEqual([
@@ -454,15 +454,18 @@ test('CA-12.4: desatualizado: aviso, Aprovar indisponível e explicado; Devolver
 
 test('Arquivar → "Pacote arquivado. A demanda foi para Encerrada."', async ({ page }) => {
   await entrarComo(page, 'cto');
-  const demandaId = await demandaDoSeed(page, TITULO);
+  // 0.4.1 (DEC-DEM-20261111-0018-v1, T11): a demanda é a do seed sem DEC aprovado (TITULOS_DO_E2E.arquivarSemVigente,
+  // T10). Na ordem do arquivo, a demanda da spec já tem um aprovado em vigor e desatualizado, e com ele arquivar a leva a
+  // Em análise (7.1), não a Encerrada.
+  const demandaId = await demandaDoSeed(page, TITULOS_DO_E2E.arquivarSemVigente);
   const status = await statusDa(page, demandaId);
-  // Só a partida de ORIGENS_DO_FLUXO prova a mudança para Encerrada: é a origem de decisao_arquivada. De Encerrada,
+  // Só a partida de ORIGENS_DO_FLUXO prova a mudança para Encerrada: é a origem do arquivamento sem vigente. De Encerrada,
   // que é final, arquivar grava a decisão e não muda o status; e o alerta é texto fixo. Por isso o teste confere o
   // status antes e depois de arquivar.
   exigeBancoRecemSemeado(ORIGENS_DO_FLUXO.includes(status), `a demanda ${demandaId} está ${status}, e o arquivamento não prova a mudança para Encerrada`);
   const decId = await novoPacote(page, await completarEspERsk(page, demandaId), 'cto');
   // De qualquer status de ORIGENS_DO_FLUXO, o DEC novo leva a demanda a Pronta para decisão (dec_criado), que é origem
-  // de decisao_arquivada: o status antes de arquivar é sempre pronta_para_decisao.
+  // do arquivamento: o status antes de arquivar é sempre pronta_para_decisao.
   expect(await statusDa(page, demandaId), `status da demanda ${demandaId} antes de arquivar`).toBe('pronta_para_decisao');
   await page.goto(`/pacotes-decisao/${decId}`);
   await botao(page, 'Arquivar').click();

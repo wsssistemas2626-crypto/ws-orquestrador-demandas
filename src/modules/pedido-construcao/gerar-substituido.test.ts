@@ -113,7 +113,7 @@ async function erroDe(p: Promise<unknown>): Promise<ErroDominio> {
 describe('S3: só o aprovado mais novo gera o Pedido de Construção', () => {
   it('a mensagem do 409 do substituído cita só o id do DEC que gera', () => {
     expect(MENSAGENS_PEDIDO.substituido('DEC-DEM-20261104-0001-v2')).toBe(
-      'o pacote foi substituído por DEC-DEM-20261104-0001-v2, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção.',
+      'o pacote foi substituído por DEC-DEM-20261104-0001-v2, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção.',
     );
   });
 

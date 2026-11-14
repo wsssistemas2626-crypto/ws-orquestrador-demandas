@@ -303,7 +303,7 @@ export default async function PaginaDecisao({ params, searchParams }: Props) {
 
         {pedido !== 'nenhuma' ? (
           <Secao id="pedido-construcao" titulo={TEXTOS_PEDIDO.titulo} className="xl:col-span-5">
-            {pedido === 'estudo' ? <p>{TEXTOS_PEDIDO.estudo}</p> : <SecaoPedido decId={p.id} />}
+            {pedido === 'estudo' ? <p>{TEXTOS_PEDIDO.estudo}</p> : <SecaoPedido decId={p.id} nivelAprovacaoRequerido={p.nivelAprovacaoRequerido} />}
           </Secao>
         ) : null}
       </div>

@@ -41,8 +41,8 @@ export const MENSAGENS_PEDIDO = {
   naoPassou: 'O pedido não passou na validação do /construir. Nada foi entregue.',
   // D3 do 0013: texto da 02-triagem, para revisão da ux-ui-design. Sem lista: não diz nada do DEC.
   semConfirmacao: 'Confirme que o título, a descrição, a ESP e o parecer de risco não têm dado pessoal de ninguém. Nada foi entregue.',
-  // 0.1.13: texto da 02-triagem do DEC-DEM-20261104-0014-v1, para revisão da ux-ui-design. Só o id do DEC que gera.
-  substituido: (id: string) => `o pacote foi substituído por ${id}, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção.`,
+  // 0.1.13; texto revisto na 0.4.1 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, seção 5). Só o id do DEC que gera.
+  substituido: (id: string) => `o pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção.`,
 } as const;
 
 // CNPJ fica de fora no pedido (decisão da 04, C-28); a minimização da T24 usa os quatro.

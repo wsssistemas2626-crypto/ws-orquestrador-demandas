@@ -39,10 +39,10 @@ export const TEXTOS_DECISAO = {
   desatualizadoRsk: (id: string) =>
     `Este pacote está desatualizado. A demanda já tem ${id}, mais novo que o citado aqui. Ele não pode ser aprovado; você pode devolvê-lo ou arquivá-lo. Para aprovar, crie um pacote novo.`,
   criarPacoteNovo: 'Criar pacote novo',
-  // 0.1.13: textos da 02-triagem do DEC-DEM-20261104-0014-v1, para revisão da ux-ui-design.
+  // 0.1.13; textos revistos na 0.4.1 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, seções 4.8 e 8).
   substituido: (id: string) =>
-    `Este pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`,
-  abrirSubstituto: (id: string) => `Abrir ${id}`,
+    `Este pacote foi substituído por ${id}, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste pacote já foi gerado, não o use. O pedido que vale é o de ${id}.`,
+  abrirSubstituto: (id: string) => `Abrir o pacote ${id}`,
   alertaRascunho: (ids: string) => `Este pacote cita conteúdo gerado por agente de IA: ${ids}. Leia cada um antes de decidir.`,
   // Revisão de C-14 (04): a 03 não a desenha; os rótulos são os de T07, T08 e T11.
   revisao: 'Revisão antes de decidir',

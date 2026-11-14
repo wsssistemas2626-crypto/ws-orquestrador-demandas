@@ -36,9 +36,10 @@ const EMAIL_FICTICIO = 'pessoa.ficticia@cliente.test';
 const CONFIRMADO = { confirmaSemDadoPessoal: true } as const;
 // D1 do 0013: a orientação do 422 de dado pessoal na ESP (linhas 3 e 6 de orientacaoDoPedido).
 // 0.1.13: a linha 6 diz que o pacote aprovado mais novo substitui este (antes, que outro pacote não se aprovava).
+// 0.4.1: texto da 03 do DEC-DEM-20261111-0018-v1, nível cto (o padrão de erroDoPedido).
 const ORIENTACAO_ESP = [
   'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
-  'Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais novo substitui este, e só ele gera o Pedido de Construção.',
+  'Depois de corrigir, crie um pacote novo e aprove-o. Aprovado, ele substitui este e passa a ser o único que gera o Pedido de Construção.',
 ];
 
 let b: BancoDeTeste;
@@ -191,7 +192,7 @@ describe('gerarPedidoNoPainel (T44)', () => {
     expect(r).toEqual({ ok: false, erro: 'conflito', mensagem: MENSAGENS_PEDIDO.substituido(v2.id) });
     if (r.ok) return;
     expect(erroDoPedido(r)).toEqual({
-      texto: `Não foi possível concluir: o pacote foi substituído por ${v2.id}, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção.`,
+      texto: `Não foi possível concluir: o pacote foi substituído por ${v2.id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção.`,
       erros: [],
       orientacao: [],
     });

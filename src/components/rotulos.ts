@@ -58,7 +58,8 @@ export const COR_NIVEL: Readonly<Record<NivelRisco, CorSelo>> = { baixo: 'verde'
 export type SeloFixo = { texto: string; cor: CorSelo; tracejado: boolean };
 export const SELO_RASCUNHO: SeloFixo = { texto: 'Rascunho de agente', cor: 'violeta', tracejado: true };
 export const SELO_DESATUALIZADO: SeloFixo = { texto: 'Desatualizado', cor: 'vermelho', tracejado: false };
-// 0.1.13: o DEC aprovado que um aprovado mais novo da demanda substituiu. Texto da triagem, para revisão da ux-ui-design.
+// 0.1.13: o DEC aprovado que um aprovado mais novo da demanda substituiu. Texto mantido na 0.4.1 (03-ux-ui-design do
+// DEC-DEM-20261111-0018-v1, seção 4.8).
 export const SELO_SUBSTITUIDO: SeloFixo = { texto: 'Substituído', cor: 'cinza', tracejado: false };
 // 0.3.0 (03, seções 2 e 9; 5.1 item 2): no cabeçalho da T05, só com a demanda do Awave aguardando confirmação
 // (estadoDaConfirmacao). Âmbar (`atencao` / `atencao-fundo`), a cor de selo que já existe; a fila não o mostra.
@@ -305,12 +306,13 @@ export function textoDoEvento(e: EventoVisivel, op: { retencaoDias?: number } = 
       }
       return `Registrou a aprovação como CTO (opção ${opcao})`;
     }
-    // 0.1.13: frase fixa com os dois ids (C-30). O substituto só aparece se tiver o formato de id de DEC.
+    // 0.1.13: frase fixa com os dois ids (C-30). O substituto só aparece se tiver o formato de id de DEC. 0.4.1: "dele"
+    // no fim, como no aviso e no 409 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, 6.1).
     case 'pacote_decisao_substituido': {
       const por = texto(d.substituidoPor);
       return por && RE_ID_DEC.test(por)
-        ? `${e.entidadeId} foi substituído por ${por}, aprovado depois`
-        : `${e.entidadeId} foi substituído por um pacote aprovado depois`;
+        ? `${e.entidadeId} foi substituído por ${por}, aprovado depois dele`
+        : `${e.entidadeId} foi substituído por um pacote aprovado depois dele`;
     }
     case 'falha_agente': {
       if (!agente) return 'Um agente não conseguiu gerar o rascunho';

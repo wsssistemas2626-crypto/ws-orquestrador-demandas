@@ -3,6 +3,7 @@
 // para cada recusa da Server Action. Vai ao navegador: só tipos vêm dos módulos, e as mensagens que o servidor também
 // usa são cópia das de gerar.ts (o teste confere). Quem gera e valida é o servidor (gerarPedido, T22): a tela só mostra o
 // que ele devolve, byte a byte.
+import type { NivelAprovacao } from '../db/schema/decisao';
 import type { ResultadoAcao } from '../lib/acao-painel';
 import { MENSAGEM_ERRO_INTERNO } from '../lib/erros';
 import type { PacoteDecisaoVista } from '../modules/pacotes-decisao/consultas';
@@ -50,8 +51,11 @@ const ORIENTACAO = {
   esp: 'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
   risco: 'Parecer de risco (risco.conteudo): corrija num parecer de risco novo.',
   decisao: 'Opção escolhida (decisao.opcaoEscolhida): corrija num pacote novo.',
-  // 0.1.13: texto da 02-triagem do DEC-DEM-20261104-0014-v1, para revisão da ux-ui-design.
-  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais novo substitui este, e só ele gera o Pedido de Construção.',
+  // Linha 6, uma por nível do DEC aberto (0.4.1; 03-ux-ui-design do DEC-DEM-20261111-0018-v1, seção 5): um pacote novo
+  // só do CTO, criado para corrigir um de dupla aprovação, seria recusado pelo S-01 na hora de aprovar.
+  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o. Aprovado, ele substitui este e passa a ser o único que gera o Pedido de Construção.',
+  avisoDupla:
+    'Depois de corrigir, crie um pacote novo com aprovação do CTO e da administradora e registre as duas aprovações. Com as duas, ele substitui este e passa a ser o único que gera o Pedido de Construção.',
 } as const;
 
 // Os começos de caminho de cada linha por campo (2 a 5), na ordem em que as linhas saem.
@@ -64,13 +68,27 @@ const CAMPOS_DA_ORIENTACAO: ReadonlyArray<readonly [string, readonly string[]]> 
 
 // A orientação do 422 de validação, uma linha por parágrafo: (1) a do nome, se algum erro é `: nome`; (2 a 5) onde
 // corrigir cada campo da lista; (6) que o pacote novo, aprovado, substitui este e passa a ser o único que gera (0.1.13),
-// sempre que houver linha de 2 a 5; (7) sem nenhuma de 2 a 5, a frase de antes.
-export function orientacaoDoPedido(erros: readonly string[]): string[] {
+// sempre que houver linha de 2 a 5, com o texto do nível do DEC aberto (0.4.1); (7) sem nenhuma de 2 a 5, a frase de
+// antes.
+export function orientacaoDoPedido(erros: readonly string[], nivel: NivelAprovacao = 'cto'): string[] {
   const linhas: string[] = [];
   if (erros.some((e) => e.endsWith(': nome'))) linhas.push(ORIENTACAO.nome);
   const porCampo = CAMPOS_DA_ORIENTACAO.filter(([, prefixos]) => erros.some((e) => prefixos.some((p) => e.startsWith(p)))).map(([linha]) => linha);
   if (porCampo.length === 0) return [...linhas, TEXTOS_PEDIDO.orientacao];
-  return [...linhas, ...porCampo, ORIENTACAO.aviso];
+  return [...linhas, ...porCampo, linhaSeisDoNivel(nivel)];
+}
+
+function linhaSeisDoNivel(nivel: NivelAprovacao): string {
+  switch (nivel) {
+    case 'cto':
+      return ORIENTACAO.aviso;
+    case 'cto_e_administradora':
+      return ORIENTACAO.avisoDupla;
+    default: {
+      const nunca: never = nivel;
+      throw new Error(`pedido: nível de aprovação desconhecido ${String(nunca)}`);
+    }
+  }
 }
 
 export type SecaoDoPedido = 'nenhuma' | 'estudo' | 'gerar';
@@ -100,7 +118,7 @@ export type ErroDoPedido = { texto: string; erros: string[]; orientacao: string[
 // 422 da validação: o texto da 03, a lista `erros` da API (campo e tipo, sem valor, C-28 e D1 do 0013) e a orientação
 // por campo; 422 de Estudo: o texto da 03; 422 sem a confirmação (D3 do 0013): o texto do servidor; o resto, o alerta da
 // 2.8 (409 com "Não foi possível concluir: ", 403, 404 e erro interno).
-export function erroDoPedido(r: Extract<ResultadoAcao<unknown>, { ok: false }>): ErroDoPedido {
+export function erroDoPedido(r: Extract<ResultadoAcao<unknown>, { ok: false }>, nivel: NivelAprovacao = 'cto'): ErroDoPedido {
   if (r.erro === 'nao_processavel' && r.mensagem === MENSAGENS_PEDIDO_DO_SERVIDOR.estudo) return { texto: TEXTOS_PEDIDO.estudo, erros: [], orientacao: [] };
   if (r.erro === 'nao_processavel' && r.mensagem === MENSAGENS_PEDIDO_DO_SERVIDOR.semConfirmacao)
     return { texto: MENSAGENS_PEDIDO_DO_SERVIDOR.semConfirmacao, erros: [], orientacao: [] };
@@ -109,7 +127,7 @@ export function erroDoPedido(r: Extract<ResultadoAcao<unknown>, { ok: false }>):
     return {
       texto: erros.length > 0 ? TEXTOS_PEDIDO.naoPassou : MENSAGENS_PEDIDO_DO_SERVIDOR.naoPassou,
       erros: [...erros],
-      orientacao: orientacaoDoPedido(erros),
+      orientacao: orientacaoDoPedido(erros, nivel),
     };
   }
   // Erro de campo só viria de id fora do formato, que a página nunca manda: não há campo na tela para mostrar.

@@ -48,12 +48,14 @@ const ORIENTACAO = {
   demanda: 'Título e descrição (demanda.titulo, demanda.descricao): corrija na demanda, em "Editar dados".',
   esp: 'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
   // 0.1.13: a linha 6 diz que o pacote novo, aprovado, substitui este (antes, que outro pacote não se aprovava).
-  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais novo substitui este, e só ele gera o Pedido de Construção.',
+  // 0.4.1: texto da 03 do DEC-DEM-20261111-0018-v1, nível cto (o de todos os DEC desta spec).
+  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o. Aprovado, ele substitui este e passa a ser o único que gera o Pedido de Construção.',
 } as const;
 // 0.1.13: o 409 do DEC substituído (gerar.ts, MENSAGENS_PEDIDO.substituido) e o aviso da T11 dele (dados-da-decisao.ts).
-const SUBSTITUIDO = (id: string) => `o pacote foi substituído por ${id}, aprovado depois dele; só o pacote aprovado mais novo gera o Pedido de Construção.`;
+// 0.4.1: textos revistos pela 03 do DEC-DEM-20261111-0018-v1 (seção 8).
+const SUBSTITUIDO = (id: string) => `o pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção.`;
 const AVISO_SUBSTITUIDO = (id: string) =>
-  `Este pacote foi substituído por ${id}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`;
+  `Este pacote foi substituído por ${id}, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste pacote já foi gerado, não o use. O pedido que vale é o de ${id}.`;
 const HISTORICO_COM_CONFIRMACAO = (decId: string) => `Gerou o Pedido de Construção de ${decId}, com a confirmação de que o texto não tem dado pessoal`;
 
 // DEC-<demanda>-v<n> → a demanda.
@@ -412,7 +414,7 @@ test('0.1.13, caminho completo: v1 aprovado recusa pelo nome; contexto corrigido
     expect(await doV1.json()).toEqual({ erro: 'conflito', mensagem: SUBSTITUIDO(v2) });
 
     // 5. O link leva ao v2, que gera: o mesmo conteúdo na tela e na API (CA-22.2), sem o nome e com o contexto novo.
-    await page.getByRole('link', { name: `Abrir ${v2}`, exact: true }).click();
+    await page.getByRole('link', { name: `Abrir o pacote ${v2}`, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/pacotes-decisao/${v2}$`));
     await caixa(page).check();
     await gerar(page).click();

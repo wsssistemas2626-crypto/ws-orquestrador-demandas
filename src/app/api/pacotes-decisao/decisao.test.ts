@@ -462,7 +462,7 @@ describe('PATCH /api/pacotes-decisao/:decId/decisao: aprovação que substitui (
     expect(await r.json()).toEqual({
       erro: 'conflito',
       mensagem:
-        'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora.',
+        'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora, e um pacote só do CTO não pode substituí-lo. Devolva ou arquive este pacote, ou crie um pacote novo com aprovação do CTO e da administradora.',
     });
     await semMudanca(v2);
     expect(await substituicoes(demandaId)).toEqual([]);

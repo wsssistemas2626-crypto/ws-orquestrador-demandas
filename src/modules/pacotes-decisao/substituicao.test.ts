@@ -385,7 +385,7 @@ describe('S-01: o nível do DEC que substitui não é menor que o do aprovado vi
 
   it('a mensagem é fixa, em minúscula (a tela acrescenta o prefixo) e sem id nem nome', () => {
     expect(MENSAGENS_DECISAO.nivelMenorQueOVigente).toBe(
-      'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora.',
+      'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora, e um pacote só do CTO não pode substituí-lo. Devolva ou arquive este pacote, ou crie um pacote novo com aprovação do CTO e da administradora.',
     );
   });
 

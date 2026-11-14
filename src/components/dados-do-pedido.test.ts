@@ -176,7 +176,8 @@ const ORIENTACOES = {
   esp: 'ESP, critérios de aceite, definição de pronto, sistema e repositório: corrija numa versão nova da ESP.',
   risco: 'Parecer de risco (risco.conteudo): corrija num parecer de risco novo.',
   decisao: 'Opção escolhida (decisao.opcaoEscolhida): corrija num pacote novo.',
-  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o: o pacote aprovado mais novo substitui este, e só ele gera o Pedido de Construção.',
+  // 0.4.1: texto da 03 do DEC-DEM-20261111-0018-v1, nível cto (o padrão de orientacaoDoPedido).
+  aviso: 'Depois de corrigir, crie um pacote novo e aprove-o. Aprovado, ele substitui este e passa a ser o único que gera o Pedido de Construção.',
   geral: 'Corrija criando uma versão nova da ESP e um pacote novo.',
 };
 

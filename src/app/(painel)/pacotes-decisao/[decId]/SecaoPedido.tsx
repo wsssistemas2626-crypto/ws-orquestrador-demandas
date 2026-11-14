@@ -18,13 +18,15 @@ import { Botao, classeDoBotao } from '../../../../components/Botao';
 import { CaixaSelecao } from '../../../../components/CaixaSelecao';
 import { entradaDoPedido, erroDoPedido, hrefDoPedido, TEXTOS_PEDIDO, type ErroDoPedido } from '../../../../components/dados-do-pedido';
 import { RegiaoAviso } from '../../../../components/RegiaoAviso';
+import type { NivelAprovacao } from '../../../../db/schema/decisao';
 import { MENSAGEM_ERRO_INTERNO } from '../../../../lib/erros';
 import { gerarPedidoNoPainel, type PedidoGerado } from './acoes-pedido';
 
 const ID_GERAR = 'gerar-pedido-construcao';
 const ID_CONFIRMACAO = 'confirma-sem-dado-pessoal';
 
-export function SecaoPedido({ decId }: { decId: string }) {
+// 0.4.1: o nível do DEC escolhe a linha 6 da orientação do 422 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, seção 5).
+export function SecaoPedido({ decId, nivelAprovacaoRequerido }: { decId: string; nivelAprovacaoRequerido: NivelAprovacao }) {
   const [gerando, setGerando] = useState(false);
   const [pedido, setPedido] = useState<PedidoGerado | null>(null);
   const [erro, setErro] = useState<ErroDoPedido | null>(null);
@@ -69,7 +71,7 @@ export function SecaoPedido({ decId }: { decId: string }) {
         setFocoNoBotao((n) => n + 1);
       } else {
         setPedido(null);
-        setErro(erroDoPedido(r));
+        setErro(erroDoPedido(r, nivelAprovacaoRequerido));
       }
     } catch {
       setPedido(null);

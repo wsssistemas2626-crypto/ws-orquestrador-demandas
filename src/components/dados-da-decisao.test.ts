@@ -833,15 +833,15 @@ describe('envioDaDecisao: as exigências de aprovação de hoje em toda combina�
 });
 
 // 0.1.13 (DEC-DEM-20261104-0014-v1, S5): o DEC aprovado que um aprovado mais novo substituiu mostra o aviso com o link
-// para o substituto. Textos da triagem, para revisão da ux-ui-design.
+// para o substituto. Textos revistos na 0.4.1 (03-ux-ui-design do DEC-DEM-20261111-0018-v1, 4.8).
 describe('alertaDeSubstituido (0.1.13)', () => {
   const V2 = `DEC-${ID}-v2`;
 
   it('os textos: o aviso cita o id do substituto e manda não usar pedido deste pacote; o link leva o id', () => {
     expect(TEXTOS_DECISAO.substituido(V2)).toBe(
-      `Este pacote foi substituído por ${V2}, aprovado depois dele. Só o pacote aprovado mais novo gera o Pedido de Construção. Não use um pedido gerado deste pacote.`,
+      `Este pacote foi substituído por ${V2}, aprovado depois dele, e não gera mais o Pedido de Construção. Se um pedido deste pacote já foi gerado, não o use. O pedido que vale é o de ${V2}.`,
     );
-    expect(TEXTOS_DECISAO.abrirSubstituto(V2)).toBe(`Abrir ${V2}`);
+    expect(TEXTOS_DECISAO.abrirSubstituto(V2)).toBe(`Abrir o pacote ${V2}`);
   });
 
   it('sem substituto: null; com o id do substituto: o texto e o link para a T11 dele', () => {
@@ -849,7 +849,7 @@ describe('alertaDeSubstituido (0.1.13)', () => {
     expect(alertaDeSubstituido(pacote({ statusDecisao: 'aprovada', substituidoPor: null }))).toBeNull();
     expect(alertaDeSubstituido(pacote({ statusDecisao: 'aprovada', substituido: true, substituidoPor: V2 }))).toEqual({
       texto: TEXTOS_DECISAO.substituido(V2),
-      link: { rotulo: `Abrir ${V2}`, href: `/pacotes-decisao/${V2}` },
+      link: { rotulo: `Abrir o pacote ${V2}`, href: `/pacotes-decisao/${V2}` },
     });
   });
 

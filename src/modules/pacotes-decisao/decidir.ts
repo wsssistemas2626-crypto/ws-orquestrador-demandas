@@ -51,9 +51,10 @@ export const MENSAGENS_DECISAO = {
   naoEhOMaisNovo: 'a demanda tem um pacote mais novo; só o mais novo pode ser decidido.',
   // M-08: texto decidido na 02-triagem do DEC-DEM-20261103-0007-v1, para revisão da ux-ui-design.
   demandaFinal: 'a demanda está em status final; o pacote não pode mais ser decidido.',
-  // S-01 da 04-revisao do DEC-DEM-20261104-0014-v1: texto fixo, sem id nem nome, para revisão da ux-ui-design.
+  // S-01 da 04-revisao do DEC-DEM-20261104-0014-v1: texto fixo, sem id nem nome. Revisto na 0.4.1 (03-ux-ui-design do
+  // DEC-DEM-20261111-0018-v1, seção 5).
   nivelMenorQueOVigente:
-    'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora; um pacote só do CTO não pode substituí-lo. Crie um pacote novo com aprovação do CTO e da administradora.',
+    'o pacote aprovado em vigor nesta demanda exigiu a aprovação do CTO e da administradora, e um pacote só do CTO não pode substituí-lo. Devolva ou arquive este pacote, ou crie um pacote novo com aprovação do CTO e da administradora.',
   revisarRascunhos: 'Marque que revisou os rascunhos de agente para registrar a decisão.',
   semReferencia: 'Informe o identificador do documento assinado.',
   semDataDocumento: 'Informe a data da assinatura.',
