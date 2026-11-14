@@ -56,8 +56,11 @@ divergências da 7.3); entregas `01-analista-requisitos.md` (RF-01 a RF-10, RNF-
 
 Consequências que o plano já respeita:
 - a migration (`drizzle/`) é do `engenheiro-dados-bd` (T03), gerada, sem custom (02, seção 8; SB-10);
-- o `engenheiro-dados-bd` **não** edita `src/app/`, `src/lib/`, `src/components/` nem `e2e/`: as tarefas dele (T03, T07)
-  só tocam `src/db/`, `src/modules/`, `drizzle/` e `test/`;
+- o `engenheiro-dados-bd` **não** edita `src/app/`, `src/lib/`, `src/components/` nem `e2e/`: a tarefa dele (T03) só
+  toca `src/db/`, `drizzle/` e `test/`;
+- a T07 é do `engenheiro-backend` (revisão do plano em 14/11, depois da `06-T07-construcao`): a troca da consulta
+  obriga a trocar o dublê `dbCom` de `src/app/(painel)/demandas/fila-andamento.test.ts`, e `src/app/` está fora da
+  lista do dados-bd;
 - o C-27 está em `src/lib/deps-qa.test.ts`, fora da lista do dados-bd: é do `engenheiro-backend` (T08);
 - o seed (`scripts/`) é do `engenheiro-backend` (T10); o frontend não edita `scripts/`;
 - só o `engenheiro-frontend` escreve em `e2e/` e roda `pnpm test:e2e` (T11 a T14);
@@ -158,6 +161,8 @@ Na revisão de cada tarefa: o comando acima vazio, os diffs parciais acima e a c
 | `e2e/decisao-botoes.spec.ts:285` | só se a demanda do `decDesatualizado` tiver vigente ou estiver fora das origens: a descrição acessível do Arquivar passa ao texto da 4.6 para o estado dela, e a entrega diz qual | T12 |
 | `src/app/(painel)/demandas/[id]/detalhe.test.ts` e testes de `dados-das-etapas` com DEC mais novo **arquivado** e um aprovado vigente | a etapa 4 passa a mostrar o vigente, "Aprovada, opção X", feita (decisão 7.2, item 3); o dublê de `obterPacoteDecisao` atende os dois ids; nada mais muda | T13 |
 | testes do seed que contam demandas, versões ou eventos (`scripts/scripts.test.ts`, `scripts/seed-*.test.ts`, `src/db/sementes.test.ts`, `TOTAL_DEMANDAS_DO_SEED`, `MENSAGENS_SEED`) | os totais crescem com as quatro demandas novas; a lista de pendentes **não** muda | T10 |
+| `src/modules/andamento/consultas.test.ts` | o teste da página em `planos (RNF-01)` ganha "e sem Sort sobre ela" no título e a asserção `expect(sortsSobreAndamento(nos)).toEqual([])`; as duas asserções de hoje (índice no texto, nenhum `Seq Scan`) ficam iguais; o resto são acréscimos (T07, passo 1) | T07 |
+| `src/app/(painel)/demandas/fila-andamento.test.ts` | **Só de forma:** o dublê `dbCom` (linhas 193 a 198) e o comentário dele passam a imitar a cadeia nova de `andamentosDasDemandas` (a 1ª chamada de `select` monta a subconsulta `from … where … orderBy … limit … as`; a 2ª é a página `from(demanda) … crossJoinLateral … where`, que devolve as linhas). Nenhuma asserção muda nem sai (linhas 200 a 232), `dbQueFalha` não muda, a contagem de `expect(` do arquivo fica igual à de `41108ee`. `fila-andamento-qa.test.ts` não muda | T07 |
 | `test/estatico/projeto.test.ts` | versão 0.4.0 → 0.4.1 | T14 |
 | `test/estatico/piso-de-assercoes.test.ts` | `PISO` ganha entradas (só sobe) | T01, T02, T04, T05, T06, T07, T08, T09, T12, T13 |
 | `test/matriz-rotas.test.ts`, `test/matriz-rotas-integracoes-qa.test.ts`, `test/transversal/sentinelas.test.ts`, `test/transversal/sentinelas-andamento.test.ts`, `test/estatico/andamento*.test.ts`, `test/estatico/decisao-e2e.test.ts`, `src/db/privilegios.test.ts`, `src/modules/andamento/registrar*.test.ts` | **não mudam**: os dois primeiros cobrem a rota nova sozinhos (SB-01 c, d); as sentinelas da situação e do nome da criação ficam em arquivos novos (D-05) | — |
@@ -1360,23 +1365,37 @@ ator sistema; arquivada: o destino de arquivamento.ts pelo vigente lido depois d
 
 ### T07. Uma linha de andamento por demanda da página, por `crossJoinLateral` (SB-13)
 
-**Engenheiro:** `engenheiro-dados-bd` · **Risco:** baixo · **Cobre:** RF-07, CA-07.1 a CA-07.3, SB-13, ADR-39, D-08 ·
-**Regra de comando:** G0.
+**Engenheiro:** `engenheiro-backend` (era `engenheiro-dados-bd`; ver "Revisão do plano em 14/11" abaixo) · **Risco:**
+baixo · **Cobre:** RF-07, CA-07.1 a CA-07.3, SB-13, ADR-39, D-08 · **Regra de comando:** G0.
 
 **Arquivos:**
 - Modificar: `src/modules/andamento/consultas.ts` (só `andamentosDasDemandas`), `src/modules/andamento/consultas.test.ts`
-  (acréscimos), `test/estatico/piso-de-assercoes.test.ts`
+  (G5), `test/estatico/piso-de-assercoes.test.ts`, `src/app/(painel)/demandas/fila-andamento.test.ts` (só o dublê
+  `dbCom`, G5)
 - Não muda: `ultimoAndamento`, `subconsultaDoUltimoAndamento`, `COLUNAS`, `test/estatico/andamento.test.ts` (a guarda de
-  só leitura e sem `sql` continua valendo, D-08), `src/app/(painel)/demandas/leituras-da-fila.ts`
+  só leitura e sem `sql` continua valendo, D-08), `src/app/(painel)/demandas/leituras-da-fila.ts`,
+  `src/app/(painel)/demandas/fila-andamento-qa.test.ts`
 
-- [ ] **Passo 1: escrever os testes que falham**
+**Revisão do plano em 14/11 (volta da `06-T07-construcao`).** A primeira passagem (`engenheiro-dados-bd`, commit
+`27b117d`) fez os passos 1 a 3 e provou que o `crossJoinLateral` existe no Drizzle instalado (`pnpm typecheck` limpo;
+o caso de bloqueio da D-08 não ocorreu): `consultas.test.ts` 17 de 17, `pnpm lint` e `pnpm typecheck` limpos, G4
+vazio. O `pnpm test` ficou com 1 falha: `fila-andamento.test.ts:222` (`expected null not to be null`), porque o dublê
+`dbCom` imita a cadeia antiga (`selectDistinctOn … from … where … orderBy`); a leitura lança dentro de
+`andamentosDaPagina`, que captura e devolve `null`. Não é defeito da consulta. O arquivo está em `src/app/`, fora da
+lista do dados-bd, e a tarefa passa ao `engenheiro-backend`, que não refaz os passos 1 a 3: confere que o código de
+`27b117d` está no ramo e faz o passo 3b. Aceito o desvio 1 daquela entrega: `sortsSobreAndamento` filtra `Node Type` em
+`['Sort', 'Incremental Sort']`, porque no Postgres do teste o `distinct on` vira `Incremental Sort` e o filtro só por
+`'Sort'` passava com o código antigo (endurece, não afrouxa).
+
+- [x] **Passo 1: escrever os testes que falham** (feito em `27b117d`)
 
 No `describe('planos (RNF-01)')` de `consultas.test.ts`, o teste da página ganha a asserção do CA-07.2, sem perder as
 duas de hoje:
 
 ```ts
-// CA-07.2 (0.4.1, B-08-1): nenhum nó Sort tem andamento_construcao abaixo dele.
-const sortsSobreAndamento = (nos: NoDoPlano[]) => nos.filter((n) => n['Node Type'] === 'Sort' && nosDe(n).some((f) => f['Relation Name'] === 'andamento_construcao'));
+// CA-07.2 (0.4.1, B-08-1): nenhum nó Sort (nem Incremental Sort) tem andamento_construcao abaixo dele.
+const ORDENACOES = ['Sort', 'Incremental Sort'];
+const sortsSobreAndamento = (nos: NoDoPlano[]) => nos.filter((n) => ORDENACOES.includes(n['Node Type']) && nosDe(n).some((f) => f['Relation Name'] === 'andamento_construcao'));
 
   it('a página usa andamento_construcao_demanda_id_idx, sem varrer a tabela e sem Sort sobre ela', async () => {
     const { nos, texto } = await planoDe((db) => andamentosDasDemandas(db, [a.dem, 'DEM-20261112-0003']));
@@ -1428,10 +1447,11 @@ describe('B-08-1: uma linha por demanda (CA-07.3, SB-13)', () => {
 Os testes de resultado de hoje (empate de `gravado_em`, demanda sem andamento, ids repetidos uma vez só nos parâmetros,
 lista vazia sem consulta, uma consulta por chamada) passam sem mudar (CA-07.1).
 
-- [ ] **Passo 2: ver falhar** — `pnpm test src/modules/andamento/consultas.test.ts` → FAIL (o `distinct on` tem `Sort`
-  sobre `andamento_construcao` e lê as 50 linhas de cada demanda).
+- [x] **Passo 2: ver falhar** — `pnpm test src/modules/andamento/consultas.test.ts` → FAIL (o `distinct on` tem
+  `Incremental Sort` sobre `andamento_construcao` e lê as 50 linhas de cada demanda). Visto em `27b117d`: 2 falharam,
+  15 passaram.
 
-- [ ] **Passo 3: o código**
+- [x] **Passo 3: o código** (feito em `27b117d`)
 
 ```ts
 // Uma consulta por página da fila (ADR-16): o último de cada demanda pedida; a que não tem andamento fica fora do mapa.
@@ -1464,10 +1484,36 @@ export async function andamentosDasDemandas(db: Db, ids: readonly string[]): Pro
 (importando `demanda` de `../../db/schema`.) Se o `pnpm typecheck` mostrar que `crossJoinLateral` não existe no Drizzle
 0.45.3 instalado, pare e devolva ao `05-plano` (D-08), sem trocar a guarda estática nem usar o template `sql`.
 
-- [ ] **Passo 4: ver passar** — `pnpm test` (segundo plano; `test/estatico/andamento.test.ts` e os testes da fila sem
-  mudança), `pnpm lint`, `pnpm typecheck`. `PISO`: `src/modules/andamento/consultas.test.ts` com a contagem do fim da
-  tarefa (passa a provar SB-13). Na entrega: o plano em texto da página (o `process.stdout.write` de `planoDe`) e G4
-  vazio.
+- [ ] **Passo 3b: o dublê da fila (`engenheiro-backend`; mudança só de forma, G5)**
+
+Primeiro, ver falhar no ramo como está: `pnpm test "src/app/(painel)/demandas/fila-andamento.test.ts"` → FAIL em
+`fila-andamento.test.ts:222` (`expected null not to be null`), no teste "com linhas: só as que passam em lerAndamento
+entram no mapa…". Depois, trocar só o dublê `dbCom` e o comentário acima dele (linhas 193 a 198):
+
+```ts
+  // Banco falso que devolve as linhas dadas à consulta da página: a 1ª chamada de select monta a subconsulta lateral
+  // (select … from … where … orderBy … limit … as), a 2ª é a página (select … from(demanda) … crossJoinLateral … where).
+  const dbCom = (linhas: unknown[]) => {
+    const sub = { from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ as: () => ({}) }) }) }) }) };
+    const pagina = { from: () => ({ crossJoinLateral: () => ({ where: async () => linhas }) }) };
+    let chamadas = 0;
+    return { select: () => (chamadas++ === 0 ? sub : pagina) } as unknown as Db;
+  };
+```
+
+Não mudam: `dbQueFalha` (o `select` dele lança na primeira chamada, que agora é a da subconsulta: o teste "banco que
+falha" continua provando o `null` e o log sem SQL nem ids), as asserções das linhas 200 a 232, os outros `describe` e
+`fila-andamento-qa.test.ts`. Nenhuma linha de `src/modules/andamento/consultas.ts` muda para caber no dublê. Se o
+dublê acima não bastar (ex.: o Drizzle ler outra propriedade da subconsulta), ajuste só o dublê, pela cadeia que
+`andamentosDasDemandas` chama, e diga na entrega o que mudou. Ver passar: o mesmo comando, todos os testes do arquivo.
+Na entrega: a contagem `git -C <repo> grep -c "expect(" -- "src/app/(painel)/demandas/fila-andamento.test.ts"` igual
+à de `git -C <repo> grep -c "expect(" 41108ee -- "src/app/(painel)/demandas/fila-andamento.test.ts"`.
+
+- [ ] **Passo 4: ver passar** — `pnpm test` (segundo plano; `test/estatico/andamento.test.ts` sem mudança, e os testes
+  da fila só com o dublê do passo 3b), `pnpm lint`, `pnpm typecheck`. `PISO`: `src/modules/andamento/consultas.test.ts`
+  com a contagem do fim da tarefa (38 em `27b117d`; passa a provar SB-13). Na entrega: o plano em texto da página (o
+  `process.stdout.write` de `planoDe`, rodando `pnpm test src/modules/andamento/consultas.test.ts`), G4 vazio e o
+  `git diff --stat` desta passagem só com `src/app/(painel)/demandas/fila-andamento.test.ts`.
 
 ---
 
