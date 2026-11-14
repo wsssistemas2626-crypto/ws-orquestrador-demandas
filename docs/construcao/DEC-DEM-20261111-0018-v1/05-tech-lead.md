@@ -3,8 +3,8 @@ pedido: DEC-DEM-20261111-0018-v1
 etapa: 05-plano
 agente: tech-lead
 leu: [pedido.json, docs/superpowers/specs/2026-11-13-ws-orquestrador-demandas-sobras-design.md, parada-P1.md, passagens.jsonl, 01-analista-requisitos.md, 02-arquiteto-solucoes.md, 03-ux-ui-design.md, 04-seguranca-aplicacao.md, padrao-tecnico.md, contrato-passagem.md, .claude/agents/engenheiro-backend.md, .claude/agents/engenheiro-frontend.md, .claude/agents/engenheiro-dados-bd.md (listas Pode), docs/construcao/DEC-DEM-20261111-0017-v1/05-tech-lead.md, docs/construcao/DEC-DEM-20261111-0017-v1/tarefas.json, docs/superpowers/plans/2026-11-12-ws-orquestrador-demandas-plano.md (linhas 1 a 660, 2040 a 2210 e 2700 a 2772), src/modules/acesso/matriz.ts, src/modules/acesso/matriz.test.ts (25 a 104), src/modules/pacotes-decisao/substituido.ts, src/modules/pacotes-decisao/desatualizado.ts, src/modules/pacotes-decisao/decidir.ts, src/modules/pacotes-decisao/decidir.test.ts (436 a 451), src/modules/pacotes-decisao/criar.ts, src/modules/pacotes-decisao/substituicao.test.ts, src/modules/pedido-construcao/conferir.ts, src/modules/pedido-construcao/montar.ts, src/modules/pedido-construcao/gerar.test.ts (300 a 339), src/modules/demandas/transicoes.ts, src/modules/demandas/servico.test.ts (400 a 479), src/modules/andamento/registrar.ts, src/modules/andamento/consultas.ts, src/modules/andamento/consultas.test.ts (1 a 60 e 140 a 229), src/modules/integracoes/tempo-limite.ts, src/modules/integracoes/prazo-total-0019.test.ts (1 a 70), src/lib/rota.ts, src/lib/deps-qa.test.ts, src/db/schema/decisao.ts, src/components/dados-da-decisao.ts, src/components/dados-das-etapas.ts, src/components/dados-do-pedido.ts (1 a 118), src/app/(painel)/pacotes-decisao/[decId]/page.tsx, src/app/(painel)/pacotes-decisao/[decId]/FormularioDecisao.tsx (40 a 79 e 190 a 219), src/app/(painel)/pacotes-decisao/[decId]/pagina.test.ts (1 a 120), src/app/(painel)/demandas/[id]/page.tsx (385 a 444), src/app/api/pedidos-construcao/andamento.test.ts (1 a 200), test/pedidos-construcao.ts (56 a 185), test/banco.ts, test/matriz-rotas.test.ts (1 a 115), test/estatico/andamento.test.ts, test/estatico/piso-de-assercoes.test.ts, test/estatico/decisao-e2e.test.ts (120 a 159), e2e/decisao.spec.ts (440 a 489), e2e/decisao-botoes.spec.ts (265 a 294), scripts/seed-ficticio.ts (80 a 111, 165 a 370 e 380 a 669), vitest.config.ts]
-status: bloqueado
-proximo: engenheiro-backend
+status: pronto
+proximo: maestro
 devolvido_para: null
 ---
 ## Entrega
@@ -12,9 +12,6 @@ devolvido_para: null
 - Plano: `/home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md`
 - Tarefas: `/home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261111-0018-v1/tarefas.json`
   (14 tarefas, na ordem do plano; `construir.mjs tarefas` respondeu `{ "ok": true, "erros": [] }`)
-
-O plano está completo. O status `bloqueado` vem só da primeira linha de Pendências: uma leitura pelo Bash fora da forma
-da lista Pode.
 
 ### Fases e tarefas
 
@@ -74,11 +71,7 @@ cobertura de cada RF e de cada SB (G10); e a verificação na homologação para
 
 ## Pendências
 
-- Comando de leitura fora da lista Pode, já executado nesta etapa e declarado abaixo:
-  `git -C /home/deploy/servidor/projetos/estruturaAutonoma grep …`. A lista Pode só tem `git grep` com `-C` no
-  repositório do sistema. O comando só leu as listas **Pode** dos três engenheiros na estruturaAutonoma, arquivos
-  rastreados que o Read também lê. Nada foi alterado. Peço a liberação dessa leitura para registrar a etapa como pronta
-  sem refazer o plano. O plano, o `tarefas.json` e esta entrega estão completos.
+- Leituras fora da lista Pode liberadas pelo maestro pela regra de 25/10 em 14/11 00h04 UTC (registro da 05-plano)
 - Para a `08-revisao` ratificar (G5): a linha `decisao_arquivada` sai do `it.each` de `mudarStatusPeloSistema` em
   `src/modules/demandas/servico.test.ts` (piso 77). É mudança de forma: a expectativa passa, igual, para a coluna
   `nenhum` de `arquivamento-status.test.ts`, e a contagem de `expect(` não cai. Ela vem da ADR-38 (`decisao_arquivada`
