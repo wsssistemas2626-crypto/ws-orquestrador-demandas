@@ -16,7 +16,7 @@ const integracao = (i: string): Ator => ({ tipo: 'integracao', integracao: i as 
 const SEM_PERMISSAO = expect.objectContaining({ codigo: 'sem_permissao' });
 
 describe('AN-01: registrar_andamento', () => {
-  it('(a) os pares (ação, integração) montados de MATRIZ são exatamente os seis', () => {
+  it('(a) os pares (ação, integração) montados de MATRIZ são exatamente os sete', () => {
     const pares = new Set(ACOES.flatMap((a) => MATRIZ[a].integracoes.map((i) => `${a}:${i}`)));
     expect(pares).toEqual(
       new Set([
@@ -26,12 +26,13 @@ describe('AN-01: registrar_andamento', () => {
         'entregar_pedido:construir',
         'confirmar_recebimento_pedido:construir',
         'registrar_andamento:construir',
+        'ler_situacao_pedido:construir',
       ]),
     );
   });
-  it('(b) o construir tem exatamente quatro ações e o awave exatamente duas', () => {
+  it('(b) o construir tem exatamente cinco ações e o awave exatamente duas', () => {
     const de = (i: Integracao) => ACOES.filter((a) => permite(integracao(i), a)).sort();
-    expect(de('construir')).toEqual(['confirmar_recebimento_pedido', 'entregar_pedido', 'listar_pedidos_pendentes', 'registrar_andamento']);
+    expect(de('construir')).toEqual(['confirmar_recebimento_pedido', 'entregar_pedido', 'ler_situacao_pedido', 'listar_pedidos_pendentes', 'registrar_andamento']);
     expect(de('awave')).toEqual(['criar_demanda', 'ler_demanda']);
   });
   it('a linha é SO_CONSTRUIR: sem pessoa, sem agente, congelada', () => {
