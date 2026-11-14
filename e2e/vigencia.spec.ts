@@ -18,7 +18,7 @@
 // "administradora" nenhum uso.
 import type { Locator, Page } from '@playwright/test';
 import { TITULOS_DO_E2E } from '../scripts/seed-ficticio';
-import { api, demandaDoSeed, entrarComo, expect, semViolacoes, semViolacoesNasDuasLarguras, test } from './apoio';
+import { api, demandaDoSeed, entrarComo, expect, semViolacoesNasDuasLarguras, test } from './apoio';
 
 type Pacote = { id: string; statusDecisao: string; substituido: boolean };
 
@@ -116,7 +116,8 @@ test('CA-06.3: v2 só do CTO com v1 de dupla aprovação → aviso (c) e "Criar 
   await expect(page.getByText(INICIO_B)).toHaveCount(0);
   await expect(page.getByText(INICIO_A)).toHaveCount(0);
   await expect(page.getByText(INICIO_C)).toHaveCount(0);
-  await semViolacoes(page, 'T11 do v1 de dupla aprovação, sem aviso');
+  // 06-T14-testes (Minor 1 da 06-T14-tech-lead): o item 3 do passo 1 pede o axe nas duas larguras também no v1.
+  await semViolacoesNasDuasLarguras(page, 'T11 do v1 de dupla aprovação, sem aviso');
 });
 
 test('CA-03.1: arquivar o v2 com v1 em vigor → Aprovada e v1 continua; T05 com o v1 na etapa 4 e a Próxima ação; axe', async ({ page }) => {
