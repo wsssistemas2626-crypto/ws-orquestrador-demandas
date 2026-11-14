@@ -2,12 +2,57 @@
 pedido: DEC-DEM-20261111-0018-v1
 etapa: 06-T11-testes
 agente: qa-automacao
-leu: [pedido.json, contrato-passagem.md, 01-analista-requisitos.md (RF-05, CA-05.1 e CA-05.2), docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md (T11 e linhas da G5), 06-T11-engenheiro-frontend.md, 06-T11-tech-lead.md, commit 77bcf80 (git show), src/app/(painel)/pacotes-decisao/[decId]/page.tsx, src/app/(painel)/pacotes-decisao/[decId]/SecaoPedido.tsx, src/app/(painel)/pacotes-decisao/[decId]/pagina.test.ts (fixtures e mocks), e2e/pedido-construcao.spec.ts, test/estatico/detalhe-dec.test.ts (padrão do teste por árvore do TypeScript), playwright.config.ts]
+leu: [pedido.json, contrato-passagem.md, 01-analista-requisitos.md (RF-05, CA-05.1 e CA-05.2), docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md (T11 e linhas da G5), 06-T11-engenheiro-frontend.md, 06-T11-tech-lead.md, commit 77bcf80 (git show), commit 7ae0beb (git show), src/app/(painel)/pacotes-decisao/[decId]/page.tsx, src/app/(painel)/pacotes-decisao/[decId]/SecaoPedido.tsx, src/app/(painel)/pacotes-decisao/[decId]/pagina.test.ts (fixtures e mocks), e2e/pedido-construcao.spec.ts, e2e/decisao.spec.ts (linhas 290 a 409), e2e/apoio.ts (linhas 100 a 139), e2e/vigia.spec.ts, test/estatico/detalhe-dec.test.ts (padrão do teste por árvore do TypeScript), playwright.config.ts, saída do e2e completo em /tmp (Read)]
 status: pronto
 proximo: tech-lead
 devolvido_para: null
 ---
 ## Entrega
+
+### Volta da 07-qa-funcional (CA-05.2), commit `7ae0beb`
+
+Motivo da volta: o axe da T05 com DEC substituído rodava só em 1280 × 720. O commit troca, em `e2e/decisao.spec.ts:365`,
+`semViolacoes` por `semViolacoesNasDuasLarguras` (e o import na linha 44). Os commits seguintes (`d236023`, `4a1f213`,
+`fcfef2a`) só mexem em `docs/construcao/` e no `passagens.jsonl`: o código testado é o de `7ae0beb`.
+
+**CA-05.2 coberto nas duas larguras, nas duas telas.** O critério (`01-analista-requisitos.md:157`) pede o axe sem
+violação na T11 e na T05 nos estados do substituído, em 1280 × 720 e em 390 × 844:
+
+| Tela × largura | Teste que cobre |
+|---|---|
+| T11 do substituído, 1280 × 720 | `e2e/decisao.spec.ts:354` (`semViolacoes`, "T11 substituído", viewport `Desktop Chrome`); `e2e/pedido-construcao.spec.ts:409` ("T11 do v1 substituído") |
+| T11 do substituído, 390 × 844 | `e2e/decisao-celular.spec.ts:437` ("T11 substituída em 390 px", no teste `:402` "CA-12.5 e CV-11 … nas duas larguras") |
+| T05 com DEC substituído, 1280 × 720 | `e2e/decisao.spec.ts:365` (`semViolacoesNasDuasLarguras` → `apoio.ts:132`, rótulo "T05 com DEC substituído (1280 × 720)") |
+| T05 com DEC substituído, 390 × 844 | `e2e/decisao.spec.ts:365` (`semViolacoesNasDuasLarguras` → `apoio.ts:135`, rótulo "T05 com DEC substituído (390 × 844)"): **a lacuna da 07, agora fechada** |
+
+O auxiliar (`e2e/apoio.ts:128-137`) chama o mesmo `semViolacoes` (mesmas `TAGS_AXE`, nenhuma regra desligada) nas duas
+larguras, com a página no topo, sem clique nem criação entre as medições, e devolve a janela ao tamanho de antes. A
+medição é no estado conferido pelas linhas 361 a 364 (selo na linha do anterior, sem selo na do novo, frase do
+histórico). Depois da 365 o teste só faz chamada de API (366 a 369), sem nada que dependa da largura.
+
+**Nada regrediu.** No `git show 7ae0beb -- e2e/decisao.spec.ts`, só duas linhas trocadas (import e chamada do axe):
+nenhuma asserção saiu nem foi afrouxada, nenhum `.skip`, `.only` ou `.todo` entrou. Nenhum teste acrescentado nesta volta
+(a mudança do engenheiro já é o teste que faltava).
+
+Resultados desta volta:
+- `pnpm test:e2e` completo (retries 0 e 1 worker pelo `playwright.config.ts`, banco descartável): **303 testes, 294
+  passaram, 0 falha, 9 pulados**, 9,9 min.
+  - O teste da substituição (`decisao.spec.ts:305`), com o axe da T05 nas duas larguras: passou em 4,8 s.
+  - `decisao-celular.spec.ts:402` (T11 substituída em 390 px): passou em 3,0 s; `pedido-construcao.spec.ts:344`
+    (T11 do v1 substituído): passou em 5,1 s.
+  - Maior teste da suíte: 12,5 s (`axe-todas.spec.ts:141`, "T03 Fila: vazia com filtro e com filtro inválido");
+    nenhum acima de 24 s.
+  - Os 9 pulados são os de `e2e/capturas.spec.ts`, pelo `test.skip` que já existia (`capturas.spec.ts:23`, PNG já
+    existe, D-04); nenhum pulo novo.
+  - O `✘` de `e2e/vigia.spec.ts:5` é o teste negativo da CV-03, marcado com `test.fail()` (linha 6): falhar é o
+    esperado, e o Playwright o conta entre os 294 que passaram (exit code 0).
+- `pnpm lint`: limpo. `pnpm typecheck`: limpo.
+- `pnpm test` (Vitest) não rodado de novo: a volta só muda um arquivo de `e2e/`, que o Vitest não executa, e
+  nenhum arquivo de `src/` ou `test/` mudou desde a entrega anterior (8312 de 8312).
+- `git diff --stat`: vazio antes do e2e; `git status --short`: vazio antes e depois do e2e (o e2e não deixou arquivo no
+  repositório).
+
+### Entrega anterior (commit `77bcf80`)
 
 Testes da T11 (commit `77bcf80`, `engenheiro-frontend`): textos revistos da 03, seção 8, e o nível do DEC levado da
 página até `erroDoPedido`. Fechado o Minor da revisão (`06-T11-tech-lead.md`): agora há teste de que a página passa à
@@ -64,6 +109,16 @@ mocks limpos no `beforeEach`; cada teste roda sozinho e em qualquer ordem.
 
 ## Decisões tomadas
 
+Volta da 07-qa-funcional (CA-05.2):
+- Rodei o e2e completo, e não só a spec: o maestro pediu, e a 07 pede o e2e de novo (RNF-11) antes de trocar a linha
+  do CA-05.2 no mapa.
+- Nenhum teste novo: a troca do engenheiro na linha 365 é o próprio teste que faltava, e chama o mesmo `semViolacoes`
+  que já cobria 1280 × 720.
+- O `✘` de `vigia.spec.ts:5` não é falha: o teste é `test.fail()` (negativo da CV-03), e o resumo e o exit code 0
+  confirmam.
+
+Entrega anterior:
+
 - Prova da página por dublê da `SecaoPedido` no Vitest: o nível só muda o texto depois do clique (estado do cliente),
   que o `renderToStaticMarkup` não mostra; capturar as props prova o repasse sem depender de DOM.
 - Prova do repasse dentro da `SecaoPedido` por teste estático com casos plantados: o projeto não tem jsdom nem
@@ -76,6 +131,13 @@ mocks limpos no `beforeEach`; cada teste roda sozinho e em qualquer ordem.
   commit, e eu não alterei código nem e2e.
 
 ## Pendências
+
+Volta da 07-qa-funcional (CA-05.2):
+- Para a `07-qa-funcional`: trocar a linha do CA-05.2 no mapa para "coberto", com a T05 nas duas larguras em
+  `decisao.spec.ts:365`; o e2e completo passou (294 de 303, 9 pulados que já existiam, 0 falha).
+- Nenhuma instrução estranha no `pedido.json`.
+
+Entrega anterior:
 
 - Para o tech-lead: o Minor "nenhum teste prova que page.tsx passa o nível do DEC à SecaoPedido" está fechado pelos dois
   arquivos novos.
@@ -108,6 +170,23 @@ mocks limpos no `beforeEach`; cada teste roda sozinho e em qualquer ordem.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 77bcf80fb4e629bd53bb4b779b2687cce777d6b9 -- e2e/decisao.spec.ts e2e/decisao-celular.spec.ts`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "CA-05" -- docs/construcao/DEC-DEM-20261111-0018-v1/01-analista-requisitos.md`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — vazio
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 7ae0beb --stat`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 7ae0beb -- e2e/decisao.spec.ts`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "semViolacoesNasDuasLarguras" -- e2e`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "CA-05.2" -- docs/construcao/DEC-DEM-20261111-0018-v1`
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test:e2e` — 303 testes: 294 passaram, 0 falha, 9 pulados (capturas, D-04), 9,9 min
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck` — limpo
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — vazio
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — vazio
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --oneline -4`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas log --stat --format=%h%x20%s 7ae0beb..HEAD`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "semViolacoes" -- e2e/decisao-celular.spec.ts e2e/pedido-construcao.spec.ts e2e/decisao.spec.ts`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "retries\|timeout\|workers" -- playwright.config.ts`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "skip" -- e2e/capturas.spec.ts`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — vazio depois do e2e
+
+Nesta volta, a saída do e2e em /tmp foi lida com a ferramenta Read, sem comando.
 
 ## Critério de pronto atendido
 
