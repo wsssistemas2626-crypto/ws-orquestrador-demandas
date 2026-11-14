@@ -140,6 +140,9 @@ const PISO: Readonly<Record<string, number>> = {
   // desatualizado pelo RSK, aprovação incompleta nas duas ordens e por cima do vigente, corrida com o RSK novo e com a
   // aprovação que completaria o v1): contado ao fim da etapa.
   'src/modules/pacotes-decisao/arquivar-com-vigente-qa.test.ts': 63,
+  // T07 do DEC-DEM-20261111-0018-v1 (SB-13, CA-07.2, CA-07.3: uma linha por demanda, sem Sort, id malicioso sem
+  // efeito): contado no fim da tarefa.
+  'src/modules/andamento/consultas.test.ts': 38,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 

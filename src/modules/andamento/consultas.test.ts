@@ -183,6 +183,11 @@ async function planoDe(fn: (db: Db) => Promise<unknown>): Promise<{ nos: NoDoPla
   return { nos: nosDe((json.rows[0]!['QUERY PLAN'] as Array<{ Plan: NoDoPlano }>)[0]!.Plan), texto };
 }
 const leAndamentoPor = (nos: NoDoPlano[]) => nos.filter((n) => n['Relation Name'] === 'andamento_construcao');
+// CA-07.2 (0.4.1, B-08-1): nenhum nó Sort tem andamento_construcao abaixo dele. "Incremental Sort" conta como Sort: é o
+// nó que o `distinct on` da 0.4.0 gerou sobre o índice (demanda_id, id), e só `=== 'Sort'` não o pegaria.
+const ORDENACOES = ['Sort', 'Incremental Sort'];
+const sortsSobreAndamento = (nos: NoDoPlano[]) =>
+  nos.filter((n) => ORDENACOES.includes(n['Node Type']) && nosDe(n).some((f) => f['Relation Name'] === 'andamento_construcao'));
 
 describe('planos (RNF-01)', () => {
   it('o último por demanda usa andamento_construcao_demanda_id_idx, sem varrer a tabela', async () => {
@@ -190,10 +195,11 @@ describe('planos (RNF-01)', () => {
     expect(texto).toContain('andamento_construcao_demanda_id_idx');
     expect(leAndamentoPor(nos).map((n) => n['Node Type'])).not.toContain('Seq Scan');
   });
-  it('a página usa andamento_construcao_demanda_id_idx, sem varrer a tabela', async () => {
+  it('a página usa andamento_construcao_demanda_id_idx, sem varrer a tabela e sem Sort sobre ela', async () => {
     const { nos, texto } = await planoDe((db) => andamentosDasDemandas(db, [a.dem, 'DEM-20261112-0003']));
     expect(texto).toContain('andamento_construcao_demanda_id_idx');
     expect(leAndamentoPor(nos).map((n) => n['Node Type'])).not.toContain('Seq Scan');
+    expect(sortsSobreAndamento(nos)).toEqual([]);
   });
   it('a leitura com a subconsulta usa a chave da demanda e andamento_construcao_demanda_id_idx, sem varrer nenhuma das duas', async () => {
     const { nos, texto } = await planoDe((db) => lerComSubconsulta(db, a.dem));
@@ -277,5 +283,41 @@ describe('andamentosDasDemandas numa página cheia (ADR-16, RF-08)', () => {
         gravadoEm: new Date(QUANDO),
       });
     }
+  });
+});
+
+// T07 do DEC-DEM-20261111-0018-v1. CA-07.3 e SB-13 (0.4.1): com 50 linhas por demanda, a página lê no máximo uma linha
+// de andamento por demanda; as chaves são as sete de LinhaDeAndamento; id malicioso dá mapa vazio, sem erro de sintaxe.
+// Demandas próprias (4001 e 4002), fora das faixas acima, sem `analyze`.
+describe('B-08-1: uma linha por demanda (CA-07.3, SB-13)', () => {
+  let x: { dem: string; dec: string };
+  let y: { dem: string; dec: string };
+  beforeAll(async () => {
+    x = await demandaComDec(4001);
+    y = await demandaComDec(4002);
+    for (const d of [x, y])
+      await m(
+        `insert into andamento_construcao (demanda_id, dec_id, fase, tarefas_prontas, tarefas_total, status_construcao, ator_token_prefixo, gravado_em)
+         select $1, $2, 'construindo', s % 10, 10, 'em_construcao', 'ficticio', $3 from generate_series(1, 50) s`,
+        [d.dem, d.dec, QUANDO],
+      );
+  });
+  it('explain analyze: no máximo 2 linhas lidas de andamento_construcao para 2 demandas', async () => {
+    const [c] = await consultasGeradas((db) => andamentosDasDemandas(db, [x.dem, y.dem]));
+    const r = await m(`explain (analyze, format json) ${c!.sql}`, c!.params);
+    type NoAnalisado = NoDoPlano & { 'Actual Rows': number; 'Actual Loops': number };
+    const nos = nosDe((r.rows[0]!['QUERY PLAN'] as Array<{ Plan: NoDoPlano }>)[0]!.Plan) as NoAnalisado[];
+    const lidas = nos.filter((n) => n['Relation Name'] === 'andamento_construcao').reduce((s, n) => s + n['Actual Rows'] * n['Actual Loops'], 0);
+    expect(lidas).toBeLessThanOrEqual(2);
+  });
+  it('o resultado é a linha de maior id de cada uma, com as sete chaves de LinhaDeAndamento', async () => {
+    const mapa = await andamentosDasDemandas(b.db, [x.dem, y.dem]);
+    for (const d of [x, y]) {
+      expect(Object.keys(mapa.get(d.dem)!).sort()).toEqual(['decId', 'demandaId', 'fase', 'gravadoEm', 'statusConstrucao', 'tarefasProntas', 'tarefasTotal']);
+      expect(mapa.get(d.dem)).toMatchObject({ tarefasProntas: 0 }); // s = 50 → 50 % 10
+    }
+  });
+  it('id com aspas e com comando SQL na lista: mapa vazio, nenhum erro', async () => {
+    expect(await andamentosDasDemandas(b.db, ["DEM-20261112-4001' or '1'='1", "'); drop table demanda; --"])).toEqual(new Map());
   });
 });

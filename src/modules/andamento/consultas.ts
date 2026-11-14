@@ -4,7 +4,7 @@
 // andamento_construcao_demanda_id_idx (demanda_id, id), conferido por EXPLAIN em consultas.test.ts (RNF-01).
 import { desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db';
-import { andamentoConstrucao as a } from '../../db/schema';
+import { andamentoConstrucao as a, demanda } from '../../db/schema';
 
 export type LinhaDeAndamento = {
   demandaId: string;
@@ -33,16 +33,27 @@ export async function ultimoAndamento(db: Db, demandaId: string): Promise<LinhaD
 }
 
 // Uma consulta por página da fila (ADR-16): o último de cada demanda pedida; a que não tem andamento fica fora do mapa.
-// Lista vazia não consulta.
+// Lista vazia não consulta. 0.4.1 (B-08-1, ADR-39): a partir de `demanda`, uma junção lateral pega a linha de maior id
+// de cada uma pelo índice (demanda_id, id): um Limit sobre Index Scan Backward por demanda, no máximo uma linha lida e
+// nenhum Sort. A projeção é COLUNAS, chave a chave (SB-13).
 export async function andamentosDasDemandas(db: Db, ids: readonly string[]): Promise<Map<string, LinhaDeAndamento>> {
   const mapa = new Map<string, LinhaDeAndamento>();
   const unicos = [...new Set(ids)];
   if (unicos.length === 0) return mapa;
+  const u = db.select(COLUNAS).from(a).where(eq(a.demandaId, demanda.id)).orderBy(desc(a.id)).limit(1).as('ultimo');
   const linhas = await db
-    .selectDistinctOn([a.demandaId], COLUNAS)
-    .from(a)
-    .where(inArray(a.demandaId, unicos))
-    .orderBy(a.demandaId, desc(a.id));
+    .select({
+      demandaId: u.demandaId,
+      decId: u.decId,
+      fase: u.fase,
+      tarefasProntas: u.tarefasProntas,
+      tarefasTotal: u.tarefasTotal,
+      statusConstrucao: u.statusConstrucao,
+      gravadoEm: u.gravadoEm,
+    })
+    .from(demanda)
+    .crossJoinLateral(u)
+    .where(inArray(demanda.id, unicos));
   for (const l of linhas) mapa.set(l.demandaId, l);
   return mapa;
 }
