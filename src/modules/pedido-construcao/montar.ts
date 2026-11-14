@@ -3,16 +3,15 @@
 // geração, nome do solicitante, nome de quem aprovou (aprovadoPor leva o papel, D2 do 0013), texto bruto, anexo, resumo,
 // recomendação ou comentário. As chaves são escritas sempre na mesma ordem, e é essa ordem que o `JSON.stringify` segue:
 // o mesmo DEC dá o mesmo pedido, byte a byte (CA-22.2).
-import { PAPEIS_APROVACAO, type OpcaoDecisao } from '../../db/schema/decisao';
+import { OPCOES_DECISAO, PAPEIS_APROVACAO, type OpcaoDecisao } from '../../db/schema/decisao';
 import type { NivelRisco } from '../../db/schema/versoes';
 import type { TipoDemanda } from '../../db/schema/demandas';
 import { ErroDominio } from '../../lib/erros';
 import { dataIsoSaoPaulo } from '../../lib/fuso';
 import type { EspecificacaoVista } from '../especificacoes/consultas';
-import { descricaoSemRotulos } from '../pacotes-decisao/criar';
 import type { PacoteDecisaoVista } from '../pacotes-decisao/consultas';
 import type { ParecerRiscoVista } from '../pareceres-risco/consultas';
-import { nivelMaior, textoDaEspecificacao, textoDoParecer, valoresDaEspecificacao, valoresDoParecer } from './conteudo';
+import { descricaoSemRotulos, nivelMaior, textoDaEspecificacao, textoDoParecer, valoresDaEspecificacao, valoresDoParecer } from './conteudo';
 
 // Os campos de construção vêm da ESP como estão; nulo (ESP de estudo numa demanda que mudou de tipo) chega ao
 // validarPedido, que recusa com a mensagem dele.
@@ -79,20 +78,54 @@ export function montarPedido(dados: DadosDoPedido): PedidoConstrucao {
 // esta lista que gerarPedido confere o nome do solicitante.
 export type TextoDoPedido = { caminho: string; valores: string[] };
 
-export function textosDoPedido(dados: DadosDoPedido): TextoDoPedido[] {
-  const { dec, esp, rsk } = dados;
+// D1 do 0013 e 0.4.1 (SB-08): uma fonte só para os textos escritos por pessoa. textosDoPedido (DEC aprovado) e
+// textosDaCriacao (DEC ainda sem decisão: as duas opções no lugar da escolhida) saem desta função, na mesma ordem.
+function textosEscritos(
+  base: Pick<PacoteDecisaoVista, 'demandaTitulo' | 'demandaDescricao'>,
+  esp: EspecificacaoVista,
+  rsk: ParecerRiscoVista,
+  daDecisao: readonly TextoDoPedido[],
+): TextoDoPedido[] {
   const lista = (caminho: string, itens: readonly string[] | null): TextoDoPedido[] =>
     (itens ?? []).map((v, i) => ({ caminho: `${caminho}[${i}]`, valores: [v] }));
   const opcional = (caminho: string, v: string | null): TextoDoPedido[] => (v === null ? [] : [{ caminho, valores: [v] }]);
   return [
-    { caminho: 'demanda.titulo', valores: [dec.demandaTitulo] },
-    { caminho: 'demanda.descricao', valores: [descricaoSemRotulos(dec.demandaDescricao)] },
+    { caminho: 'demanda.titulo', valores: [base.demandaTitulo] },
+    { caminho: 'demanda.descricao', valores: [descricaoSemRotulos(base.demandaDescricao)] },
     { caminho: 'especificacao.conteudo', valores: valoresDaEspecificacao(esp) },
     { caminho: 'risco.conteudo', valores: valoresDoParecer(rsk) },
-    { caminho: 'decisao.opcaoEscolhida', valores: [opcaoEscolhida(dec).descricao] },
+    ...daDecisao,
     ...opcional('sistema_alvo', esp.sistemaAlvo),
     ...opcional('repositorio_destino', esp.repositorioDestino),
     ...lista('criterios_aceite_preliminares', esp.criteriosAceitePreliminares),
     ...lista('definicao_de_pronto', esp.definicaoDePronto),
   ];
+}
+
+export function textosDoPedido(dados: DadosDoPedido): TextoDoPedido[] {
+  const { dec, esp, rsk } = dados;
+  return textosEscritos(dec, esp, rsk, [{ caminho: 'decisao.opcaoEscolhida', valores: [opcaoEscolhida(dec).descricao] }]);
+}
+
+// 0.4.1 (S-03, ADR-37): os mesmos textos na criação do DEC, com cada opção no caminho dela. criar.ts marca, sobre esta
+// lista, os caminhos com o nome do solicitante em vigor na criação.
+export type DadosDaCriacao = {
+  dec: Pick<PacoteDecisaoVista, 'demandaTitulo' | 'demandaDescricao' | 'opcaoA' | 'opcaoB'>;
+  esp: EspecificacaoVista;
+  rsk: ParecerRiscoVista;
+};
+
+export const CAMINHO_DA_OPCAO: Readonly<Record<OpcaoDecisao, 'opcaoA.descricao' | 'opcaoB.descricao'>> = Object.freeze({
+  A: 'opcaoA.descricao',
+  B: 'opcaoB.descricao',
+});
+
+export function textosDaCriacao(dados: DadosDaCriacao): TextoDoPedido[] {
+  const { dec, esp, rsk } = dados;
+  return textosEscritos(
+    dec,
+    esp,
+    rsk,
+    OPCOES_DECISAO.map((o) => ({ caminho: CAMINHO_DA_OPCAO[o], valores: [(o === 'A' ? dec.opcaoA : dec.opcaoB).descricao] })),
+  );
 }

@@ -97,6 +97,31 @@ export function valoresDoParecer(rsk: ParecerRiscoVista): string[] {
   ];
 }
 
+// D-04 da 0.4.1: as partes da descrição, o separador, o rótulo e descricaoSemRotulos vieram de
+// pacotes-decisao/criar.ts, sem mudar o corpo, para criar.ts poder importar textosDaCriacao de montar.ts sem ciclo
+// (montar.ts importava descricaoSemRotulos de criar.ts). criar.ts os reexporta.
+
+// Exportada para os testes da descrição e do Pedido de Construção (D1 do 0013).
+export const PARTES_DA_DESCRICAO = [
+  ['contexto', 'Contexto'],
+  ['descricaoProblema', 'Problema'],
+  ['impactoPercebido', 'Impacto percebido'],
+] as const;
+
+export const SEPARADOR_DA_DESCRICAO = '\n\n';
+
+// D1 do 0013: o rótulo de uma parte no começo de um bloco (o começo do texto ou logo depois da linha em branco que
+// separa as partes). Os rótulos não têm caractere de regex. Fica sem exportar: tem a flag g, e só o `replace` abaixo a
+// usa (o `replace` começa do zero).
+const RE_ROTULO_DA_DESCRICAO = new RegExp(`(^|${SEPARADOR_DA_DESCRICAO})(?:${PARTES_DA_DESCRICAO.map(([, rotulo]) => rotulo).join('|')}): `, 'g');
+
+// D1 do 0013: a descrição gravada no DEC sem os rótulos "Contexto: ", "Problema: " e "Impacto percebido: " do começo de
+// cada bloco, para o Pedido de Construção conferir o nome do solicitante só no que a pessoa escreveu (o rótulo
+// "Contexto" não é o nome de ninguém). O mesmo texto fora do começo de um bloco fica.
+export function descricaoSemRotulos(descricao: string): string {
+  return descricao.replace(RE_ROTULO_DA_DESCRICAO, '$1');
+}
+
 // O maior dos três níveis, com baixo < medio < alto (RF-22, CA-22.5).
 export function nivelMaior(rsk: ParecerRiscoVista): NivelRisco {
   return RISCOS.map(([nivel]) => rsk[nivel]).reduce((maior, n) => (ORDEM_DO_NIVEL[n] > ORDEM_DO_NIVEL[maior] ? n : maior));

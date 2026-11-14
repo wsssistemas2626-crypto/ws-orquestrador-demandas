@@ -114,6 +114,11 @@ const PISO: Readonly<Record<string, number>> = {
   // migrations da main presas pelo SHA-256): contado ao fim da etapa.
   'test/transversal/visibilidade-caminhos-da-criacao-qa.test.ts': 19,
   'test/estatico/migrations-congeladas-qa.test.ts': 12,
+  // T04 do DEC-DEM-20261111-0018-v1 (SB-07 a, b, c, e; SB-08 c, f; SB-09 a, b): contado no fim da tarefa.
+  'src/modules/pedido-construcao/textos-da-criacao.test.ts': 33,
+  'src/modules/pacotes-decisao/marcacao-da-criacao.test.ts': 18,
+  'test/transversal/visibilidade-caminhos-da-criacao.test.ts': 13,
+  'test/estatico/caminhos-da-criacao.test.ts': 28,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
