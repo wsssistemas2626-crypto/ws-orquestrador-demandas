@@ -167,7 +167,6 @@ mudanças desta etapa.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "it(" -- scripts/seed-integracoes.test.ts` — D-09 e IN-04
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "it(" -- scripts/seed-andamento-qa.test.ts` — 404 sem oráculo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "it(" -- scripts/seed-andamento.test.ts` — AN-15 e G3.10
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "it(\|test(" -- src/app/(painel)/demandas/fila-andamento-qa.test.ts e2e/andamento-detalhe.spec.ts e2e/andamento-fila.spec.ts src/components/dados-das-etapas-andamento.test.ts src/app/(painel)/demandas/fila-andamento.test.ts` — não rodou: erro de sintaxe do shell nos parênteses sem aspas (refeito nos dois comandos abaixo)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "it(" -e "test(" -- "src/app/(painel)/demandas/fila-andamento-qa.test.ts" "src/app/(painel)/demandas/fila-andamento.test.ts" src/components/dados-das-etapas-andamento.test.ts` — casos de matriz, CA-04.6 e log
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "test(" -- e2e/andamento-detalhe.spec.ts e2e/andamento-fila.spec.ts` — tela e axe
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e "it(" -e "test(" -- "src/app/(painel)/demandas/fila-origem-qa.test.ts" "src/app/(painel)/demandas/fila-origem.test.ts" e2e/fila-origem-qa.spec.ts` — CV-07 e log
@@ -189,6 +188,8 @@ mudanças desta etapa.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -- test/estatico/piso-de-assercoes-qa.test.ts` — só os dois valores que sobem
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -e ".skip" -e ".only" -e ".todo" -- test/estatico/piso-de-assercoes.test.ts test/estatico/piso-de-assercoes-0018.test.ts test/estatico/piso-de-assercoes-qa.test.ts` — nenhum skip, only nem todo (só "Readonly" e texto, porque o ponto casa qualquer caractere)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — 3 arquivos de test/, 117 inserções e 9 remoções (os 9 valores que subiram)
+
+O git grep com (painel) sem aspas, da 1ª volta, está no registro (bloqueado e ajuste da 06-T09-testes em 14/11).
 
 ## Critério de pronto atendido
 
