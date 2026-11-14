@@ -117,6 +117,57 @@ const DO_B_08_2: Readonly<Record<string, number>> = {
   'src/lib/deps-qa.test.ts': 8,
 };
 
+// 06-T09-testes (CA-08.2 e P2 da 06-T09-tech-lead): os testes de segurança da 0.3.x e da 0.4.0 fora da lista da T09 e as
+// seis entradas antigas que subiram, com a contagem do fim da etapa. Entrada que sair do PISO ou descer deixa o caso
+// vermelho com o nome do arquivo.
+const DA_06_T09_TESTES: Readonly<Record<string, number>> = {
+  'e2e/seguranca.spec.ts': 70,
+  'test/estatico/painel-qa.test.ts': 19,
+  'src/modules/acesso/matriz.test.ts': 47,
+  'test/matriz-rotas.test.ts': 18,
+  'test/transversal/sentinelas.test.ts': 99,
+  'test/estatico/andamento.test.ts': 50,
+  'test/estatico/piso-de-assercoes-0018.test.ts': 4,
+  'scripts/token-integracao.test.ts': 62,
+  'scripts/token-integracao-qa.test.ts': 48,
+  'src/modules/integracoes/tempo-limite.test.ts': 32,
+  'src/modules/integracoes/tempo-limite-qa.test.ts': 16,
+  'src/app/api/demandas/leitura-awave.test.ts': 28,
+  'src/app/api/demandas/leitura-awave-qa.test.ts': 36,
+  'src/app/api/demandas/criacao-awave.test.ts': 81,
+  'src/app/api/demandas/criacao-awave-qa.test.ts': 35,
+  'src/app/api/demandas/contrato-awave.test.ts': 17,
+  'src/modules/agentes/gatilhos-awave.test.ts': 28,
+  'src/modules/agentes/gatilhos-awave-qa.test.ts': 40,
+  'src/modules/agentes/executar-awave.test.ts': 20,
+  'src/modules/demandas/confirmar.test.ts': 32,
+  'src/app/(painel)/demandas/[id]/acoes-confirmar.test.ts': 22,
+  'src/modules/demandas/origem.test.ts': 67,
+  'src/modules/demandas/origem-qa.test.ts': 43,
+  'src/app/(painel)/demandas/fila-origem.test.ts': 59,
+  'src/app/(painel)/demandas/fila-origem-qa.test.ts': 42,
+  'e2e/fila-origem.spec.ts': 43,
+  'src/components/rotulos-integracao.test.ts': 30,
+  'src/components/rotulos-integracao-qa.test.ts': 13,
+  'src/components/dados-da-confirmacao.test.ts': 37,
+  'test/tokens-do-e2e.test.ts': 15,
+  'test/playwright-config-qa.test.ts': 16,
+  'test/estatico/docs-sem-token.test.ts': 6,
+  'test/estatico/migration-0007.test.ts': 3,
+  'scripts/seed-integracoes.test.ts': 48,
+  'scripts/seed-integracoes-qa.test.ts': 55,
+  'scripts/criar-token-0019.test.ts': 8,
+  'src/db/transacao-prazo.test.ts': 26,
+  'src/modules/agentes/executar-0019.test.ts': 53,
+  'src/modules/agentes/revisao-0019.test.ts': 31,
+  'src/db/imutabilidade.test.ts': 23,
+  'src/app/(painel)/demandas/fila-andamento.test.ts': 40,
+  'src/app/(painel)/demandas/fila-andamento-qa.test.ts': 51,
+  'scripts/seed-andamento.test.ts': 41,
+  'scripts/seed-andamento-qa.test.ts': 37,
+  'test/matriz-rotas-qa.test.ts': 22,
+};
+
 // As entradas do PISO lidas do fonte (o arquivo não exporta o objeto): 'caminho': número.
 const pisoAtual = (): Record<string, number> =>
   Object.fromEntries(
@@ -139,6 +190,12 @@ describe('SB-15: o piso só sobe', () => {
   it('as entradas do B-08-2 estão no PISO com ao menos a contagem de 41108ee', () => {
     const atual = pisoAtual();
     for (const [arquivo, valor] of Object.entries(DO_B_08_2)) {
+      expect(atual[arquivo] ?? 0, arquivo).toBeGreaterThanOrEqual(valor);
+    }
+  });
+  it('as entradas da 06-T09-testes estão no PISO com ao menos a contagem do fim da etapa', () => {
+    const atual = pisoAtual();
+    for (const [arquivo, valor] of Object.entries(DA_06_T09_TESTES)) {
       expect(atual[arquivo] ?? 0, arquivo).toBeGreaterThanOrEqual(valor);
     }
   });

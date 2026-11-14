@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 
 const raiz = fileURLToPath(new URL('../../', import.meta.url));
 const PISO: Readonly<Record<string, number>> = {
-  'e2e/seguranca.spec.ts': 28,
+  // 06-T09-testes do DEC-DEM-20261111-0018-v1 (P2 da 06-T09-tech-lead): sobe de 28 para a contagem do fim da etapa.
+  'e2e/seguranca.spec.ts': 70,
   'e2e/seguranca-qa.spec.ts': 38,
   'src/proxy.test.ts': 17,
   'test/estatico/classes-de-erro.test.ts': 4,
@@ -15,7 +16,8 @@ const PISO: Readonly<Record<string, number>> = {
   'test/estatico/eslint.test.ts': 5,
   'test/estatico/exigir-pessoa.test.ts': 4,
   'test/estatico/pacote-sem-extras.test.ts': 21,
-  'test/estatico/painel-qa.test.ts': 14,
+  // 06-T09-testes do DEC-DEM-20261111-0018-v1 (P2): sobe de 14 para a contagem do fim da etapa.
+  'test/estatico/painel-qa.test.ts': 19,
   'test/estatico/preco-so-por-script.test.ts': 5,
   'test/estatico/projeto.test.ts': 27,
   'test/estatico/relogio.test.ts': 5,
@@ -24,7 +26,8 @@ const PISO: Readonly<Record<string, number>> = {
   'test/estatico/varreduras-qa.test.ts': 22,
   'test/estatico/worker-agendador.test.ts': 12,
   // D-17 do pedido 0016 (IN-16): a9fd9b8, contado na T03.
-  'src/modules/acesso/matriz.test.ts': 44,
+  // 06-T09-testes do DEC-DEM-20261111-0018-v1 (P2): sobe de 44 para a contagem do fim da etapa.
+  'src/modules/acesso/matriz.test.ts': 47,
   'src/modules/acesso/matriz-qa.test.ts': 37,
   'src/modules/acesso/resolver-ator.test.ts': 20,
   'src/modules/acesso/resolver-ator-qa.test.ts': 17,
@@ -35,8 +38,9 @@ const PISO: Readonly<Record<string, number>> = {
   'src/modules/limites.test.ts': 21,
   'src/db/privilegios.test.ts': 39,
   'src/app/api/vistas-para-agente.test.ts': 96,
-  'test/matriz-rotas.test.ts': 17,
-  'test/transversal/sentinelas.test.ts': 59,
+  // 06-T09-testes do DEC-DEM-20261111-0018-v1 (P2): as duas sobem (17 para 18 e 59 para 99), contagem do fim da etapa.
+  'test/matriz-rotas.test.ts': 18,
+  'test/transversal/sentinelas.test.ts': 99,
   'test/estatico/sem-controle-bidi.test.ts': 7,
   'test/estatico/sem-recurso-externo.test.ts': 15,
   'test/estatico/leituras-da-fila.test.ts': 34,
@@ -47,7 +51,8 @@ const PISO: Readonly<Record<string, number>> = {
   // T02 do DEC-DEM-20261111-0017-v1 (AN-01, AN-13): contado no fim da tarefa.
   'src/modules/acesso/matriz-andamento.test.ts': 13,
   // T07 do DEC-DEM-20261111-0017-v1 (AN-06 estático): sobe de 8 para a contagem no fim da tarefa.
-  'test/estatico/andamento.test.ts': 43,
+  // 06-T09-testes do DEC-DEM-20261111-0018-v1 (P2): sobe de 43 para a contagem do fim da etapa.
+  'test/estatico/andamento.test.ts': 50,
   // 06-T02-testes do DEC-DEM-20261111-0017-v1 (qa-automacao, AN-01): contado ao fim da etapa.
   'src/modules/acesso/matriz-andamento-qa.test.ts': 31,
   'test/estatico/andamento-qa.test.ts': 13,
@@ -195,7 +200,51 @@ const PISO: Readonly<Record<string, number>> = {
   'src/modules/demandas/transicoes-construir.test.ts': 19,
   'e2e/andamento-construir.spec.ts': 40,
   'test/estatico/migration-0008.test.ts': 6,
-  'test/estatico/piso-de-assercoes-0018.test.ts': 3,
+  // 06-T09-testes: sobe de 3 para 4 com o caso das entradas da etapa.
+  'test/estatico/piso-de-assercoes-0018.test.ts': 4,
+  // 06-T09-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; CA-08.2, P1 da 06-T09-tech-lead): os testes de segurança
+  // da 0.3.0, da 0.3.1 e da 0.4.0 que a lista da T09 não trazia, contados ao fim da etapa. 0.3.0 (DEC-0016):
+  'scripts/token-integracao.test.ts': 62,
+  'scripts/token-integracao-qa.test.ts': 48,
+  'src/modules/integracoes/tempo-limite.test.ts': 32,
+  'src/modules/integracoes/tempo-limite-qa.test.ts': 16,
+  'src/app/api/demandas/leitura-awave.test.ts': 28,
+  'src/app/api/demandas/leitura-awave-qa.test.ts': 36,
+  'src/app/api/demandas/criacao-awave.test.ts': 81,
+  'src/app/api/demandas/criacao-awave-qa.test.ts': 35,
+  'src/app/api/demandas/contrato-awave.test.ts': 17,
+  'src/modules/agentes/gatilhos-awave.test.ts': 28,
+  'src/modules/agentes/gatilhos-awave-qa.test.ts': 40,
+  'src/modules/agentes/executar-awave.test.ts': 20,
+  'src/modules/demandas/confirmar.test.ts': 32,
+  'src/app/(painel)/demandas/[id]/acoes-confirmar.test.ts': 22,
+  'src/modules/demandas/origem.test.ts': 67,
+  'src/modules/demandas/origem-qa.test.ts': 43,
+  'src/app/(painel)/demandas/fila-origem.test.ts': 59,
+  'src/app/(painel)/demandas/fila-origem-qa.test.ts': 42,
+  'e2e/fila-origem.spec.ts': 43,
+  'src/components/rotulos-integracao.test.ts': 30,
+  'src/components/rotulos-integracao-qa.test.ts': 13,
+  'src/components/dados-da-confirmacao.test.ts': 37,
+  'test/tokens-do-e2e.test.ts': 15,
+  'test/playwright-config-qa.test.ts': 16,
+  'test/estatico/docs-sem-token.test.ts': 6,
+  'test/estatico/migration-0007.test.ts': 3,
+  'scripts/seed-integracoes.test.ts': 48,
+  'scripts/seed-integracoes-qa.test.ts': 55,
+  // 0.3.1 (DEC-0019):
+  'scripts/criar-token-0019.test.ts': 8,
+  'src/db/transacao-prazo.test.ts': 26,
+  'src/modules/agentes/executar-0019.test.ts': 53,
+  'src/modules/agentes/revisao-0019.test.ts': 31,
+  // 0.4.0 (DEC-0017), inclusive tela e seed com caso de sentinela, matriz ou valor fora do esquema:
+  'src/db/imutabilidade.test.ts': 23,
+  'src/app/(painel)/demandas/fila-andamento.test.ts': 40,
+  'src/app/(painel)/demandas/fila-andamento-qa.test.ts': 51,
+  'scripts/seed-andamento.test.ts': 41,
+  'scripts/seed-andamento-qa.test.ts': 37,
+  // Irmão de test/matriz-rotas.test.ts (401 e 403 em todo método e toda rota):
+  'test/matriz-rotas-qa.test.ts': 22,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
