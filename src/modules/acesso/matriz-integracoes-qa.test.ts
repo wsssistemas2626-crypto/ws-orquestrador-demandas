@@ -63,7 +63,7 @@ describe('CA-03.6: integração fora da lista, em qualquer forma, é negada em t
     ['awave'],
     { toString: () => 'awave' },
   ];
-  it.each(VALORES.map((v, i) => [i, v] as const))('valor %i negado nas 25 ações',(_i, valor) => {
+  it.each(VALORES.map((v, i) => [i, v] as const))('valor %i negado nas 25 ações', (_i, valor) => {
     const ator = { tipo: 'integracao', integracao: valor, prefixoToken: PREFIXO } as unknown as Ator;
     for (const acao of ACOES) expect(() => autorizar(ator, acao), acao).toThrow(SEM_PERMISSAO);
   });
@@ -116,7 +116,7 @@ describe('CA-03.3 e CA-03.4 no nível da ação: as cinco do /construir', () => 
     expect(() => autorizar(sistema, acao), 'sistema').toThrow(SEM_PERMISSAO);
     expect(() => autorizar(integracao('construir'), acao), 'construir').not.toThrow();
   });
-  it('atoresProibidos das cinco é exatamente:os quatro agentes, todos os papéis e o awave', () => {
+  it('atoresProibidos das cinco é exatamente: os quatro agentes, todos os papéis e o awave', () => {
     for (const acao of DO_CONSTRUIR)
       expect(atoresProibidos(acao), acao).toEqual([
         ...AGENTES.map((agente) => ({ tipo: 'agente', agente })),
