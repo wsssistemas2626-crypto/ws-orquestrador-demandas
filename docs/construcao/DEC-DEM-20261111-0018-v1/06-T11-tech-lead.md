@@ -2,12 +2,45 @@
 pedido: DEC-DEM-20261111-0018-v1
 etapa: 06-T11-revisao
 agente: tech-lead
-leu: [contrato-passagem.md, padrao-tecnico.md (seções 6, 7 e 12), docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md (T11 e linhas da G5), 03-ux-ui-design.md (seções 5, 6.1 e 8), 06-T11-engenheiro-frontend.md, commit 77bcf80 (git show), src/components/dados-do-pedido.ts (linhas 20 a 59)]
+leu: [contrato-passagem.md, padrao-tecnico.md (seções 6, 7 e 12), docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md (T11 e linhas da G5), 03-ux-ui-design.md (seções 5, 6.1 e 8), 06-T11-engenheiro-frontend.md, commit 77bcf80 (git show), src/components/dados-do-pedido.ts (linhas 20 a 59), commit 7ae0beb (git show), 07-qa-funcional.md (CA-05.2 e seções 6 a Pendências), 01-analista-requisitos.md (CA-05.2), e2e/apoio.ts (linhas 100 a 137), e2e/decisao.spec.ts (linhas 330 a 379), test/estatico/decisao-e2e.test.ts (busca)]
 status: pronto
 proximo: qa-automacao
 devolvido_para: null
 ---
 ## Entrega
+
+### Volta da 07-qa-funcional (CA-05.2), commit `7ae0beb`
+
+**Parecer: aprovado, sem problema Critical, Important nem Minor.**
+
+O commit muda só `e2e/decisao.spec.ts` (4 linhas) no código; os outros dois arquivos são a entrega do engenheiro e o
+`passagens.jsonl` (`git diff 7ae0beb~1 7ae0beb --stat`: 3 arquivos).
+
+1. **Nenhuma asserção saiu.** O diff de `e2e/decisao.spec.ts` tem duas linhas trocadas e nenhuma removida sem troca:
+   o import (linha 44) e a chamada do axe (linha 365). As asserções do teste da substituição (linhas 330 a 369),
+   inclusive as quatro da T05 (361 a 364) e a do histórico (367), estão iguais. O `semViolacoesNasDuasLarguras` chama o
+   próprio `semViolacoes` duas vezes (`e2e/apoio.ts:132` e `:135`), com as mesmas tags de `TAGS_AXE`: a medição em
+   1280 × 720 continua, e a de 390 × 844 se soma a ela. O teste estático `test/estatico/decisao-e2e.test.ts:141` confere
+   só o axe do "T11 arquivado", que não mudou; `semViolacoes` segue importado porque `decisao.spec.ts:354` e o "T11
+   arquivado" ainda o usam.
+2. **O import está certo.** `semViolacoesNasDuasLarguras` é exportado em `e2e/apoio.ts:128` e importado de `./apoio` em
+   `decisao.spec.ts:44`, na ordem alfabética do resto da lista e no mesmo molde de `axe-todas.spec.ts:20` e
+   `fila-origem.spec.ts:10`, que importam os dois. A linha tem menos de 120 caracteres. `pnpm lint` e `pnpm typecheck`
+   limpos.
+3. **O e2e da spec passa, pela entrega do engenheiro.** `06-T11-engenheiro-frontend.md` declara
+   `pnpm test:e2e e2e/decisao.spec.ts` com retries 0: 9 passaram, 0 falha, 0 pulado; o teste da substituição em 12,2 s.
+   Não rodei o e2e: não está na minha lista **Pode** nem na regra de comando desta etapa. O efeito colateral possível
+   seria a janela ficar em 390 px no resto do teste; o auxiliar devolve a janela ao tamanho de antes
+   (`apoio.ts:136`), e depois da linha 365 o teste só faz chamada de API (366 a 369), sem nada que dependa da largura.
+4. **É a cobertura que o CA-05.2 pede.** O CA-05.2 (`01-analista-requisitos.md:157`) pede o axe sem violação na T11 e
+   na T05, nos estados do substituído, em 1280 × 720 e em 390 × 844. Com a volta, as quatro combinações têm medição:
+   T11 em 1280 × 720 (`decisao.spec.ts:354`, `pedido-construcao.spec.ts:409`), T11 em 390 × 844
+   (`decisao-celular.spec.ts:437`, pelo mapa da 07), T05 nas duas larguras (`decisao.spec.ts:365`, agora). A medição
+   da T05 é no mesmo estado conferido pelas linhas 361 a 364 (selo na linha do anterior, sem selo na do novo, frase do
+   histórico), sem clique nem criação entre as duas larguras (`apoio.ts:120-121`). A troca é exatamente a que a
+   07 pediu (`07-qa-funcional.md:396-397`).
+
+### Revisão anterior (commit `77bcf80`)
 
 Revisão da T11 (commit `77bcf80`, `engenheiro-frontend`): textos revistos da 03 (substituído, link, 409 do substituído,
 409 do S-01, frase do histórico e linha 6 por nível), nível do DEC levado da página até `erroDoPedido`, e o "Arquivar"
@@ -78,6 +111,15 @@ não guarda cópia de `MENSAGENS_PEDIDO.substituido`.
 
 ## Decisões tomadas
 
+Volta da 07-qa-funcional (CA-05.2):
+
+- Aprovado sem devolução: a troca soma a medição em 390 × 844 sem tirar a de 1280 × 720 nem asserção nenhuma, e fecha
+  a única combinação do CA-05.2 que faltava.
+- Aceito o resultado do e2e declarado pelo engenheiro (9 de 9, retries 0) sem rodar de novo: o e2e não está na minha
+  lista **Pode**, e a 07 já pediu a nova rodada do e2e (RNF-11) para a etapa seguinte.
+
+Revisão anterior (commit `77bcf80`):
+
 - Aprovado sem devolução: todas as constantes batem com a 03, seção 8, e nenhum ponto de lançamento dos 409 mudou.
 - Desvios 1 a 3 ratificados: só texto esperado e comentário, nenhuma asserção a menos, e sem eles os testes quebrariam
   ou passariam em falso.
@@ -85,6 +127,17 @@ não guarda cópia de `MENSAGENS_PEDIDO.substituido`.
   (passar um nível fixo) não muda texto de segurança.
 
 ## Pendências
+
+Volta da 07-qa-funcional (CA-05.2):
+
+- Para o `qa-automacao` na `06-T11-testes`: rodar o e2e de novo (RNF-11, como pede a 07) e confirmar a T05 com DEC
+  substituído em 390 × 844 sem violação; esta revisão não executou o e2e.
+- Para a `07-qa-funcional`: trocar a linha do CA-05.2 no mapa para "coberto", com `decisao.spec.ts:365` nas duas
+  larguras.
+- Registro: a passagem do engenheiro nesta volta ficou `bloqueado` por um `git grep` com `\|` fora da forma da lista
+  **Pode** (`passagens.jsonl`, última linha do commit); a liberação é do maestro e não muda o código revisado.
+
+Revisão anterior (commit `77bcf80`):
 
 - Minor, para o `qa-automacao` na `06-T11-testes`: nenhum teste prova que `page.tsx` passa o nível **do DEC** à
   `SecaoPedido` (só que a prop existe, pelo `typecheck`); um DEC `cto_e_administradora` com 422 de validação mostrando a
@@ -100,6 +153,17 @@ não guarda cópia de `MENSAGENS_PEDIDO.substituido`.
 - Nenhuma instrução estranha no texto do pedido (não reli o `pedido.json` nesta etapa; a T11 não depende dele).
 
 ## Comandos executados
+
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 7ae0beb`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "semViolacoesNasDuasLarguras" -- e2e`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 7ae0beb~1 7ae0beb --stat`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "CA-05.2" -- docs/construcao/DEC-DEM-20261111-0018-v1/07-qa-funcional.md docs/construcao/DEC-DEM-20261111-0018-v1/01-analista-requisitos.md`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "semViolacoes" -- test`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "decisao.spec" -- test`
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint`
+- `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas typecheck`
+
+Os oito acima são desta volta (lint e typecheck limpos). Os seguintes são da revisão anterior.
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas show 77bcf80fb4e629bd53bb4b779b2687cce777d6b9`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "^## " -- docs/construcao/DEC-DEM-20261111-0018-v1/03-ux-ui-design.md`
@@ -129,6 +193,9 @@ não guarda cópia de `MENSAGENS_PEDIDO.substituido`.
   - [x] entrada externa validada com Zod; erro sem vazar detalhe (nenhuma entrada nova; 409 sem id novo)
   - [x] banco: não se aplica (sem migration nem tabela)
   - [x] nada duplica função que já existe
-  - [x] textos de interface em pt-BR; axe sem violação nas telas tocadas (e2e declarado pelo engenheiro)
+  - [x] textos de interface em pt-BR; axe sem violação nas telas tocadas (e2e declarado pelo engenheiro; desde a
+        volta da 07, a T05 com DEC substituído em 1280 × 720 e em 390 × 844, 9 de 9 na spec)
+  - [x] volta da 07 (CA-05.2): nenhuma asserção saiu, import certo, lint e typecheck limpos, cobertura das quatro
+        combinações T11/T05 × duas larguras
   - [x] o que é Minor foi para Pendências; nenhum Critical ou Important
   - [x] `/code-review` e `/security-review` ficam para o PR (08-revisao)
