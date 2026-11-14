@@ -190,11 +190,13 @@ describe('andamentosDaPagina (RF-08; ADR-35; AN-12; D-16)', () => {
     },
   } as unknown as Db;
 
-  // Banco falso que devolve as linhas dadas à consulta da página (selectDistinctOn … from … where … orderBy).
+  // Banco falso que devolve as linhas dadas à consulta da página: a 1ª chamada de select monta a subconsulta lateral
+  // (select … from … where … orderBy … limit … as), a 2ª é a página (select … from(demanda) … crossJoinLateral … where).
   const dbCom = (linhas: unknown[]) => {
-    const fim = { orderBy: async () => linhas };
-    const consulta = { from: () => ({ where: () => fim }) };
-    return { selectDistinctOn: () => consulta, select: () => consulta } as unknown as Db;
+    const sub = { from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ as: () => ({}) }) }) }) }) };
+    const pagina = { from: () => ({ crossJoinLateral: () => ({ where: async () => linhas }) }) };
+    let chamadas = 0;
+    return { select: () => (chamadas++ === 0 ? sub : pagina) } as unknown as Db;
   };
 
   it('banco que falha: devolve null e um log painel_andamento_falhou com a rota, sem SQL nem ids', async () => {
