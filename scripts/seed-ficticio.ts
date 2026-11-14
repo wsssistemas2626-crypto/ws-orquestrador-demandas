@@ -28,6 +28,10 @@
 // entregues e recebidos pelo /construir do seed: a lista de pendentes continua só com a `pedidoParaBuscar`. Todas da
 // `sem2fa`, que fica com 28 de 30 demandas e 33 de 60 versões na primeira hora (C-36).
 //
+// 0.4.1 (DEC-DEM-20261111-0018-v1, T10): também as quatro demandas da vigência, por criarDadosDaVigencia (D-15): três
+// com um DEC v1 aprovado e um v2 pendente e uma só com ESP e RSK. Todas da `configurar2fa`, que fica com 4 demandas e 14
+// versões na primeira hora (C-36); nenhum pedido gerado, e a lista de pendentes do /construir não muda.
+//
 // As senhas e os segredos TOTP abaixo são fictícios e públicos, escritos aqui de propósito: só servem a um banco
 // semeado por este script, e nenhum deles tem o formato do token de serviço.
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -37,6 +41,7 @@ import { z } from 'zod';
 import { PROMPTS } from '../src/agents';
 import { andamentoConstrucao, demanda, twoFactor, user } from '../src/db/schema';
 import type { FaseAndamento, StatusConstrucao } from '../src/db/schema/andamento';
+import type { NivelAprovacao } from '../src/db/schema/decisao';
 import { comTransacao, type Transacao } from '../src/db/transacao';
 import type { Deps } from '../src/lib/deps';
 import { ehLoopback } from '../src/lib/env';
@@ -208,6 +213,12 @@ export const TITULOS_DO_E2E = {
   andamentoParaEnviar: 'Andamento: para o /construir enviar (fictício)',
   andamentoSemPedido: 'Andamento: pacote sem pedido gerado (fictício)',
   emConstrucaoSemAndamento: 'Em construção sem andamento (fictício)',
+  // 0.4.1 (DEC-DEM-20261111-0018-v1, T10): as da vigência (criarDadosDaVigencia), pela `configurar2fa` (D-15), todas
+  // melhoria. Os e2e da T11 a T14 as leem sem criar demanda nem versão.
+  vigenciaComPendente: 'Vigência: pacote novo pendente de dupla aprovação (fictício)',
+  vigenciaNivelMenor: 'Vigência: pacote só do CTO depois da dupla aprovação (fictício)',
+  vigenciaArquivar: 'Vigência: arquivar o pacote novo com um aprovado em vigor (fictício)',
+  arquivarSemVigente: 'Arquivar sem pacote aprovado em vigor (fictício)',
 } as const;
 
 // A recomendação do DEC de agente da `decisaoRecomendaB`, que o e2e procura na T11 (P-01: em texto, sem opção marcada).
@@ -434,10 +445,58 @@ const DEMANDAS_DO_ANDAMENTO: ReadonlyArray<z.input<typeof criarDemandaSchema>> =
   contexto,
 }));
 
-// Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e, as das integrações (0.3.0) e as do andamento
-// (0.4.0).
+// 0.4.1 (DEC-DEM-20261111-0018-v1, T10): as quatro demandas da vigência (RF-03, RF-06; os dados dos e2e da T11 a T14).
+// Todas recebem ESP e RSK da `configurar2fa`; as três primeiras, um DEC v1 aprovado na opção A e um v2 pendente, da
+// mesma ESP e do mesmo RSK (o v1 fica vigente e atualizado):
+//   - vigenciaComPendente: v1 cto aprovado pela "cto"; v2 cto_e_administradora pendente (o DEC pendente que substituirá
+//     o vigente, e o vigente com DEC mais novo pendente);
+//   - vigenciaNivelMenor: v1 cto_e_administradora aprovado pela "cto" e pela "administradora"; v2 cto pendente (o DEC só
+//     do CTO com vigente de dupla aprovação);
+//   - vigenciaArquivar: v1 cto aprovado pela "cto"; v2 cto pendente (arquivar o v2 leva a demanda a Aprovada, S1);
+//   - arquivarSemVigente: só ESP e RSK, sem DEC, em Nova (o e2e do Arquivar cria o DEC dele; sem vigente, Encerrada).
+type DemandaDaVigencia = Readonly<{ titulo: string; contexto: string; decs: Readonly<{ aprovado: NivelAprovacao; pendente: NivelAprovacao }> | null }>;
+const VIGENCIAS: readonly DemandaDaVigencia[] = [
+  {
+    titulo: TITULOS_DO_E2E.vigenciaComPendente,
+    contexto: 'O pacote aprovado em vigor exigiu só o CTO, e o pacote novo pede as duas aprovações.',
+    decs: { aprovado: 'cto', pendente: 'cto_e_administradora' },
+  },
+  {
+    titulo: TITULOS_DO_E2E.vigenciaNivelMenor,
+    contexto: 'O pacote aprovado em vigor teve as duas aprovações, e o pacote novo pede só a do CTO.',
+    decs: { aprovado: 'cto_e_administradora', pendente: 'cto' },
+  },
+  {
+    titulo: TITULOS_DO_E2E.vigenciaArquivar,
+    contexto: 'Há um pacote aprovado em vigor, e o pacote novo pode ser arquivado sem perder a aprovação.',
+    decs: { aprovado: 'cto', pendente: 'cto' },
+  },
+  {
+    titulo: TITULOS_DO_E2E.arquivarSemVigente,
+    contexto: 'A especificação e o parecer de risco estão prontos, e nenhum pacote foi aprovado.',
+    decs: null,
+  },
+];
+const DEMANDAS_DA_VIGENCIA: ReadonlyArray<z.input<typeof criarDemandaSchema>> = VIGENCIAS.map(({ titulo, contexto }) => ({
+  titulo,
+  tipo: 'melhoria' as const,
+  solicitanteNome: 'Pessoa Ficticia Produto',
+  solicitantePapel: 'produto' as const,
+  linhaServicoProvavel: 'sob_medida' as const,
+  contexto,
+}));
+// A referência fictícia ao documento assinado da administradora, na aprovação de dupla da `vigenciaNivelMenor`.
+const DOCUMENTO_DA_VIGENCIA = 'DOC-FICTICIO-0018';
+
+// Quantas demandas o seed cria: uma de cada tipo, mais as próprias do e2e, as das integrações (0.3.0), as do andamento
+// (0.4.0) e as da vigência (0.4.1).
 export const TOTAL_DEMANDAS_DO_SEED =
-  DEMANDAS.length + DEMANDAS_DO_E2E.length + DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length + DEMANDAS_DO_ANDAMENTO.length;
+  DEMANDAS.length +
+  DEMANDAS_DO_E2E.length +
+  DEMANDAS_DO_AWAVE.length +
+  DEMANDAS_DOS_PEDIDOS.length +
+  DEMANDAS_DO_ANDAMENTO.length +
+  DEMANDAS_DA_VIGENCIA.length;
 
 const SISTEMA = { tipo: 'sistema' } as const;
 const agente = (a: AtorAgente['agente']): AtorAgente => ({ tipo: 'agente', agente: a, prefixoToken: null });
@@ -470,12 +529,16 @@ function codigosDeRecuperacao(): string[] {
   });
 }
 
-type PessoasDoSeed = { cto: AtorPessoa; sem2fa: AtorPessoa };
+// 0.4.1 (T10): também a "administradora" (a segunda aprovação da `vigenciaNivelMenor`) e a `configurar2fa` (autora das
+// demandas da vigência, D-15), como AtorPessoa com o papel da conta. O que criarContas grava não muda.
+type PessoasDoSeed = { cto: AtorPessoa; sem2fa: AtorPessoa; administradora: AtorPessoa; configurar2fa: AtorPessoa };
 
 async function criarContas(t: Transacao, deps: DepsDoSeed): Promise<PessoasDoSeed> {
   const ctx = await deps.auth.$context;
   let cto: AtorPessoa | null = null;
   let sem2fa: AtorPessoa | null = null;
+  let administradora: AtorPessoa | null = null;
+  let configurar2fa: AtorPessoa | null = null;
   for (const conta of Object.values(CONTAS_FICTICIAS)) {
     const usuarioId = randomUUID();
     const hash = await ctx.password.hash(conta.senha);
@@ -498,12 +561,15 @@ async function criarContas(t: Transacao, deps: DepsDoSeed): Promise<PessoasDoSee
     }
     if (conta === CONTAS_FICTICIAS.cto) cto = { tipo: 'pessoa', usuarioId, nome: conta.nome, papel: 'cto' };
     if (conta === CONTAS_FICTICIAS.sem2fa) sem2fa = { tipo: 'pessoa', usuarioId, nome: conta.nome, papel: 'cto' };
+    if (conta === CONTAS_FICTICIAS.administradora) administradora = { tipo: 'pessoa', usuarioId, nome: conta.nome, papel: 'administradora' };
+    if (conta === CONTAS_FICTICIAS.configurar2fa) configurar2fa = { tipo: 'pessoa', usuarioId, nome: conta.nome, papel: 'cto' };
   }
-  if (!cto || !sem2fa) throw new Error('seed: conta cto ou sem2fa não criada');
-  return { cto, sem2fa };
+  if (!cto || !sem2fa || !administradora || !configurar2fa) throw new Error('seed: conta fictícia não criada');
+  return { cto, sem2fa, administradora, configurar2fa };
 }
 
-async function criarDemandas(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: PessoasDoSeed): Promise<number> {
+async function criarDemandas(t: Transacao, deps: DepsDoSeed, pessoas: PessoasDoSeed): Promise<number> {
+  const { cto, sem2fa } = pessoas;
   const entradas: CriarDemanda[] = DEMANDAS.map((d) => criarDemandaSchema.parse(d));
   const [primeira, ...resto] = entradas;
   if (!primeira) return 0;
@@ -525,8 +591,8 @@ async function criarDemandas(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: Pe
   // `sem2fa` nunca cria demanda no e2e. O limite e a regra de autoria não mudam.
   const idDoE2E = new Map<string, string>();
   for (const d of DEMANDAS_DO_E2E) idDoE2E.set(d.titulo, (await criarDemanda(deps, sem2fa, criarDemandaSchema.parse(d), t)).id);
-  await criarVersoesDoE2E(t, deps, { cto, sem2fa }, idDoE2E);
-  const dasIntegracoes = await criarDadosDasIntegracoes(t, deps, { cto, sem2fa });
+  await criarVersoesDoE2E(t, deps, pessoas, idDoE2E);
+  const dasIntegracoes = await criarDadosDasIntegracoes(t, deps, pessoas);
   return entradas.length + DEMANDAS_DO_E2E.length + dasIntegracoes;
 }
 
@@ -537,7 +603,13 @@ async function criarDemandas(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: Pe
 //   - /construir: duas demandas da `sem2fa` com ESP, RSK e DEC dela (o limite C-36 da "cto" fica para as specs), DEC de
 //     nível cto aprovado pela "cto" na opção A e Pedido gerado pela "cto". A `pedidoRecebido` é, depois, entregue e
 //     recebida pelo /construir com o hash da entrega; a `pedidoParaBuscar` fica na lista de pendentes (V-01).
-async function criarDadosDasIntegracoes(t: Transacao, deps: DepsDoSeed, { cto, sem2fa }: PessoasDoSeed): Promise<number> {
+// 0.4.1 (DEC-DEM-20261111-0018-v1, T10): as quatro demandas da vigência nascem no começo, antes das do Awave, e as
+// versões delas no fim (criarDadosDaVigencia). Assim a ordem de criação das demandas de antes (as cinco das integrações
+// logo antes das oito do andamento, e estas por último) e a dos avisos dos DECs de antes (o quinto é o da
+// `pedidoRecebido`) continuam as mesmas; os seis DECs da vigência são os últimos do seed.
+async function criarDadosDasIntegracoes(t: Transacao, deps: DepsDoSeed, pessoas: PessoasDoSeed): Promise<number> {
+  const { cto, sem2fa } = pessoas;
+  const daVigencia = await criarDemandasDaVigencia(t, deps, pessoas);
   for (const d of DEMANDAS_DO_AWAVE) {
     const dem = await criarDemanda(deps, AWAVE_DO_SEED, criarDemandaSchema.parse(d), t);
     // M-2 da 0019: para a integração, criarDemanda devolve a vista de seis chaves, com o título minimizado ("Awave" vira o
@@ -556,8 +628,53 @@ async function criarDadosDasIntegracoes(t: Transacao, deps: DepsDoSeed, { cto, s
       await receberPedido(deps, CONSTRUIR_DO_SEED, dec.id, sha256, t);
     }
   }
-  const doAndamento = await criarDadosDoAndamento(t, deps, { cto, sem2fa });
-  return DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length + doAndamento;
+  const doAndamento = await criarDadosDoAndamento(t, deps, pessoas);
+  await criarDadosDaVigencia(t, deps, pessoas, daVigencia);
+  return DEMANDAS_DO_AWAVE.length + DEMANDAS_DOS_PEDIDOS.length + doAndamento + daVigencia.length;
+}
+
+// 0.4.1 (T10, D-15): as quatro demandas da vigência pela conta fictícia `configurar2fa` (papel cto). Limite C-36: a
+// `sem2fa` já cria 28 demandas no seed (o limite é 30 por hora) e a "cto" e a "administradora" gastam o delas nas specs;
+// a `configurar2fa` não cria nada no e2e. Ela fica com 4 demandas e 14 versões (4 ESP, 4 RSK e 6 DEC) na primeira hora.
+async function criarDemandasDaVigencia(t: Transacao, deps: DepsDoSeed, { configurar2fa }: PessoasDoSeed): Promise<string[]> {
+  const ids: string[] = [];
+  for (const d of DEMANDAS_DA_VIGENCIA) ids.push((await criarDemanda(deps, configurar2fa, criarDemandaSchema.parse(d), t)).id);
+  return ids;
+}
+
+// 0.4.1 (T10): as versões das demandas da vigência (VIGENCIAS), pelos mesmos serviços da API, na transação do seed e sob
+// a trava de cada demanda que eles tomam (G8, item 11). ESP, RSK e DEC pela `configurar2fa`; a aprovação do v1 pela
+// "cto" e, no de dupla aprovação, também pela "administradora", com a referência fictícia ao documento e a data do dia
+// do relógio. O v2 fica pendente: nenhum pedido gerado, e a lista de pendentes do /construir não muda.
+async function criarDadosDaVigencia(t: Transacao, deps: DepsDoSeed, { cto, administradora, configurar2fa }: PessoasDoSeed, ids: readonly string[]): Promise<void> {
+  const dataDocumento = deps.relogio.agora().toISOString().slice(0, 10);
+  for (const [i, v] of VIGENCIAS.entries()) {
+    const demandaId = ids[i];
+    if (!demandaId) throw new Error('seed: demanda da vigência não criada');
+    await criarEspecificacao(deps, configurar2fa, demandaId, criarEspecificacaoSchema.parse(ESP_DO_E2E), t);
+    await criarParecerRisco(deps, configurar2fa, demandaId, criarParecerRiscoSchema.parse(RSK_DO_E2E), t);
+    if (!v.decs) continue;
+    const dec = await criarPacoteDecisao(deps, configurar2fa, demandaId, criarPacoteDecisaoSchema.parse({ ...DEC_DO_E2E, nivelAprovacaoRequerido: v.decs.aprovado }), t);
+    await registrarDecisao(deps, cto, dec.id, registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A' }), t);
+    switch (v.decs.aprovado) {
+      case 'cto':
+        break;
+      case 'cto_e_administradora':
+        await registrarDecisao(
+          deps,
+          administradora,
+          dec.id,
+          registrarDecisaoSchema.parse({ statusDecisao: 'aprovada', opcaoEscolhida: 'A', referenciaDocumento: DOCUMENTO_DA_VIGENCIA, dataDocumento }),
+          t,
+        );
+        break;
+      default: {
+        const nunca: never = v.decs.aprovado;
+        throw new Error(`seed: nível desconhecido ${String(nunca)}`);
+      }
+    }
+    await criarPacoteDecisao(deps, configurar2fa, demandaId, criarPacoteDecisaoSchema.parse({ ...DEC_DO_E2E, nivelAprovacaoRequerido: v.decs.pendente }), t);
+  }
 }
 
 // 0.4.0 (DEC-DEM-20261111-0017-v1, T10): as demandas do andamento, pelos mesmos serviços da API, na transação do seed.

@@ -134,8 +134,9 @@ describe('seed fictício com o andamento (0.4.0, T10)', () => {
     for (const t of DO_ANDAMENTO) expect(t).toContain('(fictício)');
   });
 
-  it('o total do seed conta as oito novas: 36 demandas, e a mensagem diz o mesmo número', async () => {
-    expect(TOTAL_DEMANDAS_DO_SEED).toBe(36);
+  // 0.4.1 (T10 do DEC-DEM-20261111-0018-v1): mais as quatro da vigência, conferidas em seed-vigencia.test.ts.
+  it('o total do seed conta as oito novas e, desde a 0.4.1, as quatro da vigência: 40 demandas, e a mensagem diz o mesmo número', async () => {
+    expect(TOTAL_DEMANDAS_DO_SEED).toBe(40);
     expect(await contar(b, 'select count(*)::int as n from demanda')).toBe(TOTAL_DEMANDAS_DO_SEED);
     expect(MENSAGENS_SEED.semeado).toContain(`${TOTAL_DEMANDAS_DO_SEED} demandas`);
     const log = linhasDoLog.map((l) => JSON.parse(l) as Record<string, unknown>).filter((l) => l.evento === 'seed_ficticio');

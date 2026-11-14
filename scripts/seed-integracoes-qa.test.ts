@@ -51,6 +51,16 @@ const DO_ANDAMENTO: readonly string[] = [
   TITULOS_DO_E2E.andamentoSemPedido,
   TITULOS_DO_E2E.emConstrucaoSemAndamento,
 ];
+// 0.4.1 (T10 do DEC-DEM-20261111-0018-v1): as três da vigência com DEC, cada uma com o v1 e o v2, na ordem em que o seed
+// cria os DECs (os últimos do seed; as quatro demandas da vigência nascem antes das cinco das integrações).
+const DECS_DA_VIGENCIA: readonly string[] = [
+  TITULOS_DO_E2E.vigenciaComPendente,
+  TITULOS_DO_E2E.vigenciaComPendente,
+  TITULOS_DO_E2E.vigenciaNivelMenor,
+  TITULOS_DO_E2E.vigenciaNivelMenor,
+  TITULOS_DO_E2E.vigenciaArquivar,
+  TITULOS_DO_E2E.vigenciaArquivar,
+];
 
 type Linha = Record<string, unknown>;
 const linhas = async (b: BancoDeTeste, sql: string, valores: unknown[] = []): Promise<Linha[]> => (await b.poolMigrator.query(sql, valores)).rows;
@@ -125,8 +135,8 @@ describe('seed das integrações: log, ordem de criação e molde (banco semeado
       )
     ).map((l) => l.titulo as string);
     expect(ordem).toHaveLength(TOTAL_DEMANDAS_DO_SEED);
-    // É o que dá sentido ao `TOTAL_DEMANDAS_DO_SEED - 13` de scripts.test.ts (terceiro aviso): o 13 é o tamanho deste
-    // bloco mais o das oito do andamento.
+    // É o que dá sentido ao `TOTAL_DEMANDAS_DO_SEED - 17` de scripts.test.ts (terceiro aviso): o 17 é o tamanho deste
+    // bloco mais o das oito do andamento e o das quatro da vigência (0.4.1), que nascem antes dele.
     expect(ordem.slice(-DO_ANDAMENTO.length)).toEqual(DO_ANDAMENTO);
     const antesDoAndamento = ordem.slice(0, -DO_ANDAMENTO.length);
     expect(antesDoAndamento.slice(-DA_T15.length)).toEqual(DA_T15);
@@ -144,6 +154,7 @@ describe('seed das integrações: log, ordem de criação e molde (banco semeado
       TITULOS_DO_E2E.decisaoRecomendaB,
       ...DOS_PEDIDOS,
       ...DO_ANDAMENTO,
+      ...DECS_DA_VIGENCIA,
     ]);
   });
 
