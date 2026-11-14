@@ -71,6 +71,13 @@
       "when": 1794526242801,
       "tag": "0009_rls_andamento_construcao",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794618586039,
+      "tag": "0010_magical_cammi",
+      "breakpoints": true
     }
   ]
 }

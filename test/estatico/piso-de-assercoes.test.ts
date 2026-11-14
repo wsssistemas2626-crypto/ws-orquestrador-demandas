@@ -107,6 +107,9 @@ const PISO: Readonly<Record<string, number>> = {
   // pela rota, id quase igual, bordas do CA-01.2 e o M1 do SB-06): contado ao fim da etapa.
   'src/app/api/pedidos-construcao/situacao-qa.test.ts': 33,
   'test/estatico/situacao-t02-qa.test.ts': 27,
+  // T03 do DEC-DEM-20261111-0018-v1 (SB-07 d, SB-10): contado no fim da tarefa.
+  'src/db/schema/caminhos-da-criacao.test.ts': 9,
+  'test/estatico/migration-0010.test.ts': 4,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
