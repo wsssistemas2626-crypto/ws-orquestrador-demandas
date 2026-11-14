@@ -263,6 +263,12 @@ const PISO: Readonly<Record<string, number>> = {
   // ler_pacote_decisao e pelo id da vista; CV-09 com a regra 2 ampliada para vigenteDe(d)): contado no fim da tarefa.
   'src/app/(painel)/demandas/[id]/detalhe-vigente.test.ts': 24,
   'test/estatico/detalhe-dec.test.ts': 19,
+  // 06-T13-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; CV-09 e G9 na T05: vigenteDe só a importada, d sem sombra,
+  // id do DEC de const não reatribuída, leitura do vigente só no ramo do mais novo arquivado; pelo banco real, nenhum DEC
+  // de outra demanda lido nem mostrado; decVigente incoerente lança): contado no fim da etapa.
+  'test/estatico/detalhe-vigente-qa.test.ts': 28,
+  'src/app/(painel)/demandas/[id]/detalhe-vigente-banco-qa.test.ts': 50,
+  'src/components/dados-das-etapas-arquivamento-qa.test.ts': 15,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
