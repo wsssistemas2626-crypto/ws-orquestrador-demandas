@@ -103,6 +103,10 @@ const PISO: Readonly<Record<string, number>> = {
   'src/app/api/pedidos-construcao/situacao.test.ts': 48,
   'src/app/api/pedidos-construcao/situacao-403.test.ts': 11,
   'test/transversal/sentinelas-situacao.test.ts': 14,
+  // 06-T02-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; oráculo 403 × 404 com o serviço de verdade, consultas
+  // pela rota, id quase igual, bordas do CA-01.2 e o M1 do SB-06): contado ao fim da etapa.
+  'src/app/api/pedidos-construcao/situacao-qa.test.ts': 33,
+  'test/estatico/situacao-t02-qa.test.ts': 27,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
