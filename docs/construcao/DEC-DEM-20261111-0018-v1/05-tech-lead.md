@@ -2,7 +2,7 @@
 pedido: DEC-DEM-20261111-0018-v1
 etapa: 05-plano
 agente: tech-lead
-leu: [pedido.json, docs/superpowers/specs/2026-11-13-ws-orquestrador-demandas-sobras-design.md, parada-P1.md, passagens.jsonl, 01-analista-requisitos.md, 02-arquiteto-solucoes.md, 03-ux-ui-design.md, 04-seguranca-aplicacao.md, padrao-tecnico.md, contrato-passagem.md, .claude/agents/engenheiro-backend.md, .claude/agents/engenheiro-frontend.md, .claude/agents/engenheiro-dados-bd.md (listas Pode), docs/construcao/DEC-DEM-20261111-0017-v1/05-tech-lead.md, docs/construcao/DEC-DEM-20261111-0017-v1/tarefas.json, docs/superpowers/plans/2026-11-12-ws-orquestrador-demandas-plano.md (linhas 1 a 660, 2040 a 2210 e 2700 a 2772), src/modules/acesso/matriz.ts, src/modules/acesso/matriz.test.ts (25 a 104), src/modules/pacotes-decisao/substituido.ts, src/modules/pacotes-decisao/desatualizado.ts, src/modules/pacotes-decisao/decidir.ts, src/modules/pacotes-decisao/decidir.test.ts (436 a 451), src/modules/pacotes-decisao/criar.ts, src/modules/pacotes-decisao/substituicao.test.ts, src/modules/pedido-construcao/conferir.ts, src/modules/pedido-construcao/montar.ts, src/modules/pedido-construcao/gerar.test.ts (300 a 339), src/modules/demandas/transicoes.ts, src/modules/demandas/servico.test.ts (400 a 479), src/modules/andamento/registrar.ts, src/modules/andamento/consultas.ts, src/modules/andamento/consultas.test.ts (1 a 60 e 140 a 229), src/modules/integracoes/tempo-limite.ts, src/modules/integracoes/prazo-total-0019.test.ts (1 a 70), src/lib/rota.ts, src/lib/deps-qa.test.ts, src/db/schema/decisao.ts, src/components/dados-da-decisao.ts, src/components/dados-das-etapas.ts, src/components/dados-do-pedido.ts (1 a 118), src/app/(painel)/pacotes-decisao/[decId]/page.tsx, src/app/(painel)/pacotes-decisao/[decId]/FormularioDecisao.tsx (40 a 79 e 190 a 219), src/app/(painel)/pacotes-decisao/[decId]/pagina.test.ts (1 a 120), src/app/(painel)/demandas/[id]/page.tsx (385 a 444), src/app/api/pedidos-construcao/andamento.test.ts (1 a 200), test/pedidos-construcao.ts (56 a 185), test/banco.ts, test/matriz-rotas.test.ts (1 a 115), test/estatico/andamento.test.ts, test/estatico/piso-de-assercoes.test.ts, test/estatico/decisao-e2e.test.ts (120 a 159), e2e/decisao.spec.ts (440 a 489), e2e/decisao-botoes.spec.ts (265 a 294), scripts/seed-ficticio.ts (80 a 111, 165 a 370 e 380 a 669), vitest.config.ts, 06-T07-engenheiro-dados-bd.md, tarefas.json, src/app/(painel)/demandas/fila-andamento.test.ts (168 a 234), src/modules/andamento/consultas.ts (árvore em 27b117d)]
+leu: [pedido.json, docs/superpowers/specs/2026-11-13-ws-orquestrador-demandas-sobras-design.md, parada-P1.md, passagens.jsonl, 01-analista-requisitos.md, 02-arquiteto-solucoes.md, 03-ux-ui-design.md, 04-seguranca-aplicacao.md, padrao-tecnico.md, contrato-passagem.md, .claude/agents/engenheiro-backend.md, .claude/agents/engenheiro-frontend.md, .claude/agents/engenheiro-dados-bd.md (listas Pode), docs/construcao/DEC-DEM-20261111-0017-v1/05-tech-lead.md, docs/construcao/DEC-DEM-20261111-0017-v1/tarefas.json, docs/superpowers/plans/2026-11-12-ws-orquestrador-demandas-plano.md (linhas 1 a 660, 2040 a 2210 e 2700 a 2772), src/modules/acesso/matriz.ts, src/modules/acesso/matriz.test.ts (25 a 104), src/modules/pacotes-decisao/substituido.ts, src/modules/pacotes-decisao/desatualizado.ts, src/modules/pacotes-decisao/decidir.ts, src/modules/pacotes-decisao/decidir.test.ts (436 a 451), src/modules/pacotes-decisao/criar.ts, src/modules/pacotes-decisao/substituicao.test.ts, src/modules/pedido-construcao/conferir.ts, src/modules/pedido-construcao/montar.ts, src/modules/pedido-construcao/gerar.test.ts (300 a 339), src/modules/demandas/transicoes.ts, src/modules/demandas/servico.test.ts (400 a 479), src/modules/andamento/registrar.ts, src/modules/andamento/consultas.ts, src/modules/andamento/consultas.test.ts (1 a 60 e 140 a 229), src/modules/integracoes/tempo-limite.ts, src/modules/integracoes/prazo-total-0019.test.ts (1 a 70), src/lib/rota.ts, src/lib/deps-qa.test.ts, src/db/schema/decisao.ts, src/components/dados-da-decisao.ts, src/components/dados-das-etapas.ts, src/components/dados-do-pedido.ts (1 a 118), src/app/(painel)/pacotes-decisao/[decId]/page.tsx, src/app/(painel)/pacotes-decisao/[decId]/FormularioDecisao.tsx (40 a 79 e 190 a 219), src/app/(painel)/pacotes-decisao/[decId]/pagina.test.ts (1 a 120), src/app/(painel)/demandas/[id]/page.tsx (385 a 444), src/app/api/pedidos-construcao/andamento.test.ts (1 a 200), test/pedidos-construcao.ts (56 a 185), test/banco.ts, test/matriz-rotas.test.ts (1 a 115), test/estatico/andamento.test.ts, test/estatico/piso-de-assercoes.test.ts, test/estatico/decisao-e2e.test.ts (120 a 159), e2e/decisao.spec.ts (440 a 489), e2e/decisao-botoes.spec.ts (265 a 294), scripts/seed-ficticio.ts (80 a 111, 165 a 370 e 380 a 669), vitest.config.ts, 06-T07-engenheiro-dados-bd.md, tarefas.json, src/app/(painel)/demandas/fila-andamento.test.ts (168 a 234), src/modules/andamento/consultas.ts (árvore em 27b117d), 06-T13-engenheiro-frontend.md, test/estatico/detalhe-dec.test.ts, src/components/dados-das-etapas.test.ts (580 a 682)]
 status: pronto
 proximo: maestro
 devolvido_para: null
@@ -35,6 +35,31 @@ O que mudou (só isto; T01 a T06 e T08 a T14 intocadas):
   passagem só com esse arquivo.
 - **Desvio aceito:** `sortsSobreAndamento` filtra `['Sort', 'Incremental Sort']` (o código do passo 1 no plano foi
   atualizado). Com `=== 'Sort'`, a asserção do CA-07.2 passava com o código antigo; o desvio endurece o teste.
+
+### Volta de 14/11: T13 devolvida pela `06-T13-construcao` (antes do código)
+
+Motivo: o código do Passo 3 da T13 reprova `test/estatico/detalhe-dec.test.ts` (CV-09, teste de segurança: a regra 2
+só aceita o id de `d.pacotesDecisao[0]`) e a varredura do RF-09 em `src/components/dados-das-etapas.test.ts` ("DEC
+arquivado" em `nova` e `em_analise` esperava a linha 13). Os dois estavam fora da G5. O engenheiro provou com as duas
+mudanças aplicadas por um momento (3 falhas em 165) e desfez.
+
+O que mudou, pela decisão do maestro (só isto; T01 a T12 e T14 intocadas, `tarefas.json` sem mudança):
+- **G5, linha nova `detalhe-dec.test.ts` (T13), só acréscimo:** o conjunto `doVigente` (constante criada exatamente
+  como `vigenteDe(d)`); na regra 2, o `.id` dela é aceito só quando a leitura vem depois de
+  `autorizar(pessoa, 'ler_pacote_decisao')`; fora disso, o achado de hoje, com o mesmo texto. As regras, asserções e
+  títulos de hoje ficam. Entra um `it` com cinco casos plantados, com o resultado exato de cada um: a forma certa,
+  `vigenteDe(outra)`, `vigenteDe(d)` lido antes de autorizar, sem autorizar e outro inicializador. Nenhuma asserção sai
+  (14 → ao menos 19).
+- **G5, linha nova `dados-das-etapas.test.ts` (T13), opção (a):** `linhaEsperada` ganha `maisNovoArquivado` e, antes
+  do `return 13` final, devolve 6 em `nova` e `em_analise`. Só as duas combinações "DEC arquivado" nesses status mudam
+  (13 → 6); o número de linhas com `expect(` fica em 109.
+- **PISO (Passo 4 da T13):** entra `test/estatico/detalhe-dec.test.ts` com a contagem do fim da tarefa, ao lado do
+  `detalhe-vigente.test.ts` que já estava previsto.
+- **T13:** parágrafo da volta (a leitura fica em `PaginaDemanda`, por `obterPacoteDecisao` com o nome de hoje;
+  contornar o CV-09 é afrouxar o controle); arquivos com os dois testes da G5; Passo 1 começa pelas duas mudanças da G5
+  (com o caso que falha de cada uma); **item 5 corrigido** para a opção (a): sem vigente, em `nova` e `em_analise`,
+  também a linha 6; Passo 2 roda os quatro arquivos e diz o que falha; Passo 4 com o `PISO` e as provas da entrega.
+- `construir.mjs tarefas`: `{ "ok": true, "erros": [] }`, sem mudança no arquivo.
 
 ### Fases e tarefas
 
@@ -100,8 +125,28 @@ cobertura de cada RF e de cada SB (G10); e a verificação na homologação para
   desatualizado quando o teste roda. Pela 7.1, ela iria a Em análise. Por isso o teste passa a usar uma demanda do seed
   sem DEC aprovado. O título, o alerta, as três conferências e o axe ficam iguais, e `test/estatico/decisao-e2e.test.ts`
   (piso 37) não muda.
+- T13 (volta de 14/11): os casos plantados do `detalhe-dec.test.ts` vão com o resultado exato no plano, e não só
+  descritos. A ampliação da regra 2 é num teste de segurança, e a revisão precisa conferir que nada além de
+  `vigenteDe(d)` depois de autorizar passou a ser aceito. O texto do achado não muda, para que nenhuma asserção de hoje
+  mude.
+- T13: o risco continua `baixo` e o `tarefas.json` não muda. As tarefas T01 a T12 já estão prontas, e a D-03 e a ordem
+  das paradas por risco não estão nesta volta. A atenção ao CV-09 fica com a `06-T13-revisao` e com a `08-revisao`
+  (Pendências).
+- Opção (a) na linha 6: é a 7.2, item 4, e a D-14 como estão escritas. O `pronta_para_decisao` com DEC arquivado
+  continua na 13, como a D-14 já dizia (só `nova` e `em_analise` mudam).
 
 ## Pendências
+
+- Para a `06-T13-construcao` (`engenheiro-frontend`): a tarefa está pronta para construir como o plano diz agora.
+  Repita a regra de comando G0 no prompt e lembre que o `detalhe-dec.test.ts` muda **só** pela linha da G5.
+- Para a `06-T13-revisao`: conferir no `git diff` do `detalhe-dec.test.ts` que só entraram `doVigente`, a condição nova
+  da regra 2, o comentário do topo e o `it` dos cinco casos; que nenhuma linha com `expect(` saiu ou mudou; que o
+  arquivo está no `PISO` com a contagem do fim (ao menos 19); e que `dados-das-etapas.test.ts` mudou só em
+  `linhaEsperada`, na chamada dela e no comentário, com 109 linhas `expect(`.
+- Para a `08-revisao` ratificar: a ampliação da regra 2 do CV-09 (teste de segurança) para `vigenteDe(d)` depois de
+  autorizar, decidida pelo maestro em 14/11 pela autonomia dada por Fabiano. A guarda é textual, como a de hoje: ela
+  confere o nome `vigenteDe` e o argumento `d`, não de onde a função é importada. Um endurecimento possível, fora desta
+  volta, é exigir que `vigenteDe` venha de `components/dados-das-etapas`.
 
 - Leitura fora da lista Pode liberada pelo maestro pela regra de 25/10 em 14/11 03h28 UTC (registro da 05-plano)
 - Leituras fora da lista Pode da primeira passagem liberadas pelo maestro pela regra de 25/10 em 14/11 00h04 UTC (registro da 05-plano)
@@ -211,6 +256,15 @@ cobertura de cada RF e de cada SB (G10); e a verificação na homologação para
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "dados-bd\|T07" -- docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md` — pontos do plano a ajustar
 - `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs tarefas /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261111-0018-v1/tarefas.json` — `{ "ok": true, "erros": [] }`
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — só `tarefas.json` e o plano
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "G5" -- docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md` — volta de 14/11 (T13)
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "autorizar\|obterPacoteDecisao\|Promise.all\|pacotesDecisao\[0\]\|vigenteDe\|dadosDasEtapas" -- "src/app/(painel)/demandas/[id]/page.tsx"` — `autorizar(pessoa, 'ler_pacote_decisao')` na linha 403, antes do `Promise.all`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "PISO\|detalhe\|dados-das-etapas" -- test/estatico/piso-de-assercoes.test.ts test/estatico/piso-de-assercoes-0018.test.ts` — `detalhe-dec.test.ts` fora do `PISO`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -c "expect(" -- test/estatico/detalhe-dec.test.ts src/components/dados-das-etapas.test.ts` — 14 e 109
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "arquivada" -- src/components/dados-das-etapas-andamento.test.ts "src/app/(painel)/demandas/[id]/detalhe.test.ts" src/components/dados-das-etapas.test.ts` — só a varredura cai em `nova`/`em_analise` com DEC arquivado
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "Acompanhar a demanda\|Sem responsável definido" -- e2e src/app test` — só o teste do componente, com dado fixo
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "T13" -- docs/construcao/DEC-DEM-20261111-0018-v1/tarefas.json docs/construcao/DEC-DEM-20261111-0018-v1/05-tech-lead.md`
+- `node /home/deploy/servidor/projetos/estruturaAutonoma/ferramentas/construir/construir.mjs tarefas /home/deploy/servidor/projetos/ws-orquestrador-demandas/docs/construcao/DEC-DEM-20261111-0018-v1/tarefas.json` — `{ "ok": true, "erros": [] }`
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — só o plano (volta da T13)
 
 ## Critério de pronto atendido
 

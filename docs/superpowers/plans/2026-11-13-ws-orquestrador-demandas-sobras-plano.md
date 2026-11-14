@@ -160,6 +160,8 @@ Na revisão de cada tarefa: o comando acima vazio, os diffs parciais acima e a c
 | `src/components/dados-da-decisao.test.ts` | as chamadas de `chegadaNaDecisao` ganham o terceiro argumento `{ statusDaDemanda: 'encerrada', vigente: null }` nos casos de arquivada e `{ statusDaDemanda: 'pronta_para_decisao', vigente: null }` nos outros; nenhuma asserção muda | T12 |
 | `e2e/decisao-botoes.spec.ts:285` | só se a demanda do `decDesatualizado` tiver vigente ou estiver fora das origens: a descrição acessível do Arquivar passa ao texto da 4.6 para o estado dela, e a entrega diz qual | T12 |
 | `src/app/(painel)/demandas/[id]/detalhe.test.ts` e testes de `dados-das-etapas` com DEC mais novo **arquivado** e um aprovado vigente | a etapa 4 passa a mostrar o vigente, "Aprovada, opção X", feita (decisão 7.2, item 3); o dublê de `obterPacoteDecisao` atende os dois ids; nada mais muda | T13 |
+| `test/estatico/detalhe-dec.test.ts` (CV-09, **teste de segurança**; volta de 14/11, decisão do maestro) | **Só acréscimo.** (1) `achadosDoDec` junta, além de `doPacoteMaisNovo`, o conjunto `doVigente`: constantes do corpo de `PaginaDemanda` cujo inicializador, sem espaços, é exatamente `vigenteDe(d)`. (2) Na regra 2, o id também é certo quando é `<c>.id` com `c` em `doVigente` **e** a leitura vem depois de `autorizar(pessoa, 'ler_pacote_decisao')` (`autorizacao >= 0` e `l.getStart() > autorizacao`); fora disso, o achado é o de hoje, com o mesmo texto (`id do DEC fora de d.pacotesDecisao[0]: <id>`). (3) As regras de hoje ficam como estão: `params`, `searchParams`, literal, `d.pacotesDecisao[1]` e falta de id continuam reprovando, com as asserções e os títulos de hoje; o comentário do topo ganha a regra nova. (4) Um `it` novo com cinco casos plantados, todos sobre `pagina(...)` com `V = 'const vigenteResumo = vigenteDe(d);'` e `LE_V = 'const decVigente = vigenteResumo ? await obterPacoteDecisao(deps.db, vigenteResumo.id) : null;'`: `[DEC, AUTORIZA, LE, V, LE_V, REGRAS]` → `[]`; `vigenteDe(outra)` no lugar de `vigenteDe(d)`, depois de autorizar → `['id do DEC fora de d.pacotesDecisao[0]: vigenteResumo.id']`; `[DEC, V, LE_V, AUTORIZA, LE, REGRAS]` → `['obterPacoteDecisao antes de autorizar', 'id do DEC fora de d.pacotesDecisao[0]: vigenteResumo.id']`; `[DEC, V, LE_V, LE, REGRAS]` (sem autorizar) → `["sem autorizar(pessoa, 'ler_pacote_decisao')", 'id do DEC fora de d.pacotesDecisao[0]: vigenteResumo.id']`; constante com outro inicializador (`const vigenteResumo = d.pacotesDecisao.find((p) => p.statusDecisao === 'aprovada');`), depois de autorizar → `['id do DEC fora de d.pacotesDecisao[0]: vigenteResumo.id']`. **Nenhuma asserção sai**: o arquivo vai de 14 a ao menos 19 linhas com `expect(` e entra no `PISO` na T13 | T13 |
+| `src/components/dados-das-etapas.test.ts`, oráculo `linhaEsperada` da varredura do RF-09 (linhas 650 a 661; volta de 14/11, opção (a) do maestro) | `linhaEsperada` ganha o 4º parâmetro `maisNovoArquivado: boolean` (na chamada da linha 661, `nome === 'DEC arquivado'`) e, logo antes do `return 13` final, `if (maisNovoArquivado && (status === 'nova' \|\| status === 'em_analise')) return 6;` (7.2, item 4; D-14, sem condição de vigente). Efeito: "DEC arquivado" em `nova` e `em_analise` passa de 13 a 6; as outras 88 combinações não mudam; o conjunto da linha 667 continua o mesmo (o 6 já está nele); o comentário das linhas 633 e 634 ganha uma linha da 0.4.1. Nenhuma asserção sai e o número de linhas com `expect(` do arquivo (109) não muda. As bordas das linhas 590 a 596 e 617 a 624 (`pronta_para_decisao`, `em_construcao`, `devolvida`) e a da linha 605 (DEC aprovado) não mudam | T13 |
 | testes do seed que contam demandas, versões ou eventos (`scripts/scripts.test.ts`, `scripts/seed-*.test.ts`, `src/db/sementes.test.ts`, `TOTAL_DEMANDAS_DO_SEED`, `MENSAGENS_SEED`) | os totais crescem com as quatro demandas novas; a lista de pendentes **não** muda | T10 |
 | `src/modules/andamento/consultas.test.ts` | o teste da página em `planos (RNF-01)` ganha "e sem Sort sobre ela" no título e a asserção `expect(sortsSobreAndamento(nos)).toEqual([])`; as duas asserções de hoje (índice no texto, nenhum `Seq Scan`) ficam iguais; o resto são acréscimos (T07, passo 1) | T07 |
 | `src/app/(painel)/demandas/fila-andamento.test.ts` | **Só de forma:** o dublê `dbCom` (linhas 193 a 198) e o comentário dele passam a imitar a cadeia nova de `andamentosDasDemandas` (a 1ª chamada de `select` monta a subconsulta `from … where … orderBy … limit … as`; a 2ª é a página `from(demanda) … crossJoinLateral … where`, que devolve as linhas). Nenhuma asserção muda nem sai (linhas 200 a 232), `dbQueFalha` não muda, a contagem de `expect(` do arquivo fica igual à de `41108ee`. `fila-andamento-qa.test.ts` não muda | T07 |
@@ -2030,15 +2032,31 @@ usar o mesmo `db`.
 
 ### T13. T05: barra de etapas e Próxima ação com o DEC mais novo arquivado (7.2, itens 3 e 4)
 
-**Engenheiro:** `engenheiro-frontend` · **Risco:** baixo · **Cobre:** RF-03 (T05), D-14 · **Depende de:** T06, T12 ·
-**Regra de comando:** G0.
+**Engenheiro:** `engenheiro-frontend` · **Risco:** baixo · **Cobre:** RF-03 (T05), D-14, CV-09 (leitura do vigente) ·
+**Depende de:** T06, T12 · **Regra de comando:** G0.
+
+**Volta de 14/11 (devolvida pela `06-T13-construcao` antes do código):** o código do Passo 3 reprovava
+`test/estatico/detalhe-dec.test.ts` (CV-09) e a varredura de `src/components/dados-das-etapas.test.ts`, os dois fora da
+G5. Decisão do maestro: os dois entram na G5 (linhas da T13), a linha 6 vale sem condição de vigente (opção (a)) e o
+`detalhe-dec.test.ts` entra no `PISO` nesta tarefa. A leitura do vigente fica em `PaginaDemanda`, por
+`obterPacoteDecisao` importado com o nome de hoje: mover a leitura, renomear a importação ou ler o DEC por outra função
+para escapar do CV-09 é afrouxar o controle (SB-16), e a revisão devolve.
 
 **Arquivos:**
-- Modificar: `src/components/dados-das-etapas.ts`, `src/app/(painel)/demandas/[id]/page.tsx`; testes da G5;
-  `test/estatico/piso-de-assercoes.test.ts`
+- Modificar: `src/components/dados-das-etapas.ts`, `src/app/(painel)/demandas/[id]/page.tsx`; testes da G5:
+  `src/app/(painel)/demandas/[id]/detalhe.test.ts` e os de `dados-das-etapas` com vigente (se o `pnpm test` apontar),
+  `test/estatico/detalhe-dec.test.ts` (só acréscimo) e `src/components/dados-das-etapas.test.ts` (só o oráculo
+  `linhaEsperada`); `test/estatico/piso-de-assercoes.test.ts`
 - Criar: `src/components/dados-das-etapas-arquivamento.test.ts`; `src/app/(painel)/demandas/[id]/detalhe-vigente.test.ts`
 
 - [ ] **Passo 1: escrever os testes que falham**
+
+Primeiro as duas mudanças da G5, exatamente como lá:
+- `test/estatico/detalhe-dec.test.ts`: o conjunto `doVigente`, a regra 2 ampliada só para `vigenteDe(d)` lido depois de
+  `autorizar(pessoa, 'ler_pacote_decisao')` e o `it` novo com os cinco casos plantados. O caso que aceita a forma certa
+  falha com a regra de hoje; os outros quatro já passam (guarda que nasce verde, nomeada na entrega, G3.1).
+- `src/components/dados-das-etapas.test.ts`: o 4º parâmetro de `linhaEsperada`. Falha antes do código em
+  "nova, DEC arquivado" e "em_analise, DEC arquivado" (esperado 6, recebido 13).
 
 `src/components/dados-das-etapas-arquivamento.test.ts` (unitário; molde de `dados-das-etapas-andamento.test.ts`):
 
@@ -2049,15 +2067,20 @@ usar o mesmo `db`.
 3. `decVigente` com id diferente de `vigenteDe(d)` → lança (dado incoerente, molde de `conferir`).
 4. **7.2, item 4:** v2 arquivado, v1 vigente desatualizado e a demanda em `em_analise` (e em `nova`) → linha 6
    ("Montar o pacote de decisão.", com o link de hoje); em `aprovada` → linha 10 (sem mudança); em `encerrada` → linha 1.
-5. as linhas de hoje sem DEC arquivado não mudam (os testes de `dados-das-etapas*.test.ts` passam).
+5. **sem vigente** (só o v1, arquivado) e a demanda em `nova` ou `em_analise` → também a linha 6, com o link de hoje
+   (opção (a) da volta de 14/11: 7.2, item 4, e D-14 sem condição de vigente; a linha 13 ali era a incoerência que a 03,
+   seção 6.2, aponta); com o mesmo v1 arquivado e sem vigente, em `pronta_para_decisao` continua a 13 e nos outros
+   status, a linha de hoje. As outras linhas de hoje não mudam: os testes de `dados-das-etapas*.test.ts` passam, com a
+   única mudança da G5 no oráculo `linhaEsperada` de `dados-das-etapas.test.ts`.
 
 `src/app/(painel)/demandas/[id]/detalhe-vigente.test.ts` (molde de `detalhe.test.ts`, com `obterPacoteDecisao` dublê):
 a página lê o DEC vigente **só** com o mais novo arquivado e um vigente na demanda, **depois** de
 `autorizar(pessoa, 'ler_pacote_decisao')`; com a demanda inexistente (404) ou a autorização negada, não lê (G9); o HTML
 da barra mostra o v1 na etapa 4.
 
-- [ ] **Passo 2: ver falhar** — `pnpm test src/components/dados-das-etapas-arquivamento.test.ts "src/app/(painel)/demandas/[id]/detalhe-vigente.test.ts"`
-  → FAIL.
+- [ ] **Passo 2: ver falhar** — `pnpm test src/components/dados-das-etapas-arquivamento.test.ts "src/app/(painel)/demandas/[id]/detalhe-vigente.test.ts" test/estatico/detalhe-dec.test.ts src/components/dados-das-etapas.test.ts`
+  → FAIL (no `detalhe-dec.test.ts`, só o caso que aceita a forma certa; no `dados-das-etapas.test.ts`, só as duas
+  combinações "DEC arquivado" em `nova` e `em_analise`).
 
 - [ ] **Passo 3: o código** — em `dados-das-etapas.ts`: `decVigente?: Pick<PacoteDecisaoVista, 'id' | 'decisao' |
   'aprovadores'> | null` em `DadosDasEtapas` (só tipo; a guarda de `test/estatico/dados-das-etapas.test.ts` continua
@@ -2075,8 +2098,12 @@ da barra mostra o v1 na etapa 4.
 
   e `decVigente` entra em `dadosDasEtapas`.
 
-- [ ] **Passo 4: ver passar** — `pnpm test` (segundo plano), `pnpm lint`, `pnpm typecheck`, `pnpm test:e2e`. `PISO`:
-  `src/app/(painel)/demandas/[id]/detalhe-vigente.test.ts` (visibilidade da leitura nova).
+- [ ] **Passo 4: ver passar** — `pnpm test` (segundo plano), `pnpm lint`, `pnpm typecheck`, `pnpm test:e2e`. `PISO`
+  (só acréscimo, cada um com a contagem de `git grep -c "expect("` no fim da tarefa):
+  `src/app/(painel)/demandas/[id]/detalhe-vigente.test.ts` (visibilidade da leitura nova) e
+  `test/estatico/detalhe-dec.test.ts` (CV-09, ao menos 19: os 14 de hoje e os cinco plantados). Na entrega: G4 vazio, a
+  contagem de `expect(` de `dados-das-etapas.test.ts` igual a 109 e o `git diff` dos dois testes da G5 só com o que a
+  G5 descreve.
 
 ### T14. e2e da vigência na T11 e na T05, e versão 0.4.1
 
