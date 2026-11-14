@@ -151,6 +151,11 @@ const PISO: Readonly<Record<string, number>> = {
   // verificação pega o papel do migrator): contado no fim da tarefa.
   'src/lib/deps-qa.test.ts': 8,
   'test/sessoes-do-banco.test.ts': 5,
+  // 06-T08-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; SB-14 adversarial: app, fila e pool do migrator deixam o
+  // C-27 vermelho, falha forçada sem URL, senha, consulta nem endereço, e o superusuário de leitura só no banco de
+  // teste): contado ao fim da etapa.
+  'test/sessoes-do-banco-qa.test.ts': 26,
+  'test/estatico/sessoes-do-banco-qa.test.ts': 66,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
