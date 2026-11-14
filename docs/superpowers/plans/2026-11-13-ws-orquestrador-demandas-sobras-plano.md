@@ -1656,6 +1656,14 @@ export async function papeisDasSessoesDeCliente(pool: pg.Pool, tentativas = 50):
 }
 ```
 
+> **Registro de correção (06-T08-revisao, 14/11/2026).** O código acima, lendo o `pg_stat_activity` pelo `pool` do app,
+> **esconde o migrator**: sem `pg_read_all_stats`, a sessão de outro papel vem com `backend_type` nulo, e o filtro de
+> `client backend` a tira da lista (o CA-04.3 falhou assim na construção). Vale a forma construída em `9da1cf8`: `pool`
+> só dá o nome do banco (`current_database()`), e quem lê as sessões é o superusuário do contêiner descartável de teste
+> (`inject('pgAdmin')`, como em `test/banco.ts`), conectado ao banco `postgres`, com `where datname = $1 and
+> backend_type = 'client backend'`. O filtro de `client backend` só é correção aceitável quando lido por quem vê o
+> `backend_type` de todas as sessões.
+
 - [ ] **Passo 4: ver passar e provar** — `pnpm test src/lib/deps-qa.test.ts test/sessoes-do-banco.test.ts`; depois
   `pnpm test src/lib src/db` **vinte vezes seguidas**, uma por comando, cada uma declarada em `## Comandos executados`
   com o resultado do arquivo (`deps-qa.test.ts` passou, CA-04.1); `pnpm test` (segundo plano), `pnpm lint`,
