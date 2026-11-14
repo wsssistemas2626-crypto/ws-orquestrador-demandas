@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão do sistema | 0.4.0 (andamento do Pedido de Construção informado pelo `/construir`: fase e tarefas prontas, duas mudanças de status automáticas, selo de fase na fila, seção no detalhe e leitura reduzida pelo Awave; ver o [cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040), o [cap. 08](08-painel.md#fila-t03-rf-05-a-rf-07) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.3.1, correções da revisão da 0.3.0: o agente não lê nem grava na demanda do Awave antes da confirmação por pessoa, e recebe o 404 da inexistente; o insumo que chegou cedo roda depois da confirmação; o recebimento do `/construir` só aceita o hash da última entrega; prazo total nas transações das integrações; ver o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#recebimento-confirmar_recebimento_pedido), o [cap. 06](06-agentes-de-ia.md#rf-16-execução-dos-agentes) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.3.0, entraram os atores de integração: o Awave cria demanda e lê as que criou, e o `/construir` busca o Pedido de Construção que uma pessoa gerou e confirma o recebimento; a demanda do Awave só vai a um agente de IA depois da confirmação por pessoa; origem da demanda na fila; ver o [cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030), o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.2.0, o painel ganhou o novo visual ([cap. 08](08-painel.md)) |
-| Atualizado em | 13/11/2026 |
+| Versão do sistema | 0.4.1 (sobras da 0.1.13 e da revisão da 0.4.0: situação do pedido para o `/construir`, D1 também com o nome em vigor na criação do DEC, arquivar o DEC mais novo sem encerrar a demanda que tem um aprovado em vigor, três avisos da vigência na T11, textos revistos pela `ux-ui-design` e o teste C-27 estável; ver o [cap. 04](04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041), o [cap. 05](05-pedido-de-construcao.md#situação-do-pedido-041), o [cap. 08](08-painel.md#avisos-da-vigência-e-arquivar-041) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.4.0, andamento do Pedido de Construção informado pelo `/construir`: fase e tarefas prontas, duas mudanças de status automáticas, selo de fase na fila, seção no detalhe e leitura reduzida pelo Awave; ver o [cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040), o [cap. 08](08-painel.md#fila-t03-rf-05-a-rf-07) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.3.1, correções da revisão da 0.3.0: o agente não lê nem grava na demanda do Awave antes da confirmação por pessoa, e recebe o 404 da inexistente; o insumo que chegou cedo roda depois da confirmação; o recebimento do `/construir` só aceita o hash da última entrega; prazo total nas transações das integrações; ver o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#recebimento-confirmar_recebimento_pedido), o [cap. 06](06-agentes-de-ia.md#rf-16-execução-dos-agentes) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.3.0, entraram os atores de integração: o Awave cria demanda e lê as que criou, e o `/construir` busca o Pedido de Construção que uma pessoa gerou e confirma o recebimento; a demanda do Awave só vai a um agente de IA depois da confirmação por pessoa; origem da demanda na fila; ver o [cap. 02](02-acesso-e-seguranca.md#atores-de-integração-030), o [cap. 03](03-demandas.md#demanda-aberta-pelo-awave-030), o [cap. 05](05-pedido-de-construcao.md#entrega-ao-construir-030) e o [CHANGELOG](../../CHANGELOG.md)). Na 0.2.0, o painel ganhou o novo visual ([cap. 08](08-painel.md)) |
+| Atualizado em | 14/11/2026 |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste manual | `documentacao-tecnica` |
 | Fonte de verdade | o código do ramo (padrão técnico, seção 11). Onde a spec ou o plano dizem outra coisa, vale o código, e a diferença está apontada no capítulo |
@@ -15,8 +15,9 @@ requisitos (RF) que cobre. Variável de ambiente aparece só pelo nome; valor ne
 A spec aprovada na Parada 1 (`docs/superpowers/specs/2026-10-25-ws-orquestrador-demandas-design.md`) ainda descreve o
 C-28 só com e-mail, telefone e CPF e a T11 sem a caixa de confirmação. Vale o código, descrito no
 [cap. 05](05-pedido-de-construcao.md). A substituição do DEC aprovado (0.1.13), que revê a A-02, está descrita no
-[cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado); a atualização da spec (RF-13 e RF-22) fica com o
-maestro do `/construir`.
+[cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado). A atualização da spec (a A-02 e o S-01 no RF-13, os
+CA-22.x e o D1 com o nome da criação no RF-22, o arquivamento da 0.4.1 no RF-07) fica com o maestro do `/construir`
+(RF-09 do pedido 0018); até lá, vale o código, descrito nos caps. 04 e 05.
 
 O novo visual (0.2.0) tem spec própria, `docs/superpowers/specs/2026-11-10-ws-orquestrador-demandas-novo-visual-design.md`,
 com requisitos numerados de RF-01 a RF-17 **do pedido 0015**. Esses números não são os do sistema: o mapa deles está
@@ -40,15 +41,20 @@ O andamento do Pedido de Construção (0.4.0) tem spec própria,
 `docs/superpowers/specs/2026-11-12-ws-orquestrador-demandas-andamento-design.md`, com RF-01 a RF-13 **do pedido 0017**.
 O mapa deles está em [Requisitos do andamento](#requisitos-do-andamento-040).
 
+As sobras da 0.1.13 e da revisão da 0.4.0 (0.4.1) têm spec própria,
+`docs/superpowers/specs/2026-11-13-ws-orquestrador-demandas-sobras-design.md`, com RF-01 a RF-10 **do pedido 0018**.
+O mapa deles está em [Requisitos das sobras](#requisitos-das-sobras-041). A rota de situação ainda não está na spec das
+integrações (fica com o maestro); vale o [cap. 05](05-pedido-de-construcao.md#situação-do-pedido-041).
+
 ## Capítulos
 
 | Cap. | Assunto | Requisitos |
 |---|---|---|
-| [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco, versões da stack e fontes | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-35 |
+| [01](01-arquitetura.md) | Arquitetura, processos, módulos, banco, versões da stack e fontes | RNF-01, RNF-02, RNF-05, ADR-01 a ADR-40 |
 | [02](02-acesso-e-seguranca.md) | Login com 2FA, tokens de agente e de integração, atores de integração, matriz de acesso, CSRF, log | RF-01, RF-02, RNF-10, RNF-12, RNF-13 |
 | [03](03-demandas.md) | Demanda, entrada colando o texto, id, consulta, origem, demanda aberta pelo Awave e confirmação, status (com as transições do `/construir`), dúvida em aberto, histórico | RF-03 a RF-07, RF-15, RF-21 |
-| [04](04-versoes-e-decisao.md) | ESP, RSK e DEC em versões, desatualizado, decisão, substituição do DEC aprovado e dupla aprovação | RF-08 a RF-14 |
-| [05](05-pedido-de-construcao.md) | Pedido de Construção, entrega ao `/construir`, andamento da construção e filtro de pacotes por decisão | RF-22, RF-23 |
+| [04](04-versoes-e-decisao.md) | ESP, RSK e DEC em versões, desatualizado, decisão, substituição do DEC aprovado, arquivamento do DEC mais novo e dupla aprovação | RF-08 a RF-14 |
+| [05](05-pedido-de-construcao.md) | Pedido de Construção (com o nome da criação no D1), entrega ao `/construir`, andamento da construção, situação do pedido e filtro de pacotes por decisão | RF-22, RF-23 |
 | [06](06-agentes-de-ia.md) | Os quatro agentes, uso, teto, interruptor, minimização e as pré-condições para ligar | RF-16 a RF-20 |
 | [07](07-worker-avisos-retencao.md) | Worker, aviso por e-mail e expurgo do texto bruto | RF-24, RF-25 |
 | [08](08-painel.md) | Telas do painel, identidade visual, casca, fila, demanda, decisão, acessibilidade e capturas | RF-26, RNF-11, RNF-16; RF-01 a RF-17 do pedido 0015 |
@@ -69,7 +75,7 @@ Operação em produção (serviços do Easypanel, deploy, rollback, alertas) fic
 | RF-04 | Ids `DEM-AAAAMMDD-NNNN` e `<prefixo>-<demanda>-vN` | [03](03-demandas.md#rf-04-ids) |
 | RF-05 | Entrada colando o texto bruto | [03](03-demandas.md#rf-05-entrada-colando-o-texto) |
 | RF-06 | Consulta com filtros e paginação | [03](03-demandas.md#rf-06-consultar-e-alterar) |
-| RF-07 | Nove status e tabela de transições | [03](03-demandas.md#rf-07-status-e-transições) |
+| RF-07 | Nove status e tabela de transições (desde a 0.4.1, o arquivamento do DEC mais novo segue o aprovado vigente) | [03](03-demandas.md#rf-07-status-e-transições) e [04](04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041) |
 | RF-08 | ESP versionada com os campos de construção | [04](04-versoes-e-decisao.md#rf-08-especificação-técnica-esp) |
 | RF-09 | RSK versionado | [04](04-versoes-e-decisao.md#rf-09-parecer-de-risco-rsk) |
 | RF-10 | DEC cita a ESP e o RSK (os mais novos; na consolidação, os que o agente leu) | [04](04-versoes-e-decisao.md#rf-10-pacote-de-decisão-dec) |
@@ -84,7 +90,7 @@ Operação em produção (serviços do Easypanel, deploy, rollback, alertas) fic
 | RF-19 | Interruptor por agente | [06](06-agentes-de-ia.md#rf-19-interruptor-e-modelo) |
 | RF-20 | Minimização do que vai ao provedor | [06](06-agentes-de-ia.md#rf-20-minimização) |
 | RF-21 | Histórico só de inclusão | [03](03-demandas.md#rf-21-histórico) |
-| RF-22 | Pedido de Construção (desde a 0.3.0, também a entrega ao `/construir`; desde a 0.4.0, o andamento da construção) | [05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido), [05](05-pedido-de-construcao.md#entrega-ao-construir-030) e [05](05-pedido-de-construcao.md#andamento-da-construção-040) |
+| RF-22 | Pedido de Construção (desde a 0.3.0, também a entrega ao `/construir`; desde a 0.4.0, o andamento da construção; desde a 0.4.1, o nome da criação no D1 e a situação do pedido) | [05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido), [05](05-pedido-de-construcao.md#entrega-ao-construir-030), [05](05-pedido-de-construcao.md#andamento-da-construção-040) e [05](05-pedido-de-construcao.md#situação-do-pedido-041) |
 | RF-23 | `GET /api/pacotes-decisao?statusDecisao=` | [05](05-pedido-de-construcao.md#rf-23-pacotes-por-status-de-decisão) |
 | RF-24 | Expurgo diário do texto bruto | [07](07-worker-avisos-retencao.md#rf-24-expurgo-do-texto-bruto) |
 | RF-25 | E-mail de DEC pronto | [07](07-worker-avisos-retencao.md#rf-25-aviso-por-e-mail) |
@@ -160,6 +166,24 @@ Dado/Quando/Então estão em `docs/construcao/DEC-DEM-20261111-0017-v1/01-analis
 | RF-12 | Limite de 60 gravações por DEC e 600 no total por hora | [05](05-pedido-de-construcao.md#limite-conferirlimitedeandamento) |
 | RF-13 | Versão 0.4.0, CHANGELOG, manual e `docs/operacao` | [CHANGELOG](../../CHANGELOG.md), [deploy.md](../operacao/deploy.md) e [tokens-de-integracao.md](../operacao/tokens-de-integracao.md) |
 
+## Requisitos das sobras (0.4.1)
+
+Os RF abaixo são do pedido `DEC-DEM-20261111-0018-v1` (spec de 13/11/2026), e não os do sistema. Os critérios
+Dado/Quando/Então estão em `docs/construcao/DEC-DEM-20261111-0018-v1/01-analista-requisitos.md`.
+
+| RF do pedido | Resumo | Capítulo |
+|---|---|---|
+| RF-01 | `GET /api/pedidos-construcao/<DEC-id>/situacao`, só do `construir`: `vigente` ou `substituido`; o mesmo 404 sem pedido gerado; 403 aos outros (S-02) | [05](05-pedido-de-construcao.md#situação-do-pedido-041), [09](09-referencia-api.md#exemplo-o-construir-consulta-a-situação-do-pedido) e [02](02-acesso-e-seguranca.md#matriz-de-acesso) |
+| RF-02 | D1 também com o nome em vigor na criação do DEC, para o DEC criado a partir da 0.4.1 (S-03) | [05](05-pedido-de-construcao.md#nome-da-criação-041) |
+| RF-03 | Arquivar o DEC mais novo com aprovado vigente: `aprovada`, `em_analise` ou `encerrada` pela tabela; dica e chegada pelo destino (S-04) | [04](04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041), [03](03-demandas.md#rf-07-status-e-transições) e [08](08-painel.md#avisos-da-vigência-e-arquivar-041) |
+| RF-04 | C-27 estável, com a causa registrada e sem asserção a menos | [CHANGELOG](../../CHANGELOG.md) |
+| RF-05 | Textos da T11 revistos pela `ux-ui-design` | [08](08-painel.md#avisos-da-vigência-e-arquivar-041) |
+| RF-06 | Três avisos da vigência na T11, só informativos | [08](08-painel.md#avisos-da-vigência-e-arquivar-041) |
+| RF-07 | Fila lê uma linha de andamento por demanda, sem `Sort` sobre `andamento_construcao` (B-08-1) | [01](01-arquitetura.md#módulos) |
+| RF-08 | `registrar-qa.test.ts` e os testes de segurança da 0.3.x e da 0.4.0 no piso de asserções (B-08-2) | [CHANGELOG](../../CHANGELOG.md) e [08](08-painel.md#acessibilidade-rnf-11) |
+| RF-09 | Spec do sistema e das integrações atualizadas | fica com o maestro (ver acima); vale o código, nos caps. 03, 04 e 05 |
+| RF-10 | Versão 0.4.1, CHANGELOG, manual e `docs/operacao` | [CHANGELOG](../../CHANGELOG.md), [tokens-de-integracao.md](../operacao/tokens-de-integracao.md) e [deploy.md](../operacao/deploy.md) |
+
 ## Glossário
 
 Cada termo significa a mesma coisa em todos os capítulos.
@@ -172,7 +196,10 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | DEC | Pacote de decisão, em versões (`DEC-<demanda>-vN`); cita uma ESP e um RSK |
 | Versão | Linha gravada de ESP, RSK ou DEC. Não muda depois de gravada; mudar é gravar a próxima |
 | Desatualizado | DEC que cita ESP ou RSK de versão menor que a mais nova da demanda |
-| Aprovado vigente | O DEC de maior versão da demanda com decisão `aprovada`; o único que gera o Pedido de Construção (desde a 0.1.13, [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)) |
+| Aprovado vigente | O DEC de maior versão da demanda com decisão `aprovada`; o único que gera o Pedido de Construção (desde a 0.1.13, [cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)). Na tela, o termo é "em vigor" ("o pacote em vigor") |
+| Em vigor | O termo de tela para o aprovado vigente, nos avisos, na dica e na chegada da T11 (desde a 0.4.1) |
+| Situação do pedido | A resposta da rota `GET /api/pedidos-construcao/<DEC-id>/situacao`: `vigente` ou `substituido` (desde a 0.4.1, [cap. 05](05-pedido-de-construcao.md#situação-do-pedido-041)). Não é a situação da construção nem o status da demanda, e não aparece em texto de tela |
+| Caminhos da criação | A coluna `caminhos_com_nome_na_criacao` do DEC: os caminhos dos textos que tinham o nome do solicitante em vigor na criação, sem o nome. Nula no DEC anterior à 0.4.1 (desde a 0.4.1, [cap. 05](05-pedido-de-construcao.md#nome-da-criação-041)) |
 | Substituído | DEC com decisão `aprovada` que não é o aprovado vigente da demanda. Calculado na leitura (`substituido`, `substituidoPor`), sem status próprio; não gera Pedido de Construção (desde a 0.1.13) |
 | Status final | `entregue` ou `encerrada`: status sem transição manual de saída (`STATUS_FINAIS`, `transicoes.ts`). Não aceita ESP, RSK nem DEC novos, decisão de DEC nem geração de Pedido |
 | Decisão | `aprovada` (opção A ou B), `devolvida` ou `arquivada`, registrada uma vez por DEC; sem decisão, o DEC está `pendente` |
@@ -189,7 +216,7 @@ Cada termo significa a mesma coisa em todos os capítulos.
 | Entrega e recebimento | A entrega é o `/construir` buscar o pedido (evento `pedido_entregue`, com o SHA-256 dos bytes); o recebimento é ele confirmar que gravou os mesmos bytes (evento `pedido_recebido`). Nenhum dos dois muda status (desde a 0.3.0). Desde a 0.3.1, o recebimento só aceita o hash da última entrega |
 | Andamento da construção | O que o `/construir` informa de um Pedido de Construção gerado no painel: a fase, as tarefas prontas e o total de tarefas do plano e a situação da construção. Fica uma linha por gravação em `andamento_construcao`, e vale o último da demanda (desde a 0.4.0, [cap. 05](05-pedido-de-construcao.md#andamento-da-construção-040)) |
 | Fase | Etapa da construção no `/construir`: Entendendo o pedido, Planejando, Construindo, Testando, Revisando e entregando ou Documentando (`FASES_ANDAMENTO`, desde a 0.4.0) |
-| Situação da construção | O campo `status` do corpo do andamento (`statusConstrucao` no código): `em_construcao` ("Em andamento"), `construido` ("Concluída") ou `cancelado` ("Cancelada"). Não é o status da demanda (desde a 0.4.0) |
+| Situação da construção | O campo `status` do corpo do andamento (`statusConstrucao` no código): `em_construcao` ("Em andamento"), `construido` ("Concluída") ou `cancelado` ("Cancelada"). Não é o status da demanda (desde a 0.4.0) nem a situação do pedido (desde a 0.4.1) |
 | Mesmo estado | Andamento com DEC, fase, tarefas prontas, total e situação iguais aos do último gravado na demanda. Responde 204 sem gravar nada (desde a 0.4.0) |
 | Mudança de marco | O primeiro andamento da demanda, ou fase, situação ou DEC diferente do último. Só ela grava o evento `andamento_registrado` (A2, desde a 0.4.0) |
 | Selo de fase | Texto abaixo do status da demanda em Em construção, na fila, com a fase e as tarefas ("Construindo · 9/17"), "Construção concluída" ou "Construção cancelada" (desde a 0.4.0, [cap. 08](08-painel.md#fila-t03-rf-05-a-rf-07)) |

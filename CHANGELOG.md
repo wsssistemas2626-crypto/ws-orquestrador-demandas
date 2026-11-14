@@ -3,6 +3,261 @@
 Registro do que entra em cada versão do WS Orquestrador de Demandas e do que fica pendente. Dono:
 `documentacao-tecnica` (sistema: Fabiano).
 
+## 0.4.1 — 2026-11-14
+
+Melhoria do pedido `DEC-DEM-20261111-0018-v1` (cadeia completa, risco baixo): **as sobras da 0.1.13 e da revisão final
+da 0.4.0**. Fabiano aprovou, como CTO, em 11/11, com os acréscimos de 13/11 (B-08-1 e B-08-2) e de 14/11 (migration
+pelo serviço `migrar` do Easypanel). Base: a `main` da 0.4.0 (`41108ee`, merge do PR #19), em produção desde 13/11.
+Spec: `docs/superpowers/specs/2026-11-13-ws-orquestrador-demandas-sobras-design.md`; plano, com 14 tarefas:
+`docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md`.
+
+Fecha, do lado do Orquestrador, as pendências S-02, S-03 e S-04 da 0.1.13 (com os limites escritos abaixo), o teste
+instável C-27, os textos da T11 que esperavam a `ux-ui-design` e os dois baixos da revisão da 0.4.0 (B-08-1 e B-08-2).
+Nenhum controle existente foi afrouxado. Não há processo, fila, job, pacote nem variável de ambiente novos. **Há uma
+migration, a `0010`, só aditiva**: a coluna `caminhos_com_nome_na_criacao` (`text[]`, anulável, sem padrão) em
+`pacote_decisao`.
+
+Ainda não foi publicada. O merge e a publicação são de Fabiano, pela "Publicação 0.4.0 → 0.4.1" do
+`docs/operacao/deploy.md`, seção 5. É a primeira publicação com a migration pelo serviço `migrar` do Easypanel:
+
+1. antes do merge: criar o serviço `migrar` pelo roteiro da seção 2 e deixá-lo parado; "Auto Deploy" desligado no
+   `app`, no `worker` e no `migrar`; as imagens da 0.4.0 rotuladas `:v0.4.0`; **nenhum outro merge** até o fim da
+   publicação;
+2. o snapshot, só depois de ler o aviso de que hoje ele congela a VPS, e o merge. O merge traz a `0010`, então o
+   `deploy.yml` não chama os webhooks;
+3. backup, com o aviso do maestro;
+4. o Deploy do `migrar` até o log mostrar `Migrations aplicadas.` e, logo depois, o `migrar` parado. Em erro, pare o
+   `migrar` na hora, porque o contêiner sobe de novo e tenta outra vez, em laço. O comando pelo terminal (linha `!`)
+   continua como alternativa;
+5. o Deploy do `worker` e depois o do `app`, e a conferência.
+
+A volta (seção 6) tem um destino só: a 0.4.0, **com o backup restaurado** e o `migrar` parado. Se o `migrar` subisse
+depois da restauração, ele aplicaria a `0010` de novo. O que foi gravado depois do backup se perde. Antes de voltar,
+veja se o problema pede mesmo a volta: o D1 mais forte e o arquivamento do S-04 se resolvem sem ela.
+
+### O que muda para quem usa
+
+- **Arquivar o pacote mais novo não encerra mais a demanda que tem um pacote aprovado em vigor** (S-04, decisão S1 de
+  Fabiano). Com a demanda em Nova, Em análise, Aguardando informação ou Pronta para decisão, arquivar o pacote mais
+  novo leva a demanda:
+  - para Aprovada, se há um pacote aprovado em vigor e atualizado. Ele continua gerando o Pedido de Construção;
+  - para Em análise, se o pacote em vigor está desatualizado (decisão 7.1). Com a demanda já em Em análise, nada muda;
+  - para Encerrada, se não há pacote aprovado, como antes.
+
+  Fora desses quatro status (Aprovada, Em construção e Devolvida pela construção), arquivar não muda o status. A
+  mudança é do ator "Sistema". Devolver não mudou.
+- **A dica do Arquivar diz o destino certo**, pela mesma tabela do servidor:
+  - "Arquivar: a demanda vai para Aprovada, e <v> continua em vigor.";
+  - "Arquivar: a demanda vai para Em análise, porque <v>, o pacote em vigor, está desatualizado.";
+  - "Arquivar: a demanda vai para Encerrada.";
+  - "Arquivar: a demanda continua em <Status>.".
+
+  O alerta depois de arquivar sai do status gravado, nunca da URL: "Pacote arquivado. A demanda foi para Encerrada.",
+  "Pacote arquivado. A demanda está em Aprovada, e <v> continua em vigor." ou "Pacote arquivado. A demanda está em
+  <Status>.".
+- **Três avisos novos na T11**, só com a demanda fora de status final. Eles só informam: não habilitam nem escondem
+  botão, e a regra continua no servidor.
+  - (a) No pacote pendente mais novo, quando a demanda já tem um pacote aprovado em vigor: "Esta demanda já tem um
+    pacote aprovado em vigor: <v>. Quando a aprovação deste pacote ficar completa, ele passa a valer no lugar de <v>, e
+    um pedido já gerado de <v> deixa de valer.", com o link "Abrir o pacote <v>".
+  - (b) No pacote em vigor, quando há um pacote mais novo pendente que pode substituí-lo: "Há um pacote mais novo
+    pendente nesta demanda: <p>. Quando a aprovação dele ficar completa, ele passa a valer no lugar deste, e um pedido
+    já gerado deste pacote deixa de valer.", com o link "Abrir o pacote <p>".
+  - (c) No pacote pendente só do CTO, quando o pacote em vigor exigiu CTO e administradora: "A aprovação deste pacote
+    será recusada: …", com o link "Criar pacote novo". Nesse caso, o (a) não aparece.
+- **Textos revistos pela `ux-ui-design`** (eram da triagem da 0.1.13): o aviso e o link do pacote substituído, o 409
+  do substituído na geração, a frase do histórico ("<DEC> foi substituído por <DEC>, aprovado depois dele"), a linha 6
+  da orientação do 422 (com um texto próprio para o pacote de dupla aprovação) e o 409 do S-01. O selo "Substituído"
+  não mudou. Os textos completos estão no [manual, cap. 08](docs/manual-tecnico/08-painel.md#avisos-da-vigência-e-arquivar-041).
+- **Na T05**, com o pacote mais novo arquivado e um aprovado em vigor, a etapa 4 da barra mostra o pacote em vigor
+  ("Aprovada, opção X"). A Próxima ação "Montar o pacote de decisão." vale também com o pacote mais novo arquivado e a
+  demanda em Nova ou Em análise.
+- **O D1 recusa também pelo nome que valia quando o pacote foi criado** (S-03). Trocar o nome do solicitante na
+  demanda não faz mais passar um pacote antes recusado. Vale para o pacote criado a partir da 0.4.1; o anterior confere
+  só o nome atual (limite abaixo).
+- **Fila:** nada muda na tela. A leitura do andamento das demandas da página ficou mais leve (B-08-1).
+
+A regra completa está no manual: [cap. 04](docs/manual-tecnico/04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041),
+[cap. 05](docs/manual-tecnico/05-pedido-de-construcao.md#situação-do-pedido-041) e
+[cap. 08](docs/manual-tecnico/08-painel.md#avisos-da-vigência-e-arquivar-041).
+
+### O que mudou na API
+
+- **Rota nova**, só para a integração `construir` (S-02): `GET /api/pedidos-construcao/:decId/situacao`.
+  - 200 `{ "situacao": "vigente" }` ou `{ "situacao": "substituido" }`, só para DEC com Pedido de Construção gerado
+    por pessoa. `vigente` é o aprovado mais novo da demanda: a mesma conta do 409 `decSubstituido` do andamento, então
+    a rota responde `substituido` se e só se o andamento desse DEC recebe esse 409.
+  - 404 igual, com o mesmo corpo, para DEC inexistente, sem pedido gerado por pessoa ou com o vínculo DEC ↔ demanda
+    diferente.
+  - Pessoa, agentes e Awave: 403. Prazo total de 8 s: 503 `indisponivel`.
+  - Não grava nada, nem evento. A resposta não traz o status da demanda, o id do substituto nem texto.
+  - A situação **informa, não autoriza**: a entrega, o recebimento e o andamento continuam com as recusas deles.
+- Textos novos nos 409 do `PATCH .../decisao` (S-01) e do `POST .../pedido-construcao` (DEC substituído).
+- `PATCH .../decisao` com `arquivada`: o status da demanda depois segue a tabela nova do S-04.
+- Sem mudança: as outras rotas e as vistas de pessoa, de agente e do Awave. A coluna nova não sai em nenhuma resposta.
+
+Referência completa no [manual, cap. 09](docs/manual-tecnico/09-referencia-api.md#exemplo-o-construir-consulta-a-situação-do-pedido).
+
+### O que mudou no código
+
+- **Matriz** (`src/modules/acesso/matriz.ts`, SB-01): a ação `ler_situacao_pedido`, na linha `SO_CONSTRUIR`. São 25
+  ações; o `construir` tem exatamente cinco, e o `awave`, duas.
+- **Situação** (ADR-36): `src/modules/pedido-construcao/situacao.ts`, só de leitura, sem trava nem evento, com o
+  orçamento `padrao` e o prazo total das integrações; a rota fina
+  `src/app/api/pedidos-construcao/[decId]/situacao/route.ts`.
+- **Nome da criação** (ADR-37, SB-07, SB-08):
+  - `drizzle/0010_magical_cammi.sql`, gerada:
+    `ALTER TABLE "pacote_decisao" ADD COLUMN "caminhos_com_nome_na_criacao" text[]`. Nenhuma linha muda, e o `GRANT`
+    da `0003` já cobre a coluna;
+  - a criação do DEC (`pacotes-decisao/criar.ts`) grava, sob a trava da demanda, os **caminhos** dos textos que tinham
+    o nome do solicitante. Não grava o nome nem um hash dele;
+  - a conferência (`pedido-construcao/conferir.ts`) lê a coluna por uma lista de permissão
+    (`caminhos-da-criacao.ts`) e falha fechada (500) com valor fora do formato;
+  - `montar.ts`: `textosDoPedido` e `textosDaCriacao` saem de uma função só.
+- **Arquivamento** (ADR-38, SB-11): a tabela pura `destinoDoArquivamento` (`demandas/arquivamento.ts`), lida pelo
+  servidor e pela T11; `mudarStatusPorArquivamento` em `transicoes.ts`, no lugar da automática `decisao_arquivada`;
+  `vigenteDaDemanda` em `substituido.ts`, lido por `decidir.ts` sob a trava, depois de gravar a decisão.
+- **Fila** (ADR-39, B-08-1): `andamentosDasDemandas` (`andamento/consultas.ts`) lê, por `cross join lateral … order by
+  id desc limit 1`, no máximo uma linha de andamento por demanda da página, pelo índice de hoje. O teste de plano passa
+  a exigir que não haja `Sort` sobre `andamento_construcao`, e as duas asserções de antes continuam.
+- **Painel** (ADR-40): `avisoDeVigencia`, `dicaDoArquivar` e `chegadaNaDecisao` em `dados-da-decisao.ts`; a T11 lê
+  `vigenteDaDemanda` só depois de autorizar; `orientacaoDoPedido` recebe o nível do DEC (`dados-do-pedido.ts`); a frase
+  do histórico em `rotulos.ts`; a etapa 4 e a linha 6 em `dados-das-etapas.ts`; os textos de `MENSAGENS_PEDIDO` e
+  `MENSAGENS_DECISAO`.
+- **C-27** (teste instável de `src/lib/deps-qa.test.ts`). **Causa provável:** o caso lia todas as sessões do banco do
+  teste no `pg_stat_activity`, inclusive os processos de fundo do Postgres. Na suíte inteira, com centenas de bancos
+  copiados do `modelo`, o autovacuum entra no banco novo logo depois da primeira atividade e aparece sem papel. Daí a
+  falha do CI na 0.1.13: `[orquestrador_app, null]`. A causa não foi reproduzida em 11 execuções locais e foi achada por
+  eliminação sobre a falha registrada. **Correção:** a verificação (`test/sessoes-do-banco.ts`) conta só as sessões de
+  cliente (`backend_type = 'client backend'`), mantém o `distinct` e o `toEqual(['orquestrador_app'])`, e espera por
+  tentativas contadas a sessão ainda sem papel. Ela lê o `pg_stat_activity` pelo superusuário do banco descartável de
+  teste, porque, pelo papel do app, a sessão de outro papel vem com `backend_type` nulo e seria escondida. Um teste
+  permanente prova que uma conexão do migrator no mesmo banco faz a verificação falhar (CA-04.3). Nenhuma asserção
+  retirada (8 linhas com `expect(` antes e depois), e o arquivo entrou no piso de asserções. As 20 execuções seguidas
+  depois da correção passaram (`06-T08-engenheiro-backend.md`).
+- **Piso de asserções** (B-08-2, SB-15): `test/estatico/piso-de-assercoes.test.ts` ganhou o `registrar-qa.test.ts`
+  (69), os testes de segurança da 0.3.0, da 0.3.1 e da 0.4.0 que estavam fora (38 entradas no total), o
+  `deps-qa.test.ts` (8), o `test/sessoes-do-banco.test.ts` e os testes de segurança novos deste pedido. Nenhuma entrada
+  saiu e nenhum valor desceu (`test/estatico/piso-de-assercoes-0018.test.ts`).
+- **Seed** (`scripts/seed-ficticio.ts`): quatro demandas fictícias da vigência, pela conta `configurar2fa`. São 40 no
+  total (eram 36).
+- **Testes:** 9.276 no Vitest, em 396 arquivos. Cobrem os pares exatos da matriz, os três 404 iguais byte a byte, o
+  403 sem consulta ao banco, as sentinelas de log, a corrida da criação com a troca do nome, o arquivamento com duas
+  conexões e o plano da fila sem `Sort`. O e2e novo `e2e/vigencia.spec.ts` confere os três avisos e o arquivamento, com
+  o axe nas duas larguras. Os testes que mudaram de sentido são os aprovados de antemão pelo SB-16: o par novo da
+  matriz, a rota nova, `encerrada` → `aprovada` com vigente atualizado e os textos da `ux-ui-design`.
+- **Versão:** o `package.json` passou de 0.4.0 para 0.4.1.
+- **Documentação:**
+  - estas notas e o `README.md`;
+  - o manual técnico: caps. 04 (arquivamento, regra de uso revista, S-03 e "Limite conhecido") e 08 (avisos, dica e
+    chegada na T11; etapa 4 e linha 6 na T05); caps. 01, 02, 03, 05, 09 e 10; o índice, o mapa dos RF do pedido e o
+    glossário;
+  - o `docs/operacao/tokens-de-integracao.md`, com o que o token `construir` passa a ler;
+  - no `docs/operacao/deploy.md`, a versão. As seções 1 a 6 e 10 vieram da `09-devops-sre.md`.
+
+### O que ficou fora desta versão
+
+Pela spec (seção 6), não entraram:
+
+- o lado do `/construir` do S-02 (a `00-inicio` parar com DEC substituído e o aviso por e-mail): é da outra frente e
+  depende desta rota no ar;
+- o `/construir` cancelar sozinho uma construção em curso;
+- o envio do andamento sem rodar git na pasta dos agentes (item 10 do pedido, na estruturaAutonoma);
+- a rota de situação dizer o status da demanda, o id do substituto ou um terceiro valor; evento por consulta; limite de
+  taxa na rota;
+- "Aprovar" indisponível no caso (c) e a dica do Devolver fora das origens: pedido futuro;
+- o EXP-01 da 0.4.0, que segue como ponto de produto aberto;
+- as dívidas da 0.4.0 que não estavam na ESP (abaixo) e a instabilidade de tempo de outros arquivos;
+- deploy, migration em produção e token, que são de Fabiano.
+
+### Verificações desta versão
+
+- `pnpm test`: 9.276 de 9.276, em 396 arquivos (`06-T14-qa-automacao.md`).
+- `pnpm lint` e `pnpm typecheck` limpos (`06-T14-qa-automacao.md`).
+- `pnpm test:e2e`, contra o build de produção: verde em três execuções seguidas, com 294 passando, as 9 capturas
+  puladas e nenhuma falha (`06-T14-qa-automacao.md`). Na homologação, 285 passaram (`09-devops-sre.md`).
+- C-27: 20 execuções seguidas de `pnpm test src/lib src/db`, com o paralelismo padrão da máquina (8 vCPU, igual ou maior
+  que o do CI), sem falha. A suíte inteira passou depois da correção.
+- Revisão de código e de segurança (`08-maestro.md`): Workflow com seis revisores e verificação adversarial de cada
+  achado, a pedido de Fabiano. Nenhum achado crítico, alto nem médio. Dois baixos tiveram voto dividido e ficam como
+  pendência conhecida (R-08-1 e R-08-2, abaixo).
+- Imagem (`docker build`): 1,78 GB em disco e 442 MB de conteúdo (na 0.4.0, 441 MB). Nenhuma dependência nova.
+- Ensaio de rollback 0.4.1 → 0.4.0: `alteram_dado: false` e **`volta_sem_restaurar: false`**. A 0.4.0 só volta com o
+  backup restaurado, e isso é o esperado.
+- **Não rodaram:** as medidas de tempo do RNF-01 (rota de situação, 50 chamadas na homologação, p95 até 500 ms) e do
+  RNF-05 (fila com 5.000 demandas e 6.000 linhas de andamento, p95 abaixo de 500 ms, na `main` e no ramo). Hoje, a
+  prova do B-08-1 é o plano da consulta, sem `Sort` e com no máximo uma linha lida por demanda.
+- O CI do PR fica para a Parada 3. Ele é também a prova definitiva do C-27, porque roda a suíte inteira como na falha
+  registrada.
+
+### Pendências abertas
+
+Para Fabiano:
+
+- **Publicação** (`deploy.md`, seções 2 e 5). Antes do merge, criar o `migrar` e conferir os itens do passo 1 (acima).
+  Dois pontos do roteiro não foram verificados e são confirmados pelo teste seco opcional da seção 2: o nome exato dos
+  campos do Easypanel (comando, réplicas, parar) e o Swarm subir de novo o contêiner que sai com erro. O teste seco roda
+  com o papel dono do banco contra a produção; fazê-lo é decisão sua.
+- **Risco do `migrar`, para aceite com a `seguranca-aplicacao`:** a URL do migrator, com o papel dono do banco, fica
+  guardada na configuração do serviço no Easypanel. Ela é legível a quem lê a configuração do serviço no Docker do
+  host, inclusive o usuário dos agentes enquanto a D-F3 (agentes sem docker) não for executada. A saída é usar o
+  caminho `!` e apagar o `migrar`.
+- **Aceite formal do risco residual** com a `gestao-riscos` (decisão 7.2, item 11), todos baixos:
+  - o DEC criado antes da 0.4.1 confere só o nome atual do solicitante;
+  - a rota de situação não tem limite de taxa;
+  - um DEC pode ser substituído entre a resposta `vigente` e o início da construção.
+- **S-02 do lado do `/construir`** (outra frente): a `00-inicio` parar com DEC substituído e o envio de andamento
+  avisar por e-mail. O cliente deve falhar fechado: com 503, erro de rede ou tempo esgotado, não iniciar e tentar de
+  novo; com 404, tratar como fora do Orquestrador; com 401 ou 403, parar a volta. **Até isso entrar, a regra de uso do
+  S-02 continua valendo**: antes de usar um pedido, confira na T05 que o pacote dele não está "Substituído"
+  ([manual, cap. 04](docs/manual-tecnico/04-versoes-e-decisao.md#substituição-do-dec-aprovado)).
+- **Pendências conhecidas da revisão final** (baixos com voto dividido, não defeitos):
+  - **R-08-1:** com o pacote mais novo arquivado, o pacote em vigor desatualizado e a demanda em Em análise, a barra da
+    T05 marca a etapa 4 como feita e a 5 como atual, mas a Próxima ação diz "Montar o pacote de decisão.". O servidor
+    continua recusando o pedido do pacote em vigor (409 de desatualizado), então o efeito fica só na leitura da tela. É
+    o que a decisão 7.2, itens 3 e 4, manda, e um teste trava esse comportamento. Se confundir, a etapa 4 pode deixar de
+    marcar como feito o pacote em vigor desatualizado, mas isso é mudança de decisão de produto;
+  - **R-08-2:** o `src/components/dados-das-etapas-arquivamento.test.ts` não está no piso de asserções. O caso que ele
+    cobre está repetido no `-qa`, que está no piso, e o link sai do mesmo guarda da `main`. Sugestão para a dívida: pôr
+    o arquivo no piso com a contagem atual.
+- **Spec do sistema e spec das integrações** (RF-09, CA-09.1): a A-02 e o S-01 no RF-13, os CA-22.x e o D1 com o nome
+  da criação no RF-22, o arquivamento no RF-07 e a rota de situação na spec das integrações. As specs ficam fora da
+  lista do que a `10-documentacao` edita; a atualização fica com o maestro, na Parada 3, com o texto proposto na
+  `10-documentacao-tecnica.md` deste pedido. Vale o código, descrito no manual.
+- **UAT** na homologação, nunca em produção: refazer o seed antes, porque o e2e grava em duas demandas da vigência; o
+  roteiro da `07-qa-funcional.md`, seção 5; o leitor de tela (R-A11Y.1 a 4) e as exploratórias EXP-01, EXP-02 e EXP-07.
+- **RNF-01 e RNF-05:** medir antes do PR, pelo maestro ou com os comandos liberados por você.
+- **Pedido futuro:** "Aprovar" indisponível no caso (c) e a dica do Devolver fora das origens (`desenvolvimento-produto`);
+  no job de anonimização, decidir se a coluna nova é mantida ou recalculada e conferir que "Solicitante removido" não
+  conta como nome no D1.
+
+Para outras áreas:
+
+- `qa-automacao` e `qualidade`: a causa do C-27 ficou como provável. As 20 execuções usaram o paralelismo padrão da
+  máquina, porque o `--maxWorkers` do CI não estava liberado. Se o CI falhar de novo nesse caso, a mensagem agora mostra
+  `backend_type`, `usename` e `state` de cada sessão.
+- `tech-lead`: o passo 3 da T08 no plano e o texto do SB-14 dão como aceitável filtrar `client backend` lendo pelo pool
+  do app, o que esconde o migrator. Corrigir o texto para a próxima vez (a correção feita usa um observador).
+- `qa-automacao` e `qualidade`: instabilidade de tempo sob carga, conhecida, em arquivos que não usam código deste
+  pedido: `scripts/scripts.test.ts` T33, `test/desempenho/leitura.test.ts` (p95), `src/app/api/saude/route.test.ts`,
+  `resumo-da-fila`, `minimizar` e, agora, `e2e/reflow-qa.spec.ts:152`, que mediu 5,5 s, 6,1 s e 18,1 s. Se o CI do PR
+  falhar num deles, só conta como instabilidade a falha que passa quando o arquivo roda sozinho, e ela fica registrada,
+  nunca contornada.
+- `qa-automacao`: o piso conta linhas com `expect(`, então uma tabela de `it.each` não conta asserção. Fica para um
+  pedido futuro.
+- Dívida das revisões por tarefa, sem efeito para quem usa: a dica do Arquivar calculada em toda abertura da T11
+  (`page.tsx:164`); o comentário de bloco de `dados-do-pedido.ts:46`; a guarda do CV-09, que confere o nome `vigenteDe`
+  e o argumento, mas não de onde a função é importada; e os Minors de cada `06-Tnn-tech-lead.md`.
+- `devops-sre`, herdadas: o `deploy.yml` comparar `drizzle/` com o commit em produção, e não com o push anterior; e
+  tirar o `--prod` do `pnpm audit` no CI.
+- `seguranca-informacao`, herdadas: o `x-real-ip` forjável pela rede interna do Easypanel e o `pnpm audit` sem
+  `--prod`.
+- As capturas do cap. 08 continuam as da 0.2.0 e não mostram os avisos nem a dica nova.
+
+Fecham com esta versão: da 0.1.13, o S-02 do lado do Orquestrador, o S-03, o S-04 e os textos e os três avisos da
+T11; da 0.4.0, o B-08-1 e o B-08-2. Seguem como estavam, sem mudança neste pedido, as outras pendências da 0.4.0
+(entre elas o EXP-01 e as dívidas das revisões por tarefa) e as que ela herdou.
+
 ## 0.4.0 — 2026-11-13
 
 Melhoria do pedido `DEC-DEM-20261111-0017-v1` (cadeia completa, risco médio): **o andamento do Pedido de Construção,

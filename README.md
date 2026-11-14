@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.4.0 (`package.json`) |
-| Atualizado em | 13/11/2026 (0.4.0: andamento do Pedido de Construção informado pelo `/construir`); 12/11/2026 (0.3.1: correções da revisão da 0.3.0 antes dos tokens de produção; 0.3.0: integrações `awave` e `construir`) |
+| Versão | 0.4.1 (`package.json`) |
+| Atualizado em | 14/11/2026 (0.4.1: situação do pedido para o `/construir`, D1 com o nome da criação, arquivamento com pacote em vigor, avisos da T11, C-27 e migration pelo serviço `migrar`); 13/11/2026 (0.4.0: andamento do Pedido de Construção informado pelo `/construir`); 12/11/2026 (0.3.1: correções da revisão da 0.3.0 antes dos tokens de produção; 0.3.0: integrações `awave` e `construir`) |
 | Dono do sistema | Fabiano (CTO) |
 | Dono deste documento | `documentacao-tecnica` |
 | Repositório | `wsssistemas2626-crypto/ws-orquestrador-demandas` (privado) |
@@ -64,6 +64,20 @@ prontas e a situação da construção ([manual, cap. 05](docs/manual-tecnico/05
 - o envio nasce desligado no `/construir` e só liga depois da publicação
   ([docs/operacao/deploy.md, seção 5](docs/operacao/deploy.md)).
 
+A 0.4.1 fecha as sobras da 0.1.13 e da revisão da 0.4.0 ([CHANGELOG](CHANGELOG.md)):
+
+- o `/construir` pode perguntar se o pacote de um pedido continua **vigente** ou foi **substituído**
+  (`GET /api/pedidos-construcao/<DEC-id>/situacao`), antes de começar a construção
+  ([manual, cap. 05](docs/manual-tecnico/05-pedido-de-construcao.md#situação-do-pedido-041)). A rota só informa; o lado
+  do `/construir` que para com o pacote substituído é da outra frente;
+- o Pedido de Construção é recusado também pelo nome do solicitante que valia quando o pacote foi criado, e não só pelo
+  atual, nos pacotes criados a partir da 0.4.1;
+- arquivar o pacote mais novo, com um pacote aprovado em vigor, deixa a demanda em Aprovada (ou em Em análise, se o
+  pacote em vigor está desatualizado), e não mais em Encerrada; a T11 avisa antes, na dica do Arquivar, e mostra três
+  avisos sobre o pacote em vigor ([manual, cap. 04](docs/manual-tecnico/04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041));
+- a migration de produção passa a rodar pelo serviço `migrar` do Easypanel, com o terminal como alternativa
+  ([docs/operacao/deploy.md, seção 2](docs/operacao/deploy.md)).
+
 ## Onde está cada coisa
 
 | Assunto | Documento |
@@ -77,6 +91,7 @@ prontas e a situação da construção ([manual, cap. 05](docs/manual-tecnico/05
 | Spec e plano do novo visual (0.2.0, 17 tarefas) | [spec](docs/superpowers/specs/2026-11-10-ws-orquestrador-demandas-novo-visual-design.md) e [plano](docs/superpowers/plans/2026-11-10-ws-orquestrador-demandas-plano.md) |
 | Spec e plano das integrações (0.3.0, 20 tarefas; a 0.3.1 mudou o que o manual e o CHANGELOG descrevem) | [spec](docs/superpowers/specs/2026-11-11-ws-orquestrador-demandas-integracoes-design.md) e [plano](docs/superpowers/plans/2026-11-11-ws-orquestrador-demandas-plano.md) |
 | Spec e plano do andamento do Pedido de Construção (0.4.0, 14 tarefas) | [spec](docs/superpowers/specs/2026-11-12-ws-orquestrador-demandas-andamento-design.md) e [plano](docs/superpowers/plans/2026-11-12-ws-orquestrador-demandas-plano.md) |
+| Spec e plano das sobras da 0.1.13 e da 0.4.0 (0.4.1, 14 tarefas) | [spec](docs/superpowers/specs/2026-11-13-ws-orquestrador-demandas-sobras-design.md) e [plano](docs/superpowers/plans/2026-11-13-ws-orquestrador-demandas-sobras-plano.md) |
 
 ## Requisitos da máquina
 
@@ -201,4 +216,5 @@ Scripts de operação (contas, tokens de agente e de integração, preço de mod
 - Migration de esquema só por `pnpm db:generate`; SQL à mão só em migration custom `rls_<nome>`; migration commitada
   não se edita.
 - Migration em produção nunca roda pelo `/construir`: é passo de Fabiano, na ordem backup → migrate → deploy
-  ([deploy.md, seção 5](docs/operacao/deploy.md)).
+  ([deploy.md, seção 5](docs/operacao/deploy.md)). Desde a 0.4.1, o migrate é o Deploy do serviço `migrar` do
+  Easypanel, parado entre versões ([deploy.md, seção 2](docs/operacao/deploy.md)).

@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Atualizado em | 13/11/2026 (0.4.0: `andamento` na vista de pessoa e, com quatro campos, na do Awave, no RF-06 e na seção do Awave; as duas transições automáticas do `/construir`, no RF-07; o evento `andamento_registrado` e o `status_alterado` pelo `/construir`, no RF-21); 12/11/2026 (0.3.1: demanda do Awave não confirmada invisível para agente e `sistema`, no RF-06 e na seção do Awave; confirmação só de pessoa; execução do agente que espera a confirmação; 201 do Awave dentro da transação com prazo total); 12/11/2026 (0.3.0: criação pelo Awave e limite de 10 por hora, no RF-03; origem da demanda e filtro `origem`, no RF-06; seção "Demanda aberta pelo Awave", com a confirmação por pessoa; eventos novos e ator de integração, no RF-21); 11/11/2026 (0.2.0: leituras da fila do painel, no RF-06); 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
+| Atualizado em | 14/11/2026 (0.4.1: o arquivamento do DEC mais novo sai das automáticas e passa a seguir o aprovado vigente, no RF-07; texto revisto do `pacote_decisao_substituido`, no RF-21); 13/11/2026 (0.4.0: `andamento` na vista de pessoa e, com quatro campos, na do Awave, no RF-06 e na seção do Awave; as duas transições automáticas do `/construir`, no RF-07; o evento `andamento_registrado` e o `status_alterado` pelo `/construir`, no RF-21); 12/11/2026 (0.3.1: demanda do Awave não confirmada invisível para agente e `sistema`, no RF-06 e na seção do Awave; confirmação só de pessoa; execução do agente que espera a confirmação; 201 do Awave dentro da transação com prazo total); 12/11/2026 (0.3.0: criação pelo Awave e limite de 10 por hora, no RF-03; origem da demanda e filtro `origem`, no RF-06; seção "Demanda aberta pelo Awave", com a confirmação por pessoa; eventos novos e ator de integração, no RF-21); 11/11/2026 (0.2.0: leituras da fila do painel, no RF-06); 10/11/2026 (0.1.13: evento `pacote_decisao_substituido`, no RF-21); 04/11/2026 (0.1.12: confirmação sem dado pessoal no evento `pedido_gerado`, no RF-21); 04/11/2026 (0.1.11: nome grudado em número, `_` ou CamelCase e o que sobra do M-1, no RF-06); 04/11/2026 (0.1.10: partes do nome do solicitante trocadas na vista mínima e o que sobra do M-1, no RF-06); 03/11/2026 (0.1.8: utilitários de minimização compartilhados com DEC, ESP e RSK e M-a fechado, no RF-06; 0.1.7: texto livre minimizado na vista mínima e na listagem do agente, no RF-06; 0.1.6: vista mínima do agente no RF-06; decisão e Pedido recusados em status final no RF-07) |
 | Dono | `documentacao-tecnica` (sistema: Fabiano) |
 | Cobre | RF-03 a RF-07, RF-15, RF-21; RNF-04, RNF-09; RF-04 a RF-08 e RF-10 do pedido 0016 (0.3.0) |
 | Fontes no código | `src/modules/demandas/` (`schemas.ts`, `servico.ts`, `consultas.ts`, `entrada.ts`, `entradas-pendentes.ts`, `texto-recebido.ts`, `gerar-id.ts`, `transicoes.ts`, `resumo-da-fila.ts`, `confirmar.ts`, `confirmacao.ts`), `src/modules/historico/`, `src/modules/limites.ts`, `src/app/(painel)/demandas/[id]/acoes.ts` (`confirmarDemandaNoPainel`) |
@@ -267,7 +267,12 @@ status final:
 | `duvida_em_aberto` | ESP gravada com dúvida | `nova`, `em_analise`, `pronta_para_decisao` | `aguardando_informacao` |
 | `dec_criado` | DEC gravado | `nova`, `em_analise`, `aguardando_informacao` | `pronta_para_decisao` |
 | `decisao_devolvida` | DEC devolvido | `nova`, `aguardando_informacao`, `pronta_para_decisao` | `em_analise` |
-| `decisao_arquivada` | DEC arquivado | `nova`, `em_analise`, `aguardando_informacao`, `pronta_para_decisao` | `encerrada` |
+| arquivamento (desde a 0.4.1, `mudarStatusPorArquivamento`) | DEC mais novo arquivado | `nova`, `em_analise`, `aguardando_informacao`, `pronta_para_decisao` | `encerrada` sem aprovado vigente; `aprovada` com vigente atualizado; `em_analise` com vigente desatualizado (sem mudança se já está em `em_analise`) |
+
+Até a 0.4.0, o arquivamento era a automática `decisao_arquivada` e levava sempre a `encerrada`. Desde a 0.4.1 (S-04),
+ela saiu de `AUTOMATICAS`, e o destino sai da tabela `destinoDoArquivamento` (`arquivamento.ts`), pelo estado do
+aprovado vigente lido sob a trava ([cap. 04](04-versoes-e-decisao.md#arquivar-o-dec-mais-novo-041)). O ator continua
+`sistema`.
 
 Fora da origem permitida, a automática não faz nada nem grava evento. **A aprovação do DEC não muda o status**
 (P1-d): a tela de decisão lembra de mudar à mão. Desde a 0.3.0, o `/construir` busca o pedido e confirma o
@@ -342,7 +347,7 @@ mão, e o pedido escrito direto, sem geração no painel, não muda nada (A3).
   Construção de <DEC-id>, com a confirmação de que o texto não tem dado pessoal"
   ([cap. 05](05-pedido-de-construcao.md#rf-22-gerar-o-pedido)). Desde a 0.1.13, o `pacote_decisao_substituido` é do
   DEC substituído e grava `depois: { "substituido": <id>, "substituidoPor": <id> }`, só os dois ids, e o histórico
-  mostra "<DEC substituído> foi substituído por <DEC aprovado>, aprovado depois"
+  mostra "<DEC substituído> foi substituído por <DEC aprovado>, aprovado depois dele" (texto revisto na 0.4.1)
   ([cap. 04](04-versoes-e-decisao.md#substituição-do-dec-aprovado)).
 - Leitura: `GET /api/demandas/:id/historico` e o detalhe da demanda, só pessoa.
 - Limite conhecido (B-04, backlog): a `referenciaDocumento` da aprovação da administradora é texto livre e fica no
