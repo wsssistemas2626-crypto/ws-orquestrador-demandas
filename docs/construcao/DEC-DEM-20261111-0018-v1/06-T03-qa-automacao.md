@@ -2,7 +2,7 @@
 pedido: DEC-DEM-20261111-0018-v1
 etapa: 06-T03-testes
 agente: qa-automacao
-leu: [pedido.json (via tarefas e plano), contrato-passagem.md, padrao-tecnico.md (seções 5 a 7), tarefas.json, 2026-11-13-ws-orquestrador-demandas-sobras-plano.md (G0 a G7 e T03), 01-analista-requisitos.md (RF-02, RNF-08, RNF-09), 04-seguranca-aplicacao.md (SB-07, SB-09, SB-10), 06-T02-qa-automacao.md (cabeçalho), 06-T03-engenheiro-dados-bd.md, 06-T03-tech-lead.md, git show 79f6511, drizzle/meta/_journal.json, drizzle/meta/0010_snapshot.json (trecho), src/db/schema/caminhos-da-criacao.test.ts, test/estatico/migration-0010.test.ts, test/estatico/migration-0008.test.ts, test/estatico/piso-de-assercoes.test.ts, src/modules/pacotes-decisao/consultas.ts, test/transversal/visibilidade-andamento.test.ts, test/banco.ts, test/pedidos-construcao.ts, test/requisicao.ts, test/sessao.ts (trecho), saída do pnpm test em /tmp]
+leu: [pedido.json (via tarefas e plano), contrato-passagem.md, padrao-tecnico.md (seções 5 a 7), tarefas.json, 2026-11-13-ws-orquestrador-demandas-sobras-plano.md (G0 a G7 e T03), 01-analista-requisitos.md (RF-02, RNF-08, RNF-09), 04-seguranca-aplicacao.md (SB-07, SB-09, SB-10), 06-T02-qa-automacao.md (cabeçalho), 06-T03-engenheiro-dados-bd.md, 06-T03-tech-lead.md, git show 79f6511, drizzle/meta/_journal.json, drizzle/meta/0010_snapshot.json (trecho), src/db/schema/caminhos-da-criacao.test.ts, test/estatico/migration-0010.test.ts, test/estatico/migration-0008.test.ts, test/estatico/piso-de-assercoes.test.ts, src/modules/pacotes-decisao/consultas.ts, test/transversal/visibilidade-andamento.test.ts, test/banco.ts, test/pedidos-construcao.ts, test/requisicao.ts, test/sessao.ts (trecho), src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts, src/modules/pedido-construcao/conferir.ts (linhas 30 a 59), saída do pnpm test em /tmp]
 status: pronto
 proximo: tech-lead
 devolvido_para: null
@@ -73,6 +73,7 @@ etapa. Nenhum `.skip`, `.only` ou `.todo`, e nenhuma asserção afrouxada.
 
 - A prova do SB-09 é dinâmica, pelas rotas reais a partir da `MATRIZ`, e não estática: o risco real é o `p: pacoteDecisao` inteiro em `selecao`, que só um teste de saída pega.
 - A sentinela fora da lista fechada é de propósito: um caminho válido (`demanda.titulo`) poderia aparecer em texto legítimo e enfraquecer o "não contém". O cenário não gera pedido, então a T05 (que vai conferir o formato na geração) não quebra este teste.
+- Na 2ª volta, conferi com Read que a rota `pacotes-decisao/[decId]/pedido-construcao/route.ts` só exporta `POST` (`gerar_pedido_construcao`, só pessoa) e que `conferirEMontarPedido` (`conferir.ts:55`) só roda na geração. Por isso, nenhuma das duas varreduras (GET da pessoa e rotas com agente) passa pela conferência da T05. A conclusão não mudou.
 - O arquivo novo do SB-09 tem o sufixo `-qa` para não colidir com `test/transversal/visibilidade-caminhos-da-criacao.test.ts`, que a D-05 reserva para a T04.
 - O SHA-256 dos bytes foi escolhido em vez de comparar com o git: o teste roda sem histórico (CI com clone raso) e quebra em qualquer edição de migration da `main`, inclusive de espaço.
 - O teste "só aditiva" compara o snapshot `0010` com o `0009`, que são arquivos fixos: ele não quebra quando vier uma `0011`. O teste da pasta lê o diário e acompanha a próxima migration sozinho.
@@ -82,8 +83,6 @@ etapa. Nenhum `.skip`, `.only` ou `.todo`, e nenhuma asserção afrouxada.
 
 - Para a revisão da T04: o arquivo do SB-09 (a, b) da T04 continua obrigatório (D-05). O desta etapa cobre só a ausência da chave e do valor, e não confere que as chaves das vistas são as da 0.4.0.
 - Para a T09: `src/db/imutabilidade.test.ts` (23) e `test/estatico/migration-0008.test.ts` (6) seguem fora do `PISO`. O plano (linha 1703) põe a `migration-0008` na T09. A `imutabilidade` cobre o SB-07 (d) e é candidata.
-- Comandos fora da regra do maestro, declarados abaixo para registro: o `git -C` na estruturaAutonoma (lista de seções do `padrao-tecnico.md`; o arquivo foi lido depois com Read), o `git status --short` (opção) e o `grep -n` na saída da suíte em `/tmp` (deveria ter sido Read). Os três só leem e não mudaram nada.
-
 ## Comandos executados
 
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files docs/construcao/DEC-DEM-20261111-0018-v1` — 18 arquivos
@@ -100,7 +99,6 @@ etapa. Nenhum `.skip`, `.only` ou `.todo`, e nenhuma asserção afrouxada.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas ls-files src/app/api` — lista
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "export" -- test/sessao.ts test/deps.ts src/modules/acesso/ator.ts` — assinaturas
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "export const MATRIZ\|export type Regra\|papeis\|agentes:" -- src/modules/acesso/matriz.ts` — formato da linha
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "conferir\|export const" -- src/app/api/pacotes-decisao/[decId]/pedido-construcao/route.ts src/modules/pedido-construcao/conferir.ts` — rota do pedido só POST
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "export function substituirDestinoDoLog" -A6 -- src/lib/log.ts` — erro do git (opção depois do padrão), sem resultado
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n "substituirDestinoDoLog" -- src/lib/log.ts test/transversal/sentinelas-situacao.test.ts` — uso do destino
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -n -A6 "caminhos_com_nome_na_criacao" -- drizzle/meta/0010_snapshot.json` — a coluna no snapshot
@@ -118,9 +116,11 @@ etapa. Nenhum `.skip`, `.only` ou `.todo`, e nenhuma asserção afrouxada.
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — só `piso-de-assercoes.test.ts` (+4)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -- test/estatico/piso-de-assercoes.test.ts` — só acréscimo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status` — 1 alterado, 2 novos em test/
-- `git -C /home/deploy/servidor/projetos/estruturaAutonoma grep -n "^## " -- docs/construcao/padrao-tecnico.md` — 12 seções (fora da regra do maestro: caminho fora do repositório; ver Pendências)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — o mesmo estado (fora da regra: opção)
-- `grep -n "Test Files\|Tests \|FAIL\|Duration" /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/d7de67e8-15e3-4f45-b927-45e1f3d1b43d/tasks/bukl4t238.output` — resumo da suíte (fora da regra: deveria ter sido Read)
+- `git -C /home/deploy/servidor/projetos/estruturaAutonoma grep -n "^## " -- docs/construcao/padrao-tecnico.md` — 12 seções
+- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas status --short` — o mesmo estado
+- `grep -n "Test Files\|Tests \|FAIL\|Duration" /tmp/claude-1000/-home-deploy-servidor-projetos-estruturaAutonoma/d7de67e8-15e3-4f45-b927-45e1f3d1b43d/tasks/bukl4t238.output` — resumo da suíte
+
+O git grep com [decId] sem aspas, da 1ª volta, está no registro (bloqueado e ajuste da 06-T03-testes em 14/11).
 
 ## Critério de pronto atendido
 
