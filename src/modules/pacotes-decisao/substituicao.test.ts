@@ -143,7 +143,7 @@ describe('S1: substituido e substituidoPor na leitura', () => {
     expect(await campos(v1)).toEqual({ statusDecisao: 'aprovada', substituido: false, substituidoPor: null });
     expect(await campos(v2)).toEqual({ statusDecisao: 'pendente', substituido: false, substituidoPor: null });
 
-    // Devolvido e arquivado, em demandas próprias (arquivar encerra a demanda).
+    // Devolvido e arquivado, em demandas próprias (arquivar com vigente leva a Aprovada (0.4.1)).
     const outra = await comV1Aprovado();
     const devolvido = await novoDec(outra.demandaId);
     await registrarDecisao(deps, cto, devolvido, decisaoDe({ statusDecisao: 'devolvida' }));

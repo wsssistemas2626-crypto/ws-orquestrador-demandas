@@ -1,7 +1,7 @@
 // Status da demanda e transições (RF-07). As manuais são só de pessoa (alterarDemanda); as automáticas, do ator
-// `sistema`, disparadas por ESP com dúvida, DEC criado e decisão devolvida ou arquivada, sem passar por `autorizar`
-// (a matriz nega o sistema em toda ação). Os motivos de recusa são os da 03 (T05); a tela acrescenta o prefixo
-// "Não foi possível concluir: ".
+// `sistema`, disparadas por ESP com dúvida, DEC criado e decisão devolvida (o arquivamento tem função própria), sem
+// passar por `autorizar` (a matriz nega o sistema em toda ação). Os motivos de recusa são os da 03 (T05); a tela
+// acrescenta o prefixo "Não foi possível concluir: ".
 import { eq } from 'drizzle-orm';
 import { demanda } from '../../db/schema';
 import type { StatusConstrucao } from '../../db/schema/andamento';
@@ -11,6 +11,7 @@ import { ErroDominio } from '../../lib/erros';
 import { atorDesconhecido, type Ator } from '../acesso/ator';
 import { mudancaDeCampo, registrarEvento } from '../historico/registrar';
 import { travarDemanda } from '../versoes';
+import { destinoDoArquivamento, type EstadoDoVigente } from './arquivamento';
 import type { Status, Tipo } from './schemas';
 
 const lista = (...s: Status[]): readonly Status[] => Object.freeze(s);
@@ -69,13 +70,12 @@ export function conferirTransicaoManual(
   return { ok: true };
 }
 
-export type TransicaoAutomatica = 'duvida_em_aberto' | 'dec_criado' | 'decisao_devolvida' | 'decisao_arquivada';
+export type TransicaoAutomatica = 'duvida_em_aberto' | 'dec_criado' | 'decisao_devolvida';
 
 const AUTOMATICAS: Readonly<Record<TransicaoAutomatica, { de: readonly Status[]; para: Status }>> = Object.freeze({
   duvida_em_aberto: { de: lista('nova', 'em_analise', 'pronta_para_decisao'), para: 'aguardando_informacao' },
   dec_criado: { de: lista('nova', 'em_analise', 'aguardando_informacao'), para: 'pronta_para_decisao' },
   decisao_devolvida: { de: lista('nova', 'aguardando_informacao', 'pronta_para_decisao'), para: 'em_analise' },
-  decisao_arquivada: { de: lista('nova', 'em_analise', 'aguardando_informacao', 'pronta_para_decisao'), para: 'encerrada' },
 });
 
 // Só muda se o status atual está na origem permitida; fora dela, não faz nada (nem evento). Trava a linha da demanda
@@ -95,6 +95,27 @@ export async function mudarStatusPeloSistema(
     { ator: { tipo: 'sistema' }, demandaId, entidade: 'demanda', entidadeId: demandaId, acao: 'status_alterado', ...mudancaDeCampo('status', atual.status, regra.para) },
     deps.relogio,
   );
+}
+
+// 0.4.1 (S-04, ADR-38): o arquivamento do DEC mais novo. O destino é o da tabela de arquivamento.ts, pelo status da
+// linha travada e pelo estado do vigente que quem chama leu sob a mesma trava (decidir.ts). Ator sistema; destino nulo
+// ou igual ao atual não grava nada.
+export async function mudarStatusPorArquivamento(
+  t: Transacao,
+  deps: Pick<Deps, 'relogio'>,
+  demandaId: string,
+  estado: EstadoDoVigente,
+): Promise<Status | null> {
+  const atual = await travarDemanda(t.tx, demandaId);
+  const para = destinoDoArquivamento(atual.status, estado);
+  if (para === null || para === atual.status) return null;
+  await t.tx.update(demanda).set({ status: para, atualizadaEm: deps.relogio.agora() }).where(eq(demanda.id, demandaId));
+  await registrarEvento(
+    t.tx,
+    { ator: { tipo: 'sistema' }, demandaId, entidade: 'demanda', entidadeId: demandaId, acao: 'status_alterado', ...mudancaDeCampo('status', atual.status, para) },
+    deps.relogio,
+  );
+  return para;
 }
 
 // 0.4.0 (RF-05, ADR-34, A1): as duas transições do /construir, com origem fixa. `entregue` e `encerrada` nunca são

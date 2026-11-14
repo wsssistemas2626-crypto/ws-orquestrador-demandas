@@ -8,7 +8,8 @@
 //      a demanda por cima do mais novo;
 //   5. desatualizado, relido sob a trava → 409 só para aprovar (CA-12.2, CA-12.3);
 //   6. rascunho de agente citado sem a confirmação de revisão → 400 (CA-13.4);
-//   7. devolvida ou arquivada: grava a decisão, e a demanda muda pelo ator sistema (RF-07);
+//   7. devolvida: a demanda vai a em_analise pelo ator sistema; arquivada: o destino de arquivamento.ts pelo vigente
+//      lido depois da decisão (0.4.1, S-04);
 //   8. aprovada: o papel é o da conta (C-11, P1-a); nível cto só por conta cto (P1-b), e só se o aprovado vigente da
 //      demanda não exigiu a administradora → 409, antes de gravar (S-01 da 04-revisao do 0014); nível
 //      cto_e_administradora com as duas aprovações, a mesma opção e a referência ao documento assinado da
@@ -28,12 +29,13 @@ import type { Ator, AtorPessoa } from '../acesso/ator';
 import { autorizar } from '../acesso/matriz';
 import { MENSAGENS_ACESSO } from '../acesso/mensagens';
 import type { DepsDemanda } from '../demandas/servico';
-import { ehStatusFinal, mudarStatusPeloSistema } from '../demandas/transicoes';
+import { estadoDoVigente } from '../demandas/arquivamento';
+import { ehStatusFinal, mudarStatusPeloSistema, mudarStatusPorArquivamento } from '../demandas/transicoes';
 import { registrarEvento } from '../historico/registrar';
 import { travarDemanda } from '../versoes';
 import { obterPacoteDecisao, type PacoteDecisaoVista } from './consultas';
 import type { RegistrarDecisao } from './schemas';
-import { aprovadoMaisNovo, aprovadoVigente } from './substituido';
+import { aprovadoMaisNovo, aprovadoVigente, vigenteDaDemanda } from './substituido';
 
 // P1-a: só a própria administradora, com conta e 2FA, registra a aprovação de papel `administradora`. Trocar para
 // 'cto_com_referencia' deixa o CTO registrar em nome dela, com a referência ao documento assinado.
@@ -246,7 +248,12 @@ export async function registrarDecisao(
     if (entrada.statusDecisao === 'aprovada') return aprovar(c, entrada);
 
     await gravarDecisao(c, entrada.statusDecisao, null, textoOuNulo(entrada.comentarios));
-    await mudarStatusPeloSistema(tr, deps, pacote.demandaId, entrada.statusDecisao === 'devolvida' ? 'decisao_devolvida' : 'decisao_arquivada');
+    if (entrada.statusDecisao === 'devolvida') await mudarStatusPeloSistema(tr, deps, pacote.demandaId, 'decisao_devolvida');
+    else {
+      // 0.4.1 (S-04): lido depois de gravarDecisao, sob a trava: o DEC arquivado não é aprovado e não conta.
+      const vigente = await vigenteDaDemanda(tx, pacote.demandaId);
+      await mudarStatusPorArquivamento(tr, deps, pacote.demandaId, estadoDoVigente(vigente));
+    }
     return entrada.statusDecisao;
   };
 

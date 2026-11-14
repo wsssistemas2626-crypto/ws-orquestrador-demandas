@@ -131,6 +131,11 @@ const PISO: Readonly<Record<string, number>> = {
   // o DEC recusado continua recusado em toda troca do solicitanteNome, e sentinelas com o Sentry exercitado): contado ao
   // fim da etapa.
   'src/modules/pedido-construcao/conferir-nome-da-criacao-qa.test.ts': 30,
+  // T06 do DEC-DEM-20261111-0018-v1 (SB-11; CA-03.1 a CA-03.5; 7.1): contado no fim da tarefa.
+  'src/modules/demandas/arquivamento.test.ts': 10,
+  'src/modules/demandas/arquivamento-status.test.ts': 14,
+  'src/modules/pacotes-decisao/arquivar-com-vigente.test.ts': 49,
+  'test/estatico/arquivamento.test.ts': 29,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
