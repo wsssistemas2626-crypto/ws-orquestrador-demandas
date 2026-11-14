@@ -4,6 +4,9 @@
 //   2) o id que `obterPacoteDecisao` recebe é o `.id` de uma constante tirada de `d.pacotesDecisao[0]`, nunca de
 //      `params` nem de `searchParams` (a página não lê DEC pedido pela URL);
 //   3) `etapasDaDemanda(` e `proximaAcao(` são chamadas aqui (CA-09.4: só página as chama).
+// 0.4.1 (T13 do DEC-DEM-20261111-0018-v1; 7.2, item 3; D-14; G5): na regra 2, o id também é certo quando é o `.id` de
+// uma constante criada exatamente como `vigenteDe(d)` (o aprovado vigente, tirado da mesma vista da demanda), e só se a
+// leitura vem depois de `autorizar(pessoa, 'ler_pacote_decisao')`. Fora disso, o achado de hoje, com o mesmo texto.
 // Lido pela árvore do TypeScript, no corpo de `PaginaDemanda`. Cada regra tem um caso plantado que a faz reprovar.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -34,9 +37,12 @@ export function achadosDoDec(fonte: string): string[] {
   const chamadas = new Set<string>();
   // Constantes do corpo tiradas de `d.pacotesDecisao[0]`.
   const doPacoteMaisNovo = new Set<string>();
+  // 0.4.1 (T13): constantes do corpo criadas exatamente como `vigenteDe(d)`.
+  const doVigente = new Set<string>();
   const visitar = (no: ts.Node): void => {
     if (ts.isVariableDeclaration(no) && ts.isIdentifier(no.name) && no.initializer && no.initializer.getText().replace(/\s/g, '') === 'd.pacotesDecisao[0]')
       doPacoteMaisNovo.add(no.name.text);
+    if (ts.isVariableDeclaration(no) && ts.isIdentifier(no.name) && no.initializer && no.initializer.getText().replace(/\s/g, '') === 'vigenteDe(d)') doVigente.add(no.name.text);
     if (ts.isCallExpression(no)) {
       const nome = nomeDaChamada(no);
       if (nome) chamadas.add(nome);
@@ -55,7 +61,10 @@ export function achadosDoDec(fonte: string): string[] {
     if (autorizacao >= 0 && l.getStart() < autorizacao) achados.push('obterPacoteDecisao antes de autorizar');
     const id = l.arguments[1];
     const certo = id && ts.isPropertyAccessExpression(id) && id.name.text === 'id' && ts.isIdentifier(id.expression) && doPacoteMaisNovo.has(id.expression.text);
-    if (!certo) achados.push(`id do DEC fora de d.pacotesDecisao[0]: ${id ? id.getText() : '(nenhum)'}`);
+    // 0.4.1 (T13): o `.id` do vigente só vale depois de autorizar.
+    const doVigenteDepoisDeAutorizar =
+      id && ts.isPropertyAccessExpression(id) && id.name.text === 'id' && ts.isIdentifier(id.expression) && doVigente.has(id.expression.text) && autorizacao >= 0 && l.getStart() > autorizacao;
+    if (!certo && !doVigenteDepoisDeAutorizar) achados.push(`id do DEC fora de d.pacotesDecisao[0]: ${id ? id.getText() : '(nenhum)'}`);
   }
   for (const f of ['etapasDaDemanda', 'proximaAcao']) if (!chamadas.has(f)) achados.push(`sem ${f}(`);
   return achados;
@@ -89,6 +98,19 @@ describe('CV-09 (T11): a leitura do DEC mais novo na página da T05', () => {
     expect(com("const dec = await obterPacoteDecisao(deps.db, 'DEC-DEM-20261110-0001-v1');")).toEqual(["id do DEC fora de d.pacotesDecisao[0]: 'DEC-DEM-20261110-0001-v1'"]);
     expect(com('const antigo = d.pacotesDecisao[1];\nconst dec = await obterPacoteDecisao(deps.db, antigo.id);')).toEqual(['id do DEC fora de d.pacotesDecisao[0]: antigo.id']);
     expect(com('const dec = await obterPacoteDecisao(deps.db);')).toEqual(['id do DEC fora de d.pacotesDecisao[0]: (nenhum)']);
+  });
+
+  // 0.4.1 (T13; G5): a leitura do aprovado vigente, com o id de vigenteDe(d), só depois de autorizar.
+  it('aceita o id de vigenteDe(d) lido depois de autorizar, e só ele', () => {
+    const V = 'const vigenteResumo = vigenteDe(d);';
+    const LE_V = 'const decVigente = vigenteResumo ? await obterPacoteDecisao(deps.db, vigenteResumo.id) : null;';
+    const FORA = 'id do DEC fora de d.pacotesDecisao[0]: vigenteResumo.id';
+    expect(achadosDoDec(pagina([DEC, AUTORIZA, LE, V, LE_V, REGRAS].join('\n')))).toEqual([]);
+    expect(achadosDoDec(pagina([DEC, AUTORIZA, LE, 'const vigenteResumo = vigenteDe(outra);', LE_V, REGRAS].join('\n')))).toEqual([FORA]);
+    expect(achadosDoDec(pagina([DEC, V, LE_V, AUTORIZA, LE, REGRAS].join('\n')))).toEqual(['obterPacoteDecisao antes de autorizar', FORA]);
+    expect(achadosDoDec(pagina([DEC, V, LE_V, LE, REGRAS].join('\n')))).toEqual(["sem autorizar(pessoa, 'ler_pacote_decisao')", FORA]);
+    const outroInicializador = "const vigenteResumo = d.pacotesDecisao.find((p) => p.statusDecisao === 'aprovada');";
+    expect(achadosDoDec(pagina([DEC, AUTORIZA, LE, outroInicializador, LE_V, REGRAS].join('\n')))).toEqual([FORA]);
   });
 
   it('reprova a página que não lê o DEC ou não chama as regras de exibição', () => {

@@ -24,6 +24,10 @@
 // da demanda já traz (T09), em qualquer status, só quando o andamento é válido (secaoDoAndamento confere de novo; sem
 // ele, nem seção nem item em "Nesta página"); no DOM logo depois da Próxima ação, e a partir de 1200 px embaixo dela, na
 // coluna lateral, com o Histórico descendo uma linha. A Próxima ação recebe o andamento para a linha 15.
+//
+// 0.4.1 (T13 do DEC-DEM-20261111-0018-v1; 7.2, itens 3 e 4; D-14): com o DEC mais novo arquivado e um aprovado vigente
+// na vista da demanda (vigenteDe), a página lê também o vigente, pelo id da vista e depois da mesma autorização
+// `ler_pacote_decisao`, para a etapa 4 da barra.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -33,7 +37,7 @@ import { classeDoBotao } from '../../../../components/Botao';
 import { Cartao } from '../../../../components/Cartao';
 import { estadoDaConfirmacao, type EstadoDaConfirmacao } from '../../../../components/dados-da-confirmacao';
 import { AVISO_DEMANDA, TEXTOS_DEMANDA } from '../../../../components/dados-da-demanda';
-import { etapasDaDemanda, proximaAcao, type DadosDasEtapas } from '../../../../components/dados-das-etapas';
+import { etapasDaDemanda, proximaAcao, vigenteDe, type DadosDasEtapas } from '../../../../components/dados-das-etapas';
 import { secaoDoAndamento } from '../../../../components/dados-do-andamento';
 import { chegadaDaEspecificacao } from '../../../../components/dados-da-especificacao';
 import { chegadaDoParecer } from '../../../../components/dados-do-parecer';
@@ -409,6 +413,10 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
     espMaisNova ? obterEspecificacao(deps.db, espMaisNova.id) : Promise.resolve(null),
     decResumo ? obterPacoteDecisao(deps.db, decResumo.id) : Promise.resolve(null),
   ]);
+  // 0.4.1 (7.2, item 3; D-14): com o DEC mais novo arquivado, o vigente, para a etapa 4. Já autorizado acima
+  // (ler_pacote_decisao); o id vem só da vista da demanda.
+  const vigenteResumo = vigenteDe(d);
+  const decVigente = decMaisNovo?.statusDecisao === 'arquivada' && vigenteResumo ? await obterPacoteDecisao(deps.db, vigenteResumo.id) : null;
   const retencaoDias = deps.config.retencaoDias;
   const duvidas = duvidasEmAberto(d, esp);
   const alertas = alertasDoTopo(d, historico, duvidas !== null);
@@ -428,6 +436,7 @@ export default async function PaginaDemanda({ params, searchParams }: Props) {
     temSecaoDeDuvidas: duvidas !== null,
     aguardaConfirmacaoDoAwave: aguardando,
     andamento: d.andamento,
+    decVigente,
   };
   const etapas = etapasDaDemanda(dadosDasEtapas);
   const acao = proximaAcao(dadosDasEtapas);

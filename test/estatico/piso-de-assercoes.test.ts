@@ -259,6 +259,10 @@ const PISO: Readonly<Record<string, number>> = {
   // nenhum id fora do formato em texto ou link, corridas da releitura): contado no fim da etapa.
   'src/components/dados-da-decisao-vigencia-qa.test.ts': 51,
   'src/app/(painel)/pacotes-decisao/[decId]/pagina-vigencia-qa.test.ts': 31,
+  // T13 do DEC-DEM-20261111-0018-v1 (G9: o DEC vigente na T05 só com o mais novo arquivado, depois de autorizar
+  // ler_pacote_decisao e pelo id da vista; CV-09 com a regra 2 ampliada para vigenteDe(d)): contado no fim da tarefa.
+  'src/app/(painel)/demandas/[id]/detalhe-vigente.test.ts': 24,
+  'test/estatico/detalhe-dec.test.ts': 19,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
