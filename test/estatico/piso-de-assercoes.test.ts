@@ -136,6 +136,10 @@ const PISO: Readonly<Record<string, number>> = {
   'src/modules/demandas/arquivamento-status.test.ts': 14,
   'src/modules/pacotes-decisao/arquivar-com-vigente.test.ts': 49,
   'test/estatico/arquivamento.test.ts': 29,
+  // 06-T06-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; SB-11 adversarial: critério 3 pelas rotas, vigente
+  // desatualizado pelo RSK, aprovação incompleta nas duas ordens e por cima do vigente, corrida com o RSK novo e com a
+  // aprovação que completaria o v1): contado ao fim da etapa.
+  'src/modules/pacotes-decisao/arquivar-com-vigente-qa.test.ts': 63,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
