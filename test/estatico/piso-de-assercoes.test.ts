@@ -119,6 +119,11 @@ const PISO: Readonly<Record<string, number>> = {
   'src/modules/pacotes-decisao/marcacao-da-criacao.test.ts': 18,
   'test/transversal/visibilidade-caminhos-da-criacao.test.ts': 13,
   'test/estatico/caminhos-da-criacao.test.ts': 28,
+  // 06-T04-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; SB-07 adversarial nos cinco caminhos de criação, com a
+  // conferência igual à do D1 relida do banco; ExtrasDoPacote e criar.ts sem a chave fora das três linhas; tipo da linha
+  // com a coluna obrigatória): contado ao fim da etapa.
+  'src/modules/pacotes-decisao/marcacao-da-criacao-qa.test.ts': 27,
+  'test/estatico/caminhos-da-criacao-qa.test.ts': 33,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
