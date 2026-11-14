@@ -147,6 +147,10 @@ const PISO: Readonly<Record<string, number>> = {
   // filtro, controle com a consulta da 0.4.0, plano sem Sort em páginas de 1 a 204, SB-13 com ids adversariais):
   // contado ao fim da etapa.
   'src/modules/andamento/consultas-qa.test.ts': 28,
+  // T08 do DEC-DEM-20261111-0018-v1 (SB-14, CA-04.2, CA-04.3: o C-27 sem asserção a menos e a prova permanente de que a
+  // verificação pega o papel do migrator): contado no fim da tarefa.
+  'src/lib/deps-qa.test.ts': 8,
+  'test/sessoes-do-banco.test.ts': 5,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
