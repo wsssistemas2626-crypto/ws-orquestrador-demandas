@@ -23,7 +23,7 @@ sem padrão, e a migration `0010` gerada pelo `pnpm db:generate`, sem edição e
 - `drizzle/meta/_journal.json`: só a entrada `idx 10` acrescentada (pelo gerador)
 - `src/db/imutabilidade.test.ts` (G5): o `it.each` da linha 32 ganha `['update pacote_decisao set caminhos_com_nome_na_criacao = $1', ['{}']]`, com comentário; contagem de `expect(` igual (23)
 - `test/estatico/migration-0008.test.ts` (G5): o teste das linhas 22 a 25 passa a "a 0008 e a 0009 estão nos índices 8 e 9 do diário", com `find((e) => e.idx === 8 | 9)`, sem `entries[9]` nem a lista inteira fixa; as outras asserções ficam; contagem de `expect(` igual (6). A asserção da lista inteira de índices vive agora em `migration-0010.test.ts`, com o 10
-- `test/estatico/piso-de-assercoes.test.ts`: só acréscimo, `src/db/schema/caminhos-da-criacao.test.ts: 9` e `test/estatico/migration-0010.test.ts: 4`
+- `test/estatico/piso-de-assercoes.test.ts`: só acréscimo, `src/db/schema/caminhos-da-criacao.test.ts: 9` e `test/estatico/migration-0010.test.ts: 4`. Contagem conferida com a ferramenta Read, linha a linha, nos dois arquivos (ainda não rastreados pelo git): `caminhos-da-criacao.test.ts` tem `expect(` nas linhas 50, 54, 61, 77, 78, 79, 80, 89 e 90 (9); `migration-0010.test.ts`, nas linhas 23, 24, 25 e 29 (4). A linha do `import` (`expect, it`) não conta
 
 **Não mudou:** `drizzle/0000` a `0009` e os snapshots `0000` a `0009` (`git diff 41108ee --stat -- drizzle src/db/privilegios.ts` mostra só o `_journal.json`, +7); `src/db/privilegios.ts` (o `GRANT SELECT, INSERT` de tabela da `0003` cobre a coluna nova; o caso 3 do teste novo prova o INSERT pelo app e o 4 prova que não há UPDATE).
 
@@ -97,7 +97,6 @@ ajuste foi só de tipo (`it.each<[string, unknown[]]>`), e os arquivos da tarefa
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff --stat` — 4 arquivos rastreados alterados
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test test/estatico/migration-0010.test.ts src/db/schema/caminhos-da-criacao.test.ts src/db/imutabilidade.test.ts test/estatico/migration-0008.test.ts --reporter=dot` — depois do código: 55 de 55
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep -c "expect(" -- src/db/schema/caminhos-da-criacao.test.ts test/estatico/migration-0010.test.ts test/estatico/migration-0008.test.ts src/db/imutabilidade.test.ts` — imutabilidade 23, migration-0008 6 (os novos ainda não rastreados)
-- `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas grep --untracked -c "expect(" -- src/db/schema/caminhos-da-criacao.test.ts test/estatico/migration-0010.test.ts` — 9 e 4
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test --reporter=dot` — em segundo plano: 360 de 360 arquivos, 7907 de 7907 testes, 0 falhas (201 s)
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -- drizzle/meta/_journal.json` — só a entrada idx 10
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff 41108ee --stat -- drizzle src/db/privilegios.ts` — só `_journal.json` (+7)
@@ -106,6 +105,8 @@ ajuste foi só de tipo (`it.each<[string, unknown[]]>`), e os arquivos da tarefa
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas lint` — limpo
 - `git -C /home/deploy/servidor/projetos/ws-orquestrador-demandas diff -- src/db/schema/decisao.ts` — só a coluna e o comentário
 - `pnpm --dir /home/deploy/servidor/projetos/ws-orquestrador-demandas test src/db/schema/caminhos-da-criacao.test.ts test/estatico/migration-0010.test.ts test/estatico/piso-de-assercoes.test.ts --reporter=dot` — 85 de 85 (repetido depois do ajuste de tipo, que entrou com a suíte já rodando)
+
+O git grep --untracked da 1ª volta está no registro (bloqueado e ajuste da 06-T03-construcao em 14/11).
 
 ## Critério de pronto atendido
 
