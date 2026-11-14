@@ -143,6 +143,10 @@ const PISO: Readonly<Record<string, number>> = {
   // T07 do DEC-DEM-20261111-0018-v1 (SB-13, CA-07.2, CA-07.3: uma linha por demanda, sem Sort, id malicioso sem
   // efeito): contado no fim da tarefa.
   'src/modules/andamento/consultas.test.ts': 38,
+  // 06-T07-testes do DEC-DEM-20261111-0018-v1 (qa-automacao; B-08-1 com 3.000 linhas por demanda e as descartadas por
+  // filtro, controle com a consulta da 0.4.0, plano sem Sort em páginas de 1 a 204, SB-13 com ids adversariais):
+  // contado ao fim da etapa.
+  'src/modules/andamento/consultas-qa.test.ts': 28,
 };
 export const linhasComExpect = (fonte: string): number => fonte.split('\n').filter((l) => l.includes('expect(')).length;
 
