@@ -5,7 +5,7 @@
 **Risco do pedido:** baixo
 
 ## Até aqui
-- 73 passagens, 265 min de agentes, 0 min de espera, 7 voltas, 23 bloqueios.
+- 138 passagens, 477 min de agentes, 0 min de espera, 10 voltas, 45 bloqueios.
 
 ## O plano
 - 14 tarefas em 7 fases: Situação do pedido (2), D1 com o nome da criação (3), Arquivamento (1), Fila (1), Teste instável e piso (2), Seed (1), Painel (4).
@@ -13,8 +13,9 @@
 - Paradas entre fases: só risco alto 3 (antes de D1 com o nome da criação, Arquivamento, Teste instável e piso) · até o fim 0 · a cada fase 6.
 
 ## Para você decidir
+- (05-tech-lead) Para a `08-revisao` ratificar: a ampliação da regra 2 do CV-09 (teste de segurança) para `vigenteDe(d)` depois de autorizar, decidida pelo maestro em 14/11 pela autonomia dada por Fabiano. A guarda é textual, como a de hoje: ela confere o nome `vigenteDe` e o argumento `d`, não de onde a função é importada. Um endurecimento possível, fora desta volta, é exigir que `vigenteDe` venha de `components/dados-das-etapas`.
 - (05-tech-lead) Herdadas da spec, com Fabiano e fora do `/construir`: o aceite do risco residual com a `gestao-riscos` (7.2, item 11); backup, migration `0010` e deploy depois do merge; o lado do `/construir` (outra frente), com o cliente falhando fechado.
-- Mais 12 pendências que não bloqueiam, nos arquivos da pasta do pedido.
+- Mais 14 pendências que não bloqueiam, nos arquivos da pasta do pedido.
 
 ## Opções
 - Aprovo, parando só nas fases de risco alto (recomendado)
